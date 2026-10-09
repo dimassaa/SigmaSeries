@@ -1,0 +1,22 @@
+{
+  "name": "serial-tracker",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Сервис оценки и отслеживания сериалов с календарём выхода",
+  "type": "module",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "test": "node --test \"tests/**/*.test.js\"",
+    "test:watch": "node --test --watch \"tests/**/*.test.js\"",
+    "test:only": "node --test",
+    "db:extract": "python3 tools/schema/extract.py",
+    "db:check": "python3 tools/schema/extract.py --check",
+    "docs": "python3 tools/docs-build/build_registries.py",
+    "docs:check": "node tools/docs-build/context-pack.mjs --check",
+    "verify": "npm run db:check && npm run docs && npm run test"
+  },
+  "dependencies": {},
+  "devDependencies": {}
+}
