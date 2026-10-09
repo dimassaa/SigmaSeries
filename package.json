@@ -1,8 +1,8 @@
 {
-  "name": "serial-tracker",
+  "name": "sigmaseries",
   "version": "0.1.0",
   "private": true,
-  "description": "Сервис оценки и отслеживания сериалов с календарём выхода",
+  "description": "Track the series you watch, rate them, and never miss an episode. Release calendar, spoiler-aware reviews and discussions in one place.",
   "type": "module",
   "engines": {
     "node": ">=22.0.0"
