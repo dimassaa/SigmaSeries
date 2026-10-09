@@ -13,9 +13,9 @@
     "test:only": "node --test",
     "db:extract": "python3 tools/schema/extract.py",
     "db:check": "python3 tools/schema/extract.py --check",
-    "docs": "python3 tools/docs-build/build_registries.py",
+    "docs": "cd docs && python3 ../tools/docs-build/build_registries.py",
     "docs:check": "node tools/docs-build/context-pack.mjs --check",
-    "verify": "npm run db:check && npm run docs && npm run test"
+    "verify": "npm run db:check && npm run docs && npm run test && npm run docs:check"
   },
   "dependencies": {
     "argon2": "^0.45.1",
