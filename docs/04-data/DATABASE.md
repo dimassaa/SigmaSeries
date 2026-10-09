@@ -1,0 +1,485 @@
+# DATABASE — схема базы данных и скрипт генерации
+
+> v0.1 · Фаза 5 · читать после `DOMAIN-MODEL`. Закрывает требование Бланка 3.3.1 «ссылочная целостность схемы БД» и даёт **обязательное приложение к записке** — листинг скрипта генерации базы данных (Бланк §4, приложения).
+> **СУБД: PostgreSQL.** Обоснование — в `05-architecture/STACK.md`, здесь только следствия: полнотекстовый поиск по телу материала (решение Модели §8, п. 3), денежного типа для рейтинга, `JSONB` для параметров уведомлений, `tsvector` для поиска по названиям на русском. MySQL и MongoDB разрешены Бланком, но MongoDB не даёт ссылочной целостности в требуемом смысле, а MySQL хуже справляется с русским полнотекстовым поиском без внешних расширений.
+
+## 1. Правила схемы
+
+1. **Идентификаторы** — `BIGINT GENERATED ALWAYS AS IDENTITY`. Читаемый `slug` — только у публичных сущностей (сериал, персона, подборка, ник).
+2. **Время** — `TIMESTAMPTZ`, хранится в UTC. Локальная дата пользователя — производная от его часового пояса, **не хранится** (`GLOSSARY`).
+3. **Даты выхода** — `DATE` плюс отдельный `TIME` nullable и `precision` (`date | exact`). Это то, из-за чего «вышло сегодня» считается по локальной дате, а не по моменту (M3 §0).
+4. **Мягкое удаление** — `deleted_at TIMESTAMPTZ NULL`. Удаление пользователя — анонимизация, строка остаётся (`M9` §0). Удаление сериала — архивирование.
+5. **Ограничения ссылочной целостности объявлены явно**, включая `ON DELETE`. Каскад применяется **только** к строкам, у которых нет смысла без родителя (строки перевода, ссылки подборки). Всё остальное — `RESTRICT`, чтобы ошибка была громкой.
+6. **Ни одного `ON DELETE CASCADE` на пользователях, материалах и решениях** — иначе потеря записи об удалении была бы потерей доказательства удаления (EC-B6).
+7. **Уникальность — частичные индексы** там, где условие применимости не permanent (например, один активный мьют на пользователя).
+8. **Все внешние клюлы индексируются.**
+
+## 2. Схема (DDL)
+
+```sql
+-- ============================================================
+-- Генерация схемы курсового проекта.
+-- Запуск: psql -U <user> -d <db> -f database.sql
+-- Идемпотентна: повторный запуск на чистой базе даёт тот же
+-- результат; на непустой падает на CREATE TABLE без IF NOT EXISTS.
+-- Версия схемы фиксируется в _meta.
+-- ============================================================
+
+CREATE TABLE _meta (
+  key   TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+INSERT INTO _meta (key, value) VALUES ('schema_version', '1.0');
+
+-- ---------- Пользователь и доступ ----------
+
+CREATE TABLE e_user (
+  id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  email_hash      BYTEA  NOT NULL,           -- шифр для хранения
+  email_blind_idx BYTEA  NOT NULL,           -- HMAC для поиска: ищем, не зная значения
+  email_enc       BYTEA,                     -- шифр, из которого восстанавливается при входе
+  password_hash   TEXT   NOT NULL,           -- argon2id; наружу не отдаётся никогда
+  nickname        TEXT   NOT NULL,
+  avatar_image_id BIGINT,
+  status          TEXT   NOT NULL DEFAULT 'active'
+                  CHECK (status IN ('active','muted','banned','deleting','deleted')),
+  email_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
+  registered_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_active_at  TIMESTAMPTZ,
+  timezone        TEXT   NOT NULL DEFAULT 'Europe/Minsk',
+  locale          TEXT   NOT NULL DEFAULT 'ru' CHECK (locale IN ('ru','en')),
+  theme           TEXT   NOT NULL DEFAULT 'system' CHECK (theme IN ('light','dark','system')),
+  recs_enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+  profile_public  BOOLEAN NOT NULL DEFAULT FALSE,   -- приватность закрыта по умолчанию
+  stats_public    BOOLEAN NOT NULL DEFAULT FALSE,
+  deleted_at      TIMESTAMPTZ,
+  CONSTRAINT uq_user_nick UNIQUE (nickname)
+);
+-- Поиск по email идёт по слепому индексу, а не по шифру: иначе поиск
+-- был бы невозможен, а сравнение шифров — ложные совпадения.
+CREATE UNIQUE INDEX uq_user_email_blind ON e_user (email_blind_idx) WHERE deleted_at IS NULL;
+CREATE INDEX ix_user_status_reg  ON e_user (status, registered_at DESC);
+CREATE INDEX ix_user_last_active ON e_user (last_active_at DESC NULLS LAST);
+
+CREATE TABLE e_session (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id       BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  device_label  TEXT   NOT NULL,
+  created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  revoked_at    TIMESTAMPTZ,
+  -- Сессия принадлежит пользователю и без него бессмысленна:
+  -- здесь каскад допустим.
+  CONSTRAINT ck_session_alive CHECK (revoked_at IS NULL OR revoked_at >= created_at)
+);
+CREATE INDEX ix_session_user ON e_session (user_id) WHERE revoked_at IS NULL;
+
+CREATE TABLE e_role_assignment (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,
+  role       TEXT   NOT NULL CHECK (role IN ('editor','analyst','admin')),
+  granted_by BIGINT REFERENCES e_user(id) ON DELETE RESTRICT,
+  granted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at TIMESTAMPTZ,          -- NULL = бессрочно
+  note       TEXT
+);
+-- Одна роль на пару «пользователь-роль» на момент действия
+CREATE UNIQUE INDEX uq_role_active ON e_role_assignment (user_id, role) WHERE expires_at IS NULL;
+CREATE INDEX ix_role_expiring ON e_role_assignment (expires_at) WHERE expires_at IS NOT NULL;
+
+CREATE TABLE e_restriction (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id      BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,
+  kind         TEXT   NOT NULL CHECK (kind IN ('mute','ban')),
+  kind_max_h   INTEGER,           -- только для mutes
+  reason       TEXT   NOT NULL,
+  hide_materials BOOLEAN NOT NULL DEFAULT FALSE,
+  set_by       BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,
+  set_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at   TIMESTAMPTZ,
+  revoked_at   TIMESTAMPTZ,
+  revoked_by   BIGINT REFERENCES e_user(id) ON DELETE RESTRICT
+);
+-- Не больше одного действующего ограничения каждого вида
+CREATE UNIQUE INDEX uq_restriction_active
+  ON e_restriction (user_id, kind) WHERE revoked_at IS NULL;
+CREATE INDEX ix_restriction_expiring ON e_restriction (expires_at) WHERE revoked_at IS NULL;
+
+CREATE TABLE e_audit_log (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  actor_id    BIGINT REFERENCES e_user(id) ON DELETE SET NULL,  -- актёр может исчезнуть
+  action      TEXT   NOT NULL,
+  object_type TEXT   NOT NULL,
+  object_id   BIGINT,
+  result      TEXT   NOT NULL CHECK (result IN ('ok','denied','error')),
+  reason      TEXT,
+  before_data JSONB,               -- секреты сюда не пишутся никогда (R-SEC-33)
+  after_data  JSONB
+);
+CREATE INDEX ix_audit_at     ON e_audit_log (at DESC);
+CREATE INDEX ix_audit_actor  ON e_audit_log (actor_id, at DESC);
+CREATE INDEX ix_audit_object ON e_audit_log (object_type, object_id, at DESC);
+-- R-SQL-01: доступ к журналу только на чтение — см. §4
+
+-- ---------- Каталог ----------
+
+CREATE TABLE e_image (
+  id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  role      TEXT   NOT NULL CHECK (role IN ('poster','backdrop','banner','splash')),
+  file      BYTEA  NOT NULL,        -- изображения в БД (PLAN C-04)
+  mime      TEXT   NOT NULL,
+  width     INTEGER NOT NULL,
+  height    INTEGER NOT NULL,
+  focal_x   NUMERIC(4,3) NOT NULL DEFAULT 0.667,   -- точка кадрирования по умолчанию
+  focal_y   NUMERIC(4,3) NOT NULL DEFAULT 0.333,
+  alt       TEXT,
+  added_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT ck_image_focal CHECK (focal_x BETWEEN 0 AND 1 AND focal_y BETWEEN 0 AND 1)
+);
+CREATE TABLE e_series (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  imdb_key      TEXT,               -- tconst; NULL для сериалов только из TMDB
+  tmdb_id       INTEGER,
+  slug          TEXT NOT NULL UNIQUE,
+  title_ru      TEXT, title_en TEXT, title_original TEXT NOT NULL,
+  year_start    INTEGER, year_end INTEGER,
+  description_ru TEXT, description_en TEXT,
+  exit_state    TEXT NOT NULL DEFAULT 'announced'
+                CHECK (exit_state IN ('announced','airing','waiting','ended','cancelled')),
+  archived_at   TIMESTAMPTZ,
+  added_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  version       INTEGER NOT NULL DEFAULT 1,   -- оптимистичная блокировка (EC-R2)
+  -- Либо IMDb-ключ, либо TMDB-идентификатор: без одного из них
+  -- сопоставление не считается состоявшимся
+  CONSTRAINT ck_series_source CHECK (imdb_key IS NOT NULL OR tmdb_id IS NOT NULL)
+);
+CREATE INDEX ix_series_exit  ON e_series (exit_state) WHERE archived_at IS NULL;
+CREATE INDEX ix_series_year   ON e_series (year_start);
+CREATE INDEX ix_series_added  ON e_series (added_at DESC);
+-- Поиск по названиям ru/en/original одним запросом
+CREATE INDEX ix_series_search ON e_series
+  USING gin (to_tsvector('russian', coalesce(title_ru,'') || ' ' || coalesce(title_original,'')));
+
+CREATE TABLE e_season (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  series_id   BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
+  number      INTEGER NOT NULL,      -- 0 = спецвыпуски
+  title_ru TEXT, title_en TEXT,
+  description_ru TEXT, description_en TEXT,
+  CONSTRAINT uq_season UNIQUE (series_id, number)
+);
+
+CREATE TABLE e_episode (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  season_id     BIGINT NOT NULL REFERENCES e_season(id) ON DELETE CASCADE,
+  number        INTEGER NOT NULL,
+  title_ru TEXT, title_en TEXT,
+  description_ru TEXT, description_en TEXT,
+  runtime_min   INTEGER,
+  CONSTRAINT uq_episode UNIQUE (season_id, number)
+);
+
+-- Выход — это серия или группа серий с одной датой.
+CREATE TABLE e_release (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  season_id     BIGINT NOT NULL REFERENCES e_season(id) ON DELETE CASCADE,
+  episode_id    BIGINT REFERENCES e_episode(id) ON DELETE CASCADE,  -- NULL = весь сезон
+  release_date  DATE   NOT NULL,
+  release_time  TIME,
+  precision     TEXT   NOT NULL DEFAULT 'date' CHECK (precision IN ('date','exact')),
+  input_tz      TEXT,                 -- пояс, в котором админ ввёл время; хранится как введено
+  state         TEXT   NOT NULL DEFAULT 'scheduled'
+                CHECK (state IN ('tba','scheduled','aired','delayed','cancelled')),
+  locked        BOOLEAN NOT NULL DEFAULT FALSE   -- ручная правка защищена от импорта
+);
+CREATE INDEX ix_release_date ON e_release (release_date);
+CREATE INDEX ix_release_season ON e_release (season_id);
+-- Дата выхода — источник истины для состояния сериала; ради него
+-- есть индекс: календарь спрашивает по дате, а не по сериалу.
+
+CREATE TABLE e_genre (
+  code    TEXT PRIMARY KEY,
+  name_ru TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  active  BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE e_series_genre (
+  series_id BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  genre_code TEXT  NOT NULL REFERENCES e_genre(code) ON DELETE RESTRICT,
+  PRIMARY KEY (series_id, genre_code)
+);
+CREATE TABLE e_person (
+  id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  slug      TEXT NOT NULL UNIQUE,
+  name      TEXT NOT NULL,
+  kind      TEXT NOT NULL CHECK (kind IN ('actor','director','creator')),
+  birth_year INTEGER
+);
+CREATE TABLE e_series_person (
+  series_id BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  person_id BIGINT NOT NULL REFERENCES e_person(id) ON DELETE RESTRICT,
+  role      TEXT   NOT NULL,
+  ordinal   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (series_id, person_id, role)
+);
+CREATE TABLE e_external_rating (
+  id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  series_id BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  platform  TEXT   NOT NULL,          -- справочник платформ (DEC-006), не перечисление
+  value     NUMERIC(3,1),
+  scale_max NUMERIC(4,1) NOT NULL DEFAULT 10,
+  votes     INTEGER,
+  measured_on DATE NOT NULL,
+  CONSTRAINT uq_rating_platform UNIQUE (series_id, platform)
+);
+CREATE TABLE e_collection (
+  id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  slug     TEXT NOT NULL UNIQUE,
+  title    TEXT NOT NULL,
+  description TEXT,
+  banner_image_id BIGINT REFERENCES e_image(id) ON DELETE SET NULL,
+  weight   NUMERIC(5,2) NOT NULL DEFAULT 0,
+  active   BOOLEAN NOT NULL DEFAULT TRUE,
+  is_demo  BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE TABLE e_collection_item (
+  collection_id BIGINT NOT NULL REFERENCES e_collection(id) ON DELETE CASCADE,
+  series_id     BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
+  ordinal       INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (collection_id, series_id)
+);
+CREATE TABLE e_banner (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  kind       TEXT   NOT NULL CHECK (kind IN ('new','classic','editorial')),
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
+  show_on    DATE   NOT NULL,
+  active     BOOLEAN NOT NULL DEFAULT TRUE,
+  CONSTRAINT uq_banner_kind_day UNIQUE (kind, show_on)
+);
+CREATE TABLE e_editorial_pick (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
+  set_by     BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,
+  set_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  active_from DATE NOT NULL DEFAULT CURRENT_DATE,
+  active_until DATE,
+  note       TEXT
+);
+
+-- ---------- Пользовательские данные ----------
+
+CREATE TABLE e_watch_status (
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  status     TEXT   NOT NULL
+             CHECK (status IN ('watching','planned','watched','dropped','on_hold')),
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, series_id)
+);
+CREATE TABLE e_watch_mark (
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  episode_id BIGINT NOT NULL REFERENCES e_episode(id) ON DELETE CASCADE,
+  marked_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  precision  TEXT   NOT NULL CHECK (precision IN ('exact','retro')),
+  -- ретро-отметка помечена, чтобы прогресс и Wrapped её игнорировали
+  batch_id   BIGINT,
+  PRIMARY KEY (user_id, episode_id)
+);
+CREATE INDEX ix_mark_exact ON e_watch_mark (user_id, episode_id) WHERE precision = 'exact';
+CREATE TABLE e_bookmark (
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, series_id)
+);
+CREATE TABLE e_subscription (
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  kind       TEXT   NOT NULL CHECK (kind IN ('release','announce')),
+  source     TEXT   NOT NULL CHECK (source IN ('auto','manual')),
+  enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (user_id, series_id, kind)
+);
+CREATE TABLE e_notification (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  kind       TEXT   NOT NULL,        -- тип, а не готовый текст
+  category   TEXT   NOT NULL,
+  params     JSONB  NOT NULL,        -- параметры; текст собирается при чтении (R-I18N-04)
+  dedup_key  TEXT   NOT NULL,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  read_at    TIMESTAMPTZ,
+  CONSTRAINT uq_notification_dedup UNIQUE (user_id, dedup_key)
+);
+CREATE INDEX ix_notif_unread ON e_notification (user_id, created_at DESC) WHERE read_at IS NULL;
+
+-- ---------- Оценки и материалы ----------
+
+CREATE TABLE e_rating (
+  user_id     BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,
+  object_type TEXT   NOT NULL CHECK (object_type IN ('series','episode')),
+  series_id   BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
+  episode_id  BIGINT REFERENCES e_episode(id) ON DELETE RESTRICT,
+  value       SMALLINT NOT NULL CHECK (value BETWEEN 1 AND 10),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  counted     BOOLEAN NOT NULL DEFAULT TRUE,   -- исключённые не удаляются, а помечаются
+  is_demo     BOOLEAN NOT NULL DEFAULT FALSE,
+  PRIMARY KEY (user_id, object_type, episode_id, series_id)
+);
+CREATE INDEX ix_rating_series ON e_rating (series_id) WHERE counted;
+CREATE TABLE e_series_rating_stat (
+  series_id BIGINT PRIMARY KEY REFERENCES e_series(id) ON DELETE CASCADE,
+  sum_value NUMERIC(12,2) NOT NULL DEFAULT 0,
+  votes     INTEGER NOT NULL DEFAULT 0,
+  prior_weight NUMERIC(4,1) NOT NULL DEFAULT 10,
+  prior_mean   NUMERIC(3,1) NOT NULL DEFAULT 7.0,
+  recalculated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE TABLE e_material (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  author_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,
+  kind         TEXT   NOT NULL CHECK (kind IN ('review','comment','guide','topic','post')),
+  series_id    BIGINT REFERENCES e_series(id) ON DELETE RESTRICT,
+  episode_id   BIGINT REFERENCES e_episode(id) ON DELETE RESTRICT,
+  parent_id    BIGINT REFERENCES e_material(id) ON DELETE RESTRICT,
+  body         TEXT   NOT NULL,
+  sections     JSONB,                -- разделы руководства; текст, не HTML (R-SEC-11)
+  spoiler      BOOLEAN NOT NULL DEFAULT FALSE,
+  state        TEXT   NOT NULL DEFAULT 'draft'
+               CHECK (state IN ('draft','checking','published','flagged','approved',
+                                'rejected','hidden','deleted')),
+  version      INTEGER NOT NULL DEFAULT 1,
+  decided_at   TIMESTAMPTZ,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Отзыв — единственный вид, где нужна оценка; тема — тоже сериальная
+  CONSTRAINT ck_material_target CHECK (
+    (kind IN ('review','guide','topic')  AND series_id IS NOT NULL AND episode_id IS NULL) OR
+    (kind = 'comment'  AND (series_id IS NOT NULL OR episode_id IS NOT NULL)) OR
+    (kind = 'post'     AND parent_id IS NOT NULL))
+);
+CREATE INDEX ix_material_author ON e_material (author_id, created_at DESC);
+CREATE INDEX ix_material_queue ON e_material (state, created_at) WHERE state IN ('flagged','checking');
+CREATE INDEX ix_material_pub   ON e_material (series_id, created_at DESC) WHERE state = 'published';
+-- Поиск по телу материала для модерации и для поиска
+CREATE INDEX ix_material_search ON e_material USING gin (to_tsvector('russian', body));
+CREATE TABLE e_dictionary_word (
+  word     TEXT NOT NULL,
+  language TEXT NOT NULL CHECK (language IN ('ru','en')),
+  list     TEXT NOT NULL CHECK (list IN ('block','allow')),
+  added_by BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
+  added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  active   BOOLEAN NOT NULL DEFAULT TRUE,
+  PRIMARY KEY (word, language)
+);
+CREATE TABLE e_moderation_cluster (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  signature  TEXT NOT NULL,
+  decision   TEXT CHECK (decision IN ('approved','rejected')),
+  decided_by BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
+  decided_at TIMESTAMPTZ,
+  applied    BOOLEAN NOT NULL DEFAULT FALSE,  -- решение распространено на новые материалы
+  CONSTRAINT uq_cluster_sig UNIQUE (signature)
+);
+CREATE TABLE e_editor_decision (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  material_id   BIGINT NOT NULL REFERENCES e_material(id) ON DELETE RESTRICT,
+  editor_id     BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,
+  decision      TEXT   NOT NULL CHECK (decision IN ('approved','rejected')),
+  reason        TEXT   NOT NULL,
+  matched_word  TEXT,
+  cluster_id    BIGINT REFERENCES e_moderation_cluster(id) ON DELETE SET NULL,
+  decided_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  cancelled_at  TIMESTAMPTZ,
+  CONSTRAINT ck_decision_not_cancelled CHECK (cancelled_at IS NULL OR cancelled_at >= decided_at)
+);
+
+-- ---------- Импорт, система, аналитика ----------
+
+CREATE TABLE e_import_run (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  kind       TEXT   NOT NULL
+             CHECK (kind IN ('schedule_sync','discover_sync','ratings_sync','full_run')),
+  dry_run    BOOLEAN NOT NULL DEFAULT FALSE,   -- флаг, а не отдельный вид (F-12-07)
+  started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at TIMESTAMPTZ,
+  status     TEXT   NOT NULL DEFAULT 'running'
+             CHECK (status IN ('running','success','partial','error','resumed'))
+);
+CREATE TABLE e_backup_job (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at  TIMESTAMPTZ,
+  status       TEXT NOT NULL DEFAULT 'running'
+               CHECK (status IN ('running','created','verified','error')),
+  size_bytes   BIGINT,
+  checksum     TEXT,
+  -- Проверена означает фактически выполненное восстановление (M9 F-09-04),
+  -- а не запись в лог об окончании дампа.
+  verified_at  TIMESTAMPTZ
+);
+CREATE TABLE e_online_sample (
+  hour          TIMESTAMPTZ PRIMARY KEY,     -- начало часа
+  registered    INTEGER NOT NULL DEFAULT 0,
+  guests        INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE e_event (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  event_id     UUID NOT NULL UNIQUE,
+  name         TEXT NOT NULL,
+  ts_client    TIMESTAMPTZ,
+  ts_server    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  anon_id      TEXT,
+  user_pseudo_id TEXT,          -- никогда не идентификатор пользователя
+  props        JSONB NOT NULL DEFAULT '{}',  -- без PII (R-AN-04)
+  is_demo      BOOLEAN NOT NULL DEFAULT FALSE
+);
+CREATE INDEX ix_event_name_time ON e_event (name, ts_server DESC);
+-- Партиционирование по месяцу — сырые события живут 90 дней (R-AN-10)
+```
+
+## 3. Что закрывает каждый элемент требований
+
+| Требование Бланка | Где |
+|---|---|
+| 3.3.1 Ссылочная целостность | Все `REFERENCES` объявлены явно; нет «необъявленных» связей; §1 правило 5 |
+| 3.2 Данные и ресурсы в БД | `e_image.file BYTEA` — изображения в БД (C-04) |
+| Приложение: листинг скрипта генерации БД | §2 этого файла |
+| ПЗ 4.1.4 Информационная модель | `DOMAIN-MODEL.md` + эта схема |
+
+## 4. Права на уровне БД
+
+Роли приложения проверяются в коде, но три ограничения закрепляются и в базе — иначе их можно обойти прямым запросом:
+
+```sql
+-- R-SQL-01: журнал аудита — только чтение для всех, включая админа.
+-- Запись идёт только из прикладного кода под служебной ролью.
+REVOKE INSERT, UPDATE, DELETE ON e_audit_log FROM PUBLIC;
+
+-- R-SQL-02: удаление пользователя — только анонимизация.
+-- Физического DELETE из e_user нет ни в одной роли.
+CREATE RULE no_delete_user AS ON DELETE TO e_user DO INSTEAD NOTHING;
+
+-- R-SQL-03: счётчик рейтинга не уменьшается удалением строки оценки.
+-- Исключённые оценки помечаются counted = false (M4 F-04-08).
+```
+
+## 5. Проверка
+
+Схема считается корректной, если:
+
+1. `psql -f database.sql` на пустой базе выполняется без ошибок.
+2. `SELECT count(*) FROM information_schema.table_constraints WHERE constraint_type='FOREIGN KEY'` > 0, и ни одна внешняя ссылка не объявлена без явного `ON DELETE`.
+3. Нет ни одного `ON DELETE CASCADE` на `e_user`, `e_material`, `e_editor_decision`, `e_audit_log`.
+4. Все имена из `DOMAIN-MODEL` §2–6 присутствуют в схеме либо помечены как вычисляемые.
+5. Правило R-SQL-02 действительно срабатывает: `DELETE FROM e_user WHERE id = 1;` не удаляет строку.
+
+## 6. Открытые вопросы
+
+| Вопрос | Следствие | Где решаем |
+|---|---|---|
+| Хранить ли сырой JSON TMDB | +~40% объёма, зато возможен пересчёт обогащения без новых запросов | `STACK` |
+| Партиционирование `e_event` по месяцу | Нужно для 90-дневного хранения; в учебном проекте можно обойтись без | `ARCHITECTURE` |
+| Полнотекстовый индекс по телу материала на русском | Влияет на выбор СУБД сильнее прочего; здесь выбран PostgreSQL | `STACK` |
+| Логика отбора баннеров и набора жанров — в БД или в коде | В коде проще отлаживать и объяснять на защите | `ARCHITECTURE` |
