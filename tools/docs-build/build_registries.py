@@ -181,7 +181,9 @@ done_p0 = [m for m in P0_MODULES if m in mods_done]
 todo_p0 = [m for m in P0_MODULES if m not in mods_done]
 todo_p1 = [m for m in ALL_MODULES if m not in mods_done and m not in P0_MODULES]
 n_md = len(glob.glob('**/*.md', recursive=True))
-n_scr = len(re.findall(r'^\| S-\d\d ', open('01-product/SCREENS.md', encoding='utf-8').read(), re.M))
+n_scr = sum(1 for l in open('01-product/SCREENS.md', encoding='utf-8')
+            if re.match(r'^\| S-\d\d ', l) and 'Снято' not in l)  # снятые экраны не считаются
+n_scr_withdrawn = len(re.findall(r'^\| S-\d\d .*Снято', open('01-product/SCREENS.md', encoding='utf-8').read(), re.M))
 dec_text = open('00-process/DECISIONS.md', encoding='utf-8').read()
 n_dec = len(re.findall(r'^\| DEC-\d+ ', dec_text, re.M))
 DECISIONS_FOR_AUTHOR = [
@@ -272,7 +274,9 @@ L += ['', '**Б. Библиотеки:** берём только реально 
  '| **Исходники автора** | `input/` — задание, ТЗ, референсы, чек-листы | по мере надобности; перечень в `input/README.md` |', '',
  '## 7. Цифры (считаются автоматически)', '',
  '- Файлов документации: **%d**; решений автора: **%d**; гипотез: **%d**; правил в стандартах: **%d**.' % (n_md, n_dec, len(defined_h), len(defined_r)),
- '- Описано фич: **%d** (из них P0 — %d); экранов в каталоге: **%d**; граничных случаев: **%d**.' % (len(feats), sum(1 for x in feats if tier_code(x['tier'])=='P0'), n_scr, len(rows)),
+ '- Описано фич: **%d** (из них P0 — %d); экранов в каталоге: **%d**%s; граничных случаев: **%d**.' % (
+      len(feats), sum(1 for x in feats if tier_code(x['tier'])=='P0'), n_scr,
+      ' (+%d снятых, идентификаторы не переиспользуются)' % n_scr_withdrawn if n_scr_withdrawn else '', len(rows)),
  '- Проверка ссылок между документами: %s.' % ('**есть проблемы, см. вывод скрипта**' if problems else 'все ссылки на `EC-`, `H-`, `R-` имеют определение'), '']
 open('STATUS.md', 'w', encoding='utf-8').write('\n'.join(L))
 

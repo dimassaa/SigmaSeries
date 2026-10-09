@@ -230,7 +230,7 @@
 
 ### Задача 12. Набор для агента
 
-**Файлы:** создать `06-agents/AGENTS.md`, `06-agents/READING-MAP.md`, `06-agents/PROTOCOLS.md`, `.opencode/commands/*.md`.
+**Файлы:** создать `AGENTS.md` **в корне репозитория** (не в `docs/06-agents/` — opencode читает `AGENTS.md` от корня проекта), `docs/06-agents/READING-MAP.md`, `docs/06-agents/PROTOCOLS.md`, `.opencode/commands/*.md`, `.opencode/agents/reviewer.md`. Формат сверен с документацией **установленной** версии opencode v2.0.22: команды в `.opencode/commands/`, агенты в `.opencode/agents/`, разрешения агента — списком `permissions`, устаревшее поле `tools` не используется.
 
 Требует Node.js 18+ для `context-pack.mjs`. **В текущем окружении Node не установлен, поэтому инструмент проверен только чтением кода.** Установить и проверить до начала кодовой части — иначе половина набора не работает.
 

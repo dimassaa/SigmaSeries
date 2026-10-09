@@ -439,6 +439,167 @@ CREATE INDEX ix_event_name_time ON e_event (name, ts_server DESC);
 -- Партиционирование по месяцу — сырые события живут 90 дней (R-AN-10)
 ```
 
+## 2.1 Дополнения, найденные сквозной проверкой
+
+Добавлены после аудита 2026-10-09: спеки и брифы `MODULES` называли сущности, которых в схеме не было. Сопоставление имён — `DOMAIN-MODEL` §9.
+
+```sql
+-- ---------- Страны и платформы ----------
+
+CREATE TABLE e_country (
+  code TEXT PRIMARY KEY,          -- ISO 3166-1
+  name_ru TEXT NOT NULL,
+  name_en TEXT NOT NULL,
+  active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE e_series_country (
+  series_id   BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  country_code TEXT  NOT NULL REFERENCES e_country(code) ON DELETE RESTRICT,
+  PRIMARY KEY (series_id, country_code)
+);
+CREATE TABLE e_rating_platform (
+  code      TEXT PRIMARY KEY,
+  name      TEXT NOT NULL,
+  scale_max NUMERIC(4,1) NOT NULL DEFAULT 10,
+  priority  SMALLINT NOT NULL DEFAULT 100,   -- порядок показа после IMDb/TMDB/сайта
+  active    BOOLEAN NOT NULL DEFAULT TRUE
+);
+
+-- ---------- Ключевые слова ----------
+
+CREATE TABLE e_keyword (
+  id     BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  value  TEXT NOT NULL UNIQUE,
+  active BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE e_series_keyword (
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  keyword_id BIGINT NOT NULL REFERENCES e_keyword(id) ON DELETE CASCADE,
+  PRIMARY KEY (series_id, keyword_id)
+);
+
+-- ---------- Справочник ролей ----------
+-- Роли как CHECK-констрейнт в e_role_assignment не хранятся:
+-- добавление роли требовало бы миграции схемы.
+
+CREATE TABLE e_role (
+  code        TEXT PRIMARY KEY CHECK (code IN ('editor','analyst','admin')),
+  title       TEXT NOT NULL,
+  description TEXT
+);
+
+-- ---------- Варианты изображения ----------
+-- e_image хранит оригинал; варианты по ширине — отдельно.
+-- Отдача идёт первым попаданием по запросу, не по выбору клиента (ADR-005).
+
+CREATE TABLE e_image_variant (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  image_id   BIGINT NOT NULL REFERENCES e_image(id) ON DELETE CASCADE,
+  width      INTEGER NOT NULL,
+  height     INTEGER NOT NULL,
+  file       BYTEA  NOT NULL,
+  mime       TEXT   NOT NULL,
+  bytes      INTEGER NOT NULL,
+  -- Имя файла содержит хеш содержимого, поэтому кэш immutable корректен
+  checksum   TEXT   NOT NULL,
+  CONSTRAINT uq_variant UNIQUE (image_id, width)
+);
+CREATE INDEX ix_variant_pick ON e_image_variant (image_id, width);
+
+-- ---------- Голос «Полезно» ----------
+
+CREATE TABLE e_helpful_vote (
+  user_id     BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  material_id BIGINT NOT NULL REFERENCES e_material(id) ON DELETE CASCADE,
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, material_id)
+);
+CREATE INDEX ix_helpful_material ON e_helpful_vote (material_id);
+
+-- ---------- Токены входа ----------
+-- Четыре сущности (подтверждение email, восстановление пароля, 2FA, вход)
+-- сведены в одну таблицу с типом: они отличаются только сроком и целью.
+
+CREATE TABLE e_auth_token (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  kind       TEXT   NOT NULL
+             CHECK (kind IN ('email_verify','password_reset','two_factor','login')),
+  token_hash BYTEA  NOT NULL,
+  expires_at TIMESTAMPTZ NOT NULL,
+  used_at    TIMESTAMPTZ,
+  CONSTRAINT uq_auth_token UNIQUE (token_hash)
+);
+CREATE INDEX ix_auth_token_user ON e_auth_token (user_id, kind) WHERE used_at IS NULL;
+
+-- ---------- История ника ----------
+-- Нельзя молча переименовать: старые ссылки на профиль должны остаться
+-- рабочими, а ник может быть занят повторно после освобождения.
+
+CREATE TABLE e_nickname_history (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  nickname   TEXT   NOT NULL,
+  valid_from TIMESTAMPTZ NOT NULL,
+  valid_to   TIMESTAMPTZ
+);
+CREATE INDEX ix_nick_history ON e_nickname_history (nickname);
+
+-- ---------- Блокировка поля от перезаписи импортом ----------
+-- Механизм EC-R8 и F-10-03(а): ручное значение помечено происхождением.
+
+CREATE TABLE e_field_lock (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  field      TEXT   NOT NULL,
+  set_by     BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
+  set_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+  imported_value BYTEA,        -- последнее значение от импорта, для «сбросить к импорту»
+  CONSTRAINT uq_field_lock UNIQUE (series_id, field)
+);
+
+-- ---------- Кадры заставки ----------
+
+CREATE TABLE e_splash_frame (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  series_id   BIGINT REFERENCES e_series(id) ON DELETE SET NULL,
+  image_id    BIGINT NOT NULL REFERENCES e_image(id) ON DELETE RESTRICT,
+  ordinal     SMALLINT NOT NULL,
+  active      BOOLEAN NOT NULL DEFAULT TRUE,
+  CONSTRAINT uq_splash_ordinal UNIQUE (ordinal) WHERE active
+);
+
+-- ---------- Согласие на cookies ----------
+
+CREATE TABLE e_consent (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  anon_id    TEXT,                       -- гость
+  user_id    BIGINT REFERENCES e_user(id) ON DELETE CASCADE,
+  category   TEXT NOT NULL CHECK (category IN ('necessary','analytics')),
+  granted    BOOLEAN NOT NULL,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE UNIQUE INDEX uq_consent_user ON e_consent (user_id, category) WHERE user_id IS NOT NULL;
+CREATE UNIQUE INDEX uq_consent_anon ON e_consent (anon_id, category) WHERE anon_id IS NOT NULL;
+
+-- ---------- Настройки системы и правила подборок ----------
+
+CREATE TABLE e_system_setting (
+  key        TEXT PRIMARY KEY,
+  value      TEXT NOT NULL,
+  changed_by BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE e_collection_rule (
+  id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  collection_id BIGINT REFERENCES e_collection(id) ON DELETE CASCADE,
+  kind          TEXT NOT NULL CHECK (kind IN ('manual','by_genre','by_year','by_rating','by_platform')),
+  params        JSONB NOT NULL,
+  active        BOOLEAN NOT NULL DEFAULT TRUE
+);
+```
+
 ## 3. Что закрывает каждый элемент требований
 
 | Требование Бланка | Где |
@@ -448,21 +609,26 @@ CREATE INDEX ix_event_name_time ON e_event (name, ts_server DESC);
 | Приложение: листинг скрипта генерации БД | §2 этого файла |
 | ПЗ 4.1.4 Информационная модель | `DOMAIN-MODEL.md` + эта схема |
 
-## 4. Права на уровне БД
+## 4. Правила на уровне БД
 
-Роли приложения проверяются в коде, но три ограничения закрепляются и в базе — иначе их можно обойти прямым запросом:
+Роли приложения проверяются в коде, но три ограничения закрепляются и в базе — иначе их можно обойти прямым запросом.
+
+| ID | Правило | Средство | Зачем |
+|---|---|---|---|
+| **R-SQL-01** | Журнал аудита — только чтение для всех, включая админа. Запись только из прикладного кода под служебной ролью | `REVOKE INSERT, UPDATE, DELETE ON e_audit_log FROM PUBLIC` | Роль «админ, только чтение» проверяется кодом, а это ограничение — базой: обойти его кодом нельзя |
+| **R-SQL-02** | Удаление пользователя — только анонимизация. Физического `DELETE` из `e_user` нет ни у одной роли | `CREATE RULE no_delete_user AS ON DELETE TO e_user DO INSTEAD NOTHING` | Требование Бланка 3.3.1 о ссылочной целостности. Каскад от сериала к пользователю отменяет эту гарантию |
+| **R-SQL-03** | Счётчик рейтинга не уменьшается удалением строки оценки | Исключённые оценки помечаются `counted = false` (M4 F-04-08), удаление запрещено политикой | Иначе удаление одной оценки тихо меняет публичное число на странице сериала |
 
 ```sql
--- R-SQL-01: журнал аудита — только чтение для всех, включая админа.
--- Запись идёт только из прикладного кода под служебной ролью.
+-- R-SQL-01
 REVOKE INSERT, UPDATE, DELETE ON e_audit_log FROM PUBLIC;
 
--- R-SQL-02: удаление пользователя — только анонимизация.
--- Физического DELETE из e_user нет ни в одной роли.
+-- R-SQL-02
 CREATE RULE no_delete_user AS ON DELETE TO e_user DO INSTEAD NOTHING;
 
--- R-SQL-03: счётчик рейтинга не уменьшается удалением строки оценки.
--- Исключённые оценки помечаются counted = false (M4 F-04-08).
+-- R-SQL-03 — RLS-подобное правило на уровне приложения, дублируется здесь
+-- как требование: операция DELETE по e_rating запрещена ролью чтения.
+REVOKE DELETE ON e_rating FROM PUBLIC;
 ```
 
 ## 5. Проверка

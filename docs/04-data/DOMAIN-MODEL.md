@@ -101,7 +101,54 @@
 | Баннер дня | **Хранится** | Иначе главная меняется при каждом запросе и три раза в секунду |
 | Набор шести сериалов в блоке жанров | **ПРО**, фиксируется на сутки | Иначе «случайные» постеры меняются при каждом обновлении (EC-H10) |
 
-## 8. Открытые решения для Фазы 7
+## 9. Имена из спек, которых здесь нет
+
+Спеки M1, M4, M10, M11, M12 и брифы `MODULES` называют сущности под именами, отличными от принятых здесь. **Таблица ниже — единственное место, где эти имена сопоставлены**, иначе код будет читать сорок таблиц вместо пятидесяти двух. Найдена сквозной проверкой ссылок 2026-10-09.
+
+**Группа 1. Другое имя для того же — отдельной таблицы не будет:**
+
+| Имя в спеке | Что это на самом деле |
+|---|---|
+| E-Review, E-Comment, E-Post | `E-Material` с `kind` |
+| E-SiteRatingCache | `E-SeriesRatingStat` |
+| E-UserRole | `E-RoleAssignment` |
+| E-Preferences, E-SystemSetting (в профиле) | `E-UserSetting` |
+| E-Cluster, E-Whitelist, E-DictionaryTerm | `E-ModerationCluster`, `E-DictionaryWord` |
+| E-RecapCache | **не хранится**: итоги считаются на запрос (M7 §0) |
+| E-TasteProfile, E-RecommendationFeedback | `E-TasteSeed`, `E-RecoDismiss` |
+| E-MaterialVersion, E-MaterialStatus, E-DocumentVersion | поля `version` и `state` у `E-Material` |
+| E-BackupRun | `E-BackupJob` |
+| E-Exclusion | `E-ImportExclusion` |
+| E-Role | справочник ролей, см. группу 2 |
+| E-Translation | переводы хранятся колонками `title_ru` / `title_en`, не строкой |
+| E-RatingPlatform | справочник платформ, см. группу 2 |
+| E-RateCounter | счётчики в памяти процесса и в агрегатах, не в базе |
+| E-ModificationItem | `E-Material` в состоянии `flagged` (в `MODULES` названа `E-ModerationItem` — та же сущность) |
+| E-ModerationCheck | результат проверки, **не хранится**: результат виден в `E-Material.state` |
+| E-EditorsPick | опечатка, правильно `E-EditorialPick` (исправлено в M10) |
+| E-AcceptedReason | причина решения хранится в `E-EditorDecision.reason` |
+
+**Группа 2. Настоящие пробелы — таблиц не было, добавлены в `DATABASE.md` §2.1:**
+
+| Имя в спеке | Где заявлено | Что добавлено |
+|---|---|---|
+| E-HelpfulVote | M4 F-04-06 | `e_helpful_vote` |
+| E-ImageVariant | M12 F-12-05, M10 F-10-04 | `e_image_variant` — в `e_image` была одна картинка, а нужны 6 вариантов по ширине |
+| E-Keyword | M2 F-02-08, M11 | `e_keyword`, `e_series_keyword` |
+| E-Network | `MODULES`, фильтр «страна» | `e_country`, `e_series_country` — `E-Country` был назван в §3, но таблицы не было |
+| E-Consent | M0 F-00-05 | `e_consent` |
+| E-EmailToken, E-EmailVerification, E-PasswordReset, E-TwoFactor | M1 §0 | одна `e_auth_token` с типом: четыре сущности означали бы четыре почти одинаковые таблицы |
+| E-NicknameHistory | M1 F-01-08 | `e_nickname_history` |
+| E-FieldProvenance | M12 F-12-06, M10 F-10-03 | `e_field_lock` — блокировка ручной правки от перезаписи импортом |
+| E-SplashFrame | M10 F-10-09 | `e_splash_frame` |
+| E-SystemSetting | M9 F-09-07 | `e_system_setting` |
+| E-CollectionRule | M2 F-02-05, OP-18 | `e_collection_rule` |
+| E-RatingPlatform | DEC-006 | `e_rating_platform` — платформа, шкала, порядок показа |
+| E-Role | `ROLES-PERMISSIONS` | `e_role` — справочник, чтобы не держать роли в `CHECK` |
+
+**Группа 3. Отложено осознанно:** `E-CalendarToken` (P2, M3), `E-RatingAnomaly` (P1, M4 F-04-08). Не создаются до решения о P1/P2.
+
+## 10. Открытые решения для Фазы 7
 
 1. **Схема сырого JSON TMDB** — хранить ли ответы для повторной обработки без запросов. Влияет на объём БД примерно на 40% и на возможность пересчитать обогащение после смены правил.
 2. **Гранулярность событий** — сырые события 90 дней, агрегаты бессрочно (`R-AN-10`). Разделение таблиц или одна с партиционированием.
