@@ -18,6 +18,7 @@
     "verify": "npm run db:check && npm run docs && npm run test"
   },
   "dependencies": {
+    "argon2": "^0.45.1",
     "pg": "^8.23.1"
   }
 }
