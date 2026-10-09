@@ -13,6 +13,7 @@ DIMS = {1:'Назначение',2:'Роли',3:'Триггер',4:'Сценар
 MODULE_TABLE = {
  'M0':  {11:'◐',12:'◐',13:'◐',14:'◐',15:'◐',16:'◐'},
  'M5':  {11:'◐',12:'◐',13:'◐',14:'◐',15:'◐',16:'◐'},
+ 'M6':  {11:'◐',12:'◐',13:'◐',14:'◐',15:'◐',16:'◐'},
  'M1':  {11:'◐',12:'◐',13:'NA',14:'◐',15:'◐',16:'◐'},
  'M3':  {11:'◐',12:'◐',13:'◐',14:'◐',15:'◐',16:'◐'},
  'M4':  {11:'◐',12:'◐',13:'◐',14:'◐',15:'◐',16:'◐'},
@@ -169,8 +170,6 @@ left = lambda d: (datetime.date.fromisoformat(d) - t0).days
 def bar(done, total, n=10):
     k = round(n * done / total) if total else 0
     return '█' * k + '░' * (n - k)
-ALL_MODULES = ['M0','M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12']
-P0_MODULES  = ['M0','M1','M2','M3','M4','M5','M6','M9','M10','M12']
 NEXT_NAMES = {m: MODULE_TITLES[m] for m in ALL_MODULES}
 mods_done = {x['mod'] for x in feats}
 done_all = [m for m in ALL_MODULES if m in mods_done]
