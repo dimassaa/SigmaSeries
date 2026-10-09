@@ -20,6 +20,14 @@
 
 Требуется **Node.js 18+**. Проверено на v22.23.3: 106 пакетов, средний 189 строк при лимите 700, `--check` — код 0.
 
+**Node не в глобальном `PATH`.** Он установлен пользователем, без системных прав, здесь:
+
+```bash
+export PATH="$HOME/.local/opt/node/bin:$PATH"
+```
+
+Если `node: command not found` — причина в этом, а не в том, что Node нет. Не начинай установку заново.
+
 ```bash
 node tools/docs-build/context-pack.mjs --check          # целостность документации
 node tools/docs-build/context-pack.mjs F-01-03          # пакет под задачу

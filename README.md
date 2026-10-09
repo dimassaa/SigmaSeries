@@ -187,6 +187,7 @@ cd docs && python3 ../tools/docs-build/build_registries.py
 **Пакеты контекста** — Node.js 18+ (проверено на v22.23.3):
 
 ```bash
+export PATH="$HOME/.local/opt/node/bin:$PATH"   # node не в глобальном PATH
 node tools/docs-build/context-pack.mjs --check
 ```
 
