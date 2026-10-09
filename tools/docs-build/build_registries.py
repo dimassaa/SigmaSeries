@@ -7,6 +7,12 @@
 import re, glob, os, sys
 from collections import Counter
 
+# Каталоги, начинающиеся с подчёркивания, — сгенерированные (docs/_packs),
+# а не источники. Их нельзя сканировать: каждый пакет повторяет определения
+# из спек, и сборщик посчитает все EC дубликатами. Тот же приём в context-pack.mjs.
+def scan(pattern):
+    return [f for f in glob.glob(pattern, recursive=True) if '_packs' not in f.split(os.sep)]
+
 DIMS = {1:'Назначение',2:'Роли',3:'Триггер',4:'Сценарий',5:'Альтернативы',6:'Состояния',7:'Данные',
         8:'Правила',9:'Валидация|Лимиты',10:'Edge cases',17:'Побочные эффекты',18:'Приёмка',19:'UI',20:'КП'}
 # Измерения 11–16 описываются таблицей «Сквозное качество» модуля: ◐ — есть, NA — не применимо
@@ -58,7 +64,7 @@ def module_marks(mod):
 def tier_code(t): return re.match(r'P\d', t).group(0)
 
 feats = []
-for f in sorted(glob.glob('01-product/features/M*.md')):
+for f in sorted(scan('01-product/features/M*.md')):
     txt = open(f, encoding='utf-8').read()
     mod = re.match(r'.*/(M\d+)-', f).group(1)
     for p in re.split(r'\n(?=## F-\d\d-\d\d )', txt)[1:]:
@@ -120,7 +126,7 @@ open('00-process/COVERAGE.md', 'w', encoding='utf-8').write('\n'.join(out) + '\n
 
 # ---------- EDGE-CASES + проверки ссылок ----------
 rows, dups = {}, []
-for f in glob.glob('**/*.md', recursive=True):
+for f in scan('**/*.md'):
     if f.endswith('EDGE-CASES.md'): continue
     for l in open(f, encoding='utf-8').read().split('\n'):
         m = re.match(r'\| (EC-[A-Z]\d+) \| (.+?) \| (.+?) \|$', l)
@@ -130,10 +136,10 @@ for f in glob.glob('**/*.md', recursive=True):
 refs_ec, refs_h, refs_r = set(), set(), set()
 defined_h = set(re.findall(r'^\| (H-\d+) \|', open('00-process/DECISIONS.md', encoding='utf-8').read(), re.M))
 defined_r = set()
-for f in glob.glob('**/*.md', recursive=True):
+for f in scan('**/*.md'):
     t = open(f, encoding='utf-8').read()
     defined_r |= set(re.findall(r'^\| (R-[A-Z0-9]+-\d+) \|', t, re.M))
-for f in glob.glob('**/*.md', recursive=True):
+for f in scan('**/*.md'):
     t = open(f, encoding='utf-8').read()
     if not f.endswith('EDGE-CASES.md'): refs_ec |= set(re.findall(r'EC-[A-Z]\d+', t))
     if not f.endswith('DECISIONS.md'): refs_h |= set(re.findall(r'\bH-\d+\b', t))
@@ -180,7 +186,7 @@ done_all = [m for m in ALL_MODULES if m in mods_done]
 done_p0 = [m for m in P0_MODULES if m in mods_done]
 todo_p0 = [m for m in P0_MODULES if m not in mods_done]
 todo_p1 = [m for m in ALL_MODULES if m not in mods_done and m not in P0_MODULES]
-n_md = len(glob.glob('**/*.md', recursive=True))
+n_md = len(scan('**/*.md'))
 n_scr = sum(1 for l in open('01-product/SCREENS.md', encoding='utf-8')
             if re.match(r'^\| S-\d\d ', l) and 'Снято' not in l)  # снятые экраны не считаются
 n_scr_withdrawn = len(re.findall(r'^\| S-\d\d .*Снято', open('01-product/SCREENS.md', encoding='utf-8').read(), re.M))
