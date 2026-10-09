@@ -23,16 +23,14 @@
 **Node не в глобальном `PATH`.** Он установлен пользователем, без системных прав, здесь:
 
 ```bash
-export PATH="$HOME/.local/opt/node/bin:$PATH"
+export PATH="$HOME/.local/opt/node/bin:$PATH"           # один раз на сессию
+
+node tools/docs-build/context-pack.mjs --check           # целостность документации
+node tools/docs-build/context-pack.mjs F-01-03           # пакет под задачу
+node tools/docs-build/context-pack.mjs --where R-SEC-04  # где определено правило
 ```
 
-Если `node: command not found` — причина в этом, а не в том, что Node нет. Не начинай установку заново.
-
-```bash
-node tools/docs-build/context-pack.mjs --check          # целостность документации
-node tools/docs-build/context-pack.mjs F-01-03          # пакет под задачу
-node tools/docs-build/context-pack.mjs --where R-SEC-04 # где определено правило
-```
+Если `node: command not found` — причина в отсутствии `PATH`, а не в том, что Node нет. Не начинай установку заново.
 
 **Не читать документацию целиком.** Задача → один пакет → разделы «Куда смотреть дальше» и «Не найдено в документах». Порядок — `READING-MAP.md` §1.
 
