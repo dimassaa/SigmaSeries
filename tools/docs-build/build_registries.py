@@ -1,0 +1,256 @@
+#!/usr/bin/env python3
+"""Пересобирает реестры из текстов спек и проверяет ссылки между документами.
+Запуск из корня docs/:  python3 ../tools/docs-build/build_registries.py
+Создаёт: 01-product/FEATURES.md, 00-process/COVERAGE.md, 00-process/EDGE-CASES.md, STATUS.md
+Проверяет: определены ли все EC-*, H-* и R-*-NN, на которые есть ссылки.
+Код возврата 1, если есть проблемы, — это ожидаемый режим, а не авария."""
+import re, glob, os, sys
+from collections import Counter
+
+DIMS = {1:'Назначение',2:'Роли',3:'Триггер',4:'Сценарий',5:'Альтернативы',6:'Состояния',7:'Данные',
+        8:'Правила',9:'Валидация|Лимиты',10:'Edge cases',17:'Побочные эффекты',18:'Приёмка',19:'UI',20:'КП'}
+# Измерения 11–16 описываются таблицей «Сквозное качество» модуля: ◐ — есть, NA — не применимо
+MODULE_TABLE = {
+ 'M1':  {11:'◐',12:'◐',13:'NA',14:'◐',15:'◐',16:'◐'},
+ 'M3':  {11:'◐',12:'◐',13:'◐',14:'◐',15:'◐',16:'◐'},
+ 'M4':  {11:'◐',12:'◐',13:'◐',14:'◐',15:'◐',16:'◐'},
+ 'M2':  {11:'◐',12:'◐',13:'◐',14:'◐',15:'◐',16:'◐'},
+ 'M10': {11:'◐',12:'◐',13:'NA',14:'◐',15:'◐',16:'NA'},
+ 'M12': {11:'◐',12:'◐',13:'NA',14:'◐',15:'◐',16:'◐'},
+}
+# переопределения для фич без интерфейса
+OVERRIDE_NA = {
+ 'F-12-01':[11,12],'F-12-02':[11,12],'F-12-03':[11,12],'F-12-04':[11,12],'F-12-05':[11,12],
+ 'F-12-06':[11,12],'F-12-07':[12],'F-12-09':[11,12],
+ 'F-02-11':[12],
+ 'F-04-01':[13],'F-04-02':[13],'F-04-04':[13],'F-04-06':[13],'F-04-07':[13],'F-04-08':[11,12,13],'F-04-09':[13],
+ 'F-03-01':[13],'F-03-02':[13],'F-03-03':[13],'F-03-04':[13],'F-03-07':[13],'F-03-08':[12,13],'F-03-09':[13],'F-03-10':[13],'F-03-11':[13],'F-03-12':[13],
+ 'F-01-08':[11,12,14,16],'F-01-09':[12],'F-01-11':[16],
+}
+# Канонический список модулей — источник и для имён, и для порядка в реестрах.
+# Порядок числовой, а не порядок написания спек: он не меняется при добавлении модулей
+# и совпадает с порядком разделов в MODULES.md и SCREENS.md.
+ALL_MODULES = ['M0','M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12']
+MODULE_TITLES = {
+    'M0':'Каркас оболочки', 'M1':'Идентичность и роли', 'M2':'Каталог',
+    'M3':'Трекинг, календарь, уведомления', 'M4':'Оценки и отзывы', 'M5':'UGC и модерация',
+    'M6':'Главная', 'M7':'Итоги', 'M8':'Аналитика и A/B', 'M9':'Администрирование',
+    'M10':'Контент-студия', 'M11':'Рекомендации', 'M12':'Импорт данных',
+}
+MODULE_NAMES = {m: '%s %s' % (m, MODULE_TITLES[m]) for m in ALL_MODULES}
+ORDER = ALL_MODULES
+P0_MODULES = ['M0','M1','M2','M3','M4','M5','M6','M9','M10','M12']
+
+# Измерения 11–16 для модуля, чей файл ещё не написан или в котором нет таблицы
+# «Сквозное качество». Ставим ○, а не ◐: «не описано» и «не применимо» — разные вещи,
+# и подменять одну другой нельзя. Такие ячейки попадут в отчёт как незакрытые.
+QUALITY_DIMS = [11,12,13,14,15,16]
+def module_marks(mod):
+    return MODULE_TABLE.get(mod) or {d: '○' for d in QUALITY_DIMS}
+
+def tier_code(t): return re.match(r'P\d', t).group(0)
+
+feats = []
+for f in sorted(glob.glob('01-product/features/M*.md')):
+    txt = open(f, encoding='utf-8').read()
+    mod = re.match(r'.*/(M\d+)-', f).group(1)
+    for p in re.split(r'\n(?=## F-\d\d-\d\d )', txt)[1:]:
+        head = p.split('\n', 1)[0]
+        fid, title, tier = re.match(r'## (F-\d\d-\d\d) (.+?) · (.+)$', head).groups()
+        body = p.split('\n---\n')[0]
+        row = {}
+        for d, pat in DIMS.items():
+            m = re.search(r'\*\*(?:' + pat + r')[^\n]*', body)
+            if m:
+                line = body[m.start():].split('\n')[0]
+                row[d] = 'NA' if ('Не применимо' in line or 'Не выносится' in line) else '●'
+            else:
+                row[d] = '○'
+        if re.search(r'\*\*Сценарий и правила', body): row[8] = '●'
+        row.update(module_marks(mod))
+        for d in OVERRIDE_NA.get(fid, []): row[d] = 'NA'
+        feats.append(dict(f=f, mod=mod, fid=fid, title=title, tier=tier, row=row,
+                          check=len(re.findall(r'\[проверить', body)),
+                          ops=sorted(set(re.findall(r'OP-\d\d', body))),
+                          scr=sorted(set(re.findall(r'S-\d\d', title)))))
+feats.sort(key=lambda x: (ORDER.index(x['mod']), x['fid']))
+
+# ---------- FEATURES ----------
+cnt = Counter((x['mod'], tier_code(x['tier'])) for x in feats)
+mods = [m for m in ORDER if any(x['mod'] == m for x in feats)]
+out = ['# FEATURES — реестр фич', '',
+ '> Генерируется скриптом `tools/docs-build/build_registries.py` из `features/M*.md`. Описаны модули: ' + ', '.join(mods) + '. Остальные — следующими партиями. Уровень: P0 — нужно для защиты, P1 — ценность, P2 — полировка (`PLAN` §8).', '',
+ '| Модуль | Фич | P0 | P1 | P2 |', '|---|---|---|---|---|']
+tally = lambda t: sum(v for (m, tt), v in cnt.items() if tt == t)
+for m in mods:
+    n = sum(1 for x in feats if x['mod'] == m)
+    out.append('| %s | %d | %d | %d | %d |' % (MODULE_NAMES[m], n, cnt.get((m,'P0'), 0), cnt.get((m,'P1'), 0), cnt.get((m,'P2'), 0)))
+out.append('| **Итого** | **%d** | **%d** | **%d** | **%d** |' % (len(feats), tally('P0'), tally('P1'), tally('P2')))
+out += ['', '| ID | Фича | Модуль | Уровень | Экраны | Операции | Спека |', '|---|---|---|---|---|---|---|']
+for x in feats:
+    t = re.sub(r' \((?:S-\d\d[^)]*)\)', '', x['title'])
+    out.append('| %s | %s | %s | %s | %s | %s | `features/%s` |' % (x['fid'], t, x['mod'], x['tier'], ', '.join(x['scr']) or '—', ', '.join(x['ops']) or '—', os.path.basename(x['f'])))
+open('01-product/FEATURES.md', 'w', encoding='utf-8').write('\n'.join(out) + '\n')
+
+# ---------- COVERAGE ----------
+tot = Counter()
+for x in feats:
+    for d in range(1, 21): tot[x['row'][d]] += 1
+cells = sum(tot.values()); applicable = cells - tot['NA']
+pct = 100 * (tot['●'] + tot['◐']) / applicable
+out = ['# COVERAGE — матрица покрытия «фича × 20 измерений»', '',
+ '> Генерируется скриптом по текстам спек: ● описано в блоке фичи, ◐ описано в таблице «Сквозное качество» модуля, **—** не применимо (причина в тексте фичи), ○ пусто. Определение «100%» — `PLAN` §1, п. 1.',
+ '> **Важно:** матрица показывает, что все измерения *затронуты*, а не что они *проверены автором*. Статус «ревью» по всем строкам — «ждёт».', '',
+ '**Итого (%s): фич %d, ячеек %d; описано ● %d, в таблице модуля ◐ %d, не применимо %d, пусто ○ %d. Заполнено %.0f%% применимых ячеек.**' % (', '.join(mods), len(feats), cells, tot['●'], tot['◐'], tot['NA'], tot['○'], pct), '',
+ 'Измерения: 1 назначение · 2 роли · 3 триггер · 4 сценарий · 5 альтернативы и ошибки · 6 состояния · 7 данные · 8 правила · 9 валидация и лимиты · 10 edge cases · 11 i18n · 12 a11y · 13 SEO · 14 скорость · 15 безопасность · 16 аналитика · 17 побочные эффекты · 18 приёмка · 19 UI · 20 КП.', '',
+ '| ID | Уровень | ' + ' | '.join(str(d) for d in range(1, 21)) + ' | проверить | Ревью |', '|' + '---|' * 23]
+sym = {'●':'●','◐':'◐','NA':'—','○':'○'}
+for x in feats:
+    out.append('| %s | %s | %s | %d | ждёт |' % (x['fid'], tier_code(x['tier']), ' | '.join(sym[x['row'][d]] for d in range(1, 21)), x['check']))
+out += ['', 'Сумма пунктов **[проверить]**: %d — ближайшие замеры и сверки (прогон 2 спайка, документация API, Фаза 7).' % sum(x['check'] for x in feats)]
+open('00-process/COVERAGE.md', 'w', encoding='utf-8').write('\n'.join(out) + '\n')
+
+# ---------- EDGE-CASES + проверки ссылок ----------
+rows, dups = {}, []
+for f in glob.glob('**/*.md', recursive=True):
+    if f.endswith('EDGE-CASES.md'): continue
+    for l in open(f, encoding='utf-8').read().split('\n'):
+        m = re.match(r'\| (EC-[A-Z]\d+) \| (.+?) \| (.+?) \|$', l)
+        if m:
+            if m.group(1) in rows: dups.append(m.group(1))
+            rows[m.group(1)] = (m.group(2), m.group(3), f)
+refs_ec, refs_h, refs_r = set(), set(), set()
+defined_h = set(re.findall(r'^\| (H-\d+) \|', open('00-process/DECISIONS.md', encoding='utf-8').read(), re.M))
+defined_r = set()
+for f in glob.glob('**/*.md', recursive=True):
+    t = open(f, encoding='utf-8').read()
+    defined_r |= set(re.findall(r'^\| (R-[A-Z0-9]+-\d+) \|', t, re.M))
+for f in glob.glob('**/*.md', recursive=True):
+    t = open(f, encoding='utf-8').read()
+    if not f.endswith('EDGE-CASES.md'): refs_ec |= set(re.findall(r'EC-[A-Z]\d+', t))
+    if not f.endswith('DECISIONS.md'): refs_h |= set(re.findall(r'\bH-\d+\b', t))
+    refs_r |= {'R-%s-%02d' % (a, int(b)) for a, b in re.findall(r'R-(DES|SEC|SEO|PERF|I18N|A11Y|AN|MOD|TST)-(\d+)', t)}
+titles = {'R':'Права и роли','C':'Контент','D':'Данные и импорт','I':'Импорт (глубокая спека)','K':'Публичный каталог','S':'Контент-студия','A':'Аккаунты и вход','T':'Трекинг и уведомления','V':'Оценки и отзывы'}
+out = ['# EDGE-CASES — реестр граничных случаев', '', '> Собирается скриптом из таблиц `EC-…` во всех документах. Правило: каждая фича ссылается на свои `EC`; новая находка сначала попадает сюда. Всего: **%d**.' % len(rows), '']
+for k, title in titles.items():
+    items = sorted((int(i[4:]), i) for i in rows if i[3] == k)
+    if not items: continue
+    out += ['## %s (`EC-%s*`)' % (title, k), '', '| ID | Ситуация | Поведение | Где |', '|---|---|---|---|']
+    for _, i in items:
+        s, b, f = rows[i]; out.append('| %s | %s | %s | `%s` |' % (i, s, b, f))
+    out.append('')
+open('00-process/EDGE-CASES.md', 'w', encoding='utf-8').write('\n'.join(out))
+
+problems = []
+if dups: problems.append('Повторные EC: %s' % sorted(set(dups)))
+und_ec = sorted(r for r in refs_ec if r not in rows)
+if und_ec: problems.append('Нет определения EC: %s' % und_ec)
+und_h = sorted((h for h in refs_h if h not in defined_h), key=lambda h: int(h[2:]))
+if und_h: problems.append('Нет определения H: %s' % und_h)
+und_r = sorted(r for r in refs_r if r not in defined_r)
+if und_r: problems.append('Нет определения R: %s' % und_r)
+gaps = [(x['fid'], [d for d in range(1,21) if x['row'][d] == '○']) for x in feats if any(v == '○' for v in x['row'].values())]
+if gaps: problems.append('Пустые измерения: %s' % gaps)
+print('Фич: %d; P0: %d; ячейки: %s; заполнено %.0f%%; EC: %d' % (len(feats), sum(1 for x in feats if tier_code(x['tier'])=='P0'), dict(tot), pct, len(rows)))
+print('ПРОБЛЕМЫ:' if problems else 'Ссылки сходятся, пустых измерений нет.')
+for p in problems: print(' -', p)
+
+# ---------- STATUS (единая точка входа) ----------
+import datetime
+TODAY = datetime.date.today().isoformat()   # дата запуска: STATUS не должен врать о «сегодня»
+DEFENCE_FROM, DEFENCE_TO = '2026-12-10', '2026-12-20'
+t0 = datetime.date.fromisoformat(TODAY)
+left = lambda d: (datetime.date.fromisoformat(d) - t0).days
+def bar(done, total, n=10):
+    k = round(n * done / total) if total else 0
+    return '█' * k + '░' * (n - k)
+ALL_MODULES = ['M0','M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12']
+P0_MODULES  = ['M0','M1','M2','M3','M4','M5','M6','M9','M10','M12']
+NEXT_NAMES = {m: MODULE_TITLES[m] for m in ALL_MODULES}
+mods_done = {x['mod'] for x in feats}
+done_all = [m for m in ALL_MODULES if m in mods_done]
+done_p0 = [m for m in P0_MODULES if m in mods_done]
+todo_p0 = [m for m in P0_MODULES if m not in mods_done]
+todo_p1 = [m for m in ALL_MODULES if m not in mods_done and m not in P0_MODULES]
+n_md = len(glob.glob('**/*.md', recursive=True))
+n_scr = len(re.findall(r'^\| S-\d\d ', open('01-product/SCREENS.md', encoding='utf-8').read(), re.M))
+dec_text = open('00-process/DECISIONS.md', encoding='utf-8').read()
+n_dec = len(re.findall(r'^\| DEC-\d+ ', dec_text, re.M))
+DECISIONS_FOR_AUTHOR = [
+ ('«Ждём сезон»: календарь, правая панель и «Новинка дня» работают только по сериалам в состоянии «Выходит»', 'H-27'),
+ ('Каталог = топ-1000 по голосам IMDb + до ≈ 300 сериалов, у которых есть серии до 31.12', 'H-20'),
+ ('Подборки на главной: в P0 создаёт вручную админ, порядок по весу; по правилам и по просмотрам — P1', 'H-31'),
+ ('Регистрация в 3 шага; письмо подтверждается кнопкой; вход только по email; после подтверждения сразу вход', 'H-50, H-56, H-57'),
+ ('«Любимые» при регистрации идут только в рекомендации, не в «просмотрено»', 'H-55'),
+ ('Удаление аккаунта: 14 дней на отмену; оценки и материалы остаются без имени', 'H-61'),
+ ('Приватность по умолчанию закрыта: статистика и закладки в профиле выключены', 'M1 F-01-06'),
+ ('Описания серий по умолчанию показываются; скрытие от спойлеров — настройка пользователя', 'H-37'),
+ ('Правая панель «Предстоящие» — только на списковых страницах, от 1280 px', 'H-30'),
+ ('«Похожие» в P0 — простой алгоритм по жанрам, ключевым словам, людям', 'H-44'),
+ ('На защите письма идут в «почтовый ящик разработчика» внутри сайта (экран S-84)', 'H-51'),
+ ('Ник проверяется словарём модерации; поиск ищет сериалы, людей и подборки, но не пользователей', 'H-54, H-12'),
+ ('Материалы забаненного: оставлять или скрывать (флажок «скрыть материалы» в диалоге бана)', 'Q-18'),
+]
+L = ['# STATUS — где мы сейчас (одна страница)', '',
+ '> Обновлено **%s**. Генерируется скриптом `tools/docs-build/build_registries.py` — вручную не правим. **Начинайте чтение с этого файла.**' % TODAY, '',
+ '## 1. Коротко', '',
+ '- **Проект:** сервис оценки и отслеживания сериалов с календарём выхода серий (курсовой, Node.js + Express). До защиты **%d–%d дня** (окно 10–20 декабря).' % (left(DEFENCE_FROM), left(DEFENCE_TO)),
+ '- **Моя часть — довести планирование:** спеки, ER, архитектура и стек, AGENTS и набор для opencode (§5). Код и документы курсового ведёте вы с opencode, старт кода ≈ 2 ноября.',
+ '- **Мы на этапе 4 из 9 — пишем подробные спецификации.** Заморозка spec P0 ≈ 25 октября.',
+ '- **Опережаем график примерно на 1,5 недели** (оценка): этапы 0–3 и четыре модуля этапа 4 закончены раньше плана.',
+ '- **Риск №1** — ревью спек: 13 решений вы подтвердили; дальше смотрите спеки по мере готовности (§5) и присылайте правки, пока код не начат.',
+ '## 2. Прогресс', '',
+ '| Что | Готово | Шкала |', '|---|---|---|',
+ '| Этапы 0–3: рамка, границы, широкий проход (модули, экраны, пути, состояния), сквозные стандарты | 4 из 4 (черновики, ждут вашего ревью) | %s 100%% |' % bar(4,4),
+ '| Данные: спайк IMDb + TMDB (прогоны 1 и 2) | ✔ выполнен, итоги — `DATA-SOURCES` §10 | %s 100%% |' % bar(1,1),
+ '| **Этап 4 — глубокие спеки, все 13 модулей** | **%d из 13**: %s | %s %d%% |' % (len(done_all), ', '.join(done_all), bar(len(done_all),13), round(100*len(done_all)/13)),
+ '| — из них нужные для защиты (P0, 10 модулей) | **%d из 10** | %s %d%% |' % (len(done_p0), bar(len(done_p0),10), round(100*len(done_p0)/10)),
+ '| Этап 5 — данные и ER-диаграмма | не начато | %s 0%% |' % bar(0,1),
+ '| Этап 6 — проверка и заморозка spec v1.0 | не начато | %s 0%% |' % bar(0,1),
+ '| Этап 7 — архитектура и стек | не начато | %s 0%% |' % bar(0,1),
+ '| Этап 8 — AGENTS для opencode | не начато | %s 0%% |' % bar(0,1),
+ '| Набор для opencode (AGENTS, карта чтения, протоколы, команды, пакеты контекста) | **1 из 5 частей** (генератор пакетов); остальное — этап 8 | %s 20%% |' % bar(1,5),
+ '| Код и документы курсового (ПЗ, схемы, плакаты, руководства) | **на вас и opencode**; от меня — только планирование | — |',
+ '_Проценты по модулям считают модули равными; это ориентир, а не трудозатраты._', '',
+ '**Дальше в очереди (P0):** ' + '; '.join('%s — %s' % (m, NEXT_NAMES[m]) for m in todo_p0) + '. **Потом (P1):** ' + '; '.join('%s — %s' % (m, NEXT_NAMES[m]) for m in todo_p1) + '.', '',
+ '## 3. Календарь', '',
+ '```mermaid', 'gantt', '    title Календарь до защиты', '    dateFormat YYYY-MM-DD', '    axisFormat %d.%m',
+ '    section Спецификация',
+ '    Этапы 0-3 (рамка, границы, стандарты) :done, s1, 2026-10-03, 2026-10-05',
+ '    Глубокие спеки (M12, M2, M10, M1) :done, s2, 2026-10-04, 2026-10-05',
+ '    Глубокие спеки (M3, M4, M5, M6, M0, M9) :active, s3, 2026-10-05, 2026-10-18',
+ '    Данные, ER, проверка (P0) :s4, 2026-10-19, 2026-10-25',
+ '    Заморозка spec P0 :milestone, m1, 2026-10-25, 0d',
+ '    Спеки P1 (M7, M8, M11) :s5, 2026-11-02, 2026-11-15',
+ '    section Архитектура и агент',
+ '    Архитектура, стек, AGENTS :a1, 2026-10-26, 2026-11-01',
+ '    section Код (вы и opencode)',
+ '    Код P0 :c1, 2026-11-02, 2026-11-22',
+ '    Выбранные P1, безопасность, тесты :c2, 2026-11-23, 2026-11-29',
+ '    Заморозка функциональности :milestone, m2, 2026-12-01, 0d',
+ '    section Документы курсового (ваша часть)',
+ '    ПЗ, IDEF0, UML, плакаты :k1, 2026-10-19, 2026-12-08',
+ '    Руководства, репетиция демо :k2, 2026-12-01, 2026-12-09',
+ '    Защита (окно) :crit, k3, 2026-12-10, 2026-12-20',
+ '```', '',
+ '## 4. Что нужно от вас', '',
+ '**А. Решения: подтверждены автором 2026-10-06 (DEC-020).** Список ниже — для справки; новых вопросов нет.', '',
+ '| № | Решение | Где подробно |', '|---|---|---|']
+for i, (t, w) in enumerate(DECISIONS_FOR_AUTHOR, 1): L.append('| %d | %s | %s |' % (i, t, w))
+L += ['', '**Б. Библиотеки:** берём только реально нужное и оптимальное (DEC-021). Список с обоснованием по каждой появится в Фазе 7, письмо руководителю — по этому списку. Сейчас вопросов нет.', '',
+ '**В. По желанию:** пришлите `spike2-out/catalog-snapshot.json` (лежит рядом с `report2.md`) — по нему проверю правило «сначала даты, потом статус» (Q-19) и уточню очередь неполных. Не блокирует.', '',
+ '## 5. Карта документов: что читать, что нет', '',
+ '| Группа | Файлы | Вам нужно |', '|---|---|---|',
+ '| **Читать** | этот файл `STATUS.md`; `01-product/VISION.md` | да, целиком |',
+ '| **Проверять по мере готовности** | `01-product/features/M*.md` — по модулям | не целиком: смотрите «Назначение», «Сценарий», «Приёмка», «UI»; спорное уже вынесено в §4 |',
+ '| **Справочники** (на них ссылаются спеки) | `01-product`: MODULES, SCREENS, JOURNEYS, STATES, ROLES-PERMISSIONS · `02-design/PRINCIPLES` · `03-standards/*` (10 стандартов) · `04-data`: DATA-SOURCES, CONTENT-PLAN · `00-process/GLOSSARY` · `07-kp/COMPLIANCE-BLANK` | нет; открывайте, когда спека отсылает |',
+ '| **Журналы** | `00-process/DECISIONS.md` (решения и гипотезы), `00-process/PLAN.md` (процесс и календарь) | по желанию |',
+ '| **Собираются скриптом** | `01-product/FEATURES.md`, `00-process/COVERAGE.md`, `00-process/EDGE-CASES.md`, этот `STATUS.md` | не открывать |',
+ '| **Инструменты** | `tools/data-spike/` (замер данных), `tools/docs-build/` (`build_registries.py` — реестры и этот файл; `context-pack.mjs` — пакеты контекста, запускает opencode) | запускаете только спайк |', '',
+ '## 6. Цифры (считаются автоматически)', '',
+ '- Файлов документации: **%d**; решений автора: **%d**; гипотез: **%d**; правил в стандартах: **%d**.' % (n_md, n_dec, len(defined_h), len(defined_r)),
+ '- Описано фич: **%d** (из них P0 — %d); экранов в каталоге: **%d**; граничных случаев: **%d**.' % (len(feats), sum(1 for x in feats if tier_code(x['tier'])=='P0'), n_scr, len(rows)),
+ '- Проверка ссылок между документами: %s.' % ('**есть проблемы, см. вывод скрипта**' if problems else 'все ссылки на `EC-`, `H-`, `R-` имеют определение'), '']
+open('STATUS.md', 'w', encoding='utf-8').write('\n'.join(L))
+
+sys.exit(1 if problems else 0)
