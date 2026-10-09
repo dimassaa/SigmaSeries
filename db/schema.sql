@@ -598,7 +598,17 @@ CREATE TABLE e_collection_rule (
 -- Проверено на PostgreSQL 18.6: под владельцем INSERT в e_audit_log проходит
 -- после REVOKE, под ролью st_app — нет.
 
-CREATE ROLE st_app LOGIN;
+-- Роль принадлежит кластеру, а не базе, поэтому на второй базе того же
+-- сервера обычный CREATE ROLE упал бы с «role already exists». Отсюда DO-блок:
+-- он идемпотентен и на второй базе только выдаёт права.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'st_app') THEN
+    CREATE ROLE st_app LOGIN;
+  END IF;
+END
+$$;
+
 GRANT USAGE ON SCHEMA public TO st_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO st_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO st_app;

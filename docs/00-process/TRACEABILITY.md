@@ -17,10 +17,10 @@
 
 | OP | Функция | Тестов |
 |---|---|---|
-| OP-01 | `src/services/moderation/check.js` | 22 |
-| OP-06 | `src/services/import/pipeline.js` (`matchSeries`) | 16 |
-| OP-07 | `src/services/import/pipeline.js` (`completeness`) | 15 |
-| OP-17 | `src/services/backup/job.js` | 14 |
+| `OP-01` | `src/services/moderation/check.js` | 22 |
+| `OP-06` | `src/services/import/pipeline.js` (`matchSeries`) | 16 |
+| `OP-07` | `src/services/import/pipeline.js` (`completeness`) | 15 |
+| `OP-17` | `src/services/backup/job.js` | 14 |
 | — | `src/services/auth/password.js` (вход, R-SEC-21…24) | 15 |
 | — | `src/services/audit/log.js` (R-SEC-29, R-SEC-33) | 13 |
 

@@ -630,7 +630,17 @@ CREATE TABLE e_collection_rule (
 -- Проверено на PostgreSQL 18.6: под владельцем INSERT в e_audit_log проходит
 -- после REVOKE, под ролью st_app — нет.
 
-CREATE ROLE st_app LOGIN;
+-- Роль принадлежит кластеру, а не базе, поэтому на второй базе того же
+-- сервера обычный CREATE ROLE упал бы с «role already exists». Отсюда DO-блок:
+-- он идемпотентен и на второй базе только выдаёт права.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'st_app') THEN
+    CREATE ROLE st_app LOGIN;
+  END IF;
+END
+$$;
+
 GRANT USAGE ON SCHEMA public TO st_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO st_app;
 GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO st_app;
@@ -658,7 +668,7 @@ CREATE RULE no_delete_user AS ON DELETE TO e_user DO INSTEAD NOTHING;
 
 | № | Проверка | Результат |
 |---|---|---|
-| 1 | `psql -f db/schema.sql` на пустой базе | без ошибок, код 0 |
+| 1 | `psql -f db/schema.sql` на пустой базе | без ошибок, код 0. **Проверено на двух базах подряд:** роль `st_app` принадлежит кластеру, поэтому `CREATE ROLE` обёрнут в идемпотентный `DO`-блок — иначе вторая база падала бы |
 | 2 | Внешних ключей больше нуля, у каждого явный `ON DELETE` | **60** внешних ключей, 97 индексов |
 | 3 | Нет `ON DELETE CASCADE` на `e_user`, `e_material`, `e_editor_decision`, `e_audit_log` | 0 — подтверждено |
 | 4 | Имена из `DOMAIN-MODEL` §2–6 присутствуют либо помечены вычисляемыми | 50 таблиц; вычисляемые (`e_recap_cache` и прочие) таблиц не имеют — и это правильно |
