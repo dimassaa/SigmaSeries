@@ -565,9 +565,12 @@ CREATE TABLE e_splash_frame (
   series_id   BIGINT REFERENCES e_series(id) ON DELETE SET NULL,
   image_id    BIGINT NOT NULL REFERENCES e_image(id) ON DELETE RESTRICT,
   ordinal     SMALLINT NOT NULL,
-  active      BOOLEAN NOT NULL DEFAULT TRUE,
-  CONSTRAINT uq_splash_ordinal UNIQUE (ordinal) WHERE active
+  active      BOOLEAN NOT NULL DEFAULT TRUE
 );
+-- Порядковый номер уникален только среди активных кадров: снятый кадр
+-- не должен мешать поставить другой на его место. Частичная уникальность
+-- в PostgreSQL — это индекс, а не ограничение (UNIQUE ... WHERE не парсится).
+CREATE UNIQUE INDEX uq_splash_ordinal ON e_splash_frame (ordinal) WHERE active;
 
 -- ---------- Согласие на cookies ----------
 
@@ -615,31 +618,71 @@ CREATE TABLE e_collection_rule (
 
 | ID | Правило | Средство | Зачем |
 |---|---|---|---|
-| R-SQL-01 | Журнал аудита — только чтение для всех, включая админа. Запись только из прикладного кода под служебной ролью | `REVOKE INSERT, UPDATE, DELETE ON e_audit_log FROM PUBLIC` | Роль «админ, только чтение» проверяется кодом, а это ограничение — базой: обойти его кодом нельзя |
+| R-SQL-01 | Журнал аудита — только чтение **для роли приложения**. Запись только из прикладного кода под служебной ролью | `REVOKE … FROM st_app` + подключение не владельцем | «Админ — только чтение» проверяется кодом, а это ограничение — базой. **Не действует для владельца таблицы:** он и есть тот, кто отзывает права |
 | R-SQL-02 | Удаление пользователя — только анонимизация. Физического `DELETE` из `e_user` нет ни у одной роли | `CREATE RULE no_delete_user AS ON DELETE TO e_user DO INSTEAD NOTHING` | Требование Бланка 3.3.1 о ссылочной целостности. Каскад от сериала к пользователю отменяет эту гарантию |
 | R-SQL-03 | Счётчик рейтинга не уменьшается удалением строки оценки | Исключённые оценки помечаются `counted = false` (M4 F-04-08), удаление запрещено политикой | Иначе удаление одной оценки тихо меняет публичное число на странице сериала |
 
 ```sql
--- R-SQL-01
-REVOKE INSERT, UPDATE, DELETE ON e_audit_log FROM PUBLIC;
+-- ─── Роль приложения ────────────────────────────────────────────────────────
+-- Владельцем таблиц остаётся миграционная роль. Это не формальность:
+-- REVOKE ... FROM PUBLIC не отнимает права у владельца, поэтому защита
+-- R-SQL-01 держится только тогда, когда приложение подключается НЕ владельцем.
+-- Проверено на PostgreSQL 18.6: под владельцем INSERT в e_audit_log проходит
+-- после REVOKE, под ролью st_app — нет.
 
--- R-SQL-02
+CREATE ROLE st_app LOGIN;
+GRANT USAGE ON SCHEMA public TO st_app;
+GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES IN SCHEMA public TO st_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO st_app;
+
+-- R-SQL-01: журнал аудита — только чтение для роли приложения.
+REVOKE INSERT, UPDATE, DELETE ON e_audit_log FROM st_app;
+
+-- R-SQL-03: оценка не удаляется строкой — исключение помечается counted = false.
+REVOKE DELETE ON e_rating FROM st_app;
+
+-- R-SQL-02: запрет удаления действует для всех, включая владельца,
+-- потому что это правило таблицы, а не привилегия.
 CREATE RULE no_delete_user AS ON DELETE TO e_user DO INSTEAD NOTHING;
-
--- R-SQL-03 — RLS-подобное правило на уровне приложения, дублируется здесь
--- как требование: операция DELETE по e_rating запрещена ролью чтения.
-REVOKE DELETE ON e_rating FROM PUBLIC;
 ```
+
+**Как это проверять.** Не «посмотреть, что REVOKE есть в файле», а подключиться
+ролью `st_app` и попытаться: `INSERT INTO e_audit_log …` должен отказать,
+`DELETE FROM e_user …` должен вернуть `DELETE 0`. Под учётной записью владельца
+вторая проверка проходит, первая — нет, и это ожидаемо.
 
 ## 5. Проверка
 
-Схема считается корректной, если:
+Выполнено 2026-10-09 на PostgreSQL 18.6. Схема применяется без ошибок; чек-лист
+закрыт автоматическими тестами `tests/schema.test.js`.
 
-1. `psql -f database.sql` на пустой базе выполняется без ошибок.
-2. `SELECT count(*) FROM information_schema.table_constraints WHERE constraint_type='FOREIGN KEY'` > 0, и ни одна внешняя ссылка не объявлена без явного `ON DELETE`.
-3. Нет ни одного `ON DELETE CASCADE` на `e_user`, `e_material`, `e_editor_decision`, `e_audit_log`.
-4. Все имена из `DOMAIN-MODEL` §2–6 присутствуют в схеме либо помечены как вычисляемые.
-5. Правило R-SQL-02 действительно срабатывает: `DELETE FROM e_user WHERE id = 1;` не удаляет строку.
+| № | Проверка | Результат |
+|---|---|---|
+| 1 | `psql -f db/schema.sql` на пустой базе | без ошибок, код 0 |
+| 2 | Внешних ключей больше нуля, у каждого явный `ON DELETE` | **60** внешних ключей, 97 индексов |
+| 3 | Нет `ON DELETE CASCADE` на `e_user`, `e_material`, `e_editor_decision`, `e_audit_log` | 0 — подтверждено |
+| 4 | Имена из `DOMAIN-MODEL` §2–6 присутствуют либо помечены вычисляемыми | 50 таблиц; вычисляемые (`e_recap_cache` и прочие) таблиц не имеют — и это правильно |
+| 5 | R-SQL-02: `DELETE FROM e_user` не удаляет строку | `DELETE 0`, строка остаётся |
+| 6 | R-SQL-01: журнал аудита не принимает запись от роли приложения | `permission denied for table e_audit_log` |
+| 7 | R-SQL-03: оценка не удаляется строкой | `permission denied for table e_rating` |
+
+**Что эти проверки выявили и что пришлось исправить:**
+
+1. `UNIQUE (ordinal) WHERE active` в `e_splash_frame` — частичная уникальность
+   в PostgreSQL это индекс, а не ограничение. Схема не применялась вообще.
+2. `R-SQL-01` в прежней формулировке **не работало**. `REVOKE … FROM PUBLIC`
+   не отнимает права у владельца таблицы, а приложение подключалось владельцем.
+   Теперь есть роль `st_app`, и права отзываются у неё.
+3. **Инспекция каталога требует учётной записи владельца.** `information_schema`
+   фильтрует ограничения по привилегиям: под ролью приложения у `e_audit_log`
+   не видно ни одного из восьми, хотя они есть. Любой будущий инструмент,
+   который разбирает схему, должен подключаться владельцем.
+
+**Побочный эффект R-SQL-02, важный для тестов.** Правило запрещает `DELETE`
+для всех, включая владельца, — значит тестовые строки нельзя убрать за собой.
+Единственный способ — транзакция с откатом. Это не дефект схемы, это цена
+гарантии; но каждый, кто будет писать тесты против неё, должен знать про
+откат, иначе тест упадёт на второй прогон с «duplicate key».
 
 ## 6. Открытые вопросы
 

@@ -17,6 +17,7 @@
     "docs:check": "node tools/docs-build/context-pack.mjs --check",
     "verify": "npm run db:check && npm run docs && npm run test"
   },
-  "dependencies": {},
-  "devDependencies": {}
+  "dependencies": {
+    "pg": "^8.23.1"
+  }
 }
