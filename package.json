@@ -15,10 +15,14 @@
     "db:check": "python3 tools/schema/extract.py --check",
     "docs": "cd docs && python3 ../tools/docs-build/build_registries.py",
     "docs:check": "node tools/docs-build/context-pack.mjs --check",
-    "verify": "npm run db:check && npm run docs && npm run test && npm run docs:check"
+    "verify": "npm run db:check && npm run css:check && npm run docs && npm run test && npm run docs:check",
+    "css": "node tools/build-css.mjs",
+    "css:check": "node tools/build-css.mjs --check",
+    "start": "node src/server.js"
   },
   "dependencies": {
     "argon2": "^0.45.1",
+    "express": "^5.3.0",
     "pg": "^8.23.1"
   }
 }

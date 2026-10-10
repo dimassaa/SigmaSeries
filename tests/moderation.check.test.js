@@ -169,10 +169,17 @@ test('проверка 10 000 слов словаря укладывается �
   const d = dict({ block: words });
   const body = 'Отзыв про сериал, который я посмотрел. '.repeat(200);
 
-  const t0 = process.hrtime.bigint();
-  const r = checkMaterial({ body, dictionary: d });
-  const ms = Number(process.hrtime.bigint() - t0) / 1e6;
+  const runs = [];
+  let decision;
+  for (let i = 0; i < 5; i++) {
+    const t0 = process.hrtime.bigint();
+    decision = checkMaterial({ body, dictionary: d }).decision;
+    runs.push(Number(process.hrtime.bigint() - t0) / 1e6);
+  }
+  runs.sort((a, b) => a - b);
 
-  assert.equal(r.decision, 'publish');
-  assert.ok(ms < 50, `проверка заняла ${ms.toFixed(1)} мс при бюджете 50`);
+  assert.equal(decision, 'publish');
+  // Медиана, а не лучший прогон: тесты идут параллельно, и единичное
+  // измерение ловит чужую нагрузку, а не свойство функции.
+  assert.ok(runs[2] < 50, `медиана ${runs[2].toFixed(1)} мс при бюджете 50 (все прогоны: ${runs.map((v) => v.toFixed(1)).join(', ')})`);
 });

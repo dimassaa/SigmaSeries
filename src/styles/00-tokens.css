@@ -1,0 +1,58 @@
+/* Значения темы. Единственное место в проекте, где есть hex.
+   Компонент, написавший цвет напрямую, не переключает тему (TOKENS §8). */
+
+:root,
+[data-theme='dark'] {
+  --surface-canvas: #080809;
+  --surface-raised: #141415;
+  --surface-overlay: #1b1d1f;
+  --surface-sunken: #101011;
+  --surface-hover: #26272d;
+
+  --border-subtle: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --text-primary: #ECECEF;
+  --text-secondary: #9A9AA3;
+  --text-inverse: #080809;
+
+  --accent: #83c3ff;
+  --accent-hover: #a3d3ff;
+  --accent-contrast: #080809;
+
+  --positive: #3fb27f;
+  --warning: #d99a2b;
+  --danger: #e05252;
+
+  --blur-light: 8px;
+  --scrim: linear-gradient(100deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.30) 55%, rgba(0, 0, 0, 0) 100%);
+
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --surface-canvas: #FBFBFC;
+  --surface-raised: #FFFFFF;
+  --surface-overlay: #FFFFFF;
+  --surface-sunken: #F1F2F4;
+  --surface-hover: #EEF0F3;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+
+  --text-primary: #16171A;
+  --text-secondary: #5A5C63;
+  --text-inverse: #FFFFFF;
+
+  --accent: #1668d4;
+  --accent-hover: #0f57b5;
+  --accent-contrast: #FFFFFF;
+
+  --positive: #1c7a4d;
+  --warning: #8a5a06;
+  --danger: #a52a2a;
+
+  --scrim: linear-gradient(100deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.24) 55%, rgba(0, 0, 0, 0) 100%);
+
+  color-scheme: light;
+}

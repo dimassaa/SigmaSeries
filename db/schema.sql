@@ -154,6 +154,13 @@ CREATE INDEX ix_series_added  ON e_series (added_at DESC);
 CREATE INDEX ix_series_search ON e_series
   USING gin (to_tsvector('russian', coalesce(title_ru,'') || ' ' || coalesce(title_original,'')));
 
+-- Изображения объявлены раньше сериалов, поэтому связь добавляется здесь.
+-- Без неё постер и фон не принадлежат ни к чему и в каталог не попадают:
+-- это нашлось при первом же запросе к живой базе (октябрь 2026).
+ALTER TABLE e_image
+  ADD COLUMN series_id BIGINT REFERENCES e_series(id) ON DELETE CASCADE;
+CREATE INDEX ix_image_series ON e_image (series_id, role);
+
 CREATE TABLE e_season (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   series_id   BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
@@ -236,6 +243,8 @@ CREATE TABLE e_collection (
   active   BOOLEAN NOT NULL DEFAULT TRUE,
   is_demo  BOOLEAN NOT NULL DEFAULT FALSE
 );
+-- archived_at у подборок нет и не нужен: скрытая подборка это active = false,
+-- а удаление теряет смысла, потому что на неё ссылаются позиции каталога.
 CREATE TABLE e_collection_item (
   collection_id BIGINT NOT NULL REFERENCES e_collection(id) ON DELETE CASCADE,
   series_id     BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,

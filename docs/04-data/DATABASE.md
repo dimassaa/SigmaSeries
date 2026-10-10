@@ -161,6 +161,13 @@ CREATE INDEX ix_series_added  ON e_series (added_at DESC);
 CREATE INDEX ix_series_search ON e_series
   USING gin (to_tsvector('russian', coalesce(title_ru,'') || ' ' || coalesce(title_original,'')));
 
+-- Изображения объявлены раньше сериалов, поэтому связь добавляется здесь.
+-- Без неё постер и фон не принадлежат ни к чему и в каталог не попадают:
+-- это нашлось при первом же запросе к живой базе (октябрь 2026).
+ALTER TABLE e_image
+  ADD COLUMN series_id BIGINT REFERENCES e_series(id) ON DELETE CASCADE;
+CREATE INDEX ix_image_series ON e_image (series_id, role);
+
 CREATE TABLE e_season (
   id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   series_id   BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
@@ -243,6 +250,8 @@ CREATE TABLE e_collection (
   active   BOOLEAN NOT NULL DEFAULT TRUE,
   is_demo  BOOLEAN NOT NULL DEFAULT FALSE
 );
+-- archived_at у подборок нет и не нужен: скрытая подборка это active = false,
+-- а удаление теряет смысла, потому что на неё ссылаются позиции каталога.
 CREATE TABLE e_collection_item (
   collection_id BIGINT NOT NULL REFERENCES e_collection(id) ON DELETE CASCADE,
   series_id     BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
@@ -687,6 +696,14 @@ CREATE RULE no_delete_user AS ON DELETE TO e_user DO INSTEAD NOTHING;
    фильтрует ограничения по привилегиям: под ролью приложения у `e_audit_log`
    не видно ни одного из восьми, хотя они есть. Любой будущий инструмент,
    который разбирает схему, должен подключаться владельцем.
+
+4. **`e_image` не имел `series_id`.** Поле было описано в `DOMAIN-MODEL` §3,
+   но не попало в DDL: таблица объявлена раньше `e_series`, и связь
+   «постер и фон принадлежат сериалу» просто не была написана. Нашлось при
+   первом же запросе главной к живой базе — 2026-10-10, после того как все
+   тесты проходили. Добавлена через `ALTER TABLE` сразу после `e_series`,
+   с индексом. Тест `tests/home.queries.test.js` сверяет список колонок, на
+   которые опирается разметка, с фактической схемой.
 
 **Побочный эффект R-SQL-02, важный для тестов.** Правило запрещает `DELETE`
 для всех, включая владельца, — значит тестовые строки нельзя убрать за собой.
