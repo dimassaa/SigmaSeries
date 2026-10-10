@@ -525,6 +525,23 @@ CREATE TABLE e_helpful_vote (
 );
 CREATE INDEX ix_helpful_material ON e_helpful_vote (material_id);
 
+-- ---------- Сессии ----------
+-- Таблица для connect-pg-simple. Схема Store, а не наша: менять её нельзя,
+-- пока установлена эта библиотека, иначе сессии перестанут читаться.
+-- Сессия в БД, а не в памяти (R-SEC-02): перезапуск процесса не должен
+-- выкидывать человека из аккаунта посреди работы.
+
+CREATE TABLE session (
+  sid     varchar NOT NULL COLLATE "default",
+  sess    json    NOT NULL,
+  expire  timestamp(6) NOT NULL,
+  -- Без «NOT NULL» в ограничении: публичная схема connect-pg-simple его
+  -- содержит, а PostgreSQL 18 такое уже не принимает. Первичный ключ и так
+  -- запрещает пустое значение.
+  CONSTRAINT session_pkey PRIMARY KEY (sid)
+);
+CREATE INDEX session_expire_idx ON session (expire);
+
 -- ---------- Токены входа ----------
 -- Четыре сущности (подтверждение email, восстановление пароля, 2FA, вход)
 -- сведены в одну таблицу с типом: они отличаются только сроком и целью.

@@ -15,7 +15,9 @@ import {
   checkPasswordStrength,
   DUMMY_HASH,
   PASSWORD_MIN,
+  PASSWORD_MAX,
 } from '../src/services/auth/password.js';
+import { AUTH } from '../src/config/settings.js';
 
 test('пароль хешируется и не хранится в открытом виде', async () => {
   const h = await hashPassword('очень-долгий-пароль');
@@ -104,6 +106,15 @@ test('короткий пароль отклоняется с указанием
 
 test('пароль из одного повторяющегося символа отклоняется', () => {
   assert.ok(checkPasswordStrength('ааааааааа').length > 0);
+});
+
+test('длины пароля берутся из таблицы настроек модуля', () => {
+  // Значения не должны расходиться со спецификацией: здесь они приходят
+  // из AUTH, а не написаны здесь же константой.
+  assert.equal(PASSWORD_MIN, AUTH.passwordMin);
+  assert.equal(PASSWORD_MAX, AUTH.passwordMax);
+  assert.equal(PASSWORD_MIN, 10);
+  assert.equal(PASSWORD_MAX, 128);
 });
 
 test('нормальный пароль проходит', () => {

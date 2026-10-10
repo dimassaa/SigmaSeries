@@ -7,6 +7,8 @@
 import { createApp } from './app.js';
 import { createPool, checkConnection } from './db/pool.js';
 import { pgData } from './services/home/data.js';
+import { pgAuthStore } from './services/auth/store.js';
+import { createSessionMiddleware } from './services/auth/session.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -20,7 +22,17 @@ try {
   process.exit(1);
 }
 
-const app = createApp({ data: pgData(pool) });
+if (!process.env.SESSION_SECRET) {
+  console.error('[startup] Не задан SESSION_SECRET: сессии подписываются им, ' +
+    'а без него идентификатор можно подделать. Сгенерируйте: openssl rand -hex 32');
+  process.exit(1);
+}
+
+const app = createApp({
+  data: pgData(pool),
+  auth: pgAuthStore(pool),
+  sessionMw: createSessionMiddleware(pool),
+});
 
 const server = app.listen(PORT, HOST, () => {
   console.log(`[startup] sigmaseries слушает http://${HOST}:${PORT}`);

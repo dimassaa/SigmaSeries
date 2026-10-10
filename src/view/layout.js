@@ -5,7 +5,7 @@
 // canonical и взаимные hreflang (R-SEO-02, R-SEO-03, R-A11Y-04).
 
 import { html, raw, attr, esc } from './render.js';
-import { t, LOCALES } from '../i18n/strings.js';
+import { t, LOCALES, DEFAULT_LOCALE } from '../i18n/strings.js';
 
 const LOCALE_NAMES = { ru: 'Русский', en: 'English' };
 
@@ -82,11 +82,16 @@ ${head}
 ${bodyHtml}</html>`;
 }
 
+/**
+ * Адрес для x-default.
+ *
+ * Указывает на русскую версию: проект русскоязычный, и автоопределение по
+ * браузеру уводило бы англоязычного посетителя в английский интерфейс с
+ * русскими описаниями (ADR-003). Префикс локали тут обязателен — иначе
+ * адрес получается относительным и ведёт в никуда.
+ */
 function DEFAULT_ROUTE(path) {
-  // x-default указывает на русский: проект русскоязычный, и автоопределение
-  // по браузеру уводило бы англоязычного посетителя в английский интерфейс
-  // с русскими описаниями (ADR-003).
-  return path === '/' ? '/' : path;
+  return `/${DEFAULT_LOCALE}${path}`;
 }
 
 export { esc };

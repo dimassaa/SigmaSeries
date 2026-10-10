@@ -21,7 +21,8 @@
 | `OP-06` | `src/services/import/pipeline.js` (`matchSeries`) | 16 |
 | `OP-07` | `src/services/import/pipeline.js` (`completeness`) | 15 |
 | `OP-17` | `src/services/backup/job.js` | 14 |
-| — | `src/services/auth/password.js` (вход, R-SEC-21…24) | 15 |
+| — | `src/services/auth/password.js` (пароли и токены, R-SEC-21…24) | 16 |
+| — | `src/services/auth/login.js`, `limits.js`, `session.js` (вход, R-SEC-02/05/06/08/31/34) | 23 + 20 |
 | — | `src/services/audit/log.js` (R-SEC-29, R-SEC-33) | 13 |
 
 Остальные двенадцать — в статусе **СПЕЦИФИЦИРОВАНО**. Шестая строка, аудит,

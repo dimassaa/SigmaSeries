@@ -90,7 +90,10 @@ function notFound(locale) {
  * соединения (R-SEC-33). Детали пишутся в журнал, но не посетителю.
  */
 export function errorHandler(locale) {
-  return (err, req, res, _next) => {
+  return (err, req, res, next) => {
+    // Если ответ уже начат, второй раз отправить нельзя: Express бросит
+    // ERR_HTTP_HEADERS_SENT, и настоящая ошибка потеряется за шумом.
+    if (res.headersSent) return next(err);
     console.error('[error]', err?.stack ?? err);
     const loc = isLocale(req.params?.locale) ? req.params.locale : locale;
     res.status(500).type('html').send(layout({

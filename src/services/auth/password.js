@@ -8,6 +8,8 @@
 import crypto from 'node:crypto';
 import argon2 from 'argon2';
 
+import { AUTH } from '../../config/settings.js';
+
 /**
  * Параметры argon2id.
  *
@@ -23,8 +25,14 @@ export const ARGON = {
   parallelism: 4,
 };
 
-/** Минимальная длина пароля. Меньше — не ошибка формата, а отказ. */
-export const PASSWORD_MIN = 8;
+/**
+ * Пороли длины берутся из таблицы настроек M1, а не отсюда: значение,
+ * написанное константой, разъезжается со спецификацией при первой правке
+ * и никто об этом не узнаёт. Здесь только переиспользование.
+ */
+export const PASSWORD_MIN = AUTH.passwordMin;
+export const PASSWORD_MAX = AUTH.passwordMax;
+
 /** Меньше этого хэш не проверяем: если что-то подставили, сравнивать не с чем. */
 export const DUMMY_HASH = '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHRzb21lc2FsdA$0000000000000000000000000000000000000000000';
 
@@ -123,7 +131,7 @@ export function checkPasswordStrength(plain) {
   const s = String(plain ?? '');
   const problems = [];
   if (s.length < PASSWORD_MIN) problems.push(`минимум ${PASSWORD_MIN} символов`);
-  if (s.length > 200) problems.push('слишком длинный');
+  if (s.length > AUTH.passwordMax) problems.push('слишком длинный');
   if (/^(.)\1+$/.test(s)) problems.push('один повторяющийся символ');
   if (!/[^\p{L}\p{N}]/u.test(s)) problems.push('нужен символ, отличный от букв и цифр');
   if (/(.)\1{2,}/u.test(s)) problems.push('один символ повторяется трижды подряд');
