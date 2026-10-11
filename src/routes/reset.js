@@ -30,8 +30,9 @@ const PATH = '/password/reset';
  * @param {object} deps.auth доступ к учётным записям
  * @param {Function} deps.sessionMw middleware сессий
  * @param {object} [deps.mailer] отправка письма со ссылкой (F-01-12)
+ * @param {object} [deps.journal] журнал безопасности (F-01-04 §17)
  */
-export function createResetRoutes({ auth, sessionMw, mailer }) {
+export function createResetRoutes({ auth, sessionMw, mailer, journal }) {
   const router = express.Router({ strict: true });
   router.use(`/:locale${PATH}`, sessionMw);
 
@@ -161,10 +162,15 @@ export function createResetRoutes({ auth, sessionMw, mailer }) {
       await auth.resetPassword(row.user_id, passwordHash);
       const revoked = await auth.revokeSessions(row.user_id);
 
-      // Журнал безопасности (F-01-04 §17): событие и идентификатор, без
-      // секретов и адреса (R-SEC-29). Отдельного журнала в проекте нет —
-      // запись в IMPROVEMENTS.
-      console.info('[security] password_reset user=%d sessions_revoked=%d', row.user_id, revoked);
+      // Журнал безопасности (F-01-04 §17, R-SEC-29): событие, идентификатор
+      // запроса и число отозванных сессий. Адреса и секретов здесь быть не
+      // может — список полей у журнала закрытый.
+      journal.security({
+        event: 'password_reset',
+        requestId: req.requestId,
+        user_id: row.user_id,
+        sessions_revoked: revoked,
+      });
 
       res.set('Cache-Control', 'no-store');
       return res.redirect(303, `/${locale}${PATH}?done=1`);

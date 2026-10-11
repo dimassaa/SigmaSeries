@@ -5,6 +5,7 @@
 // делает то же самое и запускает.
 
 import path from 'node:path';
+import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 
 import express from 'express';
@@ -13,6 +14,7 @@ import { createHomeRoutes, createNotFoundRoutes, errorHandler, robots } from './
 import { createAuthRoutes } from './routes/auth.js';
 import { createRegisterRoutes } from './routes/register.js';
 import { createResetRoutes } from './routes/reset.js';
+import { createJournal } from './services/journal.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -26,7 +28,9 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
  * @param {object} [deps.mailer] отправка служебных писем (F-01-12)
  * @param {string} [deps.publicDir] где лежит собранная таблица стилей
  */
-export function createApp({ data, auth, sessionMw, mailer, publicDir = PUBLIC_DIR }) {
+export function createApp({
+  data, auth, sessionMw, mailer, journal = createJournal(), publicDir = PUBLIC_DIR,
+}) {
   const app = express();
 
   // Заголовки безопасности. helmet в списке зависимостей нет: набор ниже
@@ -41,7 +45,11 @@ export function createApp({ data, auth, sessionMw, mailer, publicDir = PUBLIC_DI
       'Content-Security-Policy':
         "default-src 'self'; img-src 'self' data:; style-src 'self'; " +
         "script-src 'self' 'unsafe-inline'; base-uri 'none'; form-action 'self'",
+      // Идентификатор свой, а не присланный: иначе человек подставил бы в
+      // журнал перевод строки и дописал запись (R-SEC-29).
+      'X-Request-Id': crypto.randomUUID(),
     });
+    req.requestId = res.getHeader('X-Request-Id');
     next();
   });
 
@@ -72,7 +80,7 @@ export function createApp({ data, auth, sessionMw, mailer, publicDir = PUBLIC_DI
     // страница без работающей сессии опаснее, чем её отсутствие.
     app.use(createAuthRoutes({ auth, sessionMw }));
     app.use(createRegisterRoutes({ auth, sessionMw, mailer }));
-    app.use(createResetRoutes({ auth, sessionMw, mailer }));
+    app.use(createResetRoutes({ auth, sessionMw, mailer, journal }));
   }
   app.use(createNotFoundRoutes());
   app.use(errorHandler(DEFAULT_LOCALE));

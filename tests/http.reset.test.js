@@ -13,6 +13,7 @@ import { createApp } from '../src/app.js';
 import { stubData } from '../src/services/home/data.js';
 import { stubAuthStore } from '../src/services/auth/store.js';
 import { createSessionMiddleware, createMemorySessionStore } from '../src/services/auth/session.js';
+import { createJournal } from '../src/services/journal.js';
 import { hashPassword, verifyPassword, makeToken } from '../src/services/auth/password.js';
 import * as limits from '../src/services/auth/limits.js';
 
@@ -38,6 +39,12 @@ async function withServer(users = {}, run) {
   const auth = stubAuthStore(users, {});
   const sent = [];
   const calls = { revokeSessions: [], resetPassword: [] };
+  // Журнал пишется в массив, а не в stdout: иначе тест проверял бы вывод
+  // консоли, а не то, что событие действительно записано. Забирается
+  // настоящий createJournal с подменённым sink — тогда проверяется и
+  // отбрасывание лишних полей, а не только то, что функцию позвали.
+  const logged = [];
+  const journal = createJournal({ sink: (line) => logged.push(JSON.parse(line)) });
   // Методы оборачиваются всегда: «отозваны ли сессии» — требование фичи
   // (EC-A9), и проверять его надо на каждом прогоне, а не по просьбе.
   for (const [name, record] of Object.entries(calls)) {
@@ -54,7 +61,11 @@ async function withServer(users = {}, run) {
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
   const memStore = createMemorySessionStore();
   const app = createApp({
-    data: stubData(), auth, sessionMw: createSessionMiddleware(pool, memStore), mailer,
+    data: stubData(),
+    auth,
+    sessionMw: createSessionMiddleware(pool, memStore),
+    mailer,
+    journal,
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -79,7 +90,7 @@ async function withServer(users = {}, run) {
   const csrfOf = (html) => html.match(/name="csrf" value="([^"]+)"/)?.[1];
   const sessions = () => new Promise((r) => memStore.all((_e, s) => r(s ?? [])));
   try {
-    await run({ get, post, csrfOf, sessions, sent, calls, auth });
+    await run({ get, post, csrfOf, sessions, sent, calls, auth, journal: logged });
   } finally {
     await new Promise((r) => server.close(r));
   }
@@ -209,6 +220,35 @@ test('смена пароля отзывает сессии, не пускает
     // Письма «Пароль изменён» здесь нет и быть не может: на момент смены
     // известен только идентификатор, а адрес лежит в базе без шифрования —
     // получателя взять негде. Это запись в IMPROVEMENTS, а не забытый вызов.
+  });
+});
+
+test('смена пароля попадает в журнал безопасности', async () => {
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, async (h) => {
+    const { token } = await requestReset(h, 'a@b.c');
+    const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
+    const res = await h.post('/ru/password/reset', {
+      token, password: NEW_PASSWORD, csrf: h.csrfOf(form),
+    });
+
+    const entry = h.journal.find((e) => e.event === 'password_reset');
+    assert.ok(entry, 'смена пароля обязана оставить запись (F-01-04 §17)');
+    assert.equal(entry.user_id, 1);
+    assert.equal(entry.level, 'security');
+    // Идентификатор должен совпасть с тем, что человек увидел в ответе:
+    // иначе связать запись с запросом нечем (R-SEC-29).
+    assert.equal(entry.request, res.headers.get('x-request-id'));
+    assert.equal(JSON.stringify(entry).includes('правильный-пароль'), false, 'пароля в записи нет');
+    assert.equal(JSON.stringify(entry).includes(token), false, 'токена в записи нет');
+  });
+});
+
+test('старая ссылка в журнал не попадает: попыток было, смены не было', async () => {
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, async (h) => {
+    await h.get('/ru/password/reset?token=подделка');
+    assert.equal(h.journal.filter((e) => e.event === 'password_reset').length, 0);
   });
 });
 
