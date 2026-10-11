@@ -17,10 +17,12 @@ import crypto from 'node:crypto';
 import { createPool } from '../src/db/pool.js';
 import { pgAuthStore } from '../src/services/auth/store.js';
 import { makeToken, hashToken } from '../src/services/auth/password.js';
+import { decryptValue } from '../src/services/auth/crypto.js';
 
-// Слепой индекс считается секретом приложения, а не базы: без него поиск
-// работать не должен вообще, а не «как-то».
-process.env.SESSION_SECRET ??= 'test-secret';
+// Слепой индекс и шифротекст считаются секретами приложения, а не базы: без
+// них поиск и запись работать не должны вообще, а не «как-то».
+process.env.BLIND_INDEX_SECRET ??= 'test-blind-index-secret';
+process.env.ADDRESS_SECRET ??= 'test-address-secret';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -85,7 +87,16 @@ test('аккаунт создаётся неподтверждённым', { ski
   assert.ok(after, 'аккаунт находится по адресу');
   assert.equal(after.email_confirmed, false, 'сразу не подтверждён');
   assert.equal(after.status, 'active');
-  assert.equal(after.email_enc, null, 'шифрования в проекте нет, колонка пуста');
+
+  // В базе лежит шифротекст, а не открытый адрес: иначе дамп базы печатает
+  // адреса всех пользователей.
+  assert.ok(Buffer.isBuffer(after.email_enc), 'email_enc — шифротекст в BYTEA');
+  assert.equal(
+    after.email_enc.toString('utf8').includes(fields.email),
+    false,
+    'открытого адреса в колонке нет',
+  );
+  assert.equal(decryptValue(after.email_enc, 'email'), fields.email, 'адрес восстанавливается ключом');
 });
 
 test('email ищется без учёта регистра', { skip }, async () => {

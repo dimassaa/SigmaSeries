@@ -3,11 +3,10 @@
 // Отдельный модуль, чтобы маршрут входа не знал SQL и чтобы его можно
 // было подменить заглушкой в тестах.
 
-import crypto from 'node:crypto';
-
 import pg from 'pg';
 
 import { makeToken } from './password.js';
+import { blindIndex, encryptValue } from './crypto.js';
 import { AUTH } from '../../config/settings.js';
 
 const { Pool } = pg;
@@ -97,15 +96,11 @@ export function pgAuthStore(pool) {
       const client = await pool.connect();
       try {
         await client.query('BEGIN');
-        // email_enc остаётся пустым: шифрование адреса в проект не входит
-        // (STACK §3, §9), а записать вместо шифра что-то другое значило бы
-        // потом не отличить «зашифровано» от «нечем шифровать».
-        //
         // В email_hash кладётся тот же HMAC, что и в слепой индекс, и это
         // осознанно: обычный sha256 адреса ломается перебором по словарю
         // адресов, а такие списки продаются. Второй столбец тогда избыточен,
         // но он есть в схеме, и дублирование честнее, чем слабый хеш.
-        const blind = blindIndex(fields.email, pool);
+        const blind = blindIndex(fields.email);
         const { rows } = await client.query(
           `INSERT INTO e_user (email_hash, email_blind_idx, email_enc, password_hash,
                                nickname, status, email_confirmed, timezone, locale, theme)
@@ -114,7 +109,7 @@ export function pgAuthStore(pool) {
           [
             blind,
             blind,
-            fields.emailEnc ?? null,
+            encryptValue(fields.email, 'email'),
             fields.passwordHash,
             fields.nickname,
             fields.timezone,
@@ -350,7 +345,9 @@ export function stubAuthStore(users = {}, roles = {}) {
       const id = nextId++;
       users[String(fields.email).toLowerCase()] = {
         id,
-        email_enc: fields.email,
+        // Шифротекст, а не открытый адрес: заглушка обязана вести себя как
+        // база, иначе тесты на заглушке проверяли бы то, чего нет в бою.
+        email_enc: encryptValue(fields.email, 'email'),
         password_hash: fields.passwordHash,
         nickname: fields.nickname,
         status: 'active',
@@ -445,21 +442,4 @@ export function stubAuthStore(users = {}, roles = {}) {
     /** Доступ к внутренностям для утверждений в тестах. */
     _tokens: tokens,
   };
-}
-
-/**
- * Слепой индекс email.
- *
- * HMAC с секретом приложения: обычный хеш ломается перебором по словарю
- * адресов, а такие списки продаются. Секрет задаётся окружением; без него
- * поиск работать не должен, а не работать «как-то».
- */
-function blindIndex(email, pool) {
-  const secret = process.env.SESSION_SECRET ?? process.env.BLIND_INDEX_SECRET;
-  if (!secret) {
-    throw new Error('Не задан SESSION_SECRET: без него слепой индекс вычислить нельзя');
-  }
-  return crypto.createHmac('sha256', secret)
-    .update(String(email).toLowerCase(), 'utf8')
-    .digest();
 }
