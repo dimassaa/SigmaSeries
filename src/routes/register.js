@@ -347,6 +347,12 @@ export function createRegisterRoutes({ auth, sessionMw, mailer, limitsApi = limi
       locale: row.locale ?? locale,
       theme: row.theme,
       roles: [],
+      // Ролей у свежего аккаунта нет по построению: регистрация их не
+      // создаёт (проверяется тестом), поэтому вид сессии всегда зрительский.
+      // Поле заполняется здесь, чтобы у объекта сессии была одна форма на
+      // оба входа — вход и регистрацию. Ровно его отсутствия не хватило,
+      // чтобы вовремя заметить дыру со служебной ролью.
+      kind: 'viewer',
     };
     req.session.createdAt = Date.now();
     if (pending) req.session.pendingUser = pending;

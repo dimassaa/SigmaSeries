@@ -18,17 +18,18 @@ const PASSWORD = 'правильный-пароль-из-десяти';
 /** Приложение с сессиями в памяти: развёрнутая база здесь не проверяется. */
 function makeApp(users = {}, roles = {}) {
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
-  const sessionMw = createSessionMiddleware(pool, createMemorySessionStore());
+  const store = createMemorySessionStore();
+  const sessionMw = createSessionMiddleware(pool, store);
   const app = createApp({
     data: stubData(),
     auth: stubAuthStore(users, roles),
     sessionMw,
   });
-  return { app, sessionMw };
+  return { app, sessionMw, store };
 }
 
 async function withServer(users, roles, run) {
-  const { app } = makeApp(users, roles);
+  const { app, store } = makeApp(users, roles);
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   let jar = '';
@@ -50,8 +51,14 @@ async function withServer(users, roles, run) {
    * и проверка не будет проходить никогда.
    */
   const csrfOf = (html) => html.match(/name="csrf" value="([^"]+)"/)?.[1];
+  /**
+   * Все сессии, какие сейчас лежат на сервере. Нужны, чтобы отличить
+   * «cookie выдана» от «человек вошёл»: анонимная сессия с одним CSRF
+   * заводится на любой форме и ничего не доказывает.
+   */
+  const sessions = () => new Promise((r) => store.all((e, s) => r(s ?? [])));
   try {
-    await run({ get, post, csrfOf });
+    await run({ get, post, csrfOf, sessions });
   } finally {
     await new Promise((r) => server.close(r));
   }
@@ -102,6 +109,54 @@ test('верный пароль пускает на главную', async () =>
     assert.equal(res.status, 303);
     assert.equal(res.headers.get('location'), '/ru/');
     assert.ok(res.headers.getSetCookie?.().length, 'выдана сессионная cookie');
+  });
+});
+
+test('служебная роль не входит без второго фактора (R-SEC-04)', async () => {
+  // Здесь была дыра: маршрут выставлял `pendingStaff` и открывал полную
+  // сессию с правами админа — на одном пароле. Флаг не читал никто: ни один
+  // маршрут, ни middleware, ни шаблон. Пока второго фактора нет, вход для
+  // служебной роли закрыт целиком, а не «откроется позже».
+  const user = await activeUser({ nickname: 'boss' });
+  await withServer({ 'a@b.c': user }, { 1: ['admin'] }, async ({ get, post, csrfOf, sessions }) => {
+    const html = await (await get('/ru/login')).text();
+    const res = await post('/ru/login', {
+      email: 'a@b.c', password: PASSWORD, csrf: csrfOf(html), next: '/',
+    });
+    const body = await res.text();
+
+    assert.equal(res.status, 403, 'вход служебной роли отклонён');
+    assert.match(body, /фактор для служебной роли/i, 'человеку сказано почему');
+    assert.equal(res.headers.get('location'), null, 'редиректа на главную нет');
+    // Cookie от анонимной сессии с CSRF — это норма: форма без неё не
+    // защищена. Проверяется другое: что ни в одной сессии нет прав.
+    assert.equal((await sessions()).filter((s) => s?.user).length, 0, 'сессия с правами не заведена');
+  });
+});
+
+test('отказ служебной роли не трогает счётчики перебора', async () => {
+  // Верный пароль служебного аккаунта не должен обнулять историю неудач:
+  // вход ведь не состоялся. Раньше `recordSuccess` вызывался до проверки
+  // второго фактора, и один угаданный пароль стирал накопленную историю —
+  // перебор можно было начинать заново хоть после каждой удачной попытки.
+  //
+  // Порог невидимой проверки (3) здесь перешагивается уже после отказа:
+  // набрать его раньше нельзя, иначе PoW-заслонка не пустит запрос до
+  // проверки роли и тест перестанет проходить по нужной причине.
+  const user = await activeUser({ nickname: 'boss' });
+  await withServer({ 'a@b.c': user }, { 1: ['admin'] }, async ({ get, post, csrfOf }) => {
+    limits.recordFailure('a@b.c', '10.0.0.1');
+    limits.recordFailure('a@b.c', '10.0.0.1');
+    assert.ok(!limits.needsProofOfWork('a@b.c'), 'порог невидимой проверки ещё не достигнут');
+
+    const right = await (await get('/ru/login')).text();
+    const res = await post('/ru/login', {
+      email: 'a@b.c', password: PASSWORD, csrf: csrfOf(right),
+    });
+    assert.equal(res.status, 403, 'отказ по второму фактору');
+
+    limits.recordFailure('a@b.c', '10.0.0.1');
+    assert.ok(limits.needsProofOfWork('a@b.c'), 'отказ не стёр накопленную историю');
   });
 });
 
