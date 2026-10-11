@@ -137,7 +137,8 @@
 | E-Keyword | M2 F-02-08, M11 | `e_keyword`, `e_series_keyword` |
 | E-Network | `MODULES`, фильтр «страна» | `e_country`, `e_series_country` — `E-Country` был назван в §3, но таблицы не было |
 | E-Consent | M0 F-00-05 | `e_consent` |
-| E-EmailToken, E-EmailVerification, E-PasswordReset, E-TwoFactor | M1 §0 | одна `e_auth_token` с типом: четыре сущности означали бы четыре почти одинаковые таблицы |
+| E-EmailToken, E-EmailVerification, E-PasswordReset | M1 §0 | одна `e_auth_token` с типом: три сущности отличались бы только сроком и целью |
+| E-TwoFactor | M1 §0, F-01-05 | `e_two_factor` и `e_two_factor_code` — **решение автора 11.10**, раньше сущность считалась свернутой в `e_auth_token`. Свертка была неверна: там лежит то, что гасится после использования, а секрет TOTP живёт месяцами, и «код одного шага принимается один раз» требует помнить последний шаг |
 | E-NicknameHistory | M1 F-01-08 | `e_nickname_history` |
 | E-FieldProvenance | M12 F-12-06, M10 F-10-03 | `e_field_lock` — блокировка ручной правки от перезаписи импортом |
 | E-SplashFrame | M10 F-10-09 | `e_splash_frame` |

@@ -531,8 +531,9 @@ CREATE TABLE session (
 CREATE INDEX session_expire_idx ON session (expire);
 
 -- ---------- Токены входа ----------
--- Четыре сущности (подтверждение email, восстановление пароля, 2FA, вход)
--- сведены в одну таблицу с типом: они отличаются только сроком и целью.
+-- Три сущности (подтверждение email, восстановление пароля, вход) сведены в
+-- одну таблицу с типом: они отличаются только сроком и целью. Четвёртая,
+-- E-TwoFactor, осталась своей таблицей — см. e_two_factor ниже.
 
 CREATE TABLE e_auth_token (
   id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -545,6 +546,40 @@ CREATE TABLE e_auth_token (
   CONSTRAINT uq_auth_token UNIQUE (token_hash)
 );
 CREATE INDEX ix_auth_token_user ON e_auth_token (user_id, kind) WHERE used_at IS NULL;
+
+-- ---------- Двухфакторная проверка ----------
+-- Секрет TOTP не ложится в e_auth_token, хотя раньше E-TwoFactor считалась
+-- одной из четырёх сущностей, сведённых в e_auth_token. Там лежит то, что
+-- гасится после использования и живёт 30 минут, а здесь — то, что живёт
+-- месяцами: секрет, дата включения и последний принятый шаг времени.
+-- Правило «код одного шага принимается один раз» (F-01-05 §8) без последнего
+-- шага невыполнимо: чтобы отклонить повтор, нужно помнить, какой уже был.
+--
+-- Отсутствие строки означает «2FA не настроена», а не выключенную 2FA:
+-- служебным ролям отключение запрещено (F-01-05 §8), поэтому третье
+-- состояние было бы лишним и только путало.
+
+CREATE TABLE e_two_factor (
+  user_id            BIGINT PRIMARY KEY REFERENCES e_user(id) ON DELETE CASCADE,
+  secret_enc         BYTEA  NOT NULL,   -- шифротекст секрета, ключ шифрования данных
+  enabled_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_accepted_step BIGINT            -- шаг времени по RFC 6238, шаг 30 с
+);
+
+-- Резервные коды: десять на аккаунт, одноразовые. Хранится не пароль и не
+-- открытый код, а HMAC под ключом HMAC с доменом `backup-code:` — по нему
+-- код находится одним запросом, а перебор в 10 знаков бессмыслен.
+-- argon2 здесь не нужен и был бы хуже: иначе проверка перебирала бы все десять
+-- строк на каждой попытке входа.
+
+CREATE TABLE e_two_factor_code (
+  id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id   BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  code_hash BYTEA  NOT NULL,
+  used_at   TIMESTAMPTZ,
+  CONSTRAINT uq_two_factor_code UNIQUE (user_id, code_hash)
+);
+CREATE INDEX ix_two_factor_code_user ON e_two_factor_code (user_id) WHERE used_at IS NULL;
 
 -- ---------- История ника ----------
 -- Нельзя молча переименовать: старые ссылки на профиль должны остаться
