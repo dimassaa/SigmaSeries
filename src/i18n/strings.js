@@ -127,7 +127,7 @@ const MESSAGES = {
     'register.error.password_too_long': 'Пароль длиннее {max} символов',
     'register.error.password_common': 'Это один из самых распространённых паролей',
     'register.error.password_one_char': 'Пароль из одного повторяющегося символа',
-    'register.error.password_triple_char': 'Символ не повторяется трижды подряд',
+    'register.error.password_triple_char': 'Символ повторяется трижды подряд',
     'register.error.timezone_invalid': 'Не удалось определить часовой пояс',
 
     'verify.title': 'Подтверждение email',
@@ -290,7 +290,7 @@ const MESSAGES = {
     'register.error.password_too_long': 'The password is longer than {max} characters',
     'register.error.password_common': 'This is one of the most common passwords',
     'register.error.password_one_char': 'A password of a single repeated character',
-    'register.error.password_triple_char': 'No character repeats three times in a row',
+    'register.error.password_triple_char': 'A character repeats three times in a row',
     'register.error.timezone_invalid': 'Could not determine the time zone',
 
     'verify.title': 'Email confirmation',
