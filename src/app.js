@@ -11,6 +11,7 @@ import express from 'express';
 
 import { createHomeRoutes, createNotFoundRoutes, errorHandler, robots } from './routes/home.js';
 import { createAuthRoutes } from './routes/auth.js';
+import { createRegisterRoutes } from './routes/register.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -21,9 +22,10 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
  * @param {object} deps.data источник данных S-01
  * @param {object} deps.auth доступ к учётным записям
  * @param {Function} deps.sessionMw middleware сессий
+ * @param {object} [deps.mailer] отправка служебных писем (F-01-12)
  * @param {string} [deps.publicDir] где лежит собранная таблица стилей
  */
-export function createApp({ data, auth, sessionMw, publicDir = PUBLIC_DIR }) {
+export function createApp({ data, auth, sessionMw, mailer, publicDir = PUBLIC_DIR }) {
   const app = express();
 
   // Заголовки безопасности. helmet в списке зависимостей нет: набор ниже
@@ -67,6 +69,7 @@ export function createApp({ data, auth, sessionMw, publicDir = PUBLIC_DIR }) {
     // Маршруты входа подключаются только если есть и хранилище, и middleware:
     // страница без работающей сессии опаснее, чем её отсутствие.
     app.use(createAuthRoutes({ auth, sessionMw }));
+    app.use(createRegisterRoutes({ auth, sessionMw, mailer }));
   }
   app.use(createNotFoundRoutes());
   app.use(errorHandler(DEFAULT_LOCALE));

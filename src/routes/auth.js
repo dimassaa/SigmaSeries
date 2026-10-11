@@ -12,6 +12,7 @@ import { authenticate, decideAfterCredentials, safeReturnTo, sessionKind, sessio
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import * as limits from '../services/auth/limits.js';
 import { t } from '../i18n/strings.js';
+import { AUTH } from '../config/settings.js';
 
 export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
   const router = express.Router({ strict: true });
@@ -25,6 +26,9 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
       challenge: limitsApi.needsProofOfWork(req.query.email ?? '')
         ? limitsApi.issueChallenge(limitsApi.accountKey(req.query.email ?? ''))
         : null,
+      // Клиент обязан считать ту же сложность, что и сервер проверяет.
+      // Без этого число подставляется в разметку, а сервер молча отвергает.
+      powZeros: limitsApi.powZeros ?? AUTH.powZeros,
       values: {},
       error: null,
       returnTo: safeReturnTo(req.query.next),
@@ -65,6 +69,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
       return respond(res, 400, renderForm({
         locale, csrf: csrfToken(req.session), values: { email },
         challenge: limitsApi.issueChallenge(limitsApi.accountKey(email)),
+        powZeros: limitsApi.powZeros ?? AUTH.powZeros,
         error: t(locale, 'signin.error.credentials'), returnTo,
       }));
     }
@@ -163,6 +168,9 @@ function localized(locale, path) {
 
 function respond(res, status, page) {
   res.set('X-Robots-Tag', 'noindex, follow');
+  // R-SEC-24: личная страница не кэшируется. Иначе на общем компьютере
+  // следующий человек увидит из кеша заполненную форму и адрес из неё.
+  res.set('Cache-Control', 'no-store');
   return res.status(status).type('html').send(page.__raw);
 }
 

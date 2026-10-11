@@ -126,14 +126,48 @@ export function safeEqual(a, b) {
   return crypto.timingSafeEqual(bx, by);
 }
 
-/** Проверка стойкости пароля. Возвращает список проблем, а не «да/нет». */
+/**
+ * Слова распространённых паролей.
+ *
+ * Не полный словарь: несколько десятков самых частых закрывают почти все
+ * реальные случаи, а полный список на мегабайт раздувает пакет и всё равно
+ * не покрывает годовой рейтинг. Список опциональный и расширяемый.
+ */
+const COMMON_PASSWORDS = new Set([
+  'password', 'passw0rd', 'password1', 'password123', '12345678', '123456789',
+  '1234567890', 'qwerty123', 'qwertyuiop', 'iloveyou1', 'sunshine1', 'princess1',
+  'football1', 'charlie12', 'letmein12', 'monkey12', 'dragon12', '11111111',
+  'baseball1', 'michael1', 'shadow12', 'master12', 'superman1', 'welcome12',
+  'пароль123', 'пароль1', 'йцукен12', 'любовь123', 'россия1', 'привет12',
+  'москва12', 'российская', 'наталья1', 'максим12',
+]);
+
+/**
+ * Проверка стойкости пароля. Возвращает коды замечаний, а не «да/нет».
+ *
+ * Коды, а не готовые фразы: текст собирается на экране через каталог
+ * сообщений, иначе английская версия формы осталась бы русской.
+ *
+ * Требований вида «обязательный символ» здесь нет сознательно: R-SEC-01
+ * запрещает их прямо. Они приводят к паролям вида «P@ssw0rd1», которые не
+ * лучше словарных. Длины берутся из таблицы настроек модуля.
+ *
+ * @param {string} plain
+ * @returns {string[]} коды; пустой массив — пароль годится
+ */
 export function checkPasswordStrength(plain) {
   const s = String(plain ?? '');
   const problems = [];
-  if (s.length < PASSWORD_MIN) problems.push(`минимум ${PASSWORD_MIN} символов`);
-  if (s.length > AUTH.passwordMax) problems.push('слишком длинный');
-  if (/^(.)\1+$/.test(s)) problems.push('один повторяющийся символ');
-  if (!/[^\p{L}\p{N}]/u.test(s)) problems.push('нужен символ, отличный от букв и цифр');
-  if (/(.)\1{2,}/u.test(s)) problems.push('один символ повторяется трижды подряд');
+
+  if (s.length < AUTH.passwordMin) problems.push('password_too_short');
+  if (s.length > AUTH.passwordMax) problems.push('password_too_long');
+  if (COMMON_PASSWORDS.has(s.toLowerCase())) problems.push('password_common');
+  if (/^(.)\1+$/.test(s)) problems.push('password_one_char');
+  if (/(.)\1{2,}/u.test(s)) problems.push('password_triple_char');
   return problems;
+}
+
+/** Проверка по словарю распространённых паролей, без учёта регистра. */
+export function isCommonPassword(plain) {
+  return COMMON_PASSWORDS.has(String(plain ?? '').toLowerCase());
 }

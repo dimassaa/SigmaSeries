@@ -8,8 +8,8 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "test": "node --test \"tests/**/*.test.js\"",
-    "test:watch": "node --test --watch \"tests/**/*.test.js\"",
+    "test": "node --import ./tests/setup.js --test \"tests/**/*.test.js\"",
+    "test:watch": "node --import ./tests/setup.js --test --watch \"tests/**/*.test.js\"",
     "test:only": "node --test",
     "db:extract": "python3 tools/schema/extract.py",
     "db:check": "python3 tools/schema/extract.py --check",

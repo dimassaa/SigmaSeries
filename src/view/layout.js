@@ -67,7 +67,7 @@ ${LOCALES.map((l) => html`<link rel="alternate" hreflang="${l}" href="/${l}${pat
     <button type="button" class="topbar__theme" data-theme-toggle
             aria-label="${t(locale, 'app.theme.toggle')}">◐</button>
     <div class="topbar__locales">${localeLinks}</div>
-    <a class="topbar__signin" href="/${locale}/signin">${t(locale, 'nav.signIn')}</a>
+    <a class="topbar__signin" href="/${locale}/login">${t(locale, 'nav.signIn')}</a>
   </div>
 </header>
 

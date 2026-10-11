@@ -134,8 +134,14 @@ test('до порога задержки нет', () => {
 });
 
 test('задержка растёт и упирается в потолок', () => {
+  // Число попыток считается от настроек, а не задано константой: раньше
+  // потолок был в тысячу раз меньше первого шага и достигался сразу, так
+  // что двенадцати попыток хватало на любые настройки. Теперь — нет.
+  const steps = Math.ceil(Math.log2(AUTH.delayMaxMs / AUTH.delayStepMs)) + 1;
+  const attempts = AUTH.attemptsPerAccount + steps + 1;
+
   const times = [];
-  for (let i = 0; i < 12; i++) {
+  for (let i = 0; i < attempts; i++) {
     recordFailure('a@b.c', '1.1.1.1');
     times.push(delayFor('a@b.c'));
   }
@@ -145,6 +151,22 @@ test('задержка растёт и упирается в потолок', ()
   }
   assert.ok(delays.at(-1) <= AUTH.delayMaxMs, 'задержка превысила потолок');
   assert.ok(delays.at(-1) === AUTH.delayMaxMs, 'потолок должен достигаться');
+});
+
+test('окно перебора действительно пятнадцать минут', async () => {
+  // Проверка на время: счётчик обязан пережить паузу между попытками.
+  // Раньше окно было 0.9 секунды, и защита от перебора не работала вовсе —
+  // пять неудач и пауза сбрасывали счёт.
+  recordFailure('окно@a.b', '2.2.2.2');
+  recordFailure('окно@a.b', '2.2.2.2');
+  recordFailure('окно@a.b', '2.2.2.2');
+  assert.equal(needsProofOfWork('окно@a.b'), true, 'три неудачи включают проверку');
+
+  const { _reset } = await import('../src/services/auth/limits.js');
+  _reset();
+  recordFailure('окно@a.b', '2.2.2.2');
+  const far = Date.now() + AUTH.attemptsWindowMs + 1000;
+  assert.equal(needsProofOfWork('окно@a.b', far), false, 'после окна счётчик обнуляется');
 });
 
 test('задержка не блокирует чужой аккаунт', () => {

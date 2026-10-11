@@ -1,0 +1,176 @@
+// Регистрация: шаг «Данные», шаг «Проверьте почту», подтверждение.
+//
+// Спецификация: SCREENS S-20, S-21; F-01-01 §4 (шаги с прогрессом),
+// R-DES-34, R-A11Y-11 (ошибка названа текстом, связана с полем и объявляется),
+// R-DES-30 (подсказка о формате видна до ошибки, а не вместо неё).
+
+import { html, raw, when } from './render.js';
+import { t } from '../i18n/strings.js';
+import { AUTH } from '../config/settings.js';
+
+/** Поля шага 1: подпись, код подсказки, коды замечаний. */
+const FIELDS = [
+  { name: 'email', label: 'register.email', type: 'email', autocomplete: 'email' },
+  { name: 'nickname', label: 'register.nickname', type: 'text', autocomplete: 'nickname', hint: 'register.nickname.hint' },
+  { name: 'password', label: 'register.password', type: 'password', autocomplete: 'new-password', hint: 'register.password.hint' },
+];
+
+/**
+ * @param {object} ctx
+ * @param {string} ctx.locale
+ * @param {number} ctx.step 1 | 2
+ * @param {number} ctx.steps всегда 3
+ * @param {string} ctx.csrf
+ * @param {string|null} [ctx.challenge] задача невидимой проверки
+ * @param {object} [ctx.values] значения полей, чтобы не вводить заново
+ * @param {Record<string,string[]>} [ctx.problems] коды замечаний по полям
+ * @param {string|null} [ctx.error] общий текст ошибки формы
+ * @param {object} [ctx.pending] адрес и ник на шаге 2
+ * @param {boolean} [ctx.sent] письмо отправлено повторно
+ * @param {string} [ctx.statusUrl] куда опрашивать подтверждение
+ * @param {string} [ctx.nextUrl] куда переходить после подтверждения
+ */
+export function registerView(ctx) {
+  const { locale, step, steps, csrf } = ctx;
+
+  return html`
+${steps_(locale, step, steps)}
+
+<div class="form__status" role="alert" aria-live="assertive">
+  ${when(ctx.error, () => html`<p class="form__error">${ctx.error}</p>`)}
+</div>
+
+${step === 1 ? stepOne(ctx) : ''}
+${step === 2 ? stepTwo(ctx) : ''}`;
+}
+
+/**
+ * S-21 — подтверждение адреса.
+ *
+ * Отдельная карточка, а не шаг с прогрессом: экран открывается по ссылке из
+ * письма, и «шаг 3 из 3» читался бы как продолжение формы, которой рядом нет
+ * (F-01-02 §19). Заголовок меняется по состоянию, потому что состояние и
+ * есть главное, что человеку нужно узнать.
+ */
+export function verifyView(ctx) {
+  const { locale, csrf, state, token } = ctx;
+  const headings = {
+    await: 'verify.title',
+    stale: 'verify.stale.title',
+    already: 'verify.already.title',
+    error: 'error.generic.title',
+  };
+
+  return html`
+<h1 class="form__title">${t(locale, headings[state] ?? 'verify.title')}</h1>
+
+${state === 'await' ? html`
+<p class="form__text">${t(locale, 'verify.text')}</p>
+<form class="form" method="post" action="/${locale}/verify">
+  <input type="hidden" name="csrf" value="${csrf}">
+  <input type="hidden" name="token" value="${token ?? ''}">
+  <button class="button form__submit" type="submit">${t(locale, 'verify.submit')}</button>
+</form>` : ''}
+
+${state === 'stale' ? html`
+<p class="form__text">${t(locale, 'verify.stale.text')}</p>
+<p class="form__links"><a href="/${locale}/register">${t(locale, 'verify.stale.back')}</a></p>` : ''}
+
+${state === 'already' ? html`
+<p class="form__text">${t(locale, 'verify.already.text')}</p>
+<p class="form__links"><a href="/${locale}/login">${t(locale, 'verify.already.login')}</a></p>` : ''}
+
+${state === 'error' ? html`<p class="form__error">${t(locale, 'error.generic.text')}</p>` : ''}`;
+}
+
+// ─── Шаги ────────────────────────────────────────────────────────────────────
+
+function steps_(locale, step, steps) {
+  return html`
+<h1 class="form__title">${t(locale, step === 2 ? 'register.step2.title' : 'register.title')}</h1>
+
+<ol class="steps" aria-label="${t(locale, 'register.progress')}">
+  ${[1, 2, 3].map((n) => html`<li class="steps__item${n === step ? ' steps__item--current' : ''}"
+      ${n === step ? raw('aria-current="step"') : ''}>
+    <span class="visually-hidden">${t(locale, 'register.stepLabel', { n })}</span>
+    <span aria-hidden="true">${n}</span>
+  </li>`)}
+</ol>
+<p class="steps__label">${t(locale, 'register.stepOf', { n: step, total: steps })}</p>`;
+}
+
+// ─── Шаг 1 ───────────────────────────────────────────────────────────────────
+
+function stepOne(ctx) {
+  const { locale, csrf, values = {}, problems = {}, challenge, zeros } = ctx;
+
+  return html`
+<form class="form" method="post" action="/${locale}/register" novalidate>
+  <input type="hidden" name="csrf" value="${csrf}">
+  <input type="hidden" name="timezone" value="${values.timezone ?? 'UTC'}">
+  ${when(challenge, () => html`<input type="hidden" name="pow" id="pow"
+      data-challenge="${challenge}" data-zeros="${zeros ?? 3}">`)}
+
+  ${FIELDS.map((f) => field(locale, f, values[f.name] ?? '', problems[f.name] ?? []))}
+
+  <p class="field__status" id="nickname-status" role="status" aria-live="polite"
+     data-free-text="${t(locale, 'register.error.nick_free')}"></p>
+
+  <div class="field field--check">
+    <input id="consent" name="consent" type="checkbox" required
+           ${raw(problems.consent ? 'aria-invalid="true"' : '')}>
+    <label for="consent">${t(locale, 'register.consent')}</label>
+  </div>
+
+  <button class="button form__submit" type="submit">${t(locale, 'register.submit')}</button>
+</form>
+
+<p class="form__links">
+  ${t(locale, 'register.haveAccount')} <a href="/${locale}/login">${t(locale, 'register.signIn')}</a>
+</p>
+
+${when(challenge, () => html`<p class="form__pow" aria-hidden="true">${t(locale, 'signin.pow')}</p>`)}`;
+}
+
+function field(locale, f, value, problems) {
+  const hintId = `${f.name}-hint`;
+  const bad = problems.length > 0;
+  // Числа подставляются в текст подсказки и замечания из настроек модуля:
+  // при правке спецификации меняются числа, а не надписи вручную.
+  const params = { min: AUTH.passwordMin, max: AUTH.passwordMax };
+
+  return html`
+  <div class="field${bad ? ' field--invalid' : ''}">
+    <label class="field__label" for="${f.name}">${t(locale, f.label)}</label>
+    <input class="field__input" id="${f.name}" name="${f.name}" type="${f.type}"
+           autocomplete="${f.autocomplete}" value="${value}"
+           ${raw(f.hint ? `aria-describedby="${hintId}"` : '')}
+           ${raw(bad ? `aria-invalid="true" aria-describedby="${f.name}-error"${f.hint ? ` ${hintId}` : ''}` : '')}
+           required>
+    ${when(f.hint, () => html`<p class="field__hint" id="${hintId}">${t(locale, f.hint, params)}</p>`)}
+    ${bad ? html`<p class="field__error" id="${f.name}-error">${t(locale, `register.error.${problems[0]}`, params)}</p>` : ''}
+  </div>`;
+}
+
+// ─── Шаг 2 ───────────────────────────────────────────────────────────────────
+
+function stepTwo(ctx) {
+  const { locale, csrf, pending = {}, sent, statusUrl, nextUrl } = ctx;
+
+  return html`
+<section class="block block--message">
+  <p class="message__lead">${t(locale, 'register.step2.lead', { email: pending.email ?? '' })}</p>
+  ${when(sent, () => html`<p class="form__note" role="status">${t(locale, 'register.step2.sent')}</p>`)}
+  <p class="message__text">${t(locale, 'register.step2.spam')}</p>
+  <p class="message__text" role="status" id="verify-poll" aria-live="polite"></p>
+</section>
+
+<form class="form" method="post" action="/${locale}/register/resend">
+  <input type="hidden" name="csrf" value="${csrf}">
+  <button class="button form__submit" type="submit">${t(locale, 'register.step2.resend')}</button>
+</form>
+
+<p class="form__links"><a href="/${locale}/register">${t(locale, 'register.step2.change')}</a></p>
+
+${when(statusUrl, () => html`<script src="/app.js" data-poll-status="${statusUrl}" data-poll-next="${nextUrl ?? ''}" defer></script>`)}`;
+}

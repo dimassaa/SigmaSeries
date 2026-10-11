@@ -16,6 +16,7 @@ import {
   DUMMY_HASH,
   PASSWORD_MIN,
   PASSWORD_MAX,
+  isCommonPassword,
 } from '../src/services/auth/password.js';
 import { AUTH } from '../src/config/settings.js';
 
@@ -98,10 +99,29 @@ test('сравнение токенов постоянного времени н
 
 // ─── Стойкость ────────────────────────────────────────────────────────────────
 
+test('спецсимвол не обязателен (R-SEC-01)', () => {
+  // Требование «обязательный символ» прямо запрещено стандартом: оно
+  // приводит к паролям вида «P@ssw0rd1», которые не лучше словарных.
+  assert.deepEqual(checkPasswordStrength('короткийпароль'), []);
+});
+
+test('распространённый пароль отклоняется (R-SEC-01)', () => {
+  // Проверка возвращает коды, а не фразы: текст собирает экран через
+  // каталог сообщений, иначе английская форма осталась бы русской.
+  assert.ok(checkPasswordStrength('password123').includes('password_common'));
+  assert.equal(isCommonPassword('Password123'), true, 'сравнение без учёта регистра');
+  assert.equal(isCommonPassword('пароль123'), true);
+  assert.equal(isCommonPassword('редкий-пароль-в-мире-1'), false);
+});
+
 test('короткий пароль отклоняется с указанием причины', () => {
-  const problems = checkPasswordStrength('корот1');
-  assert.ok(problems.length > 0);
-  assert.ok(problems.some((p) => p.includes(String(PASSWORD_MIN))));
+  assert.ok(checkPasswordStrength('корот1').includes('password_too_short'));
+});
+
+test('слишком длинный пароль отклоняется', () => {
+  // Верхняя граница не косметическая: длинный пароль хешируется заметно
+  // дольше, и человек с лимитным тарифом получает вход по три секунды.
+  assert.ok(checkPasswordStrength('я'.repeat(PASSWORD_MAX + 1)).includes('password_too_long'));
 });
 
 test('пароль из одного повторяющегося символа отклоняется', () => {
@@ -118,7 +138,7 @@ test('длины пароля берутся из таблицы настрое�
 });
 
 test('нормальный пароль проходит', () => {
-  assert.deepEqual(checkPasswordStrength('сериалы-2026!'), []);
+  assert.deepEqual(checkPasswordStrength('сериалы-2026'), []);
 });
 
 test('проблемы перечисляются все, а не только первая', () => {

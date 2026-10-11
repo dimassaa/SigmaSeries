@@ -11,7 +11,7 @@
 // а не от распределённой атаки; для второй нужен общий счётчик в БД.
 
 import crypto from 'node:crypto';
-import { AUTH } from '../../config/settings.js';
+import { AUTH, MINUTE, HOUR } from '../../config/settings.js';
 
 /** @type {Map<string, number[]>} ключ → временные метки неудачных попыток */
 const failures = new Map();
@@ -80,10 +80,18 @@ export function needsProofOfWork(email, now = Date.now()) {
   return prune(accountKey(email), now).length >= AUTH.powAfterFailures;
 }
 
-/** Выдаёт задачу и запоминает её. */
-export function issueChallenge(key) {
+/**
+ * Выдаёт задачу и запоминает её.
+ *
+ * @param {string} key ключ, к которому привязана задача
+ * @param {number} [zeros] сколько нулей должен содержать хеш решения.
+ *   По умолчанию — настройка входа. Регистрация передаёт своё число,
+ *   потому что при всплеске регистраций задача должна быть дороже, чем
+ *   при переборе пароля (EC-A16).
+ */
+export function issueChallenge(key, zeros = AUTH.powZeros) {
   const challenge = crypto.randomBytes(16).toString('base64url');
-  challenges.set(key, { challenge, issuedAt: Date.now() });
+  challenges.set(key, { challenge, zeros, issuedAt: Date.now() });
   return challenge;
 }
 
@@ -109,7 +117,136 @@ export function verifyChallenge(key, nonce) {
   if (Date.now() - task.issuedAt > 5 * 60 * 1000) return false;
   if (typeof nonce !== 'string' || nonce.length > 64) return false;
   const digest = crypto.createHash('sha256').update(task.challenge + nonce, 'utf8').digest('hex');
-  return leadingZeros(digest) >= AUTH.powZeros;
+  return leadingZeros(digest) >= task.zeros;
+}
+
+// ─── Регистрация ─────────────────────────────────────────────────────────────
+//
+// Счётчики регистрации отдельные от счётчиков входа намеренно: всплеск
+// регистраций и перебор пароля — разные явления, и сброс одного не должен
+// обнулять другое.
+
+/** Ключ счётчика успешных регистраций по адресу сети. */
+export function registrationKey(ip) {
+  return 'reg:' + String(ip ?? 'unknown');
+}
+
+/**
+ * Ключ счётчика попыток.
+ *
+ * Отдельный от ключа успехов намеренно: по сложности задачи нельзя
+ * понять, прошла регистрация или нет, иначе по времени ответа
+ * перебирается, какие адреса уже заняты.
+ */
+function attemptKey(ip) {
+  return 'regtry:' + String(ip ?? 'unknown');
+}
+
+/**
+ * Успешных регистраций с этого адреса за последний час.
+ *
+ * Успех, а не попытка: стена должна держать всплеск настоящих аккаунтов.
+ * По попыткам стена не строится — иначе пять неудачных регистраций от
+ * человека с кривым адресом закрывают ему регистрацию на час.
+ */
+export function registrationsFrom(ip, now = Date.now()) {
+  return (failures.get(registrationKey(ip)) ?? [])
+    .filter((t) => now - t < HOUR).length;
+}
+
+/** Превышен ли жёсткий лимит успешных регистраций (R-SEC-31, F-01-01 §9). */
+export function registrationLimited(ip, now = Date.now()) {
+  return registrationsFrom(ip, now) >= AUTH.registrationsPerIp;
+}
+
+/** Записывает успешную регистрацию. */
+export function recordRegistration(ip, now = Date.now()) {
+  const key = registrationKey(ip);
+  const times = (failures.get(key) ?? []).filter((t) => now - t < HOUR);
+  times.push(now);
+  failures.set(key, times);
+}
+
+/** Все попытки регистрации, успешные и нет: по ним растёт сложность. */
+export function registrationAttempts(ip, now = Date.now()) {
+  return (failures.get(attemptKey(ip)) ?? []).filter((t) => now - t < HOUR).length;
+}
+
+/**
+ * Записывает попытку.
+ *
+ * Считается всегда, даже если форма отвергнута: иначе по сложности
+ * задачи можно было бы отличить отказ по полям от отказа по лимиту.
+ */
+export function recordRegistrationAttempt(ip, now = Date.now()) {
+  const key = attemptKey(ip);
+  const times = (failures.get(key) ?? []).filter((t) => now - t < HOUR);
+  times.push(now);
+  failures.set(key, times);
+}
+
+/**
+ * Нужна ли невидимая проверка при регистрации и какой сложности (EC-A16).
+ *
+ * Включается после штатного лимита в час: до этого человек не платит за
+ * решение задачи, а всплеск — платит. Сложность растёт по одному
+ * дополнительному нулю на каждый превышенный лимит и ограничена потолком, иначе при большом
+ * всплеске задача становится неразрешимой в разумное время.
+ *
+ * @param {number} [attempts] попыток до текущей. Передаётся явно, потому
+ *   что маршрут записывает текущую попытку до проверки: иначе попытка,
+ *   доводящая счётчик до лимита, потребовала бы решения задачи.
+ * @returns {{required:boolean, zeros:number}}
+ */
+export function registrationChallenge(ip, now = Date.now(), attempts = registrationAttempts(ip, now)) {
+  const over = attempts - AUTH.registrationsFreePerIp;
+  if (over < 0) return { required: false, zeros: AUTH.powZeros };
+  const zeros = Math.min(AUTH.powZeros + over, AUTH.powZeros + REGISTRATION_POW_STEP);
+  return { required: true, zeros };
+}
+
+/** Насколько сложнее задача регистрации против задачи входа. */
+export const REGISTRATION_POW_STEP = 2;
+
+/** Проверка занятости ника: не чаще десяти в минуту (F-01-01 §9). */
+export function nicknameCheckLimited(ip, now = Date.now()) {
+  const times = (failures.get('nick:' + ip) ?? []).filter((t) => now - t < MINUTE);
+  return times.length >= AUTH.nickChecksPerMinute;
+}
+
+export function recordNicknameCheck(ip, now = Date.now()) {
+  const key = 'nick:' + ip;
+  const times = (failures.get(key) ?? []).filter((t) => now - t < MINUTE);
+  times.push(now);
+  failures.set(key, times);
+}
+
+/**
+ * Повторные письма: не больше пяти в час на адрес (F-01-01 §9, F-01-02 §9).
+ *
+ * Ключ — хеш адреса, а не сам адрес: журнал не хранит почту (R-AN-04).
+ * Счётчик по адресу, а не по сессии: сессию заводит кто угодно, и лимит
+ * иначе обходится перезапуском браузера.
+ *
+ * @returns {{ok:boolean, retryAfter:number}} пауза до освобождения окна
+ */
+export function resendHourly(email, now = Date.now()) {
+  const times = (failures.get(resendKey(email)) ?? []).filter((t) => now - t < HOUR);
+  if (times.length < AUTH.resendPerHour) return { ok: true, retryAfter: 0 };
+  const oldest = Math.min(...times);
+  return { ok: false, retryAfter: Math.max(1, Math.ceil((oldest + HOUR - now) / 1000)) };
+}
+
+/** Записывает отправку письма. Считается только то, что реально ушло. */
+export function recordResend(email, now = Date.now()) {
+  const key = resendKey(email);
+  const times = (failures.get(key) ?? []).filter((t) => now - t < HOUR);
+  times.push(now);
+  failures.set(key, times);
+}
+
+function resendKey(email) {
+  return 'resend:' + accountKey(email);
 }
 
 /** Сбрасывает состояние. Нужен тестам: счётчики живут в модуле. */

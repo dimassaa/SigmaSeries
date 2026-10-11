@@ -9,6 +9,7 @@ import { createPool, checkConnection } from './db/pool.js';
 import { pgData } from './services/home/data.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
+import { consoleMailer } from './services/mail/console-mailer.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -32,6 +33,9 @@ const app = createApp({
   data: pgData(pool),
   auth: pgAuthStore(pool),
   sessionMw: createSessionMiddleware(pool),
+  // Почтовый шлюз F-01-12 не написан: письмо печатается в консоль, иначе
+  // подтвердить адрес после регистрации нечем.
+  mailer: consoleMailer(`http://${HOST}:${PORT}`),
 });
 
 const server = app.listen(PORT, HOST, () => {

@@ -49,6 +49,27 @@ if (offToken.length) {
   process.exit(1);
 }
 
+// Проверка: переменная, которую используют, но нигде не задали.
+// Браузер отбрасывает такое правило целиком и не пишет об этом ни слова:
+// страница выглядит как «стиль не применился», а причина находится не в
+// том файле, где её видно. Именно так в проекте молча пропал отступ
+// сообщения: --space-9 использовался, но не был определён.
+const defined = new Set();
+const used = new Map();
+for (const [name, body] of parts) {
+  for (const m of body.matchAll(/(--[a-z0-9-]+)\s*:/gi)) defined.add(m[1]);
+  for (const m of body.matchAll(/var\(\s*(--[a-z0-9-]+)/gi)) {
+    if (!used.has(m[1])) used.set(m[1], name);
+  }
+}
+const undefinedVars = [...used].filter(([prop]) => !defined.has(prop));
+if (undefinedVars.length) {
+  console.error('Переменная используется, но не задана — правило будет отброшено:');
+  for (const [prop, name] of undefinedVars) console.error(`  var(${prop}) в ${name}`);
+  console.error('Задайте её в 00-tokens.css или 10-base.css.');
+  process.exit(1);
+}
+
 const header = [
   '/* SigmaSeries — собранная таблица стилей.',
   '   Этот файл НЕ ПРАВИТСЯ РУКАМИ.',

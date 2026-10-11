@@ -17,7 +17,7 @@ import { t } from '../i18n/strings.js';
  * @param {string} ctx.returnTo
  */
 export function signinView(ctx) {
-  const { locale, csrf, challenge, values = {}, error, returnTo = '/' } = ctx;
+  const { locale, csrf, challenge, powZeros, values = {}, error, returnTo = '/' } = ctx;
 
   const field = (id, labelKey, opts) => {
     const value = opts.value ?? '';
@@ -46,7 +46,8 @@ export function signinView(ctx) {
   <form class="form" method="post" action="/${locale}/login" novalidate>
     <input type="hidden" name="csrf" value="${csrf}">
     <input type="hidden" name="next" value="${returnTo}">
-    ${when2(challenge, () => html`<input type="hidden" name="pow" id="pow" data-challenge="${challenge}">`)}
+    ${when2(challenge, () => html`<input type="hidden" name="pow" id="pow"
+        data-challenge="${challenge}" data-zeros="${powZeros}">`)}
 
     ${field('email', 'signin.email', {
       type: 'text', autocomplete: 'email', value: values.email ?? '',
