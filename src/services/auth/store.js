@@ -224,6 +224,77 @@ export function pgAuthStore(pool) {
         client.release();
       }
     },
+
+    /**
+     * Заявка на восстановление пароля (F-01-04).
+     *
+     * Токен выдаётся только подтверждённому действующему аккаунту; иначе
+     * возвращается null, и маршрут отвечает одинаково — по разнице ответов
+     * адреса перебираются (R-SEC-06).
+     *
+     * Прежние токены сброса не гасятся: F-01-04 §8 говорит, что токен
+     * гасится при успешной смене, а не раньше. Гасит их `resetPassword`.
+     *
+     * @returns {Promise<{token:string, userId:number}|null>}
+     */
+    async newResetToken(email) {
+      const user = await this.byEmail(email);
+      if (!user || !user.email_confirmed || user.status !== 'active') return null;
+      const { token, hash } = makeToken();
+      await pool.query(
+        `INSERT INTO e_auth_token (user_id, kind, token_hash, expires_at)
+         VALUES ($1, 'password_reset', $2, now() + ($3 || ' minutes')::interval)`,
+        [user.id, hash, String(AUTH.tokenTtlMin)],
+      );
+      return { token, userId: user.id };
+    },
+
+    /**
+     * Меняет пароль и гасит все токены сброса (F-01-04 §8).
+     *
+     * Одноразовость обеспечивается здесь, а не при открытии формы: ссылку
+     * открывает и почтовый сканер, и тогда она умерла бы до человека.
+     */
+    async resetPassword(userId, passwordHash) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          'UPDATE e_user SET password_hash = $2 WHERE id = $1 AND deleted_at IS NULL',
+          [userId, passwordHash],
+        );
+        await client.query(
+          `UPDATE e_auth_token SET used_at = now()
+            WHERE user_id = $1 AND kind = 'password_reset' AND used_at IS NULL`,
+          [userId],
+        );
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK').catch(() => {});
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
+
+    /**
+     * Отзывает все сессии пользователя (R-SEC-02, EC-A9).
+     *
+     * Сессии лежат в таблице connect-pg-simple, а не в `e_session`: там
+     * хранилище, а `e_session` — список устройств для S-32. У хранилища нет
+     * ни перечисления, ни поиска по владельцу, поэтому удаление идёт по
+     * идентификатору внутри JSON. Записи без владельца (гостевые формы)
+     * не трогаются: `->>` для них даёт NULL, а NULL не равен ничему.
+     *
+     * @returns {Promise<number>} сколько сессий отозвано
+     */
+    async revokeSessions(userId) {
+      const { rowCount } = await pool.query(
+        `DELETE FROM session WHERE (sess -> 'user' ->> 'id')::bigint = $1`,
+        [userId],
+      );
+      return rowCount ?? 0;
+    },
   };
 }
 
@@ -291,6 +362,7 @@ export function stubAuthStore(users = {}, roles = {}) {
         tokens.set(fields.tokenHash.toString('base64url'), {
           id: id,
           user_id: id,
+          kind: 'email_verify',
           token_hash: fields.tokenHash,
           expires_at: new Date(Date.now() + AUTH.tokenTtlMin * 60_000),
           used_at: null,
@@ -309,6 +381,7 @@ export function stubAuthStore(users = {}, roles = {}) {
       tokens.set(hash.toString('base64url'), {
         id: user.id,
         user_id: user.id,
+        kind: 'email_verify',
         token_hash: hash,
         expires_at: new Date(Date.now() + AUTH.tokenTtlMin * 60_000),
         used_at: null,
@@ -332,6 +405,41 @@ export function stubAuthStore(users = {}, roles = {}) {
       for (const [key, row] of tokens) {
         if (row.user_id === userId) tokens.set(key, { ...row, used_at: new Date() });
       }
+    },
+
+    async newResetToken(email) {
+      const user = await this.byEmail(email);
+      if (!user || !user.email_confirmed || user.status !== 'active') return null;
+      const { token, hash } = makeToken();
+      tokens.set(hash.toString('base64url'), {
+        id: user.id,
+        user_id: user.id,
+        kind: 'password_reset',
+        token_hash: hash,
+        expires_at: new Date(Date.now() + AUTH.tokenTtlMin * 60_000),
+        used_at: null,
+      });
+      return { token, userId: user.id };
+    },
+
+    async resetPassword(userId, passwordHash) {
+      const user = Object.values(users).find((u) => u.id === userId);
+      if (!user) throw new Error('нет такого пользователя');
+      user.password_hash = passwordHash;
+      for (const [key, row] of tokens) {
+        if (row.user_id === userId && row.kind === 'password_reset') {
+          tokens.set(key, { ...row, used_at: new Date() });
+        }
+      }
+    },
+
+    /**
+     * Заглушка не дотягивается до хранилища сессий: оно живёт отдельно от
+     * учётных записей. Настоящее удаление проверяется против живой базы
+     * (`tests/auth.store.test.js`); здесь важно, что метод есть и вызывается.
+     */
+    async revokeSessions() {
+      return 0;
     },
 
     /** Доступ к внутренностям для утверждений в тестах. */

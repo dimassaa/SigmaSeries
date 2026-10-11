@@ -1,0 +1,215 @@
+// S-22 — восстановление пароля.
+//
+// Спецификация: docs/01-product/features/M1-identity.md F-01-04.
+// Требования: R-SEC-01 (стойкость пароля), R-SEC-06 (ответ на заявку не
+// зависит от существования аккаунта), R-SEC-07 (токен одноразовый, 30 минут,
+// в базе только хеш), R-SEC-24 (личная страница не кэшируется), R-SEC-31
+// (лимиты по классам), R-A11Y-11 (ошибка названа текстом).
+// Границы: EC-A3 (просроченная ссылка — форма новой заявки),
+// EC-A9 (смена пароля отзывает все сессии).
+//
+// Один адрес и пять состояний вместо пяти адресов: в реестре экран один
+// (S-22), а состояние задаётся тем, что пришло в строке запроса.
+
+import express from 'express';
+
+import { layout } from '../view/layout.js';
+import { resetView, headingKey } from '../view/reset.js';
+import { isLocale, t } from '../i18n/strings.js';
+import { verifyToken } from '../services/auth/register.js';
+import { checkPasswordStrength, hashPassword, hashToken } from '../services/auth/password.js';
+import { checkEmail, normalizeEmail } from '../services/auth/validate.js';
+import { csrfToken, csrfValid } from '../services/auth/session.js';
+import * as limits from '../services/auth/limits.js';
+
+/** Путь без локали: адрес S-22 из SCREENS. */
+const PATH = '/password/reset';
+
+/**
+ * @param {object} deps
+ * @param {object} deps.auth доступ к учётным записям
+ * @param {Function} deps.sessionMw middleware сессий
+ * @param {object} [deps.mailer] отправка письма со ссылкой (F-01-12)
+ */
+export function createResetRoutes({ auth, sessionMw, mailer }) {
+  const router = express.Router({ strict: true });
+  router.use(`/:locale${PATH}`, sessionMw);
+
+  router.get(`/:locale${PATH}`, async (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+
+    if (req.query.done === '1') return respond(res, 200, page(req, { state: 'done' }));
+
+    const token = typeof req.query.token === 'string' ? req.query.token : '';
+    if (!token) return respond(res, 200, page(req, { state: 'request' }));
+
+    try {
+      const row = await auth.tokenByHash(hashToken(token));
+      if (!resetTokenValid(row, token)) {
+        return respond(res, 200, page(req, { state: 'stale' }));
+      }
+      return respond(res, 200, page(req, { state: 'form', token }));
+    } catch (e) {
+      return next(e);
+    }
+  });
+
+  router.post(`/:locale${PATH}`, (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+
+    const body = req.body ?? {};
+    if (!csrfValid(req.session, body.csrf)) {
+      // Токен возвращается в форму: без этого человек, у которого протухла
+      // сессия, потерял бы и ссылку, и её содержимое.
+      const token = typeof body.token === 'string' ? body.token : '';
+      return respond(res, 403, page(req, {
+        state: token ? 'form' : 'request',
+        token,
+        error: t(locale, 'reset.error.csrf'),
+      }));
+    }
+
+    return typeof body.token === 'string' && body.token
+      ? changePassword(req, res, next)
+      : requestLink(req, res, next);
+  });
+
+  /** Заявка на письмо. Отвечает одинаково для любого пригодного адреса. */
+  async function requestLink(req, res, next) {
+    const locale = req.params.locale;
+    const email = normalizeEmail(req.body.email);
+    const ip = clientIp(req);
+
+    const problems = checkEmail(email);
+    if (problems.length) {
+      return respond(res, 400, page(req, {
+        state: 'request', email, error: t(locale, 'reset.error.email'),
+      }));
+    }
+
+    // Лимит проверяется до записи и считается по заявкам, а не по
+    // отправленным письмам: иначе 429 выдавался бы только существующим
+    // адресам и по нему они бы перебирались (R-SEC-06).
+    const limited = limits.resetRequestLimited(email, ip);
+    if (!limited.ok) {
+      res.set('Retry-After', String(limited.retryAfter));
+      return respond(res, 429, page(req, {
+        state: 'request',
+        email,
+        error: t(locale, 'reset.error.tooMany', { seconds: limited.retryAfter }),
+      }));
+    }
+    limits.recordResetRequest(email, ip);
+
+    try {
+      await sendLetter(email, locale);
+      // Ответ не зависит от того, что нашлось по адресу: и «письмо ушло»,
+      // и «аккаунта нет» читаются одинаково (R-SEC-06).
+      return respond(res, 200, page(req, { state: 'sent' }));
+    } catch (e) {
+      return next(e);
+    }
+  }
+
+  /**
+   * Выбирает письмо по адресу: ссылку на смену пароля или подтверждение.
+   *
+   * Для неподтверждённого адреса письмо подтверждения предусмотрено самой
+   * фичей (F-01-04 §4): сброс такому аккаунту не выдаётся, но оставить
+   * человека без письма нельзя.
+   *
+   * Активность проверяется до выдачи письма подтверждения, потому что
+   * подтверждение адреса переводит аккаунт в активный (`confirmEmail`):
+   * письмо забаненному сняло бы блокировку его же подтверждением.
+   */
+  async function sendLetter(email, locale) {
+    const user = await auth.byEmail(email);
+    if (!user || user.status !== 'active') return;
+
+    if (user.email_confirmed) {
+      const issued = await auth.newResetToken(email);
+      if (issued) await mailer?.resetEmail?.({ to: email, token: issued.token, locale });
+      return;
+    }
+    const issued = await auth.newVerificationToken(email);
+    if (issued) await mailer?.verificationEmail?.({ to: email, token: issued.token, locale });
+  }
+
+  /** Смена пароля по токену. */
+  async function changePassword(req, res, next) {
+    const locale = req.params.locale;
+    const token = String(req.body.token);
+    const password = String(req.body.password ?? '');
+
+    try {
+      const row = await auth.tokenByHash(hashToken(token));
+      // Токен гасится только при успешной смене (F-01-04 §8), поэтому
+      // проверка стоит и здесь, а не полагается на проверку при открытии
+      // формы: между GET и POST ссылку мог использовать другой.
+      if (!resetTokenValid(row, token)) {
+        return respond(res, 200, page(req, { state: 'stale' }));
+      }
+
+      const problems = checkPasswordStrength(password);
+      if (problems.length) {
+        return respond(res, 400, page(req, { state: 'form', token, problems }));
+      }
+
+      const passwordHash = await hashPassword(password);
+      await auth.resetPassword(row.user_id, passwordHash);
+      const revoked = await auth.revokeSessions(row.user_id);
+
+      // Журнал безопасности (F-01-04 §17): событие и идентификатор, без
+      // секретов и адреса (R-SEC-29). Отдельного журнала в проекте нет —
+      // запись в IMPROVEMENTS.
+      console.info('[security] password_reset user=%d sessions_revoked=%d', row.user_id, revoked);
+
+      res.set('Cache-Control', 'no-store');
+      return res.redirect(303, `/${locale}${PATH}?done=1`);
+    } catch (e) {
+      return next(e);
+    }
+  }
+
+  /** Собирает документ: разметку состояния плюс оболочку. */
+  function page(req, ctx) {
+    const locale = req.params.locale;
+    const body = resetView({ locale, csrf: csrfToken(req.session), ...ctx });
+    return layout({
+      locale,
+      path: PATH,
+      title: `${t(locale, headingKey(ctx.state))} — ${t(locale, 'app.title')}`,
+      description: t(locale, 'reset.lead'),
+      body,
+      noindex: true,
+    });
+  }
+
+  return router;
+}
+
+/**
+ * Токен принимается, только если он назначения `password_reset` и ещё годен.
+ *
+ * Без проверки вида токена ссылка подтверждения адреса меняла бы пароль:
+ * и то и другое лежит в одной таблице.
+ */
+function resetTokenValid(row, token) {
+  if (!row || row.kind !== 'password_reset') return false;
+  return verifyToken(row, token).ok;
+}
+
+function respond(res, status, page) {
+  res.set('X-Robots-Tag', 'noindex, follow');
+  // R-SEC-24: в адресе смены пароля лежит токен, и кеш на общем компьютере
+  // отдал бы его следующему человеку.
+  res.set('Cache-Control', 'no-store');
+  return res.status(status).type('html').send(page.__raw);
+}
+
+/** IP для лимитов: заголовок берётся только если приложение за прокси. */
+function clientIp(req) {
+  return req.ip ?? req.socket?.remoteAddress ?? 'unknown';
+}

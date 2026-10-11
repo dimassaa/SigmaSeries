@@ -269,3 +269,116 @@ test('роли читаются без просроченных', { skip }, asyn
   );
   assert.deepEqual(await store.roles(user.id), [], 'просроченная роль не действует');
 });
+
+// ─── Сброс пароля ────────────────────────────────────────────────────────────
+//
+// Этот раздел существует ровно потому, что заглушка умеет то же самое:
+// зелёные HTTP-тесты ничего не говорят о SQL сброса. Проверяются три места,
+// где ошибка стоит дорого: выдача токена неподтверждённому адресу, откат
+// гашения и удаление чужих сессий.
+
+/** Создаёт подтверждённый аккаунт: сброс выдаётся только таким. */
+async function confirmedUser(over = {}) {
+  const { fields } = newUser(over);
+  const user = await store.createUser(fields);
+  await store.confirmEmail(user.id);
+  return { fields, user };
+}
+
+test('токен сброса выдаётся подтверждённому аккаунту', { skip }, async () => {
+  const { fields, user } = await confirmedUser();
+
+  const issued = await store.newResetToken(fields.email);
+  assert.ok(issued?.token, 'подтверждённому аккаунту токен выдан');
+  assert.equal(issued.userId, user.id);
+
+  const row = await store.tokenByHash(hashToken(issued.token));
+  assert.equal(row.kind, 'password_reset', 'вид токена отличает сброс от подтверждения адреса');
+  assert.equal(row.used_at, null);
+  const minutes = (new Date(row.expires_at) - Date.now()) / 60000;
+  assert.ok(minutes > 25 && minutes < 31, `срок из настроек модуля, а не «на глаз»: ${minutes.toFixed(1)} мин`);
+});
+
+test('токен сброса не выдаётся чужому и неподтверждённому адресу', { skip }, async () => {
+  // Разница ответов выдавала бы существование аккаунта (R-SEC-06), поэтому
+  // хранилище обязано отвечать null, а не «ошибкой».
+  assert.equal(await store.newResetToken(`нет-${uniq()}@example.com`), null);
+
+  const { fields } = newUser();
+  await store.createUser(fields);
+  assert.equal(await store.newResetToken(fields.email), null, 'адрес не подтверждён');
+});
+
+test('новая заявка не гасит прежние токены сброса (F-01-04 §8)', { skip }, async () => {
+  // Токен гасится только успешной сменой: ссылку открывает и почтовый
+  // сканер, поэтому заявка не должна обесценивать уже отправленное письмо.
+  const { fields } = await confirmedUser();
+  const first = await store.newResetToken(fields.email);
+  await store.newResetToken(fields.email);
+
+  const row = await store.tokenByHash(hashToken(first.token));
+  assert.equal(row.used_at, null, 'первое письмо остаётся действующим');
+});
+
+test('смена пароля пишет новый хеш и гасит все токены сброса', { skip }, async () => {
+  const { fields, user } = await confirmedUser();
+  const first = await store.newResetToken(fields.email);
+  const second = await store.newResetToken(fields.email);
+
+  await store.resetPassword(user.id, '$argon2id$новый-хеш');
+
+  const after = await store.byEmail(fields.email);
+  assert.equal(after.password_hash, '$argon2id$новый-хеш');
+  for (const token of [first.token, second.token]) {
+    const row = await store.tokenByHash(hashToken(token));
+    assert.ok(row.used_at, 'ни одна ссылка сброса не остаётся открытой');
+  }
+});
+
+test('смена пароля не трогает токены подтверждения адреса', { skip }, async () => {
+  // Гашение ограничено видом token = 'password_reset': UPDATE без условия погасил бы
+  // и ссылку подтверждения, если она почему-то ещё открыта.
+  const { user } = await confirmedUser();
+  const { hash } = makeToken();
+  await pool.query(
+    `INSERT INTO e_auth_token (user_id, kind, token_hash, expires_at)
+     VALUES ($1, 'email_verify', $2, now() + interval '30 minutes')`,
+    [user.id, hash],
+  );
+
+  await store.resetPassword(user.id, '$argon2id$новый-хеш');
+
+  const row = await store.tokenByHash(hash);
+  assert.equal(row.used_at, null, 'токен другого назначения сброс не гасит');
+  await pool.query('DELETE FROM e_auth_token WHERE token_hash = $1', [hash]);
+});
+
+test('отзыв сессий удаляет сессии только одного пользователя (EC-A9)', { skip }, async () => {
+  const mine = await confirmedUser();
+  const other = await confirmedUser();
+  const sid = (name) => `test-${uniq()}-${name}`;
+  const put = (sessionId, ownerId) => pool.query(
+    `INSERT INTO session (sid, sess, expire)
+     VALUES ($1, json_build_object('cookie', json_build_object('path','/'),
+                                   'user', json_build_object('id', $2::text))::json, now() + interval '1 day')
+     ON CONFLICT (sid) DO NOTHING`,
+    [sessionId, ownerId],
+  );
+
+  const mineId = sid('mine');
+  const mineAnon = sid('anon');
+  const otherId = sid('other');
+  await put(mineId, mine.user.id);
+  await put(mineAnon, '999999');
+  await put(otherId, other.user.id);
+
+  const removed = await store.revokeSessions(mine.user.id);
+
+  assert.equal(removed, 1, 'удалена ровно одна сессия пользователя');
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS n FROM session WHERE sid = ANY($1::text[])`,
+    [[mineId, mineAnon, otherId]],
+  );
+  assert.equal(rows[0].n, 2, 'гостевая и чужая сессии остались');
+  await pool.query(`DELETE FROM session WHERE sid = ANY($1::text[])`, [[mineAnon, otherId]]);
+});

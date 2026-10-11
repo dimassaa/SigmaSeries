@@ -249,6 +249,56 @@ function resendKey(email) {
   return 'resend:' + accountKey(email);
 }
 
+// ─── Сброс пароля ────────────────────────────────────────────────────────────
+//
+// F-01-04 §9: не больше пяти заявок в час на адрес-получатель и десяти с
+// одного адреса сети.
+//
+// Счётчики отдельные от повторных писем подтверждения: заявка на сброс и
+// повторное письмо — разные события, и общий счётчик позволил бы одним
+// исчерпать лимит другого.
+//
+// Считается каждая заявка, а не только отправленное письмо. Если считать
+// отправки, то 429 выдавался бы лишь для существующих адресов и по нему
+// перебирались бы аккаунты (R-SEC-06). Цена — чужая заявка занимает место
+// в окне адреса; это осознанный размен в пользу неразличимости ответа.
+
+function resetKey(email) {
+  return 'reset:' + accountKey(email);
+}
+
+function resetIpKey(ip) {
+  return 'resetip:' + String(ip ?? 'unknown');
+}
+
+/**
+ * Превышен ли лимит заявок на сброс (F-01-04 §9).
+ *
+ * @returns {{ok:boolean, retryAfter:number}} пауза до освобождения окна, секунды
+ */
+export function resetRequestLimited(email, ip, now = Date.now()) {
+  let retryAfter = 0;
+  const keys = [
+    [resetKey(email), AUTH.resetPerHour],
+    [resetIpKey(ip), AUTH.resetPerIpPerHour],
+  ];
+  for (const [key, limit] of keys) {
+    const times = (failures.get(key) ?? []).filter((t) => now - t < HOUR);
+    if (times.length < limit) continue;
+    retryAfter = Math.max(retryAfter, Math.ceil((Math.min(...times) + HOUR - now) / 1000));
+  }
+  return retryAfter > 0 ? { ok: false, retryAfter: Math.max(1, retryAfter) } : { ok: true, retryAfter: 0 };
+}
+
+/** Записывает заявку на сброс: и по получателю, и по адресу сети. */
+export function recordResetRequest(email, ip, now = Date.now()) {
+  for (const key of [resetKey(email), resetIpKey(ip)]) {
+    const times = (failures.get(key) ?? []).filter((t) => now - t < HOUR);
+    times.push(now);
+    failures.set(key, times);
+  }
+}
+
 /** Сбрасывает состояние. Нужен тестам: счётчики живут в модуле. */
 export function _reset() {
   failures.clear();

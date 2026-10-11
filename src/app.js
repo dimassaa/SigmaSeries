@@ -12,6 +12,7 @@ import express from 'express';
 import { createHomeRoutes, createNotFoundRoutes, errorHandler, robots } from './routes/home.js';
 import { createAuthRoutes } from './routes/auth.js';
 import { createRegisterRoutes } from './routes/register.js';
+import { createResetRoutes } from './routes/reset.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -65,11 +66,13 @@ export function createApp({ data, auth, sessionMw, mailer, publicDir = PUBLIC_DI
   }));
 
   app.use(createHomeRoutes({ data }));
+
   if (auth && sessionMw) {
     // Маршруты входа подключаются только если есть и хранилище, и middleware:
     // страница без работающей сессии опаснее, чем её отсутствие.
     app.use(createAuthRoutes({ auth, sessionMw }));
     app.use(createRegisterRoutes({ auth, sessionMw, mailer }));
+    app.use(createResetRoutes({ auth, sessionMw, mailer }));
   }
   app.use(createNotFoundRoutes());
   app.use(errorHandler(DEFAULT_LOCALE));

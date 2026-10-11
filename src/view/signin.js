@@ -65,7 +65,7 @@ export function signinView(ctx) {
   </form>
 
   <p class="form__links">
-    <a href="/${locale}/password-reset">${t(locale, 'signin.forgot')}</a>
+    <a href="/${locale}/password/reset">${t(locale, 'signin.forgot')}</a>
   </p>
   <p class="form__links">
     ${t(locale, 'signin.noAccount')} <a href="/${locale}/register">${t(locale, 'signin.register')}</a>

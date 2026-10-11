@@ -232,9 +232,31 @@
     setTimeout(tick, 5000);
   }
 
+  // ─── «Показать» у поля пароля (F-01-04) ───────────────────────────────────
+
+  // Своя кнопка, а не встроенный «глаз» браузера: у того нет доступного
+  // имени и он появляется не во всех браузерах. Переключение `type` —
+  // единственный способ показать пароль, не переписывая его в разметку
+  // вторым полем: второй экземпляр значения читали бы и менеджеры паролей.
+  function initPasswordReveal() {
+    var buttons = document.querySelectorAll('[data-password-toggle]');
+    Array.prototype.forEach.call(buttons, function (button) {
+      var input = document.getElementById(button.getAttribute('data-password-toggle'));
+      if (!input) return;
+      var showText = button.getAttribute('data-show-text') || '';
+      var hideText = button.getAttribute('data-hide-text') || showText;
+      button.addEventListener('click', function () {
+        var revealing = input.type === 'password';
+        input.type = revealing ? 'text' : 'password';
+        button.textContent = revealing ? hideText : showText;
+      });
+    });
+  }
+
   function boot() {
     var path = location.pathname;
     initTheme();
+    initPasswordReveal();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();
