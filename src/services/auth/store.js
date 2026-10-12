@@ -6,7 +6,7 @@
 import pg from 'pg';
 
 import { makeToken } from './password.js';
-import { blindIndex, encryptValue } from './crypto.js';
+import { blindIndex, encryptValue, decryptValue } from './crypto.js';
 import { AUTH } from '../../config/settings.js';
 
 const { Pool } = pg;
@@ -31,6 +31,24 @@ export function pgAuthStore(pool) {
 
     async recordLogin(userId, at) {
       await pool.query('UPDATE e_user SET last_active_at = $2 WHERE id = $1', [userId, at]);
+    },
+
+    /**
+     * Адрес аккаунта для служебного письма.
+     *
+     * Отдельный метод, а не поле в `byEmail`: поиск идёт по адресу, который у
+     * вызывающего уже есть, а письмо о смене пароля адреса не знает — в
+     * токене его нет, и там лежит только идентификатор пользователя (F-01-04
+     * §4). Расшифровка происходит здесь и нигде больше.
+     *
+     * @returns {Promise<string|null>} адрес или null, если его не шифровали
+     */
+    async addressOf(userId) {
+      const { rows } = await pool.query(
+        'SELECT email_enc FROM e_user WHERE id = $1 AND deleted_at IS NULL',
+        [userId],
+      );
+      return rows[0] ? decryptValue(rows[0].email_enc, 'email') : null;
     },
 
     /** Роли аккаунта — от них зависит длительность сессии (R-SEC-03). */
@@ -317,6 +335,15 @@ export function stubAuthStore(users = {}, roles = {}) {
     async byEmail(email) {
       const key = String(email).toLowerCase();
       return key in users ? users[key] : null;
+    },
+    /**
+     * Адрес аккаунта. У заглушки он и есть в готовом виде: хранится он
+     * здесь же, объектом, а не шифротекстом. Возвращается то же, что вернула
+     * бы настоящая база после расшифровки.
+     */
+    async addressOf(userId) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      return found ? String(found.email) : null;
     },
     async recordLogin() {},
     async roles(userId) {

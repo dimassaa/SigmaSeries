@@ -21,17 +21,33 @@ const PASSWORD = 'правильный-пароль-из-десяти';
 const sha256 = (s) => createHash('sha256').update(s, 'utf8').digest('hex');
 
 /**
- * Письма собираются в массив вместо отправки: почтовый шлюз F-01-12
- * отдельная фича, а тесту нужно знать токен из письма — так же, как его
- * знает человек, открывший почту.
+ * Очередь, которая только запоминает.
+ *
+ * Подменяется очередь, а не шлюз: маршрут кладёт письмо в очередь и сразу
+ * отвечает человеку, а отправка — дело работника. Работа самой очереди
+ * проверяется в `tests/mail.queue.test.js` против настоящей базы.
  */
-function recordingMailer() {
+function recordingQueue() {
   const sent = [];
   return {
     sent,
-    verificationEmail: async (m) => { sent.push({ kind: 'verification', ...m }); },
-    takenEmailNotice: async (m) => { sent.push({ kind: 'taken', ...m }); },
+    async enqueue(job) { sent.push(job); return sent.length; },
   };
+}
+
+/**
+ * Токен из поставленного письма.
+ *
+ * В письме лежит готовая ссылка, а не токен: получатель видит именно её, и
+ * тест должен знать ровно то же, что знает он.
+ */
+function tokenOf(mail) {
+  return mail.link.split('?token=')[1];
+}
+
+/** То же, что выше, но в виде объекта — там, где тесту нужен `{token}`. */
+function verifyTokenOf(mail) {
+  return { token: tokenOf(mail) };
 }
 
 function makeApp(users = {}) {
@@ -40,19 +56,19 @@ function makeApp(users = {}) {
     data: stubData(),
     auth: stubAuthStore(users),
     sessionMw: createSessionMiddleware(pool, createMemorySessionStore()),
-    mailer: recordingMailer(),
+    mailQueue: recordingQueue(),
   });
 }
 
 async function withServer(run, users = {}) {
-  const mailer = recordingMailer();
+  const mailQueue = recordingQueue();
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
   const auth = stubAuthStore(users);
   const app = createApp({
     data: stubData(),
     auth,
     sessionMw: createSessionMiddleware(pool, createMemorySessionStore()),
-    mailer,
+    mailQueue,
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -91,7 +107,7 @@ async function withServer(run, users = {}) {
   const csrfOf = main.csrfOf;
 
   try {
-    await run({ get, post, csrfOf, browser, mailer, auth });
+    await run({ get, post, csrfOf, browser, mailQueue, auth });
   } finally {
     limits._reset();
     await new Promise((r) => server.close(r));
@@ -176,9 +192,17 @@ test('успешная регистрация ведёт на шаг 2 и отп
     assert.equal(res.headers.get('location'), '/ru/register/confirm');
     assert.match(page, /anna@example\.com/);
     assert.match(page, /Шаг 2 из 3/);
-    assert.equal(c.mailer.sent.length, 1);
-    assert.equal(c.mailer.sent[0].kind, 'verification');
-    assert.ok(c.mailer.sent[0].token.length >= 40, 'в письме ссылка с токеном');
+    assert.equal(c.mailQueue.sent.length, 1);
+    assert.equal(c.mailQueue.sent[0].kind, 'email_verify');
+    assert.ok(
+    tokenOf(c.mailQueue.sent[0]).length >= 40,
+    'в письме ссылка с токеном',
+  );
+  assert.match(
+    c.mailQueue.sent[0].link,
+    /\/ru\/verify\?token=/,
+    'ссылка ведёт на подтверждение по адресу из SCREENS',
+  );
   });
 });
 
@@ -224,7 +248,7 @@ test('без согласия аккаунт не создаётся', async () 
     const { res, page } = await register(c, { consent: undefined });
     assert.equal(res.status, 422);
     assert.match(page, /Без согласия/);
-    assert.equal(c.mailer.sent.length, 0, 'письмо не отправляется');
+    assert.equal(c.mailQueue.sent.length, 0, 'письмо не отправляется');
   });
 });
 
@@ -247,8 +271,8 @@ test('занятый адрес даёт тот же ответ, что и св�
     assert.equal(second.res.status, 303, 'страница не должна отличаться по коду');
     assert.match(second.page, /Шаг 2 из 3/);
     // Письмо другое: владельцу занятого адреса предлагают восстановить пароль.
-    assert.equal(c.mailer.sent.length, 2);
-    assert.equal(c.mailer.sent[1].kind, 'taken');
+    assert.equal(c.mailQueue.sent.length, 2);
+    assert.equal(c.mailQueue.sent[1].kind, 'email_taken');
   });
 });
 
@@ -258,7 +282,7 @@ test('форма без CSRF отвергается', async () => {
       email: 'anna@example.com', nickname: 'anna', password: PASSWORD, consent: 'on',
     });
     assert.equal(res.status, 403);
-    assert.equal(c.mailer.sent.length, 0);
+    assert.equal(c.mailQueue.sent.length, 0);
   });
 });
 
@@ -440,7 +464,7 @@ test('ссылка из письма открывает страницу с кн
   // сожгло бы токен раньше времени.
   await withServer(async (c) => {
     await register(c);
-    const { token } = c.mailer.sent[0];
+    const { token } = verifyTokenOf(c.mailQueue.sent[0]);
 
     const res = await c.get(`/ru/verify?token=${encodeURIComponent(token)}`);
     assert.equal(res.status, 200);
@@ -454,7 +478,7 @@ test('ссылка из письма открывает страницу с кн
 test('подтверждение по POST переводит аккаунт в активный и создаёт сессию', async () => {
   await withServer(async (c) => {
     await register(c);
-    const { token } = c.mailer.sent[0];
+    const { token } = verifyTokenOf(c.mailQueue.sent[0]);
     const page = await (await c.get(`/ru/verify?token=${encodeURIComponent(token)}`)).text();
 
     const res = await c.post('/ru/verify', { csrf: c.csrfOf(page), token });
@@ -467,7 +491,7 @@ test('подтверждение по POST переводит аккаунт в 
 test('токен одноразовый: повторное использование даёт «уже подтверждён»', async () => {
   await withServer(async (c) => {
     await register(c);
-    const { token } = c.mailer.sent[0];
+    const { token } = verifyTokenOf(c.mailQueue.sent[0]);
 
     const first = await (await c.get(`/ru/verify?token=${encodeURIComponent(token)}`)).text();
     await c.post('/ru/verify', { csrf: c.csrfOf(first), token });
@@ -493,7 +517,7 @@ test('чужой токен не подтверждает никого', async (
 test('подтверждение без CSRF отвергается', async () => {
   await withServer(async (c) => {
     await register(c);
-    const { token } = c.mailer.sent[0];
+    const { token } = verifyTokenOf(c.mailQueue.sent[0]);
     const res = await c.post('/ru/verify', { token });
     assert.equal(res.status, 403);
     assert.equal((await c.auth.byEmail('anna@example.com')).email_confirmed, false);
@@ -505,7 +529,7 @@ test('подтверждение в другом браузере заверша
   // Подтверждает телефон, компьютер узнаёт об этом опросом и идёт дальше.
   await withServer(async (c) => {
     await register(c);
-    const { token } = c.mailer.sent[0];
+    const { token } = verifyTokenOf(c.mailQueue.sent[0]);
 
     assert.deepEqual(await (await c.get('/ru/register/status')).json(), { confirmed: false });
 
@@ -527,7 +551,7 @@ test('подтверждение в своём браузере видно оп�
   // восстановить его из базы нельзя, он хранится шифром.
   await withServer(async (c) => {
     await register(c);
-    const { token } = c.mailer.sent[0];
+    const { token } = verifyTokenOf(c.mailQueue.sent[0]);
     const page = await (await c.get(`/ru/verify?token=${encodeURIComponent(token)}`)).text();
     await c.post('/ru/verify', { csrf: c.csrfOf(page), token });
 
@@ -559,6 +583,6 @@ test('пятая отправка за час закрывает повторн�
     const res = await c.post('/ru/register/resend', { csrf: c.csrfOf(page) });
     assert.equal(res.status, 429);
     assert.match(res.headers.get('retry-after'), /^[1-9]\d*$/);
-    assert.equal(c.mailer.sent.length, 1, 'шестое письмо не отправляется');
+    assert.equal(c.mailQueue.sent.length, 1, 'шестое письмо не отправляется');
   });
 });

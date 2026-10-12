@@ -28,12 +28,16 @@ import { t } from '../i18n/strings.js';
  * @param {object} deps
  * @param {object} deps.auth хранилище учётных записей
  * @param {Function} deps.sessionMw middleware сессий
- * @param {{verificationEmail?:Function, takenEmailNotice?:Function}} [deps.mailer]
+ * @param {{enqueue:Function}} [deps.mailQueue] очередь писем (F-01-12)
  * @param {object} [deps.limitsApi] подмена счётчиков в тестах
+ * @param {string} [deps.baseUrl] адрес приложения для ссылки в письме
  */
-export function createRegisterRoutes({ auth, sessionMw, mailer, limitsApi = limits }) {
+export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = limits, baseUrl = '' }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
+
+  /** Ссылка из письма: адрес приложения, путь и токен. */
+  const link = (path, token) => `${baseUrl}/${path}?token=${encodeURIComponent(token)}`;
 
   /**
    * Шаг 1 с задачей невидимой проверки.
@@ -181,14 +185,19 @@ export function createRegisterRoutes({ auth, sessionMw, mailer, limitsApi = limi
         // адреса предлагают восстановить пароль, а не «регистрация
         // удалась» (R-SEC-06). Успехом это не считается — человек
         // ничего не создал, и стена за это наказывать не должна.
-        await mailer?.takenEmailNotice?.({ to: decision.fields.email });
+        await mailQueue?.enqueue({
+          kind: 'email_taken',
+          to: decision.fields.email,
+          locale,
+        });
       } else {
         await auth.createUser(decision.fields);
         limitsApi.recordRegistration(ip);
-        await mailer?.verificationEmail?.({
+        await mailQueue?.enqueue({
+          kind: 'email_verify',
           to: decision.fields.email,
-          token: decision.token,
           locale,
+          link: link(`${locale}/verify`, decision.token),
         });
       }
     } catch (e) {
@@ -267,8 +276,11 @@ export function createRegisterRoutes({ auth, sessionMw, mailer, limitsApi = limi
     try {
       const fresh = await auth.newVerificationToken(pending.email);
       if (fresh) {
-        await mailer?.verificationEmail?.({
-          to: pending.email, token: fresh.token, locale,
+        await mailQueue?.enqueue({
+          kind: 'email_verify',
+          to: pending.email,
+          locale,
+          link: link(`${locale}/verify`, fresh.token),
         });
         limitsApi.recordResend(pending.email);
       }

@@ -25,11 +25,17 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
  * @param {object} deps.data источник данных S-01
  * @param {object} deps.auth доступ к учётным записям
  * @param {Function} deps.sessionMw middleware сессий
- * @param {object} [deps.mailer] отправка служебных писем (F-01-12)
+ * @param {object} [deps.mailQueue] очередь служебных писем (F-01-12)
  * @param {string} [deps.publicDir] где лежит собранная таблица стилей
  */
 export function createApp({
-  data, auth, sessionMw, mailer, journal = createJournal(), publicDir = PUBLIC_DIR,
+  data,
+  auth,
+  sessionMw,
+  mailQueue,
+  journal = createJournal(),
+  baseUrl = '',
+  publicDir = PUBLIC_DIR,
 }) {
   const app = express();
 
@@ -79,8 +85,8 @@ export function createApp({
     // Маршруты входа подключаются только если есть и хранилище, и middleware:
     // страница без работающей сессии опаснее, чем её отсутствие.
     app.use(createAuthRoutes({ auth, sessionMw }));
-    app.use(createRegisterRoutes({ auth, sessionMw, mailer }));
-    app.use(createResetRoutes({ auth, sessionMw, mailer, journal }));
+    app.use(createRegisterRoutes({ auth, sessionMw, mailQueue, baseUrl }));
+    app.use(createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl }));
   }
   app.use(createNotFoundRoutes());
   app.use(errorHandler(DEFAULT_LOCALE));

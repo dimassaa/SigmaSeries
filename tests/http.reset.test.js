@@ -20,12 +20,24 @@ import * as limits from '../src/services/auth/limits.js';
 const PASSWORD = 'правильный-пароль-из-десяти';
 const NEW_PASSWORD = 'совсем-другой-пароль-12';
 
-/** Учётка, прошедшая подтверждение: без него сброс не выдаётся. */
+/**
+ * Учётка, прошедшая подтверждение: без него сброс не выдаётся.
+ *
+ * Поле `email` здесь то, что вернёт заглушка в `addressOf` — то есть то,
+ * чем настоящая база ответит после расшифровки `email_enc`. Заглушка держит
+ * адрес открытым объектом: шифротекст в тесте HTTP проверять нечем.
+ */
 async function activeUser(over = {}) {
   return {
-    id: 1, email_enc: null, password_hash: await hashPassword(PASSWORD),
-    nickname: 'anna', status: 'active', email_confirmed: true,
-    locale: 'ru', theme: 'dark', ...over,
+    id: 1,
+    email: 'a@b.c',
+    password_hash: await hashPassword(PASSWORD),
+    nickname: 'anna',
+    status: 'active',
+    email_confirmed: true,
+    locale: 'ru',
+    theme: 'dark',
+    ...over,
   };
 }
 
@@ -37,7 +49,7 @@ async function activeUser(over = {}) {
  */
 async function withServer(users = {}, run) {
   const auth = stubAuthStore(users, {});
-  const sent = [];
+  const queued = [];
   const calls = { revokeSessions: [], resetPassword: [] };
   // Журнал пишется в массив, а не в stdout: иначе тест проверял бы вывод
   // консоли, а не то, что событие действительно записано. Забирается
@@ -54,17 +66,25 @@ async function withServer(users = {}, run) {
   // Письма различаются видом: по адресу подтверждённого аккаунта уходит
   // ссылка на смену пароля, по адресу неподтверждённого — подтверждение
   // (F-01-04 §4), и спутать их в тесте нельзя.
-  const mailer = {
-    verificationEmail: async (msg) => { sent.push({ ...msg, kind: 'verify' }); },
-    resetEmail: async (msg) => { sent.push({ ...msg, kind: 'reset' }); },
+  //
+  // Подменяется очередь, а не шлюз: проверять надо то, во что маршрут кладёт
+  // письмо. Работа самой очереди — в `tests/mail.queue.test.js`.
+  const mailQueue = {
+    async enqueue(job) { queued.push(job); return queued.length; },
   };
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
   const memStore = createMemorySessionStore();
+
+  // Приложение собирается до подъёма сервера, а адрес известен только после
+  // `listen`. Ссылка в письме должна быть абсолютной — её откроют в другом
+  // браузере, где ничего, кроме этого адреса, нет. Поэтому собирается
+  // заранее, а адрес подставляется обратной правкой: это единственный способ
+  // получить настоящий порт и не хардкодить его.
   const app = createApp({
     data: stubData(),
     auth,
     sessionMw: createSessionMiddleware(pool, memStore),
-    mailer,
+    mailQueue,
     journal,
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
@@ -90,17 +110,28 @@ async function withServer(users = {}, run) {
   const csrfOf = (html) => html.match(/name="csrf" value="([^"]+)"/)?.[1];
   const sessions = () => new Promise((r) => memStore.all((_e, s) => r(s ?? [])));
   try {
-    await run({ get, post, csrfOf, sessions, sent, calls, auth, journal: logged });
+    await run({ get, post, csrfOf, sessions, queued, calls, auth, journal: logged });
   } finally {
     await new Promise((r) => server.close(r));
   }
 }
 
-/** Заявка на сброс через настоящую форму; возвращает ответ и токен из письма. */
+/** Заявка на сброс через настоящую форму; возвращает ответ и поставленное письмо. */
 async function requestReset(handles, email, path = '/ru/password/reset') {
   const html = await (await handles.get(path)).text();
   const res = await handles.post(path, { email, csrf: handles.csrfOf(html) });
-  return { res, body: await res.text(), token: handles.sent.at(-1)?.token };
+  return { res, body: await res.text(), mail: handles.queued.at(-1) };
+}
+
+/**
+ * Токен из ссылки поставленного письма.
+ *
+ * Разбирается вручную, а не через `new URL`: в тесте адрес приложения не
+ * задан, и ссылка приходит относительной. Проверка ссылки целиком — в тесте
+ * «в письме лежит ссылка на S-22».
+ */
+function tokenOf(mail) {
+  return mail.link.split('?token=')[1];
 }
 
 test.beforeEach(() => limits._reset());
@@ -124,8 +155,8 @@ test('форма запроса отдаётся, не кэшируется и �
 test('страница смены пароля не кэшируется: в адресе лежит токен', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    await requestReset(h, 'a@b.c');
-    const res = await h.get(`/ru/password/reset?token=${h.sent.at(-1).token}`);
+    const { mail } = await requestReset(h, 'a@b.c');
+    const res = await h.get(`/ru/password/reset?token=${tokenOf(mail)}`);
     assert.equal(res.status, 200);
     assert.equal(res.headers.get('cache-control'), 'no-store');
     assert.match(await res.text(), /autocomplete="new-password"/);
@@ -150,13 +181,13 @@ test('неподтверждённому адресу уходит письмо 
   await withServer({ 'yes@b.c': confirmed, 'no@b.c': pending }, async (h) => {
     const unconfirmed = await requestReset(h, 'no@b.c');
     assert.equal(unconfirmed.res.status, 200, 'ответ тот же: по нему нельзя узнать про аккаунт');
-    assert.equal(h.sent.at(-1).kind, 'verify', 'неподтверждённому — письмо подтверждения (F-01-04 §4)');
-    assert.equal(h.sent.at(-1).to, 'no@b.c');
+    assert.equal(h.queued.at(-1).kind, 'email_verify', 'неподтверждённому — письмо подтверждения (F-01-04 §4)');
+    assert.equal(h.queued.at(-1).to, 'no@b.c');
 
-    const { token } = await requestReset(h, 'yes@b.c');
-    assert.ok(token, 'подтверждённому адресу приходит ссылка');
-    assert.equal(h.sent.at(-1).kind, 'reset');
-    assert.equal(h.sent.at(-1).to, 'yes@b.c');
+    const confirmed = await requestReset(h, 'yes@b.c');
+    assert.ok(confirmed.mail, 'подтверждённому адресу приходит ссылка');
+    assert.equal(h.queued.at(-1).kind, 'password_reset');
+    assert.equal(h.queued.at(-1).to, 'yes@b.c');
   });
 });
 
@@ -167,16 +198,18 @@ test('письмо не уходит никому, кроме активного
     // открывало бы ему доступ через собственную почту.
     await requestReset(h, 'zzz@nowhere.example');
     await requestReset(h, 'ban@b.c');
-    assert.equal(h.sent.length, 0, 'ни чужому адресу, ни забаненному письма нет');
+    assert.equal(h.queued.length, 0, 'ни чужому адресу, ни забаненному письма нет');
   });
 });
 
 test('в письме лежит ссылка на S-22 с токеном', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
-    // Разметка письма собирается шлюзом; здесь важен адрес из SCREENS S-22.
-    assert.match(token, /^[A-Za-z0-9_-]{40,}$/, 'токен непредсказуем и длинен');
+    const { mail } = await requestReset(h, 'a@b.c');
+    // Адрес S-22 берётся из SCREENS; тест поймает его смену, не поймав
+    // ссылку, ведущую в никуда.
+    assert.match(mail.link, /\/ru\/password\/reset\?token=/, 'ссылка ведёт на S-22');
+    assert.match(tokenOf(mail), /^[A-Za-z0-9_-]{40,}$/, 'токен непредсказуем и длинен');
   });
 });
 
@@ -185,7 +218,8 @@ test('в письме лежит ссылка на S-22 с токеном', asyn
 test('открытие формы нового пароля не гасит токен', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const first = await h.get(`/ru/password/reset?token=${token}`);
     const second = await h.get(`/ru/password/reset?token=${token}`);
     assert.equal(first.status, 200);
@@ -204,7 +238,8 @@ test('открытие формы нового пароля не гасит то
 test('смена пароля отзывает сессии, не пускает внутрь и переводит на вход', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
     const res = await h.post('/ru/password/reset', {
       token, password: NEW_PASSWORD, csrf: h.csrfOf(form),
@@ -217,16 +252,21 @@ test('смена пароля отзывает сессии, не пускает
     assert.match(String(h.calls.resetPassword[0][1]), /^\$argon2/, 'в базу уходит хеш, а не пароль');
     assert.equal((await h.sessions()).length, 1, 'вход не открывается: остаётся только анонимная сессия формы');
 
-    // Письма «Пароль изменён» здесь нет и быть не может: на момент смены
-    // известен только идентификатор, а адрес лежит в базе без шифрования —
-    // получателя взять негде. Это запись в IMPROVEMENTS, а не забытый вызов.
+    // Письмо «Пароль изменён» (F-01-04 §4) уходит владельцу: адрес берётся
+    // из базы по идентификатору из токена. Именно ради этого адрес и стал
+    // шифротекстом, а не пустым полем.
+    const notice = h.queued.at(-1);
+    assert.equal(notice.kind, 'password_changed', 'владелец узнаёт о смене пароля');
+    assert.equal(notice.to, 'a@b.c', 'адрес взят из базы, а не из токена');
+    assert.equal(notice.link, undefined, 'в уведомлении нет ссылки: это не приглашение войти');
   });
 });
 
 test('смена пароля попадает в журнал безопасности', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
     const res = await h.post('/ru/password/reset', {
       token, password: NEW_PASSWORD, csrf: h.csrfOf(form),
@@ -255,7 +295,8 @@ test('старая ссылка в журнал не попадает: попы�
 test('старый пароль после сброса не подходит, новый подходит', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
     await h.post('/ru/password/reset', { token, password: NEW_PASSWORD, csrf: h.csrfOf(form) });
 
@@ -270,7 +311,8 @@ test('старый пароль после сброса не подходит, �
 test('после смены пароля вход старым паролем отклоняется, новым — проходит', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
     await h.post('/ru/password/reset', { token, password: NEW_PASSWORD, csrf: h.csrfOf(form) });
 
@@ -291,7 +333,8 @@ test('после смены пароля вход старым паролем о
 test('успех показывается страницей, а не ответом на POST (Post/Redirect/Get)', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
     const res = await h.post('/ru/password/reset', {
       token, password: NEW_PASSWORD, csrf: h.csrfOf(form),
@@ -311,7 +354,8 @@ test('успех показывается страницей, а не ответ
 test('повторное использование ссылки даёт «Ссылка устарела» и форму новой заявки', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
     const first = await h.post('/ru/password/reset', {
       token, password: NEW_PASSWORD, csrf: h.csrfOf(form),
@@ -329,7 +373,8 @@ test('повторное использование ссылки даёт «Сс
 test('использованный токен повторно не принимается', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
     await h.post('/ru/password/reset', { token, password: NEW_PASSWORD, csrf: h.csrfOf(form) });
 
@@ -370,7 +415,8 @@ test('токен другого назначения не открывает с�
 test('слабый пароль отвергается у поля, а ссылка остаётся действующей', async () => {
   const user = await activeUser();
   await withServer({ 'a@b.c': user }, async (h) => {
-    const { token } = await requestReset(h, 'a@b.c');
+    const { mail } = await requestReset(h, 'a@b.c');
+    const token = tokenOf(mail);
     const form = await (await h.get(`/ru/password/reset?token=${token}`)).text();
     const weak = await h.post('/ru/password/reset', {
       token, password: 'коротко', csrf: h.csrfOf(form),

@@ -581,6 +581,39 @@ CREATE TABLE e_two_factor_code (
 );
 CREATE INDEX ix_two_factor_code_user ON e_two_factor_code (user_id) WHERE used_at IS NULL;
 
+-- ---------- Письма в очереди (F-01-12) ----------
+-- Письмо уходит не из обработчика запроса, а из очереди: отправка занимает
+-- секунды, а человек не должен ждать её (F-01-04 §8, R-SEC-06). Заодно
+-- письмо переживает перезапуск сервера — напечатанное в консоль ссылку
+-- приходилось бы искать заново.
+--
+-- Токен лежит только в теле письма и больше нигде в открытом виде: в
+-- отдельную колонку он не вынесен, чтобы его нельзя было вынуть из письма.
+
+CREATE TABLE e_mail (
+  id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  kind            TEXT   NOT NULL
+                  CHECK (kind IN ('email_verify','email_taken','password_reset','password_changed')),
+  -- Адрес получателя шифруется тем же ключом, что и в e_user: открытым он
+  -- не лежит ни в одной таблице проекта.
+  recipient_enc   BYTEA  NOT NULL,
+  locale          TEXT   NOT NULL DEFAULT 'ru' CHECK (locale IN ('ru','en')),
+  subject         TEXT   NOT NULL,
+  body            TEXT   NOT NULL,
+  status          TEXT   NOT NULL DEFAULT 'queued'
+                  CHECK (status IN ('queued','sending','sent','failed')),
+  attempts        SMALLINT NOT NULL DEFAULT 0,
+  -- Письмо забирает один работник, и повтор должен случиться не раньше
+  -- следующей попытки: время следующей попытки и есть признак «занято».
+  next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  last_error      TEXT,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  sent_at         TIMESTAMPTZ
+);
+-- Выборка идёт по времени следующей попытки и только по неотправленным:
+-- отправленные письма в индексе не должны мешали.
+CREATE INDEX ix_mail_pending ON e_mail (next_attempt_at) WHERE status IN ('queued','sending');
+
 -- ---------- История ника ----------
 -- Нельзя молча переименовать: старые ссылки на профиль должны остаться
 -- рабочими, а ник может быть занят повторно после освобождения.

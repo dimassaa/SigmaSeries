@@ -29,12 +29,16 @@ const PATH = '/password/reset';
  * @param {object} deps
  * @param {object} deps.auth доступ к учётным записям
  * @param {Function} deps.sessionMw middleware сессий
- * @param {object} [deps.mailer] отправка письма со ссылкой (F-01-12)
+ * @param {object} [deps.mailQueue] очередь писем (F-01-12)
  * @param {object} [deps.journal] журнал безопасности (F-01-04 §17)
+ * @param {string} [deps.baseUrl] адрес приложения для ссылки в письме
  */
-export function createResetRoutes({ auth, sessionMw, mailer, journal }) {
+export function createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl = '' }) {
   const router = express.Router({ strict: true });
   router.use(`/:locale${PATH}`, sessionMw);
+
+  /** Ссылка из письма: адрес приложения, путь и токен. */
+  const link = (path, token) => `${baseUrl}/${path}?token=${encodeURIComponent(token)}`;
 
   router.get(`/:locale${PATH}`, async (req, res, next) => {
     const locale = req.params.locale;
@@ -131,11 +135,39 @@ export function createResetRoutes({ auth, sessionMw, mailer, journal }) {
 
     if (user.email_confirmed) {
       const issued = await auth.newResetToken(email);
-      if (issued) await mailer?.resetEmail?.({ to: email, token: issued.token, locale });
+      if (issued) {
+        await mailQueue?.enqueue({
+          kind: 'password_reset',
+          to: email,
+          locale,
+          link: link(`${locale}${PATH}`, issued.token),
+        });
+      }
       return;
     }
     const issued = await auth.newVerificationToken(email);
-    if (issued) await mailer?.verificationEmail?.({ to: email, token: issued.token, locale });
+    if (issued) {
+      await mailQueue?.enqueue({
+        kind: 'email_verify',
+        to: email,
+        locale,
+        link: link(`${locale}/verify`, issued.token),
+      });
+    }
+  }
+
+  /**
+   * Уведомление о смене пароля (F-01-04 §4).
+   *
+   * Адрес берётся из базы по идентификатору владельца токена: в самом токене
+   * адреса нет, а раньше его негде было взять — теперь `email_enc` заполнен
+   * (DEC-029). В письме нет ни ссылки, ни приглашения войти: это сообщение о
+   * том, что произошло, а не способ войти.
+   */
+  async function notifyPasswordChanged(userId, locale) {
+    const owner = await auth.addressOf(userId);
+    if (!owner) return;
+    await mailQueue?.enqueue({ kind: 'password_changed', to: owner, locale });
   }
 
   /** Смена пароля по токену. */
@@ -161,6 +193,10 @@ export function createResetRoutes({ auth, sessionMw, mailer, journal }) {
       const passwordHash = await hashPassword(password);
       await auth.resetPassword(row.user_id, passwordHash);
       const revoked = await auth.revokeSessions(row.user_id);
+
+      // Письмо уходит после записи в журнал и не ждёт ответа: человек уже
+      // сменил пароль, и задержка отправки уведомления его не касается.
+      await notifyPasswordChanged(row.user_id, locale);
 
       // Журнал безопасности (F-01-04 §17, R-SEC-29): событие, идентификатор
       // запроса и число отозванных сессий. Адреса и секретов здесь быть не
