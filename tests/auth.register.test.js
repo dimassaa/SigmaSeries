@@ -161,6 +161,43 @@ test('письмо шлётся даже при занятом адресе', as
   assert.equal(takenReg.emailTaken, true, 'признак есть, но наружу не отдаётся');
 });
 
+test('пароль хешируется и при занятом адресе — по времени перебираются аккаунты', async () => {
+  // R-SEC-06 требует не только одинаковых байт ответа, но и одинаковой работы:
+  // argon2 занимает десятки миллисекунд, и если для занятого адреса он не
+  // считается вовсе, по времени ответа перебираются существующие аккаунты.
+  // Тест считает вызовы хеширования, а не миллисекунды: замер времени
+  // прошёл бы и на быстрой машине.
+  let hashed = 0;
+  const counting = {
+    ...deps,
+    hashPassword: async (plain) => { hashed += 1; return `HASH:${plain}`; },
+  };
+
+  await decideRegistration(
+    { email: 'taken@b.c', nickname: 'anna', password: 'надежный-пароль-1', consent: true },
+    { ...counting, emailFree: async () => false },
+  );
+  assert.equal(hashed, 1, 'занятый адрес: хеш всё равно считается, результат не используется');
+
+  hashed = 0;
+  await decideRegistration(
+    { email: 'free@b.c', nickname: 'anna', password: 'надежный-пароль-1', consent: true },
+    { ...counting, emailFree: async () => true },
+  );
+  assert.equal(hashed, 1, 'свободный адрес: хеш нужен для записи');
+});
+
+test('неверный пароль не хешируется ни при каком адресе', async () => {
+  // Отказ по валидации не должен стоить argon2: слабый пароль — это не
+  // секрет, который подбирают, и платить за него процессором незачем.
+  let hashed = 0;
+  await decideRegistration(
+    { email: 'a@b.c', nickname: 'anna', password: 'password123', consent: true },
+    { ...deps, hashPassword: async () => { hashed += 1; return 'HASH'; } },
+  );
+  assert.equal(hashed, 0);
+});
+
 test('ник, занявшийся между проверками, отклоняется', async () => {
   // Гонка EC-A5: форма прошла проверку, место кончилось до записи.
   let calls = 0;

@@ -82,9 +82,15 @@ export async function decideRegistration(input, deps) {
 
   const emailTaken = !(await deps.emailFree(input.email));
 
-  // R-SEC-06: ответ одинаковый. Отличается только письмо — владельцу
-  // занятого адреса уходит другое, и это не упоминается в ответе страницы.
-  const passwordHash = emailTaken ? null : await hashPlain(password, deps);
+  // R-SEC-06: ответ одинаковый — и по байтам, и по времени работы. Отличается
+  // только письмо: владельцу занятого адреса уходит другое, и это не
+  // упоминается в ответе страницы.
+  //
+  // Хеш считается в обоих случаях. argon2 занимает десятки миллисекунд, и
+  // если для занятого адреса он не считается вовсе, по времени ответа
+  // перебираются существующие аккаунты: ответ на «занято» выходит в разы
+  // быстрее ответа на «свободно». Для занятого адреса хеш выбрасывается.
+  const passwordHash = await hashPlain(password, deps);
   const token = emailTaken ? null : makeVerificationToken();
 
   return {
