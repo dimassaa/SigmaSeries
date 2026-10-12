@@ -5,9 +5,7 @@
 // canonical и взаимные hreflang (R-SEO-02, R-SEO-03, R-A11Y-04).
 
 import { html, raw, attr, esc } from './render.js';
-import { t, LOCALES, DEFAULT_LOCALE } from '../i18n/strings.js';
-
-const LOCALE_NAMES = { ru: 'Русский', en: 'English' };
+import { t, LOCALES, LOCALE_NAMES, DEFAULT_LOCALE } from '../i18n/strings.js';
 
 /**
  * Собирает полный документ.

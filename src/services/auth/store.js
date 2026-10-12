@@ -30,6 +30,36 @@ export function pgAuthStore(pool) {
       return rows[0] ?? null;
     },
 
+    /**
+     * Сохраняет настройки пользователя (F-01-06 §8).
+     *
+     * Поля перечислены явно, а не собираются из объекта: иначе в аккаунт
+     * записывалось бы всё, что пришло в теле запроса, включая `id`.
+     */
+    async updatePreferences(userId, values) {
+      const columns = {
+        theme: 'theme',
+        locale: 'locale',
+        timezone: 'timezone',
+        stats_public: 'stats_public',
+        profile_public: 'profile_public',
+        recs_enabled: 'recs_enabled',
+      };
+      const sets = [];
+      const params = [userId];
+      for (const [key, column] of Object.entries(columns)) {
+        if (!(key in values)) continue;
+        params.push(values[key]);
+        sets.push(`${column} = $${params.length}`);
+      }
+      if (!sets.length) return;
+
+      await pool.query(
+        `UPDATE e_user SET ${sets.join(', ')} WHERE id = $1 AND deleted_at IS NULL`,
+        params,
+      );
+    },
+
     async recordLogin(userId, at) {
       await pool.query('UPDATE e_user SET last_active_at = $2 WHERE id = $1', [userId, at]);
     },
@@ -621,6 +651,22 @@ export function stubAuthStore(users = {}, roles = {}) {
       if (index < 0) return false;
       codes.splice(index, 1);
       return true;
+    },
+
+    /**
+     * Заглушка: значения остаются в объекте аккаунта.
+     *
+     * Фильтруются только те поля, которые на самом деле принадлежат
+     * настройкам. Пропуск фильтра означал бы, что в аккаунт можно записать
+     * что угодно — по одному POST.
+     */
+    async updatePreferences(userId, values) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found) return;
+      const allowed = ['theme', 'locale', 'timezone', 'stats_public', 'profile_public', 'recs_enabled'];
+      for (const [key, value] of Object.entries(values)) {
+        if (allowed.includes(key)) found[key] = value;
+      }
     },
 
     /** Доступ к внутренностям для утверждений в тестах. */

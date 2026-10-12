@@ -15,6 +15,7 @@ import { createAuthRoutes } from './routes/auth.js';
 import { createRegisterRoutes } from './routes/register.js';
 import { createResetRoutes } from './routes/reset.js';
 import { createTwoFactorRoutes } from './routes/twofactor.js';
+import { createSettingsRoutes } from './routes/settings.js';
 import { createJournal } from './services/journal.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
 
@@ -90,6 +91,11 @@ export function createApp({
     app.use(createRegisterRoutes({ auth, sessionMw, mailQueue, baseUrl }));
     app.use(createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl }));
     app.use(createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, now }));
+  }
+  // Настройки доступны и гостю: тема и язык хранятся у него на стороне
+  // браузера, вход для них не нужен (F-01-06 §8(а)).
+  if (auth && sessionMw) {
+    app.use(createSettingsRoutes({ auth, sessionMw, journal }));
   }
   app.use(createNotFoundRoutes());
   app.use(errorHandler(DEFAULT_LOCALE));

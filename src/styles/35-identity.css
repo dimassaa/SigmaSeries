@@ -126,6 +126,59 @@
   .codes { columns: 1; }
 }
 
+/* ─── Настройки (S-32) ───────────────────────────────────────────────────────
+   F-01-06 §19: левая треть — вертикальная навигация по разделам, остальное —
+   форма на сплошной поверхности. */
+
+.settings { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+
+.settings__nav { flex: 0 0 auto; min-width: 200px; }
+.settings__list { margin: 0; padding: 0; list-style: none; }
+
+/* Активный раздел помечен и положением, и весом: только цветом его не найти
+   (R-DES-09). */
+.settings__link {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-inline-start: 3px solid transparent;
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.settings__link:hover { color: var(--text-primary); background: var(--surface-hover); }
+.settings__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.settings__link[aria-current="page"] {
+  border-inline-start-color: var(--accent);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.settings__body { flex: 1 1 320px; min-width: 0; }
+.settings__form { max-width: 520px; }
+.settings__group { margin: 0 0 var(--space-4); padding: 0; border: 0; }
+.settings__legend { padding: 0; color: var(--text-secondary); font-size: 14px; }
+
+/* Переключатель: подпись кликабельна целиком, состояние видно галочкой, а
+   не только заливкой. */
+.field--switch { display: flex; gap: var(--space-3); align-items: flex-start; }
+.field__checkbox { margin-block-start: 2px; width: 20px; height: 20px; flex: 0 0 auto; }
+.field__checkbox:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.field__switch-label { display: flex; flex-direction: column; gap: var(--space-1); cursor: pointer; }
+.field__switch-text { color: var(--text-primary); }
+
+/* Подтверждение сохранения объявляется и не пропадает: сообщение исчезло бы
+   раньше, чем его успевают прочесть. */
+.form__saved { color: var(--positive); }
+
+/* Телефон (§19): разделы — список-меню, открываются отдельно, поэтому
+   навигация идёт списком, а не колонкой. */
+@media (max-width: 639px) {
+  .settings { flex-direction: column; }
+  .settings__nav { min-width: 0; width: 100%; }
+  .settings__link { border-inline-start: 0; border-block-start: 1px solid var(--border-subtle); }
+  .settings__link[aria-current="page"] { border-inline-start: 0; border-block-start-color: var(--accent); }
+}
+
 /* Предупреждение — рамка, а не только цвет: иначе его не заметят те, кто не
    различает цвета (R-DES-09). */
 .form__warning {

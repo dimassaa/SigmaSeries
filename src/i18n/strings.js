@@ -202,6 +202,35 @@ const MESSAGES = {
     'twoFactor.error.tooMany': 'Слишком много попыток. Повторите через {seconds} с',
     'twoFactor.error.csrf': 'Форма устарела. Обновите страницу.',
 
+    // ─── Настройки (F-01-06) ────────────────────────────────────────────────
+    'settings.title': 'Настройки',
+    'settings.lead': 'Оформление, язык и приватность аккаунта.',
+    'settings.sections': 'Разделы настроек',
+    'settings.saved': 'Сохранено',
+    'settings.guestNote': 'Гостевая сессия: тема и язык сохраняются в этом браузере, вход не требуется.',
+    'settings.apply': 'Сохранить',
+    'settings.theme': 'Вид',
+    'settings.theme.light': 'Светлая',
+    'settings.theme.dark': 'Тёмная',
+    'settings.theme.system': 'Как в системе',
+    'settings.language': 'Язык интерфейса',
+    'settings.language.hint': 'Для этой страницы язык в адресе важнее: /ru/… и /en/… остаются отдельными страницами.',
+    'settings.timezone': 'Часовой пояс',
+
+    'settings.appearance.title': 'Язык и вид',
+    'settings.privacy.title': 'Приватность',
+    'settings.privacy.legend': 'Что видно другим',
+    'settings.privacy.stats': 'Показывать статистику в профиле',
+    'settings.privacy.stats.hint': 'Сколько сериалов отмечено, оценок и отзывов. По умолчанию скрыто.',
+    'settings.privacy.profile': 'Показывать профиль целиком',
+    'settings.privacy.profile.hint': 'Список отмеченных и закладок. По умолчанию скрыто.',
+    'settings.privacy.recs': 'Персональные рекомендации',
+    'settings.privacy.recs.hint': 'Главная подбирает сериалы под ваши отметки. Включено по умолчанию.',
+    'settings.error.csrf': 'Форма устарела. Обновите страницу.',
+    'settings.error.theme': 'Такого вида нет',
+    'settings.error.locale': 'Такого языка нет',
+    'settings.error.timezone': 'Такого часового пояса нет',
+
     'common.back': 'Назад',
     'common.more': 'Ещё',
     'common.loading': 'Загрузка',
@@ -397,6 +426,35 @@ const MESSAGES = {
     'twoFactor.error.tooMany': 'Too many attempts. Try again in {seconds} s',
     'twoFactor.error.csrf': 'The form has expired. Reload the page.',
 
+    // ─── Settings (F-01-06) ────────────────────────────────────────────────
+    'settings.title': 'Settings',
+    'settings.lead': 'Appearance, language and account privacy.',
+    'settings.sections': 'Settings sections',
+    'settings.saved': 'Saved',
+    'settings.guestNote': 'Guest session: the theme and language are kept in this browser; signing in is not required.',
+    'settings.apply': 'Save',
+    'settings.theme': 'Appearance',
+    'settings.theme.light': 'Light',
+    'settings.theme.dark': 'Dark',
+    'settings.theme.system': 'Follow the system',
+    'settings.language': 'Interface language',
+    'settings.language.hint': 'For this page the language in the address wins: /ru/… and /en/… stay separate pages.',
+    'settings.timezone': 'Time zone',
+
+    'settings.appearance.title': 'Language and appearance',
+    'settings.privacy.title': 'Privacy',
+    'settings.privacy.legend': 'What others can see',
+    'settings.privacy.stats': 'Show statistics on the profile',
+    'settings.privacy.stats.hint': 'How many series are marked, rated, reviewed. Hidden by default.',
+    'settings.privacy.profile': 'Show the full profile',
+    'settings.privacy.profile.hint': 'List of marked series and bookmarks. Hidden by default.',
+    'settings.privacy.recs': 'Personal recommendations',
+    'settings.privacy.recs.hint': 'The home page picks series based on your marks. On by default.',
+    'settings.error.csrf': 'The form has expired. Reload the page.',
+    'settings.error.theme': 'No such appearance',
+    'settings.error.locale': 'No such language',
+    'settings.error.timezone': 'No such time zone',
+
     'common.back': 'Back',
     'common.more': 'More',
     'common.loading': 'Loading',
@@ -405,6 +463,15 @@ const MESSAGES = {
 
 /** Языки, для которых обязаны существовать все ключи. */
 export const LOCALES = ['ru', 'en'];
+
+/**
+ * Названия языков для выбора.
+ *
+ * Живут здесь, а не в шаблоне: список языков нужен не только переключателю
+ * в шапке, но и форме настроек (F-01-06), и в двух местах он обязан
+ * совпадать.
+ */
+export const LOCALE_NAMES = { ru: 'Русский', en: 'English' };
 
 /** Язык по умолчанию. Всегда русский, независимо от заголовков запроса (ADR-003). */
 export const DEFAULT_LOCALE = 'ru';
