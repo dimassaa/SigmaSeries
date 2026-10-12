@@ -555,9 +555,66 @@ a:hover { color: var(--accent-hover); }
 }
 
 .settings__body { flex: 1 1 320px; min-width: 0; }
-.settings__form { max-width: 520px; }
+.settings__form { max-width: 520px; margin-block-end: var(--space-6); }
 .settings__group { margin: 0 0 var(--space-4); padding: 0; border: 0; }
 .settings__legend { padding: 0; color: var(--text-secondary); font-size: 14px; }
+
+/* Заголовок формы внутри раздела: на странице три формы, и без него не видно,
+   где кончается одна и начинается другая. */
+.settings__subhead {
+  margin: 0 0 var(--space-3);
+  font-size: 17px;
+  color: var(--text-primary);
+}
+
+/* Состояние настройки («Включена» / «Не настроена») — текстом, а не цветом:
+   иначе его не прочтут те, кто цвета не различает (R-DES-09). */
+.settings__state { margin: 0 0 var(--space-2); color: var(--text-primary); }
+
+/* Аватар-инициалы (H-52). Плашка нейтральная: цвет аватара стал бы вторым
+   носителем состояния, а состояния у аватара нет. */
+.avatar { margin-block-end: var(--space-4); }
+
+.avatar__plate {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 64px;
+  height: 64px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  font-size: 24px;
+  /* Инициалы — всегда прописными: строчные в кружке читаются хуже. */
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.settings__history { margin: var(--space-2) 0 0; padding: 0; list-style: none; }
+
+.settings__history-item {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-1);
+  color: var(--text-secondary);
+}
+
+.settings__history-date { color: var(--text-secondary); font-size: 14px; }
+.settings__devices { margin: 0; padding: 0; list-style: none; }
+
+.settings__device {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+}
+
+.settings__device-label { color: var(--text-primary); }
+.settings__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
 
 /* Переключатель: подпись кликабельна целиком, состояние видно галочкой, а
    не только заливкой. */

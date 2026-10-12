@@ -1,0 +1,397 @@
+// S-32: профиль, уведомления и безопасность.
+//
+// Три раздела проверяются по критериям приёмки F-01-06 §18 и по правилам:
+//
+//   • ник меняется не чаще раза в 30 дней, старый сохраняется;
+//   • аватар без загрузки — инициалы на плашке (H-52, загрузка не в P0);
+//   • смена пароля требует текущий и отзывает остальные сессии (§8(в));
+//   • 2FA выключается по паролю (F-01-05 §8), служебным ролям — нельзя;
+//   • устройства видны и отзываются (F-01-03).
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { createApp } from '../src/app.js';
+import { stubData } from '../src/services/home/data.js';
+import { stubAuthStore } from '../src/services/auth/store.js';
+import { createSessionMiddleware, createMemorySessionStore } from '../src/services/auth/session.js';
+import { hashPassword } from '../src/services/auth/password.js';
+import { generateSecret, generateBackupCodes, hashBackupCode } from '../src/services/auth/totp.js';
+import { AUTH } from '../src/config/settings.js';
+
+const PASSWORD = 'правильный-пароль-из-десяти';
+const NOW = 1_700_000_000;
+
+async function viewer(over = {}) {
+  return {
+    id: 20,
+    email: 'anna@example.com',
+    password_hash: await hashPassword(PASSWORD),
+    nickname: 'anna',
+    status: 'active',
+    email_confirmed: true,
+    locale: 'ru',
+    theme: 'dark',
+    timezone: 'Europe/Minsk',
+    recs_enabled: true,
+    profile_public: false,
+    stats_public: false,
+    ...over,
+  };
+}
+
+/** Сервер со входом. `twoFactor` задаётся ДО входа — иначе служебный вход ушёл бы на настройку. */
+async function withServer({
+  user, roles = {}, extra = [], twoFactor = null, clock, run,
+}) {
+  const accounts = { [user.email]: user };
+  for (const other of extra) accounts[other.email] = other;
+
+  const auth = stubAuthStore(accounts, roles);
+  if (twoFactor) auth.setTwoFactor(user.id, twoFactor);
+
+  const memStore = createMemorySessionStore();
+  const app = createApp({
+    data: stubData(),
+    auth,
+    sessionMw: createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore),
+    journal: { security: () => {} },
+    mailQueue: { enqueue: async () => 0 },
+    ...(clock ? { now: clock } : {}),
+  });
+  const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
+  const base = `http://127.0.0.1:${server.address().port}`;
+  let jar = '';
+
+  const get = async (path, init = {}) => {
+    const res = await fetch(base + path, {
+      redirect: 'manual',
+      ...init,
+      headers: { cookie: jar, ...(init.headers ?? {}) },
+    });
+    const set = res.headers.getSetCookie?.() ?? [];
+    if (set.length) jar = set.map((c) => c.split(';')[0]).join('; ');
+    return res;
+  };
+  const post = (path, fields) => get(path, {
+    method: 'POST',
+    headers: { 'content-type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams(fields),
+  });
+  const csrfOf = (html) => html.match(/name="csrf" value="([^"]+)"/)?.[1];
+
+  const login = await (await get('/ru/login')).text();
+  await post('/ru/login', { email: user.email, password: PASSWORD, csrf: csrfOf(login) });
+
+  try {
+    await run({ get, post, csrfOf, user, auth, memStore });
+  } finally {
+    await new Promise((r) => server.close(r));
+  }
+}
+
+/** Смена с проверкой CSRF: почти все посты раздела требуют её. */
+async function save(h, path, fields) {
+  const form = await (await h.get(path)).text();
+  return h.post(path, { ...fields, csrf: h.csrfOf(form) });
+}
+
+// ─── Профиль (F-01-06 §4) ──────────────────────────────────────────────────
+
+test('аватар без загрузки — инициалы на плашке (H-52)', async () => {
+  // Загрузка изображений не в P0, но плашка с инициалами обязана быть: иначе
+  // у человека нет никакого аватара вообще.
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get }) => {
+      const page = await (await get('/ru/settings/profile')).text();
+      // Ник латиницей, значит и инициалы латинские: тест ищет то, что
+      // действительно приходит от `anna`.
+      assert.match(page, /AN/, 'инициалы показаны');
+      assert.doesNotMatch(page, /type="file"/, 'загрузки в P0 нет');
+    },
+  });
+});
+
+test('ник меняется и старый сохраняется в истории', async () => {
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/profile', { nickname: 'анна' });
+
+      assert.equal(res.status, 303, 'ник применён');
+      assert.equal(user.nickname, 'анна', 'ник изменён');
+
+      const history = await auth.nicknameHistory(user.id);
+      assert.equal(history.length, 1, 'старый ник сохранён');
+      assert.equal(history[0].nickname, 'anna');
+    },
+  });
+});
+
+test('ник нельзя менять чаще, чем раз в 30 дней', async () => {
+  // §9 и §18: «ник менялся 10 дней назад → следующая смена доступна через
+  // 20 дней». Число дней названо человеку, иначе сообщение бесполезно.
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      await save({ get, post, csrfOf }, '/ru/settings/profile', { nickname: 'анна' });
+
+      const again = await save({ get, post, csrfOf }, '/ru/settings/profile', { nickname: 'анна' });
+      assert.equal(again.status, 429, 'вторая смена запрещена');
+      const page = await again.text();
+      assert.match(page, new RegExp(String(AUTH.nicknameChangeDays)), 'число дней названо');
+      assert.equal(user.nickname, 'анна', 'ник не изменился');
+    },
+  });
+});
+
+test('занятый ник отклоняется у поля', async () => {
+  const user = await viewer();
+  const other = await viewer({ id: 21, email: 'other@example.com', nickname: 'busy' });
+
+  await withServer({
+    user,
+    extra: [other],
+    run: async ({ get, post }) => {
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/profile', { nickname: 'busy' });
+
+      assert.equal(res.status, 400, 'занятый ник отвергнут');
+      assert.match(await res.text(), /занят/i, 'ошибка у поля, а не в общем блоке');
+    },
+  });
+});
+
+// ─── Безопасность: пароль (F-01-06 §8(в), §18) ─────────────────────────────
+
+test('смена пароля требует текущий и отзывает остальные сессии', async () => {
+  // §18: «остальные устройства разлогинены». Отзыв всех, включая текущую,
+  // ломал бы форму, поэтому текущая остаётся, а прочие — нет.
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'password',
+        current: PASSWORD, password: 'совсем-другой-пароль-12',
+      });
+
+      assert.equal(res.status, 303, 'пароль изменён');
+      assert.equal(
+        await auth.verifyCurrent(user.id, PASSWORD), false,
+        'старый пароль больше не подходит',
+      );
+      assert.equal(
+        await auth.verifyCurrent(user.id, 'совсем-другой-пароль-12'), true,
+        'новый пароль работает',
+      );
+      assert.ok(auth.calls.revokeSessions.length >= 1, 'сессии отозваны');
+    },
+  });
+});
+
+test('смена пароля с неверным текущим не проходит', async () => {
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post }) => {
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'password',
+        current: 'не-текущий-пароль-1', password: 'совсем-другой-пароль-12',
+      });
+
+      assert.equal(res.status, 400, 'неверный текущий отвергнут');
+      assert.match(await res.text(), /текущ|парол/i, 'человеку сказано, что не так');
+    },
+  });
+});
+
+test('слабый новый пароль отклоняется у поля', async () => {
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post }) => {
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'password',
+        current: PASSWORD, password: 'password123',
+      });
+
+      assert.equal(res.status, 400, 'слабый пароль отвергнут');
+      assert.equal(await (await get('/ru/settings/security')).text()
+        .then((p) => p.includes('password123')), false, 'пароль не показан обратно в форме');
+    },
+  });
+});
+
+// ─── Безопасность: 2FA (F-01-05 §8) ────────────────────────────────────────
+
+test('зритель выключает 2FA по паролю', async () => {
+  // §8: «зритель отключает 2FA по паролю». Отключение без пароля оставило бы
+  // окно, открытое одной ссылкой из письма.
+  const user = await viewer();
+  const auth0 = stubAuthStore({ [user.email]: user });
+  auth0.setTwoFactor(user.id, {
+    secret: generateSecret(), lastStep: null, backup: [hashBackupCode('AAAAAAAAAA')],
+  });
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      auth.setTwoFactor(user.id, {
+        secret: generateSecret(), lastStep: null, backup: [hashBackupCode('AAAAAAAAAA')],
+      });
+
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'two_factor', op: 'disable', password: PASSWORD,
+      });
+
+      assert.equal(res.status, 303, '2FA выключена');
+      assert.equal(await auth.twoFactor(user.id), null, 'настройки 2FA удалены');
+    },
+  });
+});
+
+test('выключение 2FA без пароля не проходит', async () => {
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      auth.setTwoFactor(user.id, {
+        secret: generateSecret(), lastStep: null, backup: [hashBackupCode('AAAAAAAAAA')],
+      });
+
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'two_factor', op: 'disable', password: 'не-текущий-пароль-1',
+      });
+
+      assert.equal(res.status, 400, 'без верного пароля не отключается');
+      assert.notEqual(await auth.twoFactor(user.id), null, '2FA на месте');
+    },
+  });
+});
+
+test('служебной роли 2FA отключить нельзя', async () => {
+  // F-01-05 §8: служебным ролям отключить 2FA нельзя. Проверяется именно
+  // сервером: скрытая кнопка обходится прямым запросом.
+  const user = await viewer({ id: 10, email: 'admin@example.com', nickname: 'boss' });
+  const backup = [hashBackupCode('AAAAAAAAAA')];
+
+  await withServer({
+    user,
+    roles: { 10: ['admin'] },
+    twoFactor: { secret: generateSecret(), lastStep: null, backup },
+    run: async ({ get, post, auth }) => {
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+
+      // Служебный вход идёт через 2FA — она настроена, значит человек видит
+      // поле кода, и резервный код его открывает.
+      const page = await (await get('/ru/2fa')).text();
+      const passed = await post('/ru/2fa', {
+        backup_code: 'AAAAAAAAAA', csrf: csrfOf(page),
+      });
+      assert.equal(passed.status, 303, 'служебная роль вошла по резервному коду');
+
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'two_factor', op: 'disable', password: PASSWORD,
+      });
+
+      assert.notEqual(res.status, 303, 'выключение не прошло');
+      assert.notEqual(await auth.twoFactor(user.id), null, '2FA на месте');
+    },
+  });
+});
+
+test('резервные коды перегенерируются по паролю, старые становятся недействительными', async () => {
+  // F-01-05 §8: перегенерация по паролю и делает старые недействительными.
+  const user = await viewer();
+  const old = generateBackupCodes();
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      auth.setTwoFactor(user.id, {
+        secret: generateSecret(), lastStep: null, backup: old.map((c) => hashBackupCode(c)),
+      });
+
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'two_factor', op: 'regenerate', password: PASSWORD,
+      });
+
+      assert.equal(res.status, 303, 'коды перегенерированы');
+      const state = await auth.twoFactor(user.id);
+      assert.equal(state.backup.length, AUTH.backupCodeCount, 'новый набор полного размера');
+      assert.equal(
+        state.backup.some((h) => h.equals(hashBackupCode(old[0]))), false,
+        'старый код больше не действует',
+      );
+    },
+  });
+});
+
+// ─── Безопасность: устройства (F-01-03) ────────────────────────────────────
+
+test('устройства перечисляются и отзываются', async () => {
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      auth.setSessions(user.id, [
+        { id: 's1', device_label: 'Телефон', created_at: NOW, last_seen_at: NOW },
+        { id: 's2', device_label: 'Ноутбук', created_at: NOW, last_seen_at: NOW },
+      ]);
+
+      const page = await (await get('/ru/settings/security')).text();
+      assert.match(page, /Телефон/, 'устройство названо');
+      assert.match(page, /Ноутбук/);
+
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'revoke_device', session: 's1',
+      });
+
+      assert.equal(res.status, 303, 'устройство отозвано');
+      assert.deepEqual(
+        auth.calls.revokeDevice.map((c) => c[1]), ['s1'],
+        'отозвано именно то устройство',
+      );
+    },
+  });
+});
+
+test('отзыв чужого устройства не проходит', async () => {
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      auth.setSessions(user.id, [{ id: 's1', device_label: 'Телефон' }]);
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'revoke_device', session: 'чужое-устройство',
+      });
+
+      assert.notEqual(res.status, 303, 'чужое устройство не отозвано');
+    },
+  });
+});

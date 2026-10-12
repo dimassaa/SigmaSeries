@@ -52,6 +52,13 @@ export const AUTH = {
 
   /** auth.resend_cooldown_s — пауза между повторными письмами. */
   resendCooldownS: 60,
+  /**
+   * auth.nickname_change_days — смена ника не чаще этого срока (F-01-06 §9).
+   *
+   * История ников нужна для этого правила: по одному `e_user.nickname` нельзя
+   * узнать, когда человек менял имя в прошлый раз.
+   */
+  nicknameChangeDays: 30,
   /** Не больше пяти повторов в час на аккаунт (F-01-01 §9). */
   resendPerHour: 5,
   /**

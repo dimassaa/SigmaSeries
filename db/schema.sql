@@ -45,6 +45,11 @@ CREATE TABLE e_user (
   recs_enabled    BOOLEAN NOT NULL DEFAULT TRUE,
   profile_public  BOOLEAN NOT NULL DEFAULT FALSE,   -- приватность закрыта по умолчанию
   stats_public    BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Уведомления (F-01-06 §4). Состав категорий и каналов определяет M3,
+  -- и когда он появится, рядом появится таблица категорий; пока её нет,
+  -- человек не может даже прекратить писать ему письма.
+  notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
+  quiet_hours     BOOLEAN NOT NULL DEFAULT FALSE,
   deleted_at      TIMESTAMPTZ,
   CONSTRAINT uq_user_nick UNIQUE (nickname)
 );

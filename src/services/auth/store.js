@@ -5,7 +5,7 @@
 
 import pg from 'pg';
 
-import { makeToken } from './password.js';
+import { makeToken, verifyPassword } from './password.js';
 import { blindIndex, encryptValue, decryptValue } from './crypto.js';
 import { sealSecret } from './totp.js';
 import { AUTH } from '../../config/settings.js';
@@ -58,6 +58,107 @@ export function pgAuthStore(pool) {
         `UPDATE e_user SET ${sets.join(', ')} WHERE id = $1 AND deleted_at IS NULL`,
         params,
       );
+    },
+
+    /**
+     * Смена ника (F-01-06 §4, §8(в)).
+     *
+     * Старое имя уходит в историю, а ное пишется в аккаунт: материалы хранят
+     * ссылку на пользователя, а не копию имени (§17 фичи), и без истории не
+     * объяснить старые ссылки.
+     *
+     * Обе записи — одна транзакция: имя сменилось, а история не записалась бы
+     * при откате, и срок смены стал бы бесконечным.
+     */
+    async changeNickname(userId, nickname) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const { rows: current } = await client.query(
+          'SELECT nickname FROM e_user WHERE id = $1 AND deleted_at IS NULL FOR UPDATE',
+          [userId],
+        );
+        if (!current.length) {
+          await client.query('ROLLBACK');
+          return { ok: false, reason: 'no_user' };
+        }
+
+        const { rows: open } = await client.query(
+          'SELECT id FROM e_nickname_history WHERE user_id = $1 AND valid_to IS NULL LIMIT 1',
+          [userId],
+        );
+        if (open.length) {
+          await client.query(
+            'UPDATE e_nickname_history SET valid_to = now() WHERE id = $1',
+            [open[0].id],
+          );
+        } else {
+          // Открытой строки нет — значит это первая смена. Прежний ник
+          // записывается **закрытым**: он больше не действует, и открытая
+          // строка означала бы, что ник менять можно снова и снова.
+          await client.query(
+            `INSERT INTO e_nickname_history (user_id, nickname, valid_from, valid_to)
+             VALUES ($1, $2, now(), now())`,
+            [userId, current[0].nickname],
+          );
+        }
+
+        await client.query('UPDATE e_user SET nickname = $2 WHERE id = $1', [userId, nickname]);
+        await client.query('COMMIT');
+        return { ok: true, previous: current[0].nickname };
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
+
+    /** История ников, свежая первой (F-01-06 §4). */
+    async nicknameHistory(userId) {
+      const { rows } = await pool.query(
+        `SELECT nickname, valid_from, valid_to FROM e_nickname_history
+          WHERE user_id = $1 ORDER BY valid_from DESC`,
+        [userId],
+      );
+      return rows;
+    },
+
+    /**
+     * Устройства аккаунта для S-32 (F-01-03).
+     *
+     * Берётся `e_session` — список устройств, а не таблица `session`
+     * (хранилище сессий connect-pg-simple). Секретов в списке нет: наружу
+     * уходят только подпись устройства и даты.
+     */
+    async devices(userId) {
+      const { rows } = await pool.query(
+        `SELECT id, device_label, created_at, last_seen_at FROM e_session
+          WHERE user_id = $1 AND revoked_at IS NULL
+          ORDER BY last_seen_at DESC`,
+        [userId],
+      );
+      return rows;
+    },
+
+    /**
+     * Отзыв одного устройства (F-01-03).
+     *
+     * Только то, что принадлежит владельцу: идентификатор из тела запроса
+     * проверяется условием `user_id`, иначе один запрос выбил бы чужую
+     * сессию (R-SEC-10).
+     */
+    async revokeDevice(userId, sessionId) {
+      // Идентификатор приходит из формы, а столбец — bigint. Без проверки
+      // «чужое» привело бы к ошибке разбора запроса и 500 там, где человек
+      // должен увидеть «устройство не найдено».
+      if (!/^\d+$/.test(String(sessionId ?? ''))) return false;
+
+      const { rowCount } = await pool.query(
+        'UPDATE e_session SET revoked_at = now() WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL',
+        [sessionId, userId],
+      );
+      return (rowCount ?? 0) > 0;
     },
 
     async recordLogin(userId, at) {
@@ -444,6 +545,18 @@ export function stubAuthStore(users = {}, roles = {}) {
   const tokens = new Map();
   let nextId = 1;
 
+  /** История ников: пользователь → строки `e_nickname_history`. */
+  const nicknameHistory = [];
+  /** Устройства: пользователь → строки `e_session`. */
+  const devices = new Map();
+  /**
+   * Журнал вызовов для утверждений тестов.
+   *
+   * Собирается здесь, а не в обёртках теста: обёртка проверяла бы, что
+   * позвали функцию, а не что отозвали именно то устройство.
+   */
+  const calls = { revokeSessions: [], revokeDevice: [] };
+
   const byNick = (nick) => Object.values(users).some(
     (u) => String(u.nickname).toLowerCase() === String(nick).toLowerCase(),
   );
@@ -579,7 +692,8 @@ export function stubAuthStore(users = {}, roles = {}) {
      * учётных записей. Настоящее удаление проверяется против живой базы
      * (`tests/auth.store.test.js`); здесь важно, что метод есть и вызывается.
      */
-    async revokeSessions() {
+    async revokeSessions(userId) {
+      calls.revokeSessions.push([userId]);
       return 0;
     },
 
@@ -642,6 +756,31 @@ export function stubAuthStore(users = {}, roles = {}) {
       }
     },
 
+    /**
+     * Выключает 2FA (F-01-05 §8, F-01-06 §4).
+     *
+     * Строка удаляется, а не помечается: «настроена» и «выключена» — одно и
+     * то же состояние, третьего нет ни в фиче, ни в схеме. Право выключать
+     * проверяет маршрут, а не хранилище: решение о роли принимается там.
+     */
+    async disableTwoFactor(userId) {
+      const { rowCount } = await pool.query(
+        'DELETE FROM e_two_factor WHERE user_id = $1',
+        [userId],
+      );
+      return (rowCount ?? 0) > 0;
+    },
+
+    /**
+     * Заглушка: выключение 2FA — это удаление состояния.
+     */
+    async disableTwoFactor(userId) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found?.twoFactor) return false;
+      delete found.twoFactor;
+      return true;
+    },
+
     /** Гасит код: ищется по хешу, как в базе. */
     async consumeBackupCode(userId, codeHash) {
       const found = Object.values(users).find((u) => u.id === userId);
@@ -654,7 +793,112 @@ export function stubAuthStore(users = {}, roles = {}) {
     },
 
     /**
-     * Заглушка: значения остаются в объекте аккаунта.
+     * Смена ника (F-01-06 §4).
+     *
+     * Старое имя не затирается, а уходит в историю: материалы хранят ссылку
+     * на пользователя, а не копию имени (§8(в) фичи), и без истории ни срока
+     * смены не проверить, ни старые ссылки не объяснить.
+     *
+     * Время берётся настоящее, а не из внедрённых часов: заглушка не знает
+     * про `now`, и подмена рассинхронизировала бы её с маршрутом.
+     */
+    async changeNickname(userId, nickname) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found) return { ok: false, reason: 'no_user' };
+      const previous = found.nickname;
+      const at = Date.now();
+
+      nicknameHistory.push({
+        user_id: userId, nickname: previous, valid_from: found.nickSince ?? at, valid_to: at,
+      });
+      found.nickname = nickname;
+      found.nickSince = at;
+      return { ok: true, previous };
+    },
+
+    /**
+     * История ников аккаунта, свежая первой.
+     *
+     * @returns {Promise<Array<{nickname:string, valid_from:number, valid_to:number|null}>>}
+     */
+    async nicknameHistory(userId) {
+      return nicknameHistory
+        .filter((row) => row.user_id === userId)
+        .sort((a, b) => b.valid_from - a.valid_from);
+    },
+
+    /** Когда ник меняли последний раз; null, если никогда. */
+    async nicknameChangedAt(userId) {
+      const history = await this.nicknameHistory(userId);
+      return history.length ? history[0].valid_from : null;
+    },
+
+    /** Проверяет текущий пароль: смена пароля и 2FA требуют его (F-01-06 §4). */
+    async verifyCurrent(userId, password) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found) return false;
+      return verifyPassword(password, found.password_hash);
+    },
+
+    /** Устройства аккаунта для раздела «Безопасность». */
+    async devices(userId) {
+      return devices.get(userId) ?? [];
+    },
+
+    /**
+     * Отзыв одного устройства.
+     *
+     * Отзывается только то, что принадлежит владельцу: идентификатор из тела
+     * запроса проверяется по списку, иначе один запрос выбил бы чужую сессию
+     * (R-SEC-10).
+     */
+    async revokeDevice(userId, sessionId) {
+      const mine = devices.get(userId) ?? [];
+      // Проверка членства вместо разбора: чужой или выдуманный идентификатор
+      // просто не найдётся, и ошибки разбора не будет (у настоящей базы
+      // столбец bigint, и «чужое» уронило бы запрос).
+      if (!mine.some((d) => String(d.id) === String(sessionId))) return false;
+
+      calls.revokeDevice.push([userId, sessionId]);
+      devices.set(userId, mine.filter((d) => d.id !== sessionId));
+      return true;
+    },
+
+    /**
+     * Уведомления (F-01-06 §4).
+     *
+     * Отдельный метод, а не часть `updatePreferences`: переключатели
+     * уведомлений относятся к M3, и когда тот появится, у него будут свои
+     * категории и свои правила хранения.
+     */
+    async updateNotifications(userId, values) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found) return;
+      const allowed = ['notifications_enabled', 'quiet_hours'];
+      for (const [key, value] of Object.entries(values)) {
+        if (allowed.includes(key)) found[key] = value;
+      }
+    },
+
+    /** Тестовые заглушки для списка устройств и журнала вызовов. */
+    setSessions(userId, list) {
+      devices.set(userId, list);
+    },
+
+    /**
+     * Проверка занятости ника (F-01-06 §4).
+     *
+     * Свой ник не занят: человек меняет имя на то же самое и должен получить
+     * «сохранено», а не «занято».
+     */
+    async nicknameFree(nickname, exceptUserId = null) {
+      const taken = String(nickname).toLowerCase();
+      return !Object.values(users).some((u) => (
+        String(u.nickname).toLowerCase() === taken && u.id !== exceptUserId
+      ));
+    },
+
+    /** Заглушка: значения остаются в объекте аккаунта.
      *
      * Фильтруются только те поля, которые на самом деле принадлежат
      * настройкам. Пропуск фильтра означал бы, что в аккаунт можно записать
@@ -671,5 +915,7 @@ export function stubAuthStore(users = {}, roles = {}) {
 
     /** Доступ к внутренностям для утверждений в тестах. */
     _tokens: tokens,
+    /** Журнал вызовов: отзывов сессий и устройств. */
+    calls,
   };
 }

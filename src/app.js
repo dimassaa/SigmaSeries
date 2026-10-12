@@ -95,7 +95,7 @@ export function createApp({
   // Настройки доступны и гостю: тема и язык хранятся у него на стороне
   // браузера, вход для них не нужен (F-01-06 §8(а)).
   if (auth && sessionMw) {
-    app.use(createSettingsRoutes({ auth, sessionMw, journal }));
+    app.use(createSettingsRoutes({ auth, sessionMw, journal, mailQueue, now }));
   }
   app.use(createNotFoundRoutes());
   app.use(errorHandler(DEFAULT_LOCALE));
