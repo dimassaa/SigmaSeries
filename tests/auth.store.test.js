@@ -16,7 +16,7 @@ import crypto from 'node:crypto';
 
 import { createPool } from '../src/db/pool.js';
 import { pgAuthStore } from '../src/services/auth/store.js';
-import { makeToken, hashToken } from '../src/services/auth/password.js';
+import { makeToken, hashToken, hashPassword } from '../src/services/auth/password.js';
 import { decryptValue } from '../src/services/auth/crypto.js';
 
 // Слепой индекс и шифротекст считаются секретами приложения, а не базы: без
@@ -392,4 +392,85 @@ test('отзыв сессий удаляет сессии только одно�
   );
   assert.equal(rows[0].n, 2, 'гостевая и чужая сессии остались');
   await pool.query(`DELETE FROM session WHERE sid = ANY($1::text[])`, [[mineAnon, otherId]]);
+});
+
+// ─── Раздел «Настройки» (F-01-06 §4) ───────────────────────────────────────
+//
+// Шесть методов этого раздела жили только в заглушке: HTTP-тесты были зелёные,
+// а против базы раздел отдавал 500. Тесты ниже повторяют те же проверки на
+// настоящем хранилище.
+
+test('текущий пароль проверяется по хешу из базы', { skip }, async () => {
+  const password = 'правильный-пароль-из-десяти';
+  const { fields, user } = await confirmedUser({
+    passwordHash: await hashPassword(password),
+  });
+
+  assert.equal(await store.verifyCurrent(user.id, password), true, 'верный пароль');
+  assert.equal(await store.verifyCurrent(user.id, 'не-верный-пароль-1'), false, 'неверный');
+  assert.equal(await store.verifyCurrent(user.id, ''), false, 'пустой пароль не проходит');
+  assert.equal(
+    await store.verifyCurrent(0, password), false,
+    'несуществующий аккаунт — не ошибка, а «нет»',
+  );
+  assert.ok(fields.email, 'аккаунт создан настоящим хешем, а не строкой-заглушкой');
+});
+
+test('свой ник не занят, чужой занят', { skip }, async () => {
+  const mine = await confirmedUser();
+  const stranger = await confirmedUser();
+
+  assert.equal(await store.nicknameFree(mine.fields.nickname), false, 'ник занят вообще');
+  assert.equal(
+    await store.nicknameFree(mine.fields.nickname, mine.user.id), true,
+    'свой ник свободен: сохранение профиля без правки имени не «занято»',
+  );
+  assert.equal(
+    await store.nicknameFree(mine.fields.nickname.toUpperCase(), mine.user.id), true,
+    'сравнение нечувствительно к регистру и здесь',
+  );
+  assert.equal(await store.nicknameFree(stranger.fields.nickname), false);
+});
+
+test('уведомления сохраняются отдельными полями', { skip }, async () => {
+  const { user } = await confirmedUser();
+
+  await store.updateNotifications(user.id, {
+    notifications_enabled: false, quiet_hours: true, nickname: 'подмена',
+  });
+
+  const { rows } = await pool.query(
+    'SELECT notifications_enabled, quiet_hours, nickname FROM e_user WHERE id = $1',
+    [user.id],
+  );
+  assert.equal(rows[0].notifications_enabled, false, 'общий выключатель сохранён');
+  assert.equal(rows[0].quiet_hours, true, 'тихий режим сохранён');
+  assert.match(rows[0].nickname, /^nick-/, 'чужое поле не записано');
+});
+
+test('выключение 2FA удаляет состояние и говорит, было ли оно', { skip }, async () => {
+  const { user } = await confirmedUser();
+
+  assert.equal(await store.disableTwoFactor(user.id), false, 'выключать было нечего');
+
+  const secret = crypto.randomBytes(20);
+  await store.enableTwoFactor(user.id, secret, [crypto.randomBytes(32)]);
+  assert.equal(await store.disableTwoFactor(user.id), true, 'состояние было и удалено');
+  assert.equal(await store.disableTwoFactor(user.id), false, 'повторно удалять нечего');
+
+  const { rows } = await pool.query(
+    'SELECT 1 FROM e_two_factor WHERE user_id = $1', [user.id],
+  );
+  assert.equal(rows.length, 0, 'строки в базе нет');
+});
+
+test('дата последней смены ника читается из истории', { skip }, async () => {
+  const { user } = await confirmedUser();
+
+  assert.equal(await store.nicknameChangedAt(user.id), null, 'истории ещё нет');
+  await store.changeNickname(user.id, `nick-${uniq()}-другое`);
+  const at = await store.nicknameChangedAt(user.id);
+
+  assert.ok(at instanceof Date, 'возвращается дата, а не строка');
+  assert.ok(Math.abs(Date.now() - at.getTime()) < 60_000, 'свежая запись истории');
 });

@@ -310,14 +310,95 @@ export function pgAuthStore(pool) {
      * Сравнение нечувствительно к регистру, хотя уникальный индекс в базе
      * чувствителен: иначе «Anna» и «anna» считались бы разными людьми, и
      * проверка формы вводила бы в заблуждение (EC-A5).
+     *
+     * Исключение по идентификатору — не украшение: свой ник не занят, иначе
+     * сохранение профиля без правки имени отвечало бы «занято» (F-01-06 §4).
      */
-    async nicknameFree(nickname) {
+    async nicknameFree(nickname, exceptUserId = null) {
       const { rows } = await pool.query(
         `SELECT 1 FROM e_user
-          WHERE lower(nickname) = lower($1) AND deleted_at IS NULL LIMIT 1`,
-        [String(nickname ?? '').trim()],
+          WHERE lower(nickname) = lower($1)
+            AND id IS DISTINCT FROM $2
+            AND deleted_at IS NULL LIMIT 1`,
+        [String(nickname ?? '').trim(), exceptUserId],
       );
       return rows.length === 0;
+    },
+
+    /**
+     * Проверяет текущий пароль: смена пароля, 2FA и смена адреса требуют его
+     * (F-01-06 §4).
+     *
+     * Хеш читается из базы, а не берётся из сессии: сессия хранит
+     * идентификатор и роли, а не пароль.
+     *
+     * @returns {Promise<boolean>}
+     */
+    async verifyCurrent(userId, password) {
+      const { rows } = await pool.query(
+        'SELECT password_hash FROM e_user WHERE id = $1 AND deleted_at IS NULL',
+        [userId],
+      );
+      if (!rows.length) return false;
+      return verifyPassword(String(password ?? ''), rows[0].password_hash);
+    },
+
+    /**
+     * Уведомления (F-01-06 §4).
+     *
+     * Отдельный метод, а не часть `updatePreferences`: переключатели
+     * уведомлений относятся к M3, и когда тот появится, у него будут свои
+     * категории и свои правила хранения.
+     */
+    async updateNotifications(userId, values) {
+      const columns = {
+        notifications_enabled: 'notifications_enabled',
+        quiet_hours: 'quiet_hours',
+      };
+      const sets = [];
+      const params = [userId];
+      for (const [key, column] of Object.entries(columns)) {
+        if (!(key in values)) continue;
+        params.push(Boolean(values[key]));
+        sets.push(`${column} = $${params.length}`);
+      }
+      if (!sets.length) return;
+
+      await pool.query(
+        `UPDATE e_user SET ${sets.join(', ')} WHERE id = $1 AND deleted_at IS NULL`,
+        params,
+      );
+    },
+
+    /**
+     * Выключает 2FA (F-01-05 §8, F-01-06 §4).
+     *
+     * Строка удаляется, а не помечается: «настроена» и «выключена» — одно и
+     * то же состояние, третьего нет ни в фиче, ни в схеме. Право выключать
+     * проверяет маршрут, а не хранилище: решение о роли принимается там.
+     *
+     * @returns {Promise<boolean>} было ли что выключать
+     */
+    async disableTwoFactor(userId) {
+      const { rowCount } = await pool.query(
+        'DELETE FROM e_two_factor WHERE user_id = $1',
+        [userId],
+      );
+      return (rowCount ?? 0) > 0;
+    },
+
+    /**
+     * Когда ник меняли последний раз; null, если никогда.
+     *
+     * @returns {Promise<Date|null>}
+     */
+    async nicknameChangedAt(userId) {
+      const { rows } = await pool.query(
+        `SELECT valid_from FROM e_nickname_history
+          WHERE user_id = $1 ORDER BY valid_from DESC LIMIT 1`,
+        [userId],
+      );
+      return rows.length ? new Date(rows[0].valid_from) : null;
     },
 
     /**
@@ -557,10 +638,6 @@ export function stubAuthStore(users = {}, roles = {}) {
    */
   const calls = { revokeSessions: [], revokeDevice: [] };
 
-  const byNick = (nick) => Object.values(users).some(
-    (u) => String(u.nickname).toLowerCase() === String(nick).toLowerCase(),
-  );
-
   return {
     async byEmail(email) {
       const key = String(email).toLowerCase();
@@ -585,9 +662,6 @@ export function stubAuthStore(users = {}, roles = {}) {
 
     async emailFree(email) {
       return !(String(email).toLowerCase() in users);
-    },
-    async nicknameFree(nickname) {
-      return !byNick(nickname);
     },
 
     async createUser(fields) {
@@ -754,21 +828,6 @@ export function stubAuthStore(users = {}, roles = {}) {
       if (current === null || current === undefined || current < step) {
         found.twoFactor.lastStep = step;
       }
-    },
-
-    /**
-     * Выключает 2FA (F-01-05 §8, F-01-06 §4).
-     *
-     * Строка удаляется, а не помечается: «настроена» и «выключена» — одно и
-     * то же состояние, третьего нет ни в фиче, ни в схеме. Право выключать
-     * проверяет маршрут, а не хранилище: решение о роли принимается там.
-     */
-    async disableTwoFactor(userId) {
-      const { rowCount } = await pool.query(
-        'DELETE FROM e_two_factor WHERE user_id = $1',
-        [userId],
-      );
-      return (rowCount ?? 0) > 0;
     },
 
     /**
