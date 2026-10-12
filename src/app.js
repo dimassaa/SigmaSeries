@@ -14,6 +14,7 @@ import { createHomeRoutes, createNotFoundRoutes, errorHandler, robots } from './
 import { createAuthRoutes } from './routes/auth.js';
 import { createRegisterRoutes } from './routes/register.js';
 import { createResetRoutes } from './routes/reset.js';
+import { createTwoFactorRoutes } from './routes/twofactor.js';
 import { createJournal } from './services/journal.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
 
@@ -35,6 +36,7 @@ export function createApp({
   mailQueue,
   journal = createJournal(),
   baseUrl = '',
+  now = () => Date.now(),
   publicDir = PUBLIC_DIR,
 }) {
   const app = express();
@@ -87,6 +89,7 @@ export function createApp({
     app.use(createAuthRoutes({ auth, sessionMw }));
     app.use(createRegisterRoutes({ auth, sessionMw, mailQueue, baseUrl }));
     app.use(createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl }));
+    app.use(createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, now }));
   }
   app.use(createNotFoundRoutes());
   app.use(errorHandler(DEFAULT_LOCALE));

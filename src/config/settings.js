@@ -93,6 +93,8 @@ export const AUTH = {
   totpDigits: 6,
   /** Резервных кодов на аккаунт (F-01-05 §4: десять, показываются один раз). */
   backupCodeCount: 10,
+  /** Символов в резервном коде (F-01-05 §9). */
+  backupCodeLength: 10,
   /** Попыток ввода кода за 10 минут на аккаунт (F-01-05 §9). */
   twoFactorAttempts: 5,
   twoFactorWindowMs: 10 * MINUTE,

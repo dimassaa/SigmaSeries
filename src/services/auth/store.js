@@ -7,6 +7,7 @@ import pg from 'pg';
 
 import { makeToken } from './password.js';
 import { blindIndex, encryptValue, decryptValue } from './crypto.js';
+import { sealSecret } from './totp.js';
 import { AUTH } from '../../config/settings.js';
 
 const { Pool } = pg;
@@ -49,6 +50,92 @@ export function pgAuthStore(pool) {
         [userId],
       );
       return rows[0] ? decryptValue(rows[0].email_enc, 'email') : null;
+    },
+
+    // ─── Двухфакторная проверка (F-01-05) ────────────────────────────────────
+
+    /**
+     * Состояние 2FA аккаунта.
+     *
+     * @returns {Promise<{secret:string, lastStep:number|null,
+     *   backup:Buffer[]}|null>} null, если 2FA не настроена
+     */
+    async twoFactor(userId) {
+      const { rows } = await pool.query(
+        `SELECT t.secret_enc, t.last_accepted_step, c.code_hash
+           FROM e_two_factor t
+           LEFT JOIN e_two_factor_code c
+             ON c.user_id = t.user_id AND c.used_at IS NULL
+          WHERE t.user_id = $1`,
+        [userId],
+      );
+      if (!rows.length) return null;
+
+      return {
+        secret: decryptValue(rows[0].secret_enc, 'totp'),
+        lastStep: rows[0].last_accepted_step === null ? null : Number(rows[0].last_accepted_step),
+        backup: rows.filter((r) => r.code_hash).map((r) => r.code_hash),
+      };
+    },
+
+    /**
+     * Включает 2FA и кладёт резервные коды.
+     *
+     * Запись секрета и кодов — одна транзакция: секрет без кодов оставил бы
+     * человека без входа при потере телефона, а коды без секрета были бы
+     * единственным способом войти.
+     */
+    async enableTwoFactor(userId, secret, backupHashes) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          `INSERT INTO e_two_factor (user_id, secret_enc) VALUES ($1, $2)
+             ON CONFLICT (user_id) DO UPDATE SET secret_enc = $2, enabled_at = now(),
+                                                   last_accepted_step = NULL`,
+          [userId, sealSecret(secret)],
+        );
+        // Старые коды гасятся: перегенерация делает прежние недействительными
+        // (F-01-05 §8).
+        await client.query('DELETE FROM e_two_factor_code WHERE user_id = $1', [userId]);
+        for (const hash of backupHashes) {
+          await client.query(
+            'INSERT INTO e_two_factor_code (user_id, code_hash) VALUES ($1, $2)',
+            [userId, hash],
+          );
+        }
+        await client.query('COMMIT');
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
+
+    /**
+     * Запоминает последний принятый шаг кода.
+     *
+     * Тот же шаг второй раз не пройдёт (F-01-05 §8). Обновление с условием
+     * `>` защищает от гонки: два запроса с одним кодом не должны оба пройти.
+     */
+    async acceptStep(userId, step) {
+      await pool.query(
+        `UPDATE e_two_factor SET last_accepted_step = $2
+          WHERE user_id = $1
+            AND (last_accepted_step IS NULL OR last_accepted_step < $2)`,
+        [userId, step],
+      );
+    },
+
+    /** Гасит резервный код: он одноразовый (F-01-05 §9). */
+    async consumeBackupCode(userId, codeHash) {
+      const { rowCount } = await pool.query(
+        `UPDATE e_two_factor_code SET used_at = now()
+          WHERE user_id = $1 AND code_hash = $2 AND used_at IS NULL`,
+        [userId, codeHash],
+      );
+      return (rowCount ?? 0) > 0;
     },
 
     /** Роли аккаунта — от них зависит длительность сессии (R-SEC-03). */
@@ -464,6 +551,76 @@ export function stubAuthStore(users = {}, roles = {}) {
      */
     async revokeSessions() {
       return 0;
+    },
+
+    // ─── Двухфакторная проверка (F-01-05) ────────────────────────────────────
+
+    /**
+     * Состояние 2FA из карты аккаунтов.
+     *
+     * Форма ответа повторяет то, что отдаёт база: секрет строкой, последний
+     * шаг числом или null, хеши кодов — **массивом**. `Set` выглядел бы
+     * естественнее, но база отдаёт результат запроса, и расхождение формы
+     * ломает маршрут в тот момент, когда человек вводит резервный код.
+     */
+    async twoFactor(userId) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      const state = found?.twoFactor;
+      if (!state) return null;
+      return {
+        secret: state.secret,
+        lastStep: state.lastStep ?? null,
+        backup: [...(state.backup ?? [])],
+      };
+    },
+
+    /**
+     * Заглушка позволяет задать состояние напрямую — так задаёт и тест.
+     *
+     * `Set` приводится к массиву сразу: маршрут работает с массивом (его
+     * отдаёт база), и оставить здесь другую форму значило бы, что проверки
+     * HTTP идут по структуре, которой в бою не будет.
+     */
+    setTwoFactor(userId, state) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found) return;
+      found.twoFactor = {
+        lastStep: null,
+        ...state,
+        backup: [...(state.backup ?? [])],
+      };
+    },
+
+    /** Кладёт секрет и коды; старые коды заменяются, как и в базе. */
+    async enableTwoFactor(userId, secret, backupHashes) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found) return;
+      found.twoFactor = { secret, lastStep: null, backup: [...backupHashes] };
+    },
+
+    /**
+     * Шаг запоминается с проверкой «больше прежнего»: заглушка повторяет
+     * защиту от гонки, иначе тесты на HTTP держали бы зелёными поведение,
+     * которого нет в базе.
+     */
+    async acceptStep(userId, step) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found?.twoFactor) return;
+      const current = found.twoFactor.lastStep;
+      if (current === null || current === undefined || current < step) {
+        found.twoFactor.lastStep = step;
+      }
+    },
+
+    /** Гасит код: ищется по хешу, как в базе. */
+    async consumeBackupCode(userId, codeHash) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      const codes = found?.twoFactor?.backup;
+      if (!codes) return false;
+      const index = codes.findIndex((h) => h.equals(codeHash));
+      if (index < 0) return false;
+      codes.splice(index, 1);
+      return true;
     },
 
     /** Доступ к внутренностям для утверждений в тестах. */

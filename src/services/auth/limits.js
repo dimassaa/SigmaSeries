@@ -299,6 +299,46 @@ export function recordResetRequest(email, ip, now = Date.now()) {
   }
 }
 
+// ─── Двухфакторная проверка (F-01-05 §9) ─────────────────────────────────────
+//
+// Счётчик свой, не общий со входом: код из шести цифр перебирается иначе,
+// чем пароль, и общий счётчик блокировал бы вход из-за чужих неудачных
+// попыток ввести код (R-SEC-05 — блокировка аккаунта недопустима, это
+// готовый вектор отказа в обслуживании).
+
+function twoFactorKey(userId) {
+  return '2fa:' + userId;
+}
+
+/**
+ * Превышен ли лимит попыток ввода кода 2FA.
+ *
+ * @param {number|string} userId
+ * @param {number} [now]
+ * @returns {{ok:boolean, retryAfter:number}} пауза до освобождения окна, секунды
+ */
+export function twoFactorLimited(userId, now = Date.now()) {
+  const key = twoFactorKey(userId);
+  const times = (failures.get(key) ?? []).filter((t) => now - t < AUTH.twoFactorWindowMs);
+  if (times.length < AUTH.twoFactorAttempts) return { ok: true, retryAfter: 0 };
+
+  const retryAfter = Math.ceil((times[0] + AUTH.twoFactorWindowMs - now) / 1000);
+  return { ok: false, retryAfter: Math.max(1, retryAfter) };
+}
+
+/** Записывает неудачную попытку ввода кода. */
+export function recordTwoFactorFailure(userId, now = Date.now()) {
+  const key = twoFactorKey(userId);
+  const times = (failures.get(key) ?? []).filter((t) => now - t < AUTH.twoFactorWindowMs);
+  times.push(now);
+  failures.set(key, times);
+}
+
+/** Сбрасывает счётчик: верный код означает, что человек тот, за кого себя выдаёт. */
+export function clearTwoFactorFailures(userId) {
+  failures.delete(twoFactorKey(userId));
+}
+
 /** Сбрасывает состояние. Нужен тестам: счётчики живут в модуле. */
 export function _reset() {
   failures.clear();

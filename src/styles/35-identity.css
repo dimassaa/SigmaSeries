@@ -94,6 +94,70 @@
 
 .field__reveal:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
+/* ─── Двухфакторная проверка (S-23) ─────────────────────────────────────────
+   Карточка настройки: QR слева, форма справа. На узком экране QR встаёт над
+   формой — иначе он сжимается до нечитаемого, а человек без камеры читает
+   ключ текстом и QR ему не нужен. */
+
+.setup { display: flex; flex-wrap: wrap; gap: var(--space-6); align-items: flex-start; }
+
+.setup__qr { flex: 0 0 auto; }
+
+/* Ключ вручную: моноширинный, разбит на группы по 4 — так его читают и
+   переносят без ошибки. Ширина ограничена, длинная строка ключа переносится
+   и остаётся читаемой. */
+.setup__secret {
+  display: block;
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  font-family: var(--font-mono);
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  word-break: break-all;
+  /* Цвет текста, а не заливки: ключ читают в обеих темах, и фон здесь
+     ничего не должен подсказывать. */
+  color: var(--text-primary);
+}
+
+@media (max-width: 479px) {
+  .setup { flex-direction: column; }
+  .codes { columns: 1; }
+}
+
+/* Предупреждение — рамка, а не только цвет: иначе его не заметят те, кто не
+   различает цвета (R-DES-09). */
+.form__warning {
+  padding: var(--space-3);
+  border-inline-start: 3px solid var(--warning);
+  color: var(--text-primary);
+}
+
+/* Список резервных кодов: моноширинный и в столбик — их переносят на бумагу
+   по одному, и две колонки мешают быстро прочитать вслух. */
+.codes {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  /* Сетка в два столбца: десять кодов одним столбиком занимают весь экран,
+     и человек прокручивает, теряя строку. */
+  columns: 2;
+  column-gap: var(--space-6);
+}
+
+.codes__item { break-inside: avoid; padding-block: var(--space-1); }
+
+.codes__actions { display: flex; gap: var(--space-2); flex-wrap: wrap; }
+
+/* Свёрнутая форма резервного кода. `summary` должен быть виден и по Tab:
+   браузерное умолчание для `details` убирает рамку фокуса. */
+.form__details { margin-block-start: var(--space-4); }
+.form__link { color: var(--text-secondary); cursor: pointer; }
+.form__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
 /* Ошибка помечена и цветом, и рамкой: цвет — не единственный носитель
    состояния (R-DES-27). */
 .field--invalid .field__input { border-color: var(--danger); }

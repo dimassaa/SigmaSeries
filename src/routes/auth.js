@@ -107,31 +107,41 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
     const roles = await auth.roles(user.id);
     const kind = sessionKind(roles);
 
-    // R-SEC-04, DEC-015: служебная роль требует второго фактора, а он
-    // появится только в F-01-05. До тех пор вход закрыт целиком.
+    // R-SEC-04, DEC-015: служебная роль требует второго фактора.
     //
-    // Раньше здесь стояло `req.session.pendingStaff = true` — и это была дыра:
-    // сессия с правами админа открывалась на одном пароле, а флаг не читал
-    // никто (ни маршрут, ни middleware, ни шаблон). Отказывать здесь, до
-    // `regenerate`, обязательно: сессия, которая уже заведена, осталась бы
-    // жить даже после отказа. `recordSuccess` тоже не вызывается — вход не
-    // состоялся, и верный пароль служебного аккаунта не должен стирать
-    // историю перебора.
+    // Сессия заводится, но не доверенная: в неё кладётся только то, что уже
+    // проверено паролем, и ровно на этом экране. Служебные разделы под таким
+    // флагом закрыты — иначе 2FA была бы вторым полем формы.
+    //
+    // Отказ здесь (как было до F-01-05) означал, что администратор не может
+    // войти вовсе: страница S-72 и модерация для него просто не существуют.
     if (kind === 'staff') {
-      return respond(res, 403, renderForm({
-        locale, csrf: csrfToken(req.session), values: { email },
-        error: t(locale, 'signin.error.staffNoFactor'), returnTo,
-      }));
+      const state = await auth.twoFactor(user.id);
+      await regenerate(req);
+      req.session.pendingTwoFactor = {
+        userId: user.id,
+        account: email,
+        configured: Boolean(state),
+        // Служебные разделы закрыты, пока флаг не проставлен: срок сессии
+        // служебной роли короткий (R-SEC-03), и ждать настройки долго нельзя.
+        user: {
+          id: user.id,
+          nickname: user.nickname,
+          locale: user.locale,
+          theme: user.theme,
+          roles,
+          kind,
+        },
+      };
+      return res.redirect(303, `/${locale}${state ? '/2fa' : '/2fa/setup'}`);
     }
 
     // R-SEC-02: идентификатор сессии меняется при входе, иначе он был бы
     // известен до входа и мог быть подделан заранее.
     await regenerate(req);
 
-    // Служебной ветки здесь быть не может — она выше вернула отказ.
-    // Параметр остаётся на месте: он понадобится F-01-05, когда служебная
-    // сессия снова станет возможной.
-    const durations = sessionDurations(false);
+    // Служебной ветки здесь быть не может — она выше вернула редирект на 2FA.
+    const durations = sessionDurations(kind === 'staff');
     req.session.user = {
       id: user.id,
       nickname: user.nickname,
