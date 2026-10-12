@@ -17,6 +17,10 @@ export const MAIL_KINDS = [
   'email_taken',
   'password_reset',
   'password_changed',
+  'email_change',
+  'email_change_requested',
+  'email_changed',
+  'two_factor_enabled',
 ];
 
 /**
@@ -124,6 +128,79 @@ const TEXTS = {
       needsLink: false,
       subject: 'The password has been changed',
       body: 'Hello!\n\nYour account password has been changed and all sessions have been ended.\n\nIf this was not you, recover the password from the site and choose a new one.',
+    },
+  },
+
+  // Ссылка для подтверждения нового адреса. Пока она не открыта, вход идёт
+  // по старому адресу.
+  email_change: {
+    ru: {
+      needsLink: true,
+      subject: 'Подтвердите новый адрес',
+      body: 'Здравствуйте!\n\nЗаказан переход аккаунта на этот адрес. Подтвердите его — и вход будет по новому адресу, а по прежнему перестанет.\n\nСсылка одноразовая и живёт 30 минут:\n{link}\n\nЕсли вы этого не заказывали, просто проигнорируйте письмо: ничего не изменится.',
+    },
+    en: {
+      needsLink: true,
+      subject: 'Confirm the new address',
+      body: 'Hello!\n\nYour account is being moved to this address. Confirm it — sign-in will use the new address, and the old one will stop working.\n\nThe link is single-use and lives for 30 minutes:\n{link}\n\nIf you did not request this, just ignore the message: nothing will change.',
+    },
+  },
+
+  // Уведомление на прежний адрес: потеря входа сама по себе выглядит как
+  // взлом, и человек должен узнать о смене из письма, а не по факту.
+  email_change_requested: {
+    ru: {
+      needsLink: false,
+      subject: 'Заказан смена адреса',
+      body: 'Здравствуйте!\n\nДля вашего аккаунта заказали переход на другой адрес. Подтверждение придёт на новый адрес; пока оно не получено, вход работает как прежде.\n\nЕсли это не вы, ничего делать не нужно.',
+    },
+    en: {
+      needsLink: false,
+      subject: 'An address change was requested',
+      body: 'Hello!\n\nAn address change was requested for your account. The confirmation goes to the new address; until it is confirmed, sign-in works as before.\n\nIf this was not you, there is nothing to do.',
+    },
+  },
+
+  // Уведомление после применения смены: прежний адрес уже не работает.
+  email_changed: {
+    ru: {
+      needsLink: false,
+      subject: 'Адрес аккаунта изменён',
+      body: 'Здравствуйте!\n\nВаш аккаунт переведён на новый адрес. Войти по этому адресу больше нельзя — используйте новый.\n\nЕсли это были не вы, восстановите доступ по ссылке восстановления пароля и смените пароль.',
+    },
+    en: {
+      needsLink: false,
+      subject: 'The account address has been changed',
+      body: 'Hello!\n\nYour account has been moved to a new address. You can no longer sign in with this one — use the new address.\n\nIf this was not you, recover access with the password recovery link and change your password.',
+    },
+  },
+
+  // Адрес уже занят (EC-A15). Письмо уходит владельцу занятого адреса, и
+  // поэтому не содержит ничего о чужой заявке.
+  email_taken: {
+    ru: {
+      needsLink: false,
+      subject: 'Попытка занять ваш адрес',
+      body: 'Здравствуйте!\n\nКто-то попытался перевести аккаунт на этот адрес. Ничего не изменилось: адрес остаётся за вами.\n\nЕсли это были не вы, смените пароль — настройки безопасности в разделе «Безопасность».',
+    },
+    en: {
+      needsLink: false,
+      subject: 'An attempt to use your address',
+      body: 'Hello!\n\nSomebody tried to move an account to this address. Nothing changed: the address stays yours.\n\nIf this was not you, change your password — see the Security section of settings.',
+    },
+  },
+
+  // Включение 2FA (F-01-05 §17).
+  two_factor_enabled: {
+    ru: {
+      needsLink: false,
+      subject: 'Двухфакторная проверка включена',
+      body: 'Здравствуйте!\n\nДля аккаунта включена двухфакторная проверка: при входе понадобится код из приложения или резервный код.\n\nЕсли это были не вы, отключите проверку в настройках безопасности — для этого нужен текущий пароль.',
+    },
+    en: {
+      needsLink: false,
+      subject: 'Two-factor verification is on',
+      body: 'Hello!\n\nTwo-factor verification is now on for the account: signing in will need a code from an app or a backup code.\n\nIf this was not you, turn it off in security settings — that needs your current password.',
     },
   },
 };

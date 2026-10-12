@@ -18,13 +18,23 @@ import { layout } from '../view/layout.js';
 import { settingsView } from '../view/settings.js';
 import { isLocale, t } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
-import { checkTimezone, checkNickname } from '../services/auth/validate.js';
-import { checkPasswordStrength, hashPassword } from '../services/auth/password.js';
+import { checkTimezone, checkNickname, checkEmail, normalizeEmail } from '../services/auth/validate.js';
+import { checkPasswordStrength, hashPassword, hashToken, makeToken } from '../services/auth/password.js';
 import { generateBackupCodes, hashBackupCode } from '../services/auth/totp.js';
+import { emailChangeView } from '../view/email-change.js';
 import { LOCALES, LOCALE_NAMES } from '../i18n/strings.js';
 import { AUTH, STAFF_ROLES, DAY } from '../config/settings.js';
 
 const BASE = '/settings';
+
+/**
+ * Подтверждение смены адреса — отдельный адрес от `email_verify`.
+ *
+ * Разные адреса, а не одна страница с двумя состояниями: письмо о смене и
+ * письмо о регистрации открываются по разным ссылкам, и совмещать их значило
+ * бы различать их по содержимому токена на глазах.
+ */
+const EMAIL_CHANGE_PATH = '/settings/email-change';
 
 /**
  * Разделы экрана (F-01-06 §4).
@@ -50,7 +60,9 @@ const THEMES = ['light', 'dark', 'system'];
  * @param {Function} deps.sessionMw middleware сессий
  * @param {object} [deps.journal] журнал безопасности
  */
-export function createSettingsRoutes({ auth, sessionMw, journal, mailQueue, now = () => Date.now() }) {
+export function createSettingsRoutes({
+  auth, sessionMw, journal, mailQueue, now = () => Date.now(), baseUrl = '',
+}) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -209,6 +221,7 @@ export function createSettingsRoutes({ auth, sessionMw, journal, mailQueue, now 
 
     if (action === 'password') return changePassword(req, res, body, ctx);
     if (action === 'two_factor') return changeTwoFactor(req, res, body, ctx);
+    if (action === 'email') return changeEmail(req, res, body, ctx);
     if (action === 'revoke_device') return revokeDevice(req, res, body, ctx);
 
     return respond(res, 400, await render(req, { ...ctx, error: t(locale, 'settings.security.error.action') }));
@@ -327,7 +340,146 @@ export function createSettingsRoutes({ auth, sessionMw, journal, mailQueue, now 
     return res.redirect(303, `/${locale}${BASE}/security?saved=1`);
   }
 
-  /** Письмо-уведомление; адрес берётся из базы (F-01-06 §17). */
+  /**
+   * Смена адреса (F-01-06 §4, §5, EC-A15).
+   *
+   * Ответ одинаков и на занятый адрес, и на свободный: по нему иначе
+   * перебираются существующие аккаунты (R-SEC-06). Письмо со ссылкой на
+   * занятый адрес не уходит — уходит уведомление его владельцу.
+   *
+   * Адрес не применяется сразу: пока человек не доказал владение новым,
+   * аккаунт остаётся на старом. Иначе подтверждение чужого адреса отнимало бы
+   * вход у того, кто его открыл.
+   */
+  async function changeEmail(req, res, body, ctx) {
+    const { locale, user } = ctx;
+
+    if (!(await auth.verifyCurrent(user.id, String(body.password ?? '')))) {
+      return respond(res, 400, await render(req, {
+        ...ctx, error: t(locale, 'settings.security.error.current'),
+      }));
+    }
+
+    // Адрес нормализуется до отправки и до записи: иначе «Anna@» и «anna@»
+    // считались бы разными, а слепой индекс один.
+    const email = normalizeEmail(String(body.email ?? ''));
+    if (checkEmail(email).length) {
+      return respond(res, 400, await render(req, {
+        ...ctx, error: t(locale, 'settings.security.error.email'), values: { email },
+      }));
+    }
+
+    // `made.token` уходит в ссылку, `made.hash` — в базу: открытый токен
+    // нигде не хранится, и по ссылке его не восстановить.
+    const made = makeToken();
+    const issued = await auth.requestEmailChange(
+      user.id, email, made.hash, new Date(now() + AUTH.tokenTtlMin * 60_000),
+    );
+
+    // Занятый адрес: ответ тот же, письмо со ссылкой не уходит, уведомление
+    // получает владелец. Различить по ответу нельзя (EC-A15).
+    if (!issued) {
+      await mailQueue?.enqueue({ kind: 'email_taken', to: email, locale });
+      return res.redirect(303, `/${locale}${BASE}/security?saved=1`);
+    }
+
+    await mailQueue?.enqueue({
+      kind: 'email_change',
+      to: email,
+      locale,
+      link: `${baseUrl}/${locale}${EMAIL_CHANGE_PATH}?token=${encodeURIComponent(made.token)}`,
+    });
+    // На старый адрес — уведомление о том, что адрес меняют. Иначе человек
+    // узнает об этом, только потеряв вход, а потеря входа выглядит как взлом.
+    await notify(user.id, locale, 'email_change_requested');
+
+    return res.redirect(303, `/${locale}${BASE}/security?saved=1`);
+  }
+
+  /**
+   * Подтверждение смены адреса по ссылке из письма.
+   *
+   * Токен не гасится запросом: почтовые сканеры открывают ссылки сами, и
+   * применение адреса по GET сожгло бы заявку раньше времени (EC-A4).
+   */
+  router.get(`/:locale${EMAIL_CHANGE_PATH}`, (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+
+    const token = typeof req.query.token === 'string' ? req.query.token : '';
+    return respond(res, 200, layout({
+      locale,
+      path: EMAIL_CHANGE_PATH,
+      title: `${t(locale, 'settings.email.title')} — ${t(locale, 'app.title')}`,
+      description: t(locale, 'settings.email.lead'),
+      noindex: true,
+      body: emailChangeView({
+        locale,
+        csrf: csrfToken(req.session),
+        token,
+        state: token ? 'await' : 'stale',
+        error: null,
+      }),
+    }));
+  });
+
+  router.post(`/:locale${EMAIL_CHANGE_PATH}`, async (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+
+    const body = req.body ?? {};
+    if (!csrfValid(req.session, body.csrf)) {
+      return respond(res, 403, layout({
+        locale, path: EMAIL_CHANGE_PATH, title: t(locale, 'settings.email.title'),
+        description: t(locale, 'settings.email.lead'), noindex: true,
+        body: emailChangeView({
+          locale, csrf: csrfToken(req.session), token: '', state: 'stale',
+          error: t(locale, 'twoFactor.error.csrf'),
+        }),
+      }));
+    }
+
+    const token = String(body.token ?? '');
+    const stale = () => respond(res, 200, layout({
+      locale, path: EMAIL_CHANGE_PATH, title: t(locale, 'settings.email.title'),
+      description: t(locale, 'settings.email.lead'), noindex: true,
+      body: emailChangeView({
+        locale, csrf: csrfToken(req.session), token, state: 'stale',
+        error: t(locale, 'settings.email.error.stale'),
+      }),
+    }));
+
+    if (!token) return stale();
+
+    let change;
+    try {
+      change = await auth.emailChangeByToken(hashToken(token));
+    } catch (e) {
+      return next(e);
+    }
+    // Один ответ на «нет заявки», «просрочена» и «не та»: по формулировке
+    // иначе перебираются токены (F-01-02 §5).
+    if (!change || new Date(change.expiresAt).getTime() < now()) return stale();
+
+    // Старый адрес читается **до** применения: после он уже не находится
+    // по этому пользователю, и письмо ушло бы новому владельцу адреса.
+    const previous = await auth.addressOf(change.user_id);
+
+    await auth.applyEmailChange(change.id, change.user_id, change.email);
+
+    // Уведомление на старый адрес: при смене старый перестаёт работать, и
+    // без письма человек узнает об этом, только потеряв вход.
+    if (previous) {
+      await mailQueue?.enqueue({ kind: 'email_changed', to: previous, locale });
+    }
+    journal?.security({
+      event: 'email_changed', requestId: req.requestId, user_id: change.user_id,
+    });
+
+    return res.redirect(303, `/${locale}${BASE}/security?saved=1`);
+  });
+
+  /** Уведомление; адрес берётся из базы (F-01-06 §17). */
   async function notify(userId, locale, kind) {
     const to = await auth.addressOf(userId);
     if (!to) return;

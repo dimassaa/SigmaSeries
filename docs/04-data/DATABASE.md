@@ -644,6 +644,29 @@ CREATE TABLE e_nickname_history (
 );
 CREATE INDEX ix_nick_history ON e_nickname_history (nickname);
 
+-- ---------- Смена адреса (F-01-06 §4) ----------
+-- Заявка на смену: новый адрес лежит отдельно от e_user и не действует до
+-- подтверждения. Пока человек не доказал владение новым адресом, аккаунт
+-- остаётся на старом — иначе подтверждение чужого адреса отнимало бы вход.
+--
+-- Заявка на пользователя одна: новая отменяет предыдущую. Две одновременные
+-- смены означали бы, что подтверждение старой применяет адрес, который
+-- человек уже передумал.
+--
+-- Адрес зашифрован тем же ключом, что и в e_user: открытым он не лежит нигде.
+
+CREATE TABLE e_email_change (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id      BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  email_enc    BYTEA  NOT NULL,        -- зашифрованный новый адрес
+  token_hash   BYTEA  NOT NULL,
+  expires_at   TIMESTAMPTZ NOT NULL,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  CONSTRAINT uq_email_change_token UNIQUE (token_hash),
+  CONSTRAINT uq_email_change_user UNIQUE (user_id)
+);
+CREATE INDEX ix_email_change_expires ON e_email_change (expires_at);
+
 -- ---------- Блокировка поля от перезаписи импортом ----------
 -- Механизм EC-R8 и F-10-03(а): ручное значение помечено происхождением.
 

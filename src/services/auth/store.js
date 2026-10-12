@@ -161,6 +161,102 @@ export function pgAuthStore(pool) {
       return (rowCount ?? 0) > 0;
     },
 
+    /**
+     * Заявка на смену адреса (F-01-06 §4).
+     *
+     * Заявка на пользователя одна: новая отменяет предыдущую, иначе две
+     * одновременные смены означали бы, что подтверждение старой применяет
+     * адрес, который человек уже передумал.
+     *
+     * Возвращает токен для письма на **новый** адрес: пока владение им не
+     * доказано, аккаунт остаётся на старом.
+     *
+     * @returns {Promise<{token:string}|null>} null, если адрес занят или свой
+     */
+    async requestEmailChange(userId, email, token, expiresAt) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const blind = blindIndex(email);
+        // Занятость проверяется по слепому индексу: сравнить открытый адрес в
+        // базе нельзя, там шифр.
+        const { rows: taken } = await client.query(
+          `SELECT 1 FROM e_user
+            WHERE email_blind_idx = $1 AND id <> $2 AND deleted_at IS NULL LIMIT 1`,
+          [blind, userId],
+        );
+        if (taken.length) {
+          await client.query('ROLLBACK');
+          return null;
+        }
+
+        await client.query(
+          `INSERT INTO e_email_change (user_id, email_enc, token_hash, expires_at)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (user_id) DO UPDATE
+             SET email_enc = $2, token_hash = $3, expires_at = $4, created_at = now()`,
+          [userId, encryptValue(email, 'email'), token, expiresAt],
+        );
+        await client.query('COMMIT');
+        return { token };
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
+
+    /** Заявка на смену адреса по хешу токена, вместе с новым адресом. */
+    async emailChangeByToken(tokenHash) {
+      const { rows } = await pool.query(
+        'SELECT id, user_id, email_enc, expires_at FROM e_email_change WHERE token_hash = $1',
+        [tokenHash],
+      );
+      if (!rows.length) return null;
+      return {
+        id: rows[0].id,
+        user_id: rows[0].user_id,
+        email: decryptValue(rows[0].email_enc, 'email'),
+        expiresAt: rows[0].expires_at,
+      };
+    },
+
+    /**
+     * Применяет смену адреса (F-01-06 §4).
+     *
+     * Заявка удаляется той же транзакцией: применённая заявка, оставшаяся в
+     * таблице, разрешила бы применить адрес повторно тем же токеном.
+     */
+    async applyEmailChange(changeId, userId, email) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const blind = blindIndex(email);
+        await client.query(
+          `UPDATE e_user
+              SET email_hash = $2, email_blind_idx = $2, email_enc = $3
+            WHERE id = $1 AND deleted_at IS NULL`,
+          [userId, blind, encryptValue(email, 'email')],
+        );
+        await client.query('DELETE FROM e_email_change WHERE id = $1', [changeId]);
+        await client.query('COMMIT');
+        return true;
+      } catch (e) {
+        await client.query('ROLLBACK');
+        throw e;
+      } finally {
+        client.release();
+      }
+    },
+
+    /**
+     * Заявка на смену адреса в заглушке.
+     *
+     * Повторяет поведение базы, а не её простоту: занятый адрес возвращает
+     * null, заявка на пользователя одна, применение удаляет заявку. Иначе
+     * тесты HTTP шли бы по структуре, которой в бою нет.
+     */
     async recordLogin(userId, at) {
       await pool.query('UPDATE e_user SET last_active_at = $2 WHERE id = $1', [userId, at]);
     },
@@ -630,6 +726,8 @@ export function stubAuthStore(users = {}, roles = {}) {
   const nicknameHistory = [];
   /** Устройства: пользователь → строки `e_session`. */
   const devices = new Map();
+  /** Заявки на смену адреса: пользователь → {token, email}. */
+  const emailChanges = new Map();
   /**
    * Журнал вызовов для утверждений тестов.
    *
@@ -970,6 +1068,47 @@ export function stubAuthStore(users = {}, roles = {}) {
       for (const [key, value] of Object.entries(values)) {
         if (allowed.includes(key)) found[key] = value;
       }
+    },
+
+    /**
+     * Заявка на смену адреса в заглушке.
+     *
+     * Повторяет поведение базы, а не её простоту: занятый адрес возвращает
+     * null, заявка на пользователя одна, применение удаляет заявку. Иначе
+     * тесты HTTP шли бы по структуре, которой в бою нет.
+     */
+    async requestEmailChange(userId, email, token) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found) return null;
+      const blind = blindIndex(email);
+      if (Object.values(users).some((u) => u.id !== userId && blindIndex(u.email).equals(blind))) {
+        return null;
+      }
+
+      emailChanges.set(userId, { token, email });
+      return { token };
+    },
+
+    async emailChangeByToken(tokenHash) {
+      for (const [userId, change] of emailChanges) {
+        if (change.token.toString('base64url') !== tokenHash.toString('base64url')) continue;
+        return { user_id: userId, email: change.email, expiresAt: Date.now() + 3_600_000 };
+      }
+      return null;
+    },
+
+    async applyEmailChange(changeId, userId, email) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      if (!found) return false;
+
+      // Ключ карты — адрес, он же индекс поиска: смена адреса меняет и ключ,
+      // иначе следующий запрос по старому адресу что-то нашёл бы.
+      const previousKey = Object.keys(users).find((k) => users[k].id === userId);
+      delete users[previousKey];
+      found.email = email;
+      users[email.toLowerCase()] = found;
+      emailChanges.delete(userId);
+      return true;
     },
 
     /** Доступ к внутренностям для утверждений в тестах. */

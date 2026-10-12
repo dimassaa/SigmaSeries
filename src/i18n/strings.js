@@ -265,6 +265,19 @@ const MESSAGES = {
     'settings.security.devicesEmpty': 'Других устройств не залогинено',
     'settings.security.device': 'Устройство',
     'settings.security.revoke': 'Выйти',
+    'settings.security.email': 'Адрес',
+    'settings.security.emailNow': 'Текущий адрес: {email}',
+    'settings.security.emailNew': 'Новый адрес',
+    'settings.security.emailNew.hint': 'На новый адрес придёт ссылка. Пока он не подтверждён, вход работает по старому.',
+    'settings.security.emailChange': 'Сменить адрес',
+    'settings.security.error.email': 'Проверьте адрес: похоже на опечатку',
+
+    'settings.email.title': 'Подтверждение нового адреса',
+    'settings.email.lead': 'Подтвердите, что этот адрес ваш. После этого вход будет по нему, а по старому — нет.',
+    'settings.email.confirm': 'Подтвердить адрес',
+    'settings.email.stale': 'Ссылка больше не работает: она одноразовая и живёт 30 минут. Запросите новую в настройках.',
+    'settings.email.back': 'Вернуться в настройки',
+    'settings.email.error.stale': 'Ссылка устарела или уже использована',
     'settings.security.error.current': 'Текущий пароль неверен',
     // Коды `checkPasswordStrength` без префикса — ключ строится как
     // `settings.security.error.<код>`.
@@ -548,6 +561,19 @@ const MESSAGES = {
     'settings.security.devicesEmpty': 'No other devices are signed in',
     'settings.security.device': 'Device',
     'settings.security.revoke': 'Sign out',
+    'settings.security.email': 'Address',
+    'settings.security.emailNow': 'Current address: {email}',
+    'settings.security.emailNew': 'New address',
+    'settings.security.emailNew.hint': 'A link is sent to the new address. Until it is confirmed, sign-in keeps working with the old one.',
+    'settings.security.emailChange': 'Change the address',
+    'settings.security.error.email': 'Check the address: it looks like a typo',
+
+    'settings.email.title': 'Confirm the new address',
+    'settings.email.lead': 'Confirm that this address is yours. After that sign-in uses it, and the old one stops working.',
+    'settings.email.confirm': 'Confirm the address',
+    'settings.email.stale': 'This link no longer works: it is single-use and lives for 30 minutes. Request a new one in settings.',
+    'settings.email.back': 'Back to settings',
+    'settings.email.error.stale': 'The link has expired or has already been used',
     'settings.security.error.current': 'The current password is wrong',
     // Коды `checkPasswordStrength` без префикса — ключ строится как
     // `settings.security.error.<код>`.

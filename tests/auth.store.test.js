@@ -17,7 +17,7 @@ import crypto from 'node:crypto';
 import { createPool } from '../src/db/pool.js';
 import { pgAuthStore } from '../src/services/auth/store.js';
 import { makeToken, hashToken, hashPassword } from '../src/services/auth/password.js';
-import { decryptValue } from '../src/services/auth/crypto.js';
+import { decryptValue, blindIndex } from '../src/services/auth/crypto.js';
 
 // Слепой индекс и шифротекст считаются секретами приложения, а не базы: без
 // них поиск и запись работать не должны вообще, а не «как-то».
@@ -473,4 +473,97 @@ test('дата последней смены ника читается из ис
 
   assert.ok(at instanceof Date, 'возвращается дата, а не строка');
   assert.ok(Math.abs(Date.now() - at.getTime()) < 60_000, 'свежая запись истории');
+});
+
+// ─── Смена адреса (F-01-06 §4) ──────────────────────────────────────────────
+
+test('заявка на смену адреса не действует, пока не подтверждена', { skip }, async () => {
+  const { fields, user } = await confirmedUser();
+  const newEmail = `smena-${uniq()}@example.com`;
+  const { hash } = makeToken();
+
+  const issued = await store.requestEmailChange(
+    user.id, newEmail, hash, new Date(Date.now() + 30 * 60_000),
+  );
+  assert.ok(issued, 'заявка принята');
+
+  const { rows } = await pool.query(
+    'SELECT 1 FROM e_user WHERE email_blind_idx = $1', [blindIndex(newEmail)],
+  );
+  assert.equal(rows.length, 0, 'до подтверждения новый адрес в e_user не появился');
+  assert.equal(await store.byEmail(newEmail), null, 'по новому адресу не войти');
+  assert.ok(await store.byEmail(fields.email), 'старый адрес работает');
+
+  await pool.query('DELETE FROM e_email_change WHERE user_id = $1', [user.id]);
+});
+
+test('занятый адрес заявку не создаёт', { skip }, async () => {
+  const mine = await confirmedUser();
+  const stranger = await confirmedUser();
+  const { hash } = makeToken();
+
+  const issued = await store.requestEmailChange(
+    mine.user.id, stranger.fields.email, hash, new Date(Date.now() + 30 * 60_000),
+  );
+
+  assert.equal(issued, null, 'хранилище отвечает «нет», а не ошибкой');
+  const { rows } = await pool.query(
+    'SELECT 1 FROM e_email_change WHERE user_id = $1', [mine.user.id],
+  );
+  assert.equal(rows.length, 0, 'заявка не записана');
+});
+
+test('свой же адрес занят не считается', { skip }, async () => {
+  // Смена на тот же адрес — обычное «сохранить», а не отказ: человек мог
+  // открыть настройки и ничего в адресе не менять.
+  const { fields, user } = await confirmedUser();
+  const { hash } = makeToken();
+
+  const issued = await store.requestEmailChange(
+    user.id, fields.email, hash, new Date(Date.now() + 30 * 60_000),
+  );
+  assert.ok(issued, 'повтор того же адреса допустим');
+  await pool.query('DELETE FROM e_email_change WHERE user_id = $1', [user.id]);
+});
+
+test('подтверждение применяет адрес и гасит заявку', { skip }, async () => {
+  const { fields, user } = await confirmedUser();
+  const newEmail = `primen-${uniq()}@example.com`;
+  const { hash } = makeToken();
+  await store.requestEmailChange(user.id, newEmail, hash, new Date(Date.now() + 30 * 60_000));
+
+  const change = await store.emailChangeByToken(hash);
+  assert.equal(change.email, newEmail, 'новый адрес возвращается открытым');
+  assert.equal(change.user_id, user.id);
+
+  assert.equal(await store.applyEmailChange(change.id, change.user_id, change.email), true);
+
+  assert.ok(await store.byEmail(newEmail), 'новый адрес работает');
+  assert.equal(await store.byEmail(fields.email), null, 'старый больше не работает');
+  assert.equal(
+    await store.emailChangeByToken(hash), null,
+    'заявка удалена: тот же токен второй раз не применится',
+  );
+  assert.equal(await store.addressOf(user.id), newEmail, 'адрес читается и из базы');
+});
+
+test('вторая заявка отменяет первую', { skip }, async () => {
+  const { user } = await confirmedUser();
+  const first = makeToken();
+  await store.requestEmailChange(user.id, `first-${uniq()}@example.com`, first.hash,
+    new Date(Date.now() + 30 * 60_000));
+  const second = makeToken();
+  await store.requestEmailChange(user.id, `second-${uniq()}@example.com`, second.hash,
+    new Date(Date.now() + 30 * 60_000));
+
+  assert.equal(await store.emailChangeByToken(first.hash), null, 'прежняя заявка не действует');
+  assert.match(
+    (await store.emailChangeByToken(second.hash)).email, /^second-/,
+    'действует последняя заявка',
+  );
+  await pool.query('DELETE FROM e_email_change WHERE user_id = $1', [user.id]);
+});
+
+test('несуществующий токен не находится', { skip }, async () => {
+  assert.equal(await store.emailChangeByToken(hashToken('подделка')), null);
 });

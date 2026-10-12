@@ -156,7 +156,7 @@ function notifications({ locale, csrf, user, error }) {
  * запрет держит сервер — скрытая кнопка обходится прямым запросом.
  */
 function security({
-  locale, csrf, user, error, staff = false,
+  locale, csrf, user, error, staff = false, values = null,
   twoFactor = null, backupLeft = 0, devices = [], backupCodes = null,
 }) {
   return html`
@@ -243,6 +243,31 @@ ${when(backupCodes, () => html`
 
   ${when(!devices.length, () => html`
   <p class="field__hint">${t(locale, 'settings.security.devicesEmpty')}</p>`)}
+</form>
+
+<form class="form settings__form" method="post" action="/${locale}/settings/security" novalidate>
+  <input type="hidden" name="csrf" value="${csrf}">
+  <input type="hidden" name="action" value="email">
+
+  <h2 class="settings__subhead">${t(locale, 'settings.security.email')}</h2>
+
+  <p class="settings__state">${t(locale, 'settings.security.emailNow', { email: user?.email ?? '' })}</p>
+
+  <div class="field">
+    <label class="field__label" for="new_email">${t(locale, 'settings.security.emailNew')}</label>
+    <input class="field__input" id="new_email" name="email" type="email"
+           autocomplete="email" value="${values?.email ?? ''}" required>
+    <p class="field__hint">${t(locale, 'settings.security.emailNew.hint')}</p>
+  </div>
+
+  <div class="field">
+    <label class="field__label" for="email_password">${t(locale, 'settings.security.confirm')}</label>
+    <input class="field__input" id="email_password" name="password" type="password"
+           autocomplete="current-password" required>
+  </div>
+
+  <button class="button form__submit" type="submit"
+    >${t(locale, 'settings.security.emailChange')}</button>
 </form>`;
 }
 
