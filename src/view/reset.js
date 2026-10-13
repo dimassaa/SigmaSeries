@@ -58,7 +58,11 @@ export function resetView(ctx) {
 
   ${when(state === 'request' || state === 'stale', () => requestForm(ctx))}
   ${when(state === 'form', () => newPasswordForm(ctx))}
-  ${when(state === 'sent', () => resultBlock(ctx, 'reset.sent.text'))}
+  ${when(state === 'sent', () => html`
+    ${resultBlock(ctx, 'reset.sent.text')}
+    ${when(ctx.demoLink, () => html`
+    <p class="form__warning">${t(locale, 'reset.demo.open')}</p>
+    <p class="form__links"><a href="${ctx.demoLink}">${ctx.demoLink}</a></p>`)}`)}
   ${when(state === 'done', () => resultBlock(ctx, 'reset.done.text'))}
 </section>`;
 }

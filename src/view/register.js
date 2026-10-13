@@ -155,7 +155,7 @@ function field(locale, f, value, problems) {
 // ─── Шаг 2 ───────────────────────────────────────────────────────────────────
 
 function stepTwo(ctx) {
-  const { locale, csrf, pending = {}, sent, statusUrl, nextUrl } = ctx;
+  const { locale, csrf, pending = {}, sent, statusUrl, nextUrl, demoLink = '' } = ctx;
 
   return html`
 <section class="block block--message">
@@ -164,6 +164,17 @@ function stepTwo(ctx) {
   <p class="message__text">${t(locale, 'register.step2.spam')}</p>
   <p class="message__text" role="status" id="verify-poll" aria-live="polite"></p>
 </section>
+
+<!--
+  Демо-помощник (F-01-12 §4, H-51): в режиме devbox письмо никуда не ушло, и
+  без этой подсказки показать подтверждение на офлайн-защите нечем. Ссылка
+  ведёт на письмо, созданное этим же браузером.
+-->
+${when(demoLink, () => html`
+<div class="block block--message">
+  <p class="form__warning">${t(locale, 'register.demo.open')}</p>
+  <p class="form__links"><a href="${demoLink}">${demoLink}</a></p>
+</div>`)}
 
 <form class="form" method="post" action="/${locale}/register/resend">
   <input type="hidden" name="csrf" value="${csrf}">

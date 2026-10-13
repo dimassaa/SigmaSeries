@@ -13,9 +13,23 @@
 // Работник запускается по таймеру (см. `server.js`) и забирает неотправленные
 // письма, время которых наступило.
 
+import crypto from 'node:crypto';
+
 import { encryptValue, decryptValue } from '../auth/crypto.js';
 import { mailText } from '../../i18n/mails.js';
+import { linkFromBody } from './devbox.js';
 import { MAIL_SETTINGS } from '../../config/settings.js';
+
+/**
+ * Хеш отметки браузера (H-51).
+ *
+ * В базе лежит хеш, а не сама отметка: cookie подписана и живёт час, а база
+ * живёт дольше, и по её значению письма искались бы сторонним запросом.
+ */
+const browserMark = (value) => crypto
+  .createHash('sha256')
+  .update(String(value), 'utf8')
+  .digest();
 
 /** Сколько писем забирает работник за раз. */
 const BATCH = 10;
@@ -55,6 +69,17 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
       const locale = job.locale ?? 'ru';
       const text = mailText(job.kind, locale, { link: job.link ?? '' });
 
+      // Предел размера (F-01-12 §9). Считается тело и тема вместе: письмо
+      // уходит именно в таком виде, и большой получатель упирается в лимит
+      // провайдера, а не в наш.
+      const sizeKb = (Buffer.byteLength(text.subject, 'utf8')
+        + Buffer.byteLength(text.body, 'utf8')) / 1024;
+      if (sizeKb > MAIL_SETTINGS.maxSizeKb) {
+        throw new Error(
+          `Письмо «${job.kind}» велико: ${sizeKb.toFixed(1)} КБ из ${MAIL_SETTINGS.maxSizeKb}`,
+        );
+      }
+
       // Предел длины очереди проверяется до вставки и по числу неотправленных:
       // он защищает базу от переполнения, когда провайдер лежит (F-01-12 §9).
       const { rows } = await pool.query(
@@ -68,8 +93,8 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
       }
 
       const { rows: inserted } = await pool.query(
-        `INSERT INTO e_mail (kind, recipient_enc, locale, subject, body)
-         VALUES ($1, $2, $3, $4, $5)
+        `INSERT INTO e_mail (kind, recipient_enc, locale, subject, body, browser_id)
+         VALUES ($1, $2, $3, $4, $5, $6)
          RETURNING id`,
         [
           job.kind,
@@ -77,6 +102,8 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
           locale,
           text.subject,
           text.body,
+          // Отметка браузера — хеш, а не сама cookie (H-51).
+          job.browserId ? browserMark(job.browserId) : null,
         ],
       );
       return inserted[0].id;
@@ -140,6 +167,62 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
     },
 
     /**
+     * Удаляет письма старше срока хранения (F-01-12 §8(в)).
+     *
+     * Токены подтверждения лежат внутри тела письма, и «удалить через семь
+     * дней» — это требование о жизни токенов, а не только о базе.
+     *
+     * @returns {Promise<number>} сколько удалено
+     */
+    async purge({ now = new Date() } = {}) {
+      const { rowCount } = await pool.query(
+        `DELETE FROM e_mail
+          WHERE created_at < now() - ($1 || ' days')::interval
+            AND status <> 'queued'`,
+        [String(MAIL_SETTINGS.keepDays)],
+      );
+      return rowCount ?? 0;
+    },
+
+    /**
+     * Письма этого браузера для демо-помощника (H-51).
+     *
+     * @returns {Promise<Array<{id:number, kind:string, body:string, createdAt:string}>>}
+     */
+    async forBrowser(browserId, { limit = 5 } = {}) {
+      if (!browserId) return [];
+      const { rows } = await pool.query(
+        `SELECT id, kind, body, created_at FROM e_mail
+          WHERE browser_id = $1 ORDER BY created_at DESC LIMIT $2`,
+        [browserMark(browserId), limit],
+      );
+      return rows.map((row) => ({
+        id: row.id,
+        kind: row.kind,
+        body: row.body,
+        browserId,
+        createdAt: row.created_at,
+      }));
+    },
+
+    /**
+     * Письма для почтового ящика админа (S-84).
+     *
+     * Получатель расшифровывается уже здесь: в списке он не нужен открытым,
+     * и держать его открытым в разметке незачем.
+     *
+     * @returns {Promise<Array<object>>}
+     */
+    async listing({ limit = 50 } = {}) {
+      const { rows } = await pool.query(
+        `SELECT id, kind, locale, subject, body, status, attempts, created_at, sent_at
+           FROM e_mail ORDER BY created_at DESC LIMIT $1`,
+        [limit],
+      );
+      return rows.map((row) => ({ ...row, link: linkFromBody(row.body) }));
+    },
+
+    /**
      * Записывает неудачную попытку: пока tries < MAX_ATTEMPTS, письмо ждёт
      * следующей попытки, иначе помечается неудачным (F-01-12 §5).
      */
@@ -154,9 +237,11 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
             SET status = $2,
                 attempts = $3::int,
                 last_error = $4,
-                -- Пауза растёт: долбить провайдер, который и так не отвечает,
-                -- нельзя (F-01-12 §5 — 1, 2, 4, 8, 16 минут).
-                next_attempt_at = now() + (LEAST($3::int, 5) * interval '1 minute')
+                -- Пауза растёт вдвое: 1, 2, 4, 8, 16 минут (F-01-12 §5).
+                -- Долбить провайдер, который и так не отвечает, нельзя, а
+                -- потолок нужен, чтобы седьмая попытка не уехала на сутки.
+                next_attempt_at = now()
+                  + (LEAST(2 ^ LEAST($3::int - 1, 4), 16) * interval '1 minute')
           WHERE id = $1`,
         [id, exhausted ? 'failed' : 'queued', tries, String(error).slice(0, 300)],
       );

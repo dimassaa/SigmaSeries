@@ -52,9 +52,10 @@ export function createHomeRoutes({ data }) {
 export function createNotFoundRoutes() {
   const router = express.Router({ strict: true });
 
-  // Служебные адреса отвечают заголовком, а не страницей: поисковику
-  // достаточно сигнала, а человеку — пустой экран не нужен.
-  router.get('/:locale{/:rest}', (req, res) => {
+  // Любой метод, а не только GET: служебные страницы (S-84) отвечают 404 и на
+  // POST — прямым запросом. Иначе на такой запрос уходил бы стандартный
+  // ответ Express на английском, и служебная страница выдавала бы себя.
+  router.use('/:locale{/:rest}', (req, res) => {
     const locale = isLocale(req.params.locale) ? req.params.locale : DEFAULT_LOCALE;
     const path = `/${req.params.rest ?? ''}`;
     if (NOINDEX_PATHS.some((p) => path.startsWith(p))) {

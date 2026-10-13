@@ -301,3 +301,55 @@
 .message__lead { font-size: 19px; margin-block: 0 var(--space-4); overflow-wrap: anywhere; }
 
 #verify-poll { margin-block-end: 0; }
+
+/* ─── S-84 «Почтовый ящик разработчика» ────────────────────────────────────── */
+
+/* Список слева, письмо справа. На узком экране колонки складываются в одну:
+   открытое письмо важнее списка. */
+.mailbox {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr);
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 720px) {
+  .mailbox { grid-template-columns: minmax(0, 1fr); }
+}
+
+.mailbox__list { margin: 0; padding: 0; list-style: none; }
+.mailbox__item { border-block-end: 1px solid var(--border-subtle); padding-block: var(--space-2); }
+.mailbox__item--empty { color: var(--text-secondary); border: 0; }
+
+/* Ссылка занимает всю ширину строки: попадать пальцем надо в тему письма, а
+   не в её середину. */
+.mailbox__link {
+  display: block;
+  color: var(--text-primary);
+  text-decoration: none;
+  overflow-wrap: anywhere;
+}
+
+.mailbox__link:hover { color: var(--accent); }
+
+/* Выбранное письмо отмечено не только цветом (R-DES-27). */
+.mailbox__link[aria-current='true'] {
+  border-inline-start: 3px solid var(--accent);
+  padding-inline-start: var(--space-2);
+}
+
+.mailbox__meta { display: block; color: var(--text-secondary); font-size: 13px; }
+.mailbox__date { display: block; color: var(--text-secondary); font-size: 12px; }
+
+/* Тело письма показывается как есть: это то, что человек получит по почте, и
+   переформатирование сбивало бы при сверке. */
+.mailbox__body {
+  margin: 0;
+  padding: var(--space-3);
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}

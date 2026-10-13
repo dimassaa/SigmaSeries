@@ -23,6 +23,8 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { hashToken } from '../services/auth/password.js';
 import * as limits from '../services/auth/limits.js';
 import { t } from '../i18n/strings.js';
+import { ensureBrowserId } from '../services/mail/browser.js';
+import { demoMailFor, linkFromBody } from '../services/mail/devbox.js';
 
 /**
  * @param {object} deps
@@ -32,7 +34,9 @@ import { t } from '../i18n/strings.js';
  * @param {object} [deps.limitsApi] подмена счётчиков в тестах
  * @param {string} [deps.baseUrl] адрес приложения для ссылки в письме
  */
-export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = limits, baseUrl = '' }) {
+export function createRegisterRoutes({
+  auth, sessionMw, mailQueue, mailMode = null, limitsApi = limits, baseUrl = '',
+}) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -189,6 +193,7 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
           kind: 'email_taken',
           to: decision.fields.email,
           locale,
+          browserId: ensureBrowserId(req, res),
         });
       } else {
         await auth.createUser(decision.fields);
@@ -198,6 +203,7 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
           to: decision.fields.email,
           locale,
           link: link(`${locale}/verify`, decision.token),
+          browserId: ensureBrowserId(req, res),
         });
       }
     } catch (e) {
@@ -217,7 +223,7 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
 
   // ─── Шаг 2: проверьте почту ────────────────────────────────────────────────
 
-  router.get('/:locale/register/confirm', (req, res) => {
+  router.get('/:locale/register/confirm', async (req, res) => {
     const locale = req.params.locale;
     const pending = req.session.pendingUser;
     if (!pending) {
@@ -226,7 +232,9 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
       // «письмо ушло неизвестно куда», и человек зря ждёт.
       return res.redirect(303, `/${locale}/register`);
     }
-    return respond(res, 200, renderConfirm(req, pending));
+    return respond(res, 200, renderConfirm(req, pending, {
+      demoLink: await demoLink(req, res, mailQueue, mailMode),
+    }));
   });
 
   /**
@@ -253,6 +261,7 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
     if (!csrfValid(req.session, req.body?.csrf)) {
       return respond(res, 403, renderConfirm(req, pending ?? {}, {
         error: t(locale, 'register.error.csrf'),
+        demoLink: await demoLink(req, res, mailQueue, mailMode),
       }));
     }
     if (!pending) return res.redirect(303, `/${locale}/register`);
@@ -270,6 +279,7 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
       res.set('Retry-After', String(retryAfter));
       return respond(res, 429, renderConfirm(req, pending, {
         error: t(locale, 'register.error.cooldown', { seconds: retryAfter }),
+        demoLink: await demoLink(req, res, mailQueue, mailMode),
       }));
     }
 
@@ -281,6 +291,7 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
           to: pending.email,
           locale,
           link: link(`${locale}/verify`, fresh.token),
+          browserId: ensureBrowserId(req, res),
         });
         limitsApi.recordResend(pending.email);
       }
@@ -290,7 +301,10 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
     }
 
     // Ответ тот же, есть аккаунт или нет: по нему иначе перебираются адреса.
-    return respond(res, 200, renderConfirm(req, pending, { sent: true }));
+    return respond(res, 200, renderConfirm(req, pending, {
+      sent: true,
+      demoLink: await demoLink(req, res, mailQueue, mailMode),
+    }));
   });
 
   // ─── Подтверждение (S-21) ───────────────────────────────────────────────────
@@ -377,6 +391,22 @@ export function createRegisterRoutes({ auth, sessionMw, mailQueue, limitsApi = l
 
 // ─── Разметка страниц ────────────────────────────────────────────────────────
 
+/**
+ * Ссылка демо-помощника (F-01-12 §4, H-51).
+ *
+ * Показывается только в режиме `devbox` и только для письма, созданного этим
+ * же браузером: подсказка, открывающая чужие письма, была бы дырой рядом с
+ * формой входа.
+ */
+async function demoLink(req, res, mailQueue, mailMode) {
+  if (!mailQueue?.forBrowser || !mailMode) return '';
+  if (await mailMode.current() !== 'devbox') return '';
+
+  const browserId = ensureBrowserId(req, res);
+  const letter = demoMailFor(await mailQueue.forBrowser(browserId), browserId);
+  return letter ? linkFromBody(letter.body) ?? '' : '';
+}
+
 function renderConfirm(req, pending, opts = {}) {
   const locale = req.params.locale;
   return layout({
@@ -395,6 +425,7 @@ function renderConfirm(req, pending, opts = {}) {
       error: opts.error ?? null,
       statusUrl: `/${locale}/register/status`,
       nextUrl: `/${locale}/`,
+      demoLink: opts.demoLink ?? '',
     }),
   });
 }

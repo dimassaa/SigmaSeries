@@ -187,3 +187,103 @@ test('слишком много писем в очереди — новое от
     /очередь/i,
   );
 });
+// ─── Режим devbox и демо-помощник (F-01-12 §4, §8(в), H-51) ───────────────
+
+test('письмо велико не ставится в очередь', { skip }, async () => {
+  const { queue } = queueWith();
+
+  await assert.rejects(
+    () => queue.enqueue(resetJob({ link: `http://x/reset?token=${'a'.repeat(120_000)}` })),
+    /велико/,
+    'письмо больше предела отвергается до вставки',
+  );
+  const { rows } = await pool.query('SELECT count(*)::int AS n FROM e_mail');
+  assert.equal(rows[0].n, 0, 'в очередь оно не попало');
+});
+
+test('письма своего браузера находятся, чужие — нет (H-51)', { skip }, async () => {
+  const { queue } = queueWith();
+
+  await queue.enqueue(resetJob({ browserId: 'браузер-анны' }));
+  await queue.enqueue(resetJob({ browserId: 'чужой-браузер' }));
+
+  const mine = await queue.forBrowser('браузер-анны');
+  assert.equal(mine.length, 1, 'своё письмо найдено');
+  assert.match(mine[0].body, /token=abc123/, 'тело письма на месте — из него берётся ссылка');
+  assert.equal((await queue.forBrowser('чужой-браузер')).length, 1, 'у чужого — своё');
+  assert.deepEqual(await queue.forBrowser(''), [], 'без отметки браузера — ничего');
+});
+
+test('отметка браузера в базе лежит хешем', { skip }, async () => {
+  const { queue } = queueWith();
+  await queue.enqueue(resetJob({ browserId: 'браузер-анны' }));
+
+  const { rows } = await pool.query('SELECT browser_id FROM e_mail LIMIT 1');
+  assert.ok(rows[0].browser_id, 'отметка записана');
+  assert.equal(rows[0].browser_id.includes('браузер'), false, 'открытым текстом не лежит');
+});
+
+test('письма старше срока удаляются, неотправленные — нет', { skip }, async () => {
+  const { queue } = queueWith();
+  const sent = await queue.enqueue(resetJob());
+  const waiting = await queue.enqueue(resetJob({ to: 'second@example.com' }));
+
+  // Второе письмо отодвигается: иначе выборка «по времени следующей попытки»
+  // взяла бы любое из двух, и проверялось бы не то.
+  await pool.query(
+    `UPDATE e_mail SET next_attempt_at = now() + interval '1 hour' WHERE id = $1`, [waiting],
+  );
+  // Одно письмо уходит, второе остаётся ждать провайдера; обоим по восемь дней.
+  await pool.query(`UPDATE e_mail SET status = 'queued', next_attempt_at = now() WHERE id = $1`, [sent]);
+  await queue.processDue();
+  await pool.query(`UPDATE e_mail SET created_at = now() - interval '8 days'`);
+  await pool.query(`UPDATE e_mail SET status = 'queued', next_attempt_at = now() WHERE id = $1`, [waiting]);
+
+  const removed = await queue.purge();
+
+  const { rows } = await pool.query('SELECT id, status FROM e_mail');
+  assert.equal(removed, 1, 'удалено ровно одно — отправленное');
+  assert.equal(rows.length, 1, 'в базе осталось одно');
+  assert.equal(rows[0].id, waiting, 'осталось неотправленное: его ещё ждут');
+  assert.equal(rows[0].status, 'queued');
+});
+
+test('список для ящика отдаёт ссылку из тела', { skip }, async () => {
+  const { queue } = queueWith();
+  await queue.enqueue(resetJob());
+
+  const [row] = await queue.listing();
+  assert.equal(row.kind, 'password_reset');
+  assert.equal(row.link, 'http://127.0.0.1:3000/ru/password/reset?token=abc123');
+  assert.equal(row.recipient, undefined, 'получатель в списке открытым не лежит');
+});
+
+test('пауза между попытками растёт: 1, 2, 4, 8, 16 минут', { skip }, async () => {
+  // F-01-12 §5 называет именно эти числа; линейный рост растягивал последнюю
+  // попытку до пяти минут вместо шестнадцати.
+  const { queue, sink } = queueWith({ fail: 0 });
+  const id = await queue.enqueue(resetJob());
+
+  const wait = async (attempts) => {
+    await pool.query(
+      `UPDATE e_mail SET status = 'queued', attempts = 0, next_attempt_at = now()
+        WHERE id = $1`,
+      [id],
+    );
+    await queue.fail(id, attempts, 'провайдер недоступен');
+    const { rows } = await pool.query(
+      `SELECT EXTRACT(EPOCH FROM (next_attempt_at - now())) / 60 AS minutes FROM e_mail
+        WHERE id = $1`,
+      [id],
+    );
+    return Math.round(Number(rows[0].minutes));
+  };
+
+  const seen = [];
+  for (const attempts of [1, 2, 3, 4, 5]) {
+    // eslint-disable-next-line no-await-in-loop
+    seen.push(await wait(attempts));
+  }
+  assert.deepEqual(seen, [1, 2, 4, 8, 16], 'пауза удваивается, а не растёт на минуту');
+  void sink;
+});

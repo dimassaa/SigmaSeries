@@ -21,6 +21,8 @@ import { checkPasswordStrength, hashPassword, hashToken } from '../services/auth
 import { checkEmail, normalizeEmail } from '../services/auth/validate.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import * as limits from '../services/auth/limits.js';
+import { ensureBrowserId } from '../services/mail/browser.js';
+import { demoMailFor, linkFromBody } from '../services/mail/devbox.js';
 
 /** Путь без локали: адрес S-22 из SCREENS. */
 const PATH = '/password/reset';
@@ -33,7 +35,9 @@ const PATH = '/password/reset';
  * @param {object} [deps.journal] журнал безопасности (F-01-04 §17)
  * @param {string} [deps.baseUrl] адрес приложения для ссылки в письме
  */
-export function createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl = '' }) {
+export function createResetRoutes({
+  auth, sessionMw, mailQueue, mailMode = null, journal, baseUrl = '',
+}) {
   const router = express.Router({ strict: true });
   router.use(`/:locale${PATH}`, sessionMw);
 
@@ -109,10 +113,14 @@ export function createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl
     limits.recordResetRequest(email, ip);
 
     try {
-      await sendLetter(email, locale);
+      const browserId = ensureBrowserId(req, res);
+      await sendLetter(email, locale, browserId);
       // Ответ не зависит от того, что нашлось по адресу: и «письмо ушло»,
       // и «аккаунта нет» читаются одинаково (R-SEC-06).
-      return respond(res, 200, page(req, { state: 'sent' }));
+      return respond(res, 200, page(req, {
+        state: 'sent',
+        demoLink: await demoLink(req, res, browserId),
+      }));
     } catch (e) {
       return next(e);
     }
@@ -129,7 +137,7 @@ export function createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl
    * подтверждение адреса переводит аккаунт в активный (`confirmEmail`):
    * письмо забаненному сняло бы блокировку его же подтверждением.
    */
-  async function sendLetter(email, locale) {
+  async function sendLetter(email, locale, browserId = '') {
     const user = await auth.byEmail(email);
     if (!user || user.status !== 'active') return;
 
@@ -141,6 +149,7 @@ export function createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl
           to: email,
           locale,
           link: link(`${locale}${PATH}`, issued.token),
+          browserId,
         });
       }
       return;
@@ -152,6 +161,7 @@ export function createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl
         to: email,
         locale,
         link: link(`${locale}/verify`, issued.token),
+        browserId,
       });
     }
   }
@@ -216,6 +226,19 @@ export function createResetRoutes({ auth, sessionMw, mailQueue, journal, baseUrl
   }
 
   /** Собирает документ: разметку состояния плюс оболочку. */
+  /**
+   * Ссылка демо-помощника (F-01-12 §4, H-51).
+   *
+   * Только в `devbox` и только для письма, созданного этим браузером.
+   */
+  async function demoLink(req, res, browserId) {
+    if (!mailQueue?.forBrowser || !mailMode || !browserId) return '';
+    if (await mailMode.current() !== 'devbox') return '';
+
+    const letter = demoMailFor(await mailQueue.forBrowser(browserId), browserId);
+    return letter ? linkFromBody(letter.body) ?? '' : '';
+  }
+
   function page(req, ctx) {
     const locale = req.params.locale;
     const body = resetView({ locale, csrf: csrfToken(req.session), ...ctx });

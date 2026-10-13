@@ -12,6 +12,7 @@ import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
 import { createMailQueue } from './services/mail/queue.js';
 import { consoleMailer } from './services/mail/console-mailer.js';
+import { effectiveMode, smtpMailer } from './services/mail/mode.js';
 import { runDeletionSweep, DELETE_TICK_MS } from './services/auth/deletion.js';
 import { runExportSweep, EXPORT_TICK_MS } from './services/data/export-job.js';
 import { MAIL_SETTINGS } from './config/settings.js';
@@ -41,7 +42,36 @@ const baseUrl = `http://${HOST}:${PORT}`;
 const journal = createJournal();
 const mailer = consoleMailer();
 
-const mailQueue = createMailQueue({ pool, deliver: (job) => mailer.send(job) });
+// Режим решает, кто доставляет письма (F-01-12 §4). В `devbox` доставки нет
+// вовсе: письмо остаётся в базе и показывается в S-84, иначе токены подтверждения
+// ушли бы наружу там, где интернета нет (H-51).
+const smtp = await smtpMailer();
+const mailMode = {
+  current: async () => effectiveMode(pool),
+  change: async (value, changedBy) => {
+    const { rows } = await pool.query(
+      `INSERT INTO e_system_setting (key, value, changed_by) VALUES ($1, $2, $3)
+       ON CONFLICT (key) DO UPDATE SET value = $2, changed_by = $3, changed_at = now()`,
+      ['mail.mode', value, changedBy ?? null],
+    );
+    return { ok: rows.length > 0 };
+  },
+};
+
+const mailQueue = createMailQueue({
+  pool,
+  deliver: async (job) => {
+    if (await mailMode.current() === 'devbox') return;
+    if (smtp.configured) {
+      await smtp.send(job);
+      return;
+    }
+    // Провайдер не настроен: это не ошибка кода, а неготовность окружения.
+    // Письмо остаётся в очереди и повторится (F-01-12 §5).
+    if (process.env.MAIL_PRINT === 'true') await mailer.send(job);
+    else throw new Error('SMTP-провайдер не настроен (SMTP_HOST пуст)');
+  },
+});
 
 // Хранилище одно на приложение: два экземпляра делили бы пул, но выглядели бы
 // как две разные копии учётных записей — и расхождение было бы не видно.
@@ -52,12 +82,22 @@ const app = createApp({
   auth,
   sessionMw: createSessionMiddleware(pool),
   mailQueue,
+  mailMode,
   journal,
   baseUrl,
 });
 
-const server = app.listen(PORT, HOST, () => {
+const server = app.listen(PORT, HOST, async () => {
   console.log(`[startup] sigmaseries слушает ${baseUrl}`);
+
+  // EC-A23: режим, включённый по ошибке, должен быть виден сразу, а не тому,
+  // кто через час обнаружит, что подтверждения не приходят.
+  const mode = await mailMode.current();
+  if (mode === 'devbox') {
+    const warning = 'Режим devbox: письма не отправляются, а показываются в S-84';
+    console.warn(`[startup] ${warning}`);
+    journal.security({ event: 'mail_mode_devbox', requestId: 'старт' });
+  }
 });
 
 // Работник очереди писем. Запускается вместе с сервером, а не по требованию:
@@ -86,6 +126,13 @@ runDeletionSweep({ auth, journal }).catch((e) => {
 
 // Сборка выгрузок (F-01-10 §4). Тоже сразу при старте: заказ, сделанный, пока
 // сервер был выключен, иначе ждал бы минуту после каждого перезапуска.
+const purgeWorker = setInterval(() => {
+  mailQueue.purge().catch((e) => {
+    console.error(`[почта] очистка: ${e.message}`);
+  });
+}, MAIL_SETTINGS.purgeTickMs);
+purgeWorker.unref();
+
 const exportWorker = setInterval(() => {
   runExportSweep({ auth, mailQueue, journal, baseUrl }).catch((e) => {
     console.error(`[экспорт] ${e.message}`);
@@ -103,6 +150,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     clearInterval(worker);
     clearInterval(deletionWorker);
     clearInterval(exportWorker);
+    clearInterval(purgeWorker);
     server.close(() => {
       pool.end().finally(() => process.exit(0));
     });

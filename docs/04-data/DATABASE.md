@@ -631,7 +631,9 @@ CREATE INDEX ix_two_factor_code_user ON e_two_factor_code (user_id) WHERE used_a
 CREATE TABLE e_mail (
   id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   kind            TEXT   NOT NULL
-                  CHECK (kind IN ('email_verify','email_taken','password_reset','password_changed')),
+                  CHECK (kind IN ('email_verify','email_taken','password_reset','password_changed',
+                                  'email_change','email_change_requested','email_changed',
+                                  'two_factor_enabled','deletion_requested','data_export_ready')),
   -- Адрес получателя шифруется тем же ключом, что и в e_user: открытым он
   -- не лежит ни в одной таблице проекта.
   recipient_enc   BYTEA  NOT NULL,
@@ -641,6 +643,10 @@ CREATE TABLE e_mail (
   status          TEXT   NOT NULL DEFAULT 'queued'
                   CHECK (status IN ('queued','sending','sent','failed')),
   attempts        SMALLINT NOT NULL DEFAULT 0,
+  -- Отметка браузера, заказавшего письмо (H-51). Хеш: подписанная cookie
+  -- живёт недолго, и по её значению в базе искать письма нельзя. NULL у писем,
+  -- которые браузер не заказывал (служебные, по смене адреса).
+  browser_id      BYTEA,
   -- Письмо забирает один работник, и повтор должен случиться не раньше
   -- следующей попытки: время следующей попытки и есть признак «занято».
   next_attempt_at TIMESTAMPTZ NOT NULL DEFAULT now(),
@@ -651,6 +657,10 @@ CREATE TABLE e_mail (
 -- Выборка идёт по времени следующей попытки и только по неотправленным:
 -- отправленные письма в индексе не должны мешали.
 CREATE INDEX ix_mail_pending ON e_mail (next_attempt_at) WHERE status IN ('queued','sending');
+-- Демо-помощник ищет письмо своего браузера (H-51), чистка — письма старше
+-- семи дней (F-01-12 §8(в)). Оба идут по времени, а не по номеру.
+CREATE INDEX ix_mail_browser ON e_mail (browser_id, created_at DESC) WHERE browser_id IS NOT NULL;
+CREATE INDEX ix_mail_created ON e_mail (created_at);
 
 -- ---------- История ника ----------
 -- Нельзя молча переименовать: старые ссылки на профиль должны остаться
