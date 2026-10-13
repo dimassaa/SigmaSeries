@@ -435,6 +435,33 @@ CREATE TABLE e_import_run (
   status     TEXT   NOT NULL DEFAULT 'running'
              CHECK (status IN ('running','success','partial','error','resumed'))
 );
+-- Что стало с каждой позицией запуска. Ключ пара (запуск, tconst) — это и
+-- результат, и контрольная точка возобновления: повторный запуск после сбоя
+-- пропускает то, что уже доведено до своей стадии (F-12-09).
+--
+-- Причины и коды ответов — списки в одной строке, а не справочные таблицы:
+-- это диагностика конкретного запуска, которая показывается в списке с
+-- фильтром (F-12-08) и через месяц не нужна ни каталогу, ни отчёту.
+CREATE TABLE e_import_item_result (
+  run_id     BIGINT    NOT NULL REFERENCES e_import_run(id) ON DELETE CASCADE,
+  tconst     TEXT      NOT NULL,                 -- идентификатор IMDb: tt1234567
+  tmdb_id    INTEGER,                            -- известен с F-12-02
+  stage      TEXT      NOT NULL                  -- до какой стадии дошла позиция
+             CHECK (stage IN ('candidates','matched','enriched','discovered','imaged','written')),
+  outcome    TEXT      NOT NULL
+             CHECK (outcome IN ('ok','no_tmdb','pair_doubt','write_failed','skipped','error')),
+  reasons    TEXT[]    NOT NULL DEFAULT '{}',    -- коды причин: no_poster, schedule_gap …
+  http_codes INTEGER[] NOT NULL DEFAULT '{}',     -- коды ответов TMDB по попыткам
+  attempts   INTEGER   NOT NULL DEFAULT 0,       -- попыток на этой позиции (F-12-09)
+  -- Отбор по популярности (F-12-01 §4). Ранг и голоса хранятся вместе с
+  -- результатом, иначе «тысячу самых популярных» нельзя было бы показать в
+  -- отчёте и нельзя было бы доказать, что порядок не нарушен.
+  popularity_rank INTEGER,
+  num_votes       INTEGER,
+  average_rating  NUMERIC(3,1),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (run_id, tconst)
+);
 CREATE TABLE e_backup_job (
   id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   started_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
