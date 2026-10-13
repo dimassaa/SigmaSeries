@@ -60,6 +60,7 @@ export function settingsView(ctx) {
       ${section === 'notifications' ? notifications(ctx) : ''}
       ${section === 'privacy' ? privacy(ctx) : ''}
       ${section === 'security' ? security(ctx) : ''}
+      ${section === 'data' ? data(ctx) : ''}
       ${when(user === null, () => html`<p class="form__text">${
         t(locale, 'settings.guestNote')
       }</p>`)}
@@ -268,6 +269,104 @@ ${when(backupCodes, () => html`
 
   <button class="button form__submit" type="submit"
     >${t(locale, 'settings.security.emailChange')}</button>
+</form>`;
+}
+
+/**
+ * «Данные»: две карточки-действия (F-01-10 §19).
+ *
+ * Карточек две, а не одна форма с двумя кнопками: экспорт ничего не меняет, а
+ * удаление меняет всё, и одна форма выглядела бы как равные по тяжести
+ * действия. Красным помечено только подтверждение удаления — §19.
+ */
+function data({ locale, csrf, user, exportJob = null }) {
+  const ready = user?.delete_requested_at
+    ? t(locale, 'settings.data.delete.lead')
+    : '';
+
+  return html`
+<form class="form settings__form" method="post" action="/${locale}/settings/data" novalidate>
+  <input type="hidden" name="csrf" value="${csrf}">
+  <input type="hidden" name="action" value="export">
+
+  <h2 class="settings__subhead">${t(locale, 'settings.data.export.title')}</h2>
+
+  <p class="field__hint">${t(locale, 'settings.data.export.lead')}</p>
+
+  ${when(exportJob, () => html`
+  <p class="settings__state">${t(locale, `settings.data.export.state.${exportJob.status}`)}</p>`)}
+
+  <div class="field">
+    <label class="field__label" for="export_password">${
+  t(locale, 'settings.security.confirm')}</label>
+    <input class="field__input" id="export_password" name="password" type="password"
+           autocomplete="current-password" required>
+  </div>
+
+  <button class="button form__submit" type="submit"
+    >${t(locale, 'settings.data.export.action')}</button>
+</form>
+
+<form class="form settings__form" method="post" action="/${locale}/settings/data" novalidate>
+  <input type="hidden" name="csrf" value="${csrf}">
+  <input type="hidden" name="action" value="delete">
+
+  <h2 class="settings__subhead">${t(locale, 'settings.data.delete.title')}</h2>
+
+  <p class="field__hint">${ready || t(locale, 'settings.data.delete.lead')}</p>
+
+  <button class="button button--danger form__submit" type="submit"
+    >${t(locale, 'settings.data.delete.action')}</button>
+</form>`;
+}
+
+/**
+ * Подтверждение удаления: перечень последствий, пароль и отметка о материалах.
+/**
+ * Подтверждение удаления: перечень последствий, пароль и отметка о материалах.
+ *
+ * Отдельный адрес, а не вкладка внутри настроек: R-SEC-12 требует
+ * подтверждения с перечнем последствий, и перечень должен быть виден целиком,
+ * а не вкладкой, которую можно закрыть, не прочитав.
+ */
+export function deleteConfirm({ locale, csrf, error, values }) {
+  const whats = ['email', 'nick', 'settings', 'marks', 'materials'];
+
+  return html`
+<form class="form settings__form" method="post" action="/${locale}/settings/data/delete" novalidate>
+  <input type="hidden" name="csrf" value="${csrf}">
+
+  <h2 class="settings__subhead">${t(locale, 'settings.delete.title')}</h2>
+
+  <div class="form__status" role="alert" aria-live="assertive">
+    ${when(error, () => html`<p class="form__error">${error}</p>`)}
+  </div>
+
+  <p class="form__text">${t(locale, 'settings.delete.lead')}</p>
+
+  <ul class="settings__consequences">
+    ${whats.map((what) => html`
+    <li class="settings__consequence">${t(locale, `settings.delete.what.${what}`)}</li>`)}
+  </ul>
+
+  <div class="field">
+    <label class="field__label" for="delete_password">${
+  t(locale, 'settings.security.confirm')}</label>
+    <input class="field__input" id="delete_password" name="password" type="password"
+           autocomplete="current-password" required>
+  </div>
+
+  <div class="field field--switch">
+    <input class="field__checkbox" type="checkbox" id="delete_materials" name="delete_materials"
+           ${values?.deleteMaterials ? raw('checked') : ''}>
+    <label class="field__switch-label" for="delete_materials">
+      <span class="field__switch-text">${t(locale, 'settings.data.delete.materials')}</span>
+      <span class="field__hint">${t(locale, 'settings.data.delete.materials.hint')}</span>
+    </label>
+  </div>
+
+  <button class="button button--danger form__submit" type="submit"
+    >${t(locale, 'settings.delete.confirm')}</button>
 </form>`;
 }
 

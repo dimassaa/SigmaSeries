@@ -32,10 +32,13 @@ process.env.ADDRESS_SECRET ??= 'test-address-secret';
  *
  * Это не интерфейс приложения, а посев состояния для тестов: в базу состояние
  * кладёт сам тест (`auth.store.test.js` пишет в таблицы напрямую), а заглушке
- * нужно чем-то задать готовые 2FA и список устройств. Если такой метод
- * понадобится в производственном коде, посевом он перестаёт быть.
+ * нужно чем-то задать готовые устройства, материалы и оценки. Если такой
+ * метод понадобится в производственном коде, посевом он перестаёт быть.
  */
-const TEST_SEEDS = ['setTwoFactor', 'setSessions'];
+const TEST_SEEDS = [
+  'setTwoFactor', 'setSessions', 'byId',
+  'addMaterials', 'addRating', 'setDeleteMaterials', 'materials', 'ratings',
+];
 
 const ROUTES = ['auth.js', 'register.js', 'reset.js', 'settings.js', 'twofactor.js']
   .map((file) => fileURLToPath(new URL(`../src/routes/${file}`, import.meta.url)));

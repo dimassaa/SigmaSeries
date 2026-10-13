@@ -22,6 +22,8 @@ import { checkTimezone, checkNickname, checkEmail, normalizeEmail } from '../ser
 import { checkPasswordStrength, hashPassword, hashToken, makeToken } from '../services/auth/password.js';
 import { generateBackupCodes, hashBackupCode } from '../services/auth/totp.js';
 import { emailChangeView } from '../view/email-change.js';
+import { deletedView } from '../view/deleted.js';
+import { deleteConfirm as deleteConfirmView } from '../view/settings.js';
 import { LOCALES, LOCALE_NAMES } from '../i18n/strings.js';
 import { AUTH, STAFF_ROLES, DAY } from '../config/settings.js';
 
@@ -37,11 +39,21 @@ const BASE = '/settings';
 const EMAIL_CHANGE_PATH = '/settings/email-change';
 
 /**
- * Разделы экрана (F-01-06 §4).
+ * Экраны удаления аккаунта (F-01-10).
+ *
+ * `DELETE_DONE_PATH` — подтверждение, что запрос принят: показывается после
+ * разлогина, когда настроек уже не видно. `DELETE_PENDING_PATH` — вход в
+ * период ожидания (EC-A11): экран с выбором, а не сообщение на форме входа.
+ */
+const DELETE_DONE_PATH = '/settings/data/deleted';
+const DELETE_PENDING_PATH = '/delete-pending';
+
+/**
+ * Разделы экрана (F-01-06 §4, F-01-10 §3).
  *
  * «Безопасность» — один раздел с тремя формами, а не три вкладки: смена
- * пароля, 2FA и устройства относятся к одному списку дел. «Данные» —
- * отдельная фича F-01-10, её раздела здесь нет.
+ * пароля, 2FA и устройства относятся к одному списку дел. «Данные» — две
+ * карточки-действия (F-01-10 §19): экспорт и удаление.
  */
 const SECTIONS = {
   profile: 'settings.profile.title',
@@ -49,6 +61,7 @@ const SECTIONS = {
   notifications: 'settings.notifications.title',
   privacy: 'settings.privacy.title',
   security: 'settings.security.title',
+  data: 'settings.data.title',
 };
 
 /** Темы из `e_user.theme` (CHECK в схеме). */
@@ -97,6 +110,11 @@ export function createSettingsRoutes({
       extra.history = await auth.nicknameHistory(user.id);
       extra.changedAt = await auth.nicknameChangedAt(user.id);
     }
+    // Карточка выгрузки показывает состояние последнего заказа: без него
+    // человек видит кнопку и не понимает, готовится файл или уже лежит.
+    if (section === 'data' && user) {
+      extra.exportJob = await auth.lastExport(user.id);
+    }
 
     // Коды показываются один раз: прямо в адресе после перегенерации, дальше
     // они в базе не остаются.
@@ -137,6 +155,7 @@ export function createSettingsRoutes({
     if (section === 'profile') return applyProfile(req, res, body, ctx);
     if (section === 'notifications') return applyNotifications(req, res, body, ctx);
     if (section === 'security') return applySecurity(req, res, body, ctx);
+    if (section === 'data') return applyData(req, res, body, ctx);
     if (section === 'appearance') return applyAppearance(req, res, body, ctx);
     return applyPrivacy(req, res, body, ctx);
   });
@@ -480,11 +499,20 @@ export function createSettingsRoutes({
   });
 
   /** Уведомление; адрес берётся из базы (F-01-06 §17). */
-  async function notify(userId, locale, kind) {
+  /**
+   * Служебное письмо (F-01-10 §17).
+   *
+   * Адрес берётся из базы, а не из сессии: в сессии его нет, а в теле
+   * запроса ему нельзя доверять (R-SEC-10).
+   *
+   * @param {object} [params] подстановки в текст письма, например дата
+   */
+  async function notify(userId, locale, kind, params = {}) {
     const to = await auth.addressOf(userId);
     if (!to) return;
-    await mailQueue?.enqueue({ kind, to, locale });
+    await mailQueue?.enqueue({ kind, to, locale, ...params });
   }
+
 
   async function applyAppearance(req, res, body, ctx) {
     const locale = req.params.locale;
@@ -544,6 +572,289 @@ export function createSettingsRoutes({
     }
     return res.redirect(303, `/${locale}${BASE}/privacy?saved=1`);
   }
+
+  /**
+   * Раздел «Данные» (F-01-10 §4, §5).
+   *
+   * Дела разведены по полю `action`, как в «Безопасности»: экспорт и удаление —
+   * разные опасности с разными последствиями, и одна форма на обе дала бы
+   * человеку одно поле на два решения.
+   */
+  async function applyData(req, res, body, ctx) {
+    const { locale, user } = ctx;
+    // R-SEC-10: удаление и экспорт — только своим. Гость правит своё (тему и
+    // язык), но чужие данные не выгружает и не удаляет.
+    if (!user) {
+      return respond(res, 403, await render(req, {
+        ...ctx, error: t(locale, 'settings.data.error.guest'),
+      }));
+    }
+
+    if (body.action === 'delete') return requestDeletion(req, res, body, ctx);
+    if (body.action === 'export') return orderExport(req, res, body, ctx);
+    return respond(res, 400, await render(req, {
+      ...ctx, error: t(locale, 'settings.data.error.action'),
+    }));
+  }
+
+  /**
+   * Заказ выгрузки (F-01-10 §4, EC-A21).
+   *
+   * Повторный пароль: в файле всё, что человек накопил, и отдавать его тому,
+   * кто знает только пароль из утечки, нельзя (R-SEC-12).
+   *
+   * Сборка уходит в фон: файл бывает большим, и держать открытый ответ, пока
+   * он собирается, — значит держать соединение.
+   */
+  async function orderExport(req, res, body, ctx) {
+    const { locale, user } = ctx;
+
+    if (!(await auth.verifyCurrent(user.id, String(body.password ?? '')))) {
+      return respond(res, 400, await render(req, {
+        ...ctx, section: 'data', error: t(locale, 'settings.data.error.password'),
+      }));
+    }
+
+    const verdict = await auth.requestExport(user.id, user.locale ?? locale, new Date(now()));
+    // EC-A21: отказ со временем следующей попытки, а не «попробуйте позже».
+    if (!verdict.ok) {
+      const hours = Math.max(1, Math.ceil((new Date(verdict.retryAt) - now()) / 3_600_000));
+      return respond(res, 429, await render(req, {
+        ...ctx,
+        section: 'data',
+        error: t(locale, 'settings.data.export.cooldown', { time: `${hours} ч` }),
+      }));
+    }
+
+    journal?.security({
+      event: 'export_requested', requestId: req.requestId, user_id: user.id,
+    });
+    return res.redirect(303, `/${locale}${BASE}/data?saved=1`);
+  }
+
+  /**
+   * Скачивание файла по ссылке из письма.
+   *
+   * Сессии здесь нет и не нужно: всё право ссылки — токен и срок. Отдаётся
+   * вложением и без кеширования, иначе файл остался бы в кеше браузера
+   * (R-SEC-24).
+   */
+  router.get(`/:locale${BASE}/data/export`, async (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+
+    const token = typeof req.query.token === 'string' ? req.query.token : '';
+    if (!token) return res.redirect(303, `/${locale}${BASE}/data`);
+
+    let file;
+    try {
+      file = await auth.exportByToken(token, new Date(now()));
+    } catch (e) {
+      return next(e);
+    }
+    if (!file) return res.redirect(303, `/${locale}${BASE}/data`);
+
+    res.set('Cache-Control', 'no-store');
+    return res.status(200)
+      .type('application/json')
+      .set('Content-Disposition', 'attachment; filename="sigmaseries-data.json"')
+      .send(file.payload);
+  });
+
+  /** Экран удаления целиком: тело вида плюс оболочка страницы. */
+  function deletedPage(locale, session, view) {
+    const title = view.pending
+      ? t(locale, 'settings.deletePending.title')
+      : t(locale, 'settings.deleted.title');
+    return layout({
+      locale,
+      path: view.pending ? DELETE_PENDING_PATH : DELETE_DONE_PATH,
+      title: `${title} — ${t(locale, 'app.title')}`,
+      description: t(locale, view.pending ? 'settings.deletePending.lead' : 'settings.deleted.lead'),
+      noindex: true,
+      body: deletedView({ locale, csrf: csrfToken(session), error: null, ...view }),
+    });
+  }
+
+/** Экран подтверждения удаления с перечнем последствий (R-SEC-12). */
+  async function renderDeleteConfirm(req, { locale, user, error, values }) {
+    return layout({
+      locale,
+      path: `${BASE}/data/delete`,
+      title: `${t(locale, 'settings.delete.title')} — ${t(locale, 'app.title')}`,
+      description: t(locale, 'settings.delete.lead'),
+      noindex: true,
+      theme: user?.theme,
+      body: deleteConfirmView({ locale, csrf: csrfToken(req.session), error, values }),
+    });
+  }
+
+  /**
+   * Запрос удаления аккаунта (F-01-10 §4, R-SEC-12).
+   *
+   * Опасное действие: повторный пароль, перечень последствий на отдельной
+   * странице и запись в журнал. Без пароля один разобранный пароль из утечки
+   * удалял бы аккаунт.
+   *
+   * Служебная роль удалить себя не может (H-63): сначала роль снимает
+   * администратор. Проверка на сервере, а не скрытием кнопки — прямым запросом
+   * правило проверяется.
+   *
+   * Забаненный сюда не доходит: вход ему закрыт (F-01-03), и удаление
+   * запустить нечем. Отдельной проверки здесь поэтому нет — была бы
+   * недостижимой строкой.
+   */
+  async function requestDeletion(req, res, body, ctx) {
+    const { locale, user } = ctx;
+    const roles = user.roles ?? [];
+    if (roles.some((r) => STAFF_ROLES.includes(r))) {
+      return respond(res, 403, await render(req, {
+        ...ctx, section: 'data', error: t(locale, 'settings.data.error.staff'),
+      }));
+    }
+
+    if (!(await auth.verifyCurrent(user.id, String(body.password ?? '')))) {
+      return respond(res, 400, await renderDeleteConfirm(req, {
+        locale, user, error: t(locale, 'settings.security.error.current'),
+        values: { deleteMaterials: body.delete_materials === 'on' },
+      }));
+    }
+
+    const requestedAt = new Date(now());
+    const accepted = await auth.requestDeletion(user.id, {
+      deleteMaterials: body.delete_materials === 'on',
+      requestedAt,
+      anonymizeAfter: new Date(now() + AUTH.deleteGraceDays * DAY),
+    });
+    if (!accepted) {
+      return respond(res, 409, await render(req, {
+        ...ctx, section: 'data', error: t(locale, 'settings.data.error.pending'),
+      }));
+    }
+
+    journal?.security({
+      event: 'deletion_requested', requestId: req.requestId, user_id: user.id,
+    });
+    // Письмо уходит последним: адрес станет недоступен сразу после выхода, и
+    // человек должен знать дату и способ отмены, не заходя на сайт.
+    await notify(user.id, locale, 'deletion_requested', {
+      date: new Date(now() + AUTH.deleteGraceDays * DAY).toISOString().slice(0, 10),
+    });
+
+    // Все устройства разлогиниваются: удаление нельзя отменить из сессии,
+    // оставшейся на том же устройстве, где человек его и запросил.
+    await auth.revokeSessions(user.id);
+    await req.session.destroy(() => {});
+    res.set('Clear-Site-Data', '"cache"');
+    return res.redirect(303, `/${locale}${DELETE_DONE_PATH}`);
+  }
+
+  /**
+ * Экран удаления (F-01-10 §19, R-SEC-12).
+ *
+ * Отдельный адрес от раздела «Данные»: перечень последствий должен быть виден
+ * целиком перед вводом пароля, а не быть кнопкой в списке.
+ */
+router.get(`/:locale${BASE}/data/delete`, (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+
+    const user = req.session.user ?? null;
+    if (!user) return res.redirect(303, `/${locale}/login`);
+
+    return respond(res, 200, layout({
+      locale,
+      path: `${BASE}/data/delete`,
+      title: `${t(locale, 'settings.delete.title')} — ${t(locale, 'app.title')}`,
+      description: t(locale, 'settings.delete.lead'),
+      noindex: true,
+      theme: user.theme,
+      body: deleteConfirmView({
+        locale,
+        csrf: csrfToken(req.session),
+        error: null,
+        values: { deleteMaterials: false },
+      }),
+    }));
+  });
+
+  router.post(`/:locale${BASE}/data/delete`, async (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+
+    const user = req.session.user ?? null;
+    if (!user) return res.redirect(303, `/${locale}/login`);
+
+    const body = req.body ?? {};
+    if (!csrfValid(req.session, body.csrf)) {
+      return respond(res, 403, await renderDeleteConfirm(req, {
+        locale, user, error: t(locale, 'settings.error.csrf'),
+        values: { deleteMaterials: body.delete_materials === 'on' },
+      }));
+    }
+    return requestDeletion(req, res, body, { locale, user });
+  });
+
+  /**
+ * Экран «удаление запрошено» (F-01-10 §4).
+   *
+   * Отдельный адрес, а не главная с флажком: сообщение должно пережить выход
+   * из аккаунта — иначе человек, закрывший вкладку, не узнает, что его выгнали
+   * с сайта и когда аккаунт исчезнет.
+   */
+  router.get(`/:locale${DELETE_DONE_PATH}`, (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+    return respond(res, 200, deletedPage(locale, req.session, {}));
+  });
+
+  /**
+   * Вход в период удаления (EC-A11).
+   *
+   * Человек приходит по обычному адресу входа и упирается в выбор: отменить
+   * удаление или оставить его в силе. Отмена только здесь и только явно — по
+   * F-01-10 §4 вход сам по себе отменой не считается, иначе случайное открытие
+   * письма со ссылкой на старый сайт вернуло бы аккаунт из удалённого.
+   *
+   * «Продолжить удаление» ничего не ускоряет: срок идёт дальше, а сессия
+   * закрывается, чтобы выбор нельзя было повторить тем же входом.
+   */
+  router.get(`/:locale${DELETE_PENDING_PATH}`, (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+    if (!req.session.pendingDeletion) return res.redirect(303, `/${locale}/login`);
+
+    return respond(res, 200, deletedPage(locale, req.session, { pending: true }));
+  });
+
+  router.post(`/:locale${DELETE_PENDING_PATH}`, async (req, res, next) => {
+    const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
+
+    const pending = req.session.pendingDeletion;
+    const body = req.body ?? {};
+    if (!pending) return res.redirect(303, `/${locale}/login`);
+    if (!csrfValid(req.session, body.csrf)) {
+      return respond(res, 403, deletedPage(locale, req.session, {
+        pending: true, error: t(locale, 'twoFactor.error.csrf'),
+      }));
+    }
+
+    if (body.action === 'cancel') {
+      await auth.cancelDeletion(pending.userId);
+      journal?.security({
+        event: 'deletion_cancelled', requestId: req.requestId, user_id: pending.userId,
+      });
+      await auth.revokeSessions(pending.userId);
+      await req.session.destroy(() => {});
+      return res.redirect(303, `/${locale}/login`);
+    }
+
+    // Продолжение: срок не меняется, сессия закрывается.
+    await auth.revokeSessions(pending.userId);
+    await req.session.destroy(() => {});
+    return res.redirect(303, `/${locale}${DELETE_DONE_PATH}`);
+  });
 
   async function render(req, { section, user, error, saved = false, values = null, ...rest }) {
     const locale = req.params.locale;

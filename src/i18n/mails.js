@@ -21,6 +21,8 @@ export const MAIL_KINDS = [
   'email_change_requested',
   'email_changed',
   'two_factor_enabled',
+  'deletion_requested',
+  'data_export_ready',
 ];
 
 /**
@@ -201,6 +203,37 @@ const TEXTS = {
       needsLink: false,
       subject: 'Two-factor verification is on',
       body: 'Hello!\n\nTwo-factor verification is now on for the account: signing in will need a code from an app or a backup code.\n\nIf this was not you, turn it off in security settings — that needs your current password.',
+    },
+  },
+
+  // Файл выгрузки готов (F-01-10 §4): ссылка одноразовая по сроку, поэтому
+  // письмо — единственное напоминание, что файл вообще появился.
+  data_export_ready: {
+    ru: {
+      needsLink: true,
+      subject: 'Файл с вашими данными готов',
+      body: 'Здравствуйте!\n\nФайл со всеми вашими данными собран. Ссылка живёт 24 часа, потом перестаёт работать:\n{link}\n\nЕсли вы не заказывали выгрузку, просто проигнорируйте письмо и смените пароль.',
+    },
+    en: {
+      needsLink: true,
+      subject: 'Your data export is ready',
+      body: 'Hello!\n\nThe file with all your data has been built. The link lives for 24 hours and stops working after that:\n{link}\n\nIf you did not request an export, ignore this message and change your password.',
+    },
+  },
+
+  // Запрошено удаление (F-01-10 §4): письмо уходит в момент запроса, когда
+  // адрес ещё работает, и в нём названа дата. Без даты человек не знает, что
+  // у него есть время, а ссылку отмены дать нельзя — вход и так разлогинен.
+  deletion_requested: {
+    ru: {
+      needsLink: false,
+      subject: 'Запрошено удаление аккаунта',
+      body: 'Здравствуйте!\n\nМы получили запрос на удаление вашего аккаунта. {date} адрес и ник освободятся, а вход перестанет работать.\n\nДо этой даты удаление можно отменить: войдите на сайт и нажмите «Отменить удаление».\n\nЕсли вы этого не заказывали, смените пароль в настройках безопасности и напишите нам.',
+    },
+    en: {
+      needsLink: false,
+      subject: 'Account deletion requested',
+      body: 'Hello!\n\nWe received a request to delete your account. On {date} the address and nickname are released and sign-in stops working.\n\nUntil then the deletion can be undone: sign in and choose “Cancel deletion”.\n\nIf you did not ask for this, change your password in security settings and write to us.',
     },
   },
 };

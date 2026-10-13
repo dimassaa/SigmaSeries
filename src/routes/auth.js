@@ -98,10 +98,12 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
     }
 
     if (decision.action === 'delete_pending') {
-      return respond(res, 409, renderForm({
-        locale, csrf: csrfToken(req.session), values: { email },
-        error: t(locale, 'signin.error.deletePending'), returnTo,
-      }));
+      // Пароль уже верен, но полноценной сессии не заводится: экран выбора
+      // (§4 «вход отменяет удаление после явного выбора») не должен давать
+      // прав зрителя, иначе выбор можно было бы пропустить сторонней вкладкой.
+      await regenerate(req);
+      req.session.pendingDeletion = { userId: user.id };
+      return res.redirect(303, `/${locale}/delete-pending`);
     }
 
     const roles = await auth.roles(user.id);

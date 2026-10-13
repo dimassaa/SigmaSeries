@@ -12,6 +12,8 @@ import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
 import { createMailQueue } from './services/mail/queue.js';
 import { consoleMailer } from './services/mail/console-mailer.js';
+import { runDeletionSweep, DELETE_TICK_MS } from './services/auth/deletion.js';
+import { runExportSweep, EXPORT_TICK_MS } from './services/data/export-job.js';
 import { MAIL_SETTINGS } from './config/settings.js';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -41,9 +43,13 @@ const mailer = consoleMailer();
 
 const mailQueue = createMailQueue({ pool, deliver: (job) => mailer.send(job) });
 
+// Хранилище одно на приложение: два экземпляра делили бы пул, но выглядели бы
+// как две разные копии учётных записей — и расхождение было бы не видно.
+const auth = pgAuthStore(pool);
+
 const app = createApp({
   data: pgData(pool),
-  auth: pgAuthStore(pool),
+  auth,
   sessionMw: createSessionMiddleware(pool),
   mailQueue,
   journal,
@@ -64,10 +70,39 @@ const worker = setInterval(() => {
 }, MAIL_SETTINGS.tickMs);
 worker.unref();
 
+// Обезличивание по истечении 14 дней (F-01-10 §4). Сразу при старте, а не
+// через первый интервал: сервер мог быть выключен в день срока, и ждать ещё
+// четверти часа значило бы держать чужие данные в рабочем виде (EC-A17).
+const deletionWorker = setInterval(() => {
+  runDeletionSweep({ auth, journal }).catch((e) => {
+    console.error(`[удаление] ${e.message}`);
+  });
+}, DELETE_TICK_MS);
+deletionWorker.unref();
+
+runDeletionSweep({ auth, journal }).catch((e) => {
+  console.error(`[удаление] ${e.message}`);
+});
+
+// Сборка выгрузок (F-01-10 §4). Тоже сразу при старте: заказ, сделанный, пока
+// сервер был выключен, иначе ждал бы минуту после каждого перезапуска.
+const exportWorker = setInterval(() => {
+  runExportSweep({ auth, mailQueue, journal, baseUrl }).catch((e) => {
+    console.error(`[экспорт] ${e.message}`);
+  });
+}, EXPORT_TICK_MS);
+exportWorker.unref();
+
+runExportSweep({ auth, mailQueue, journal, baseUrl }).catch((e) => {
+  console.error(`[экспорт] ${e.message}`);
+});
+
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`[shutdown] ${signal}`);
     clearInterval(worker);
+    clearInterval(deletionWorker);
+    clearInterval(exportWorker);
     server.close(() => {
       pool.end().finally(() => process.exit(0));
     });

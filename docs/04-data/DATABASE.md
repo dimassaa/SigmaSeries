@@ -35,8 +35,8 @@ INSERT INTO _meta (key, value) VALUES ('schema_version', '1.0');
 
 CREATE TABLE e_user (
   id              BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  email_hash      BYTEA  NOT NULL,           -- шифр для хранения
-  email_blind_idx BYTEA  NOT NULL,           -- HMAC для поиска: ищем, не зная значения
+  email_hash      BYTEA,                     -- шифр для хранения; после обезличивания NULL
+  email_blind_idx BYTEA,                     -- HMAC для поиска: ищем, не зная значения
   email_enc       BYTEA,                     -- шифр, из которого восстанавливается при входе
   password_hash   TEXT   NOT NULL,           -- argon2id; наружу не отдаётся никогда
   nickname        TEXT   NOT NULL,
@@ -58,8 +58,29 @@ CREATE TABLE e_user (
   notifications_enabled BOOLEAN NOT NULL DEFAULT TRUE,
   quiet_hours     BOOLEAN NOT NULL DEFAULT FALSE,
   deleted_at      TIMESTAMPTZ,
+  -- Удаление аккаунта (F-01-10 §4, OP-16). Запись не удаляется физически:
+  -- на неё ссылаются материалы и оценки, а `R-SQL-02` запрещает `DELETE`
+  -- из e_user вовсе. Через 14 дней обезличивается, адрес и ник освобождаются.
+  --
+  -- Срок хранится готовой датой, а не вычисляется из `delete_requested_at`:
+  -- дата названа человеку в письме, и пересчёт изменил бы обещание.
+  delete_requested_at TIMESTAMPTZ,
+  anonymize_after     TIMESTAMPTZ,
+  -- Отметка «удалить также мои отзывы и руководства» (H-61). Без неё
+  -- материалы остаются обезличенными.
+  delete_materials    BOOLEAN NOT NULL DEFAULT FALSE,
+  anonymized_at       TIMESTAMPTZ,
   CONSTRAINT uq_user_nick UNIQUE (nickname)
 );
+-- После обезличивания адреса в e_user не остаётся: ни шифра, ни слепого
+-- индекса. Поиск идёт по непустым значениям, а `uq_user_email_blind` и не
+-- смотрит на удалённые записи, поэтому NULL ни с чем не конфликтует.
+--
+-- Значение обязательным быть не может именно из-за этого: обезличенная запись
+-- без адреса — норма, а не повреждение.
+--
+-- Обратное ограничение тоже важно: непустой адрес у записи, которая не
+-- удалена, — единственное состояние, при котором человек может войти.
 -- Поиск по email идёт по слепому индексу, а не по шифру: иначе поиск
 -- был бы невозможен, а сравнение шифров — ложные совпадения.
 CREATE UNIQUE INDEX uq_user_email_blind ON e_user (email_blind_idx) WHERE deleted_at IS NULL;
@@ -666,6 +687,51 @@ CREATE TABLE e_email_change (
   CONSTRAINT uq_email_change_user UNIQUE (user_id)
 );
 CREATE INDEX ix_email_change_expires ON e_email_change (expires_at);
+
+-- ---------- Экспорт данных (F-01-10 §4) ----------
+-- Выгрузка целиком: профиль, настройки, статусы, отметки, оценки, материалы,
+-- уведомления, устройства. Чужие данные и служебные заметки модерации в файл
+-- не попадают — это проверяется сборкой, а не договорённостью.
+--
+-- Сам файл лежит в базе, а не в файловой системе: проект запрещает хранить
+-- пользовательские данные на диске приложения, а требование 3.3.1 Бланка
+-- говорит о хранении данных в БД. Рядом — sha256 файла: по нему видно, что
+-- отдали ровно то, что собрали, и файл не подменили на диске.
+--
+-- Ссылка одноразовая по сроку: токен в открытом виде не хранится, только его
+-- хеш, как у остальных ссылок проекта (R-SEC-07).
+
+CREATE TABLE e_export_job (
+  id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id      BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  status       TEXT   NOT NULL DEFAULT 'queued'
+               CHECK (status IN ('queued','building','ready','failed')),
+  payload      TEXT,                       -- собранный JSON; NULL, пока не готов
+  size_bytes   BIGINT,
+  sha256       BYTEA,                     -- хеш файла: что отдали — то, что собрали
+  -- Токен ссылки появляется вместе с готовым файлом: до сборки его не
+  -- существует, и выдумывать его заранее незачем. У готового файла он
+  -- обязателен — иначе ссылка была бы неоткрываемой.
+  token_hash   BYTEA,
+  -- Язык письма со ссылкой фиксируется на момент заказа: к моменту сборки
+  -- человек мог сменить язык, и письмо пришло бы не на том (F-01-10 §17).
+  locale       TEXT   NOT NULL DEFAULT 'ru' CHECK (locale IN ('ru','en')),
+  requested_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  expires_at   TIMESTAMPTZ,               -- ссылка живёт 24 часа после готовности
+  ready_at     TIMESTAMPTZ,
+  failed_at    TIMESTAMPTZ,
+  CONSTRAINT uq_export_token UNIQUE (token_hash),
+  -- Готовый файл обязан иметь срок и токен: ссылка без срока живёт вечно, а
+  -- это уже не выгрузка, а постоянный доступ к архиву чужих данных.
+  CONSTRAINT ck_export_ready CHECK (
+    status <> 'ready' OR (expires_at IS NOT NULL AND token_hash IS NOT NULL)
+  )
+);
+-- Пауза 24 часа между выгрузками (EC-A21) считается по последней заявке, а
+-- не по последней готовой: иначе два запроса подряд, пока первый собирается,
+-- обошли бы паузу.
+CREATE INDEX ix_export_user ON e_export_job (user_id, requested_at DESC);
+CREATE INDEX ix_export_queue ON e_export_job (status, requested_at) WHERE status IN ('queued','building');
 
 -- ---------- Блокировка поля от перезаписи импортом ----------
 -- Механизм EC-R8 и F-10-03(а): ручное значение помечено происхождением.
