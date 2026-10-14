@@ -157,7 +157,9 @@ export async function downloadImage(url, {
   timeoutMs = LIMITS.timeoutMs,
   attempts = 3,
 } = {}) {
-  const full = url.startsWith('http') ? url : `https://image.tmdb.org${url}`;
+  // TMDB отдаёт путь (`/abc.jpg`), а не адрес. Без префикса `/t/p/original`
+  // сервер отвечает 404, и это выглядело бы как «у сериала нет картинки».
+  const full = url.startsWith('http') ? url : `https://image.tmdb.org/t/p/original${url}`;
   await assertAllowedUrl(full);
 
   let lastError;

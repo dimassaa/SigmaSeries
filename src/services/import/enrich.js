@@ -112,6 +112,10 @@ export function buildRawSeries({ detailsRu, detailsEn, seasons = [], imdb }) {
     // небольшой: путь, размеры, оценка и язык — без самих байтов.
     tmdb: {
       posterPath: detailsRu?.poster_path ?? null,
+      // Фон шапки — обычный backdrop_path. Фоны из images.backdrops почти
+      // всегда языковые, то есть с выжженным текстом, и годятся только как
+      // переводы; чистый лежит именно здесь (F-12-05 §4).
+      backdropPath: detailsRu?.backdrop_path ?? null,
       backdrops: (detailsRu?.images?.backdrops ?? []).map((row) => ({
         filePath: row.file_path,
         width: row.width,

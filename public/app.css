@@ -815,6 +815,18 @@ a:hover { color: var(--accent-hover); }
   background: var(--surface-sunken);
 }
 
+/* Постер в шапке: пропорция 2:3 зарезервирована заранее, иначе при загрузке
+   картинки шапка прыгнула бы (R-DES-28). */
+.series__poster {
+  position: absolute;
+  right: 24px;
+  bottom: 24px;
+  width: 142px;
+  height: auto;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border-subtle);
+}
+
 .series__plate {
   position: relative;
   display: grid;
@@ -975,6 +987,12 @@ a:hover { color: var(--accent-hover); }
 @media (max-width: 639px) {
   .series__header {
     aspect-ratio: 4 / 5;
+  }
+
+  .series__poster {
+    right: 20px;
+    bottom: 20px;
+    width: 108px;
   }
 
   .series__plate {

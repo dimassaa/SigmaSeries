@@ -39,6 +39,7 @@ export function pgSeries(pool) {
       if (!series) return null;
       if (series.publication_state === 'imported') return null;
 
+      const images = await imagesOf(pool, series.id);
       const [genres, people, seasons, ratings, nextRelease] = await Promise.all([
         genresOf(pool, series.id),
         peopleOf(pool, series.id),
@@ -65,6 +66,8 @@ export function pgSeries(pool) {
         archived: series.archived_at !== null,
         level: series.level,
         reasons: series.reasons ?? [],
+        posterWidth: images.poster,
+        backdropWidth: images.backdrop,
         genres,
         people,
         seasons,
@@ -73,6 +76,38 @@ export function pgSeries(pool) {
       };
     },
   };
+}
+
+/**
+ * Ширины картинок, уже загруженных для сериала.
+ *
+ * Слой данных не строит адрес: он не знает локали, а адрес картинки её
+ * содержит (ADR-003). Поэтому отдаём роль и ширину, а вид собирает ссылку сам.
+ *
+ * Ширина выбирается та, что не больше нужной и самая большая из таких: на
+ * маленьком экране большой файл всё равно не покажут, а грузить придётся.
+ *
+ * @param {object} pool
+ * @param {number} seriesId
+ * @returns {Promise<{poster: number|null, backdrop: number|null}>}
+ */
+async function imagesOf(pool, seriesId) {
+  const { rows } = await pool.query(
+    `SELECT i.role, iv.width
+       FROM e_image i
+       JOIN e_image_variant iv ON iv.image_id = i.id
+      WHERE i.series_id = $1
+      ORDER BY i.role, iv.width`,
+    [seriesId],
+  );
+
+  const fit = (role, wanted) => {
+    const widths = [...new Set(rows.filter((row) => row.role === role).map((row) => row.width))];
+    if (!widths.length) return null;
+    return widths.filter((width) => width <= wanted).sort((a, b) => b - a)[0] ?? widths[0];
+  };
+
+  return { poster: fit('poster', 342), backdrop: fit('backdrop', 1280) };
 }
 
 async function genresOf(pool, seriesId) {

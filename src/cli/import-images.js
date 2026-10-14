@@ -102,6 +102,7 @@ async function main() {
     const started = Date.now();
     let posters = 0;
     let backdrops = 0;
+    let banners = 0;
     let noBackdrop = 0;
     const failed = [];
 
@@ -129,15 +130,20 @@ async function main() {
           }
 
           try {
-            // Баннер и заставка требуют фона без текста 16:9 (H-34); обычный
-            // фон под шапку подходит любой — но он тоже пишется ролью
-            // `backdrop`, иначе плашка останется серой.
-            const backdrop = pickBackdrop(row.raw?.tmdb?.backdrops);
-            if (backdrop) {
-              await loadOne(pool, seriesId, 'backdrop', backdrop.file_path);
+            // Фон шапки — обычный фон сериала. Фон для баннера и заставки
+            // берётся отдельно и только из списка без текста (H-34), поэтому
+            // отсутствие такого — не ошибка, а «сериал не годится» (EC-I8).
+            const plain = row.raw?.tmdb?.backdropPath;
+            if (plain) {
+              await loadOne(pool, seriesId, 'backdrop', plain);
               backdrops += 1;
             } else {
               noBackdrop += 1;
+            }
+            const banner = pickBackdrop(row.raw?.tmdb?.backdrops);
+            if (banner) {
+              await loadOne(pool, seriesId, 'banner', banner.file_path);
+              banners += 1;
             }
           } catch (error) {
             failed.push(`${row.tconst} фон: ${error.message}`);
@@ -148,18 +154,23 @@ async function main() {
     await Promise.all(workers);
 
     const seconds = Math.round((Date.now() - started) / 1000);
-    console.log(`\nЗагружено за ${seconds} с: постеров ${posters}, фонов ${backdrops}, без пригодного фона ${noBackdrop}`);
+    console.log(`\nЗагружено за ${seconds} с: постеров ${posters}, фонов ${backdrops}, баннеров ${banners}`
+      + `, без фона ${noBackdrop}`);
     if (failed.length) {
       console.log(`не удалось: ${failed.length}`);
       for (const line of failed.slice(0, 5)) console.log(`  ${line}`);
     }
 
+    // Соединение с вариантами умножает картинки: считать надо отдельно, иначе
+    // «120 картинок» на самом деле тридцать картинок по три варианта.
     const totals = await pool.query(
-      `SELECT count(*)::int AS images,
-              coalesce(sum(iv.bytes), 0)::bigint AS bytes
-         FROM e_image i JOIN e_image_variant iv ON iv.image_id = i.id`,
+      `SELECT (SELECT count(*) FROM e_image)::int AS images,
+              (SELECT count(*) FROM e_image_variant)::int AS variants,
+              (SELECT coalesce(sum(bytes), 0) FROM e_image_variant)::bigint AS bytes`,
     );
-    console.log(`  в базе картинок: ${totals.rows[0].images}, объём вариантов ${Math.round(Number(totals.rows[0].bytes) / 1048576)} МБ`);
+    const t = totals.rows[0];
+    console.log(`  в базе картинок: ${t.images} (вариантов ${t.variants}), `
+      + `объём ${Math.round(Number(t.bytes) / 1048576)} МБ из 2048 МБ бюджета`);
     process.exitCode = 0;
   } catch (error) {
     console.error(`\nЗагрузка картинок не удалась: ${error.message}`);

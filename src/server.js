@@ -81,6 +81,7 @@ const auth = pgAuthStore(pool);
 const app = createApp({
   data: pgData(pool),
   series: pgSeries(pool),
+  pool,
   auth,
   sessionMw: createSessionMiddleware(pool),
   mailQueue,

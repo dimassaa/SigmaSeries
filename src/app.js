@@ -18,6 +18,7 @@ import { createTwoFactorRoutes } from './routes/twofactor.js';
 import { createSettingsRoutes } from './routes/settings.js';
 import { createMailboxRoutes } from './routes/mailbox.js';
 import { createSeriesRoutes } from './routes/series.js';
+import { createImageRoutes } from './routes/images.js';
 import { createJournal } from './services/journal.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
 
@@ -35,6 +36,7 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
 export function createApp({
   data,
   series = null,
+  pool = null,
   auth,
   sessionMw,
   mailQueue,
@@ -91,6 +93,9 @@ export function createApp({
   // Карточка сериала подключается, когда есть источник: без него страница
   // отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
   if (series) app.use(createSeriesRoutes({ series }));
+
+  // Картинки отдаются из базы; маршрут нужен, когда есть подключение.
+  if (pool) app.use(createImageRoutes({ pool }));
 
   if (auth && sessionMw) {
     // Маршруты входа подключаются только если есть и хранилище, и middleware:

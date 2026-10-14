@@ -45,8 +45,15 @@ export function seriesView({ locale, series }) {
   return html`
 <article class="series">
   <header class="series__header">
-    ${when(!series.posterUrl, () => html`
-    <div class="series__backdrop series__backdrop--placeholder" aria-hidden="true"></div>`)}
+    ${when(series.backdropWidth, () => html`
+    <img class="series__backdrop" src="${imageUrl(locale, series.slug, 'backdrop', series.backdropWidth)}"
+         alt="" width="${series.backdropWidth}" height="${Math.round(series.backdropWidth * 9 / 16)}"
+         fetchpriority="high" decoding="async">`,
+      () => html`<div class="series__backdrop series__backdrop--placeholder" aria-hidden="true"></div>`)}
+    ${when(series.posterWidth, () => html`
+    <img class="series__poster" src="${imageUrl(locale, series.slug, 'poster', series.posterWidth)}"
+         alt="${series.title}" width="${series.posterWidth}" height="${Math.round(series.posterWidth * 3 / 2)}"
+         loading="lazy" decoding="async">`)}
     <div class="series__plate">
       <h1 class="series__title">${series.title}</h1>
       ${when(series.titleOriginal !== series.title, () => html`
@@ -120,6 +127,11 @@ export function seriesView({ locale, series }) {
     </ul>
   </section>`)}
 </article>`;
+}
+
+/** Адрес картинки: роль и ширина, локаль обязательна (ADR-003). */
+function imageUrl(locale, slug, role, width) {
+  return `/${locale}/images/${slug}/${role}-${width}.webp`;
 }
 
 function hasAnyRating(ratings) {
