@@ -188,7 +188,7 @@ export function createTmdbClient({ token, baseUrl = 'https://api.themoviedb.org/
       return request(
         `/tv/${encodeURIComponent(String(id))}`
         + `?language=${encodeURIComponent(language)}`
-        + '&append_to_response=content_ratings,external_ids,keywords',
+        + '&append_to_response=content_ratings,external_ids,keywords,images',
       );
     },
 

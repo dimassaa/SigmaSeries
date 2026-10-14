@@ -143,10 +143,19 @@ CREATE INDEX ix_audit_object ON e_audit_log (object_type, object_id, at DESC);
 
 -- ---------- Каталог ----------
 
+-- Картинка хранится в базе (PLAN C-04, требование Бланка 3.3.1), но байты
+-- лежат в `e_image_variant`: по форме F-12-05 §7 у E-Image есть «роль,
+-- источник, исходный путь, размеры, хэш, фокальная точка, признак “без
+-- текста”», а сами варианты — отдельная сущность со своей шириной и форматом.
+-- Поэтому `file` здесь пуст: дубль самого большого варианта в каждой строке
+-- стоил бы примерно трети бюджета база на картинки.
 CREATE TABLE e_image (
   id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   role      TEXT   NOT NULL CHECK (role IN ('poster','backdrop','banner','splash')),
-  file      BYTEA  NOT NULL,        -- изображения в БД (PLAN C-04)
+  source    TEXT   NOT NULL DEFAULT 'tmdb' CHECK (source IN ('tmdb','manual')),
+  source_path TEXT,                 -- путь в источнике: «что перекачивать в следующий раз»
+  checksum  TEXT,                   -- хэш содержимого исходника: тот же файл не грузим заново
+  file      BYTEA,                  -- необязателен: байты лежат в вариантах
   mime      TEXT   NOT NULL,
   width     INTEGER NOT NULL,
   height    INTEGER NOT NULL,
