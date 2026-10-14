@@ -139,11 +139,13 @@ async function main() {
     const enriched = await enrichAll({ items: targets, tmdb });
 
     const items = [];
-    let failed = 0;
+    const errors = [];
     enriched.forEach((entry, index) => {
       const target = targets[index];
       if (!entry.raw) {
-        failed += 1;
+        // Причина ошибки обязана быть видна: «224 ошибки» без текста —
+        // это не диагностика, а число, которое придётся выяснять заново.
+        errors.push({ tconst: target.tconst, message: entry.error });
         return;
       }
       items.push({
@@ -163,11 +165,22 @@ async function main() {
       'SELECT count(*)::int AS n FROM e_import_item_result WHERE run_id = $1 AND tmdb_id IS NOT NULL',
       [matched.runId],
     );
-    console.log(`\nПрогон #${matched.runId}: обогащено ${items.length} за ${seconds} с, ошибок ${failed}`);
+    console.log(`\nПрогон #${matched.runId}: обогащено ${items.length} за ${seconds} с, ошибок ${errors.length}`);
     // Подтверждённые пары, обогащённые прошлым прогоном, пропускаются. Молча
     // пропущенные позиции выглядят так, будто часть каталога потерялась.
-    const skipped = counts[0].n - items.length;
-    if (skipped > 0) console.log(`  уже обогащено ранее, пропущено: ${skipped}`);
+    const skipped = counts[0].n - targets.length;
+    if (skipped > 0) console.log(`  без подтверждённой пары, пропущено: ${skipped}`);
+    if (errors.length) {
+      const reasons = new Map();
+      for (const { message } of errors) {
+        const key = message.replace(/tt\d+/, 'tt…').slice(0, 80);
+        reasons.set(key, (reasons.get(key) ?? 0) + 1);
+      }
+      console.log(`  ошибок: ${errors.length}, причины:`);
+      for (const [reason, count] of [...reasons].sort((a, b) => b[1] - a[1]).slice(0, 5)) {
+        console.log(`    ${count}× ${reason}`);
+      }
+    }
     const sample = items[0]?.raw;
     if (sample) {
       console.log(`  пример: «${sample.titles.ru.text || sample.titles.original.text}» — `
@@ -175,7 +188,7 @@ async function main() {
         + `${sample.seasons.reduce((sum, s) => sum + s.episodes.length, 0)} серий, `
         + `людей ${sample.people.directors.length + sample.people.cast.length}`);
     }
-    process.exitCode = failed > items.length / 2 ? 1 : 0;
+    process.exitCode = errors.length > items.length / 2 ? 1 : 0;
   } catch (error) {
     console.error(`\nОбогащение не удалось: ${error.message}`);
     process.exitCode = 1;

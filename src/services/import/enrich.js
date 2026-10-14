@@ -107,6 +107,19 @@ export function buildRawSeries({ detailsRu, detailsEn, seasons = [], imdb }) {
       count: detailsRu?.vote_count ?? null,
     },
     ageRating: pickAgeRating(detailsRu?.content_ratings?.results),
+    // Пути к картинкам нужны следующей стадии (F-12-05), а перечитывать ради
+    // них API означало бы второй обход по всему каталогу. Список фонов
+    // небольшой: путь, размеры, оценка и язык — без самих байтов.
+    tmdb: {
+      posterPath: detailsRu?.poster_path ?? null,
+      backdrops: (detailsRu?.images?.backdrops ?? []).map((row) => ({
+        filePath: row.file_path,
+        width: row.width,
+        height: row.height,
+        voteAverage: row.vote_average,
+        language: row.iso_639_1 ?? null,
+      })),
+    },
     keywords: (detailsRu?.keywords?.results ?? []).map((k) => k.name).slice(0, 50),
     seasons: seasons.map(normalizeSeason),
   };
