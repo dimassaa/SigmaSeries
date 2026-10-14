@@ -34,15 +34,18 @@ const bytes = (n) => `${(n / 1048576).toFixed(1)} МБ`;
 
 async function main() {
   const { topN } = parseArgs(process.argv.slice(2));
-  if (!process.env.PGHOST && !process.env.DATABASE_URL) {
-    throw new Error('не задано подключение к базе: нужны PGHOST/PGUSER/PGDATABASE или DATABASE_URL');
-  }
-
-  const pool = createPool();
-  const store = createImportStore(pool);
+  let pool = null;
+  let store = null;
   let runId;
 
   try {
+    if (!process.env.PGHOST && !process.env.DATABASE_URL) {
+      throw new Error('не задано подключение к базе: нужны PGHOST/PGUSER/PGDATABASE или DATABASE_URL');
+    }
+
+    pool = createPool();
+    store = createImportStore(pool);
+
     console.log('Скачиваю датасеты IMDb…');
     const basics = await ensureDataset({
       key: 'basics',
@@ -102,11 +105,11 @@ async function main() {
   } catch (error) {
     // Прогон без результата тоже оставляет след: иначе в S-76 будет тишина,
     // и неизвестно, был ли запуск вовсе (F-12-09, §5 «запуск завершается ошибкой»).
-    if (runId) await store.finishRun(runId, 'error').catch(() => {});
+    if (runId && store) await store.finishRun(runId, 'error').catch(() => {});
     console.error(`\nИмпорт не удался: ${error.message}`);
     process.exitCode = 1;
   } finally {
-    await pool.end();
+    if (pool) await pool.end();
   }
 }
 
