@@ -17,6 +17,7 @@ import { createPool } from '../db/pool.js';
 import { ensureDataset } from '../services/import/datasets.js';
 import { selectFromDatasets } from '../services/import/imdb.js';
 import { createImportStore } from '../services/import/store.js';
+import { assertNotFrozen } from '../services/import/freeze.js';
 import { IMPORT_SETTINGS, EXCLUDED_GENRES_IMDB } from '../config/settings.js';
 
 const DATA_DIR = process.env.IMDB_DATA_DIR ?? path.resolve('data/imdb');
@@ -39,6 +40,7 @@ async function main() {
   let runId;
 
   try {
+    await assertNotFrozen(pool);
     if (!process.env.PGHOST && !process.env.DATABASE_URL) {
       throw new Error('не задано подключение к базе: нужны PGHOST/PGUSER/PGDATABASE или DATABASE_URL');
     }

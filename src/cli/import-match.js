@@ -13,6 +13,7 @@ import { createPool } from '../db/pool.js';
 import { createTmdbClient } from '../services/import/tmdb.js';
 import { matchCandidates } from '../services/import/match.js';
 import { createImportStore } from '../services/import/store.js';
+import { assertNotFrozen } from '../services/import/freeze.js';
 
 function parseArgs(argv) {
   const args = { limit: 0 };
@@ -68,6 +69,7 @@ async function main() {
   const store = createImportStore(pool);
 
   try {
+  await assertNotFrozen(pool);
     const pending = await pendingCandidates(pool, { limit });
     if (!pending) {
       console.log('Нет ни одного успешного прогона отбора: сначала `npm run import:candidates`');

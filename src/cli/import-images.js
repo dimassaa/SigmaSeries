@@ -60,6 +60,7 @@ async function loadOne(pool, seriesId, role, path) {
 
   const client = await pool.connect();
   try {
+  await assertNotFrozen(pool);
     await client.query('BEGIN');
     const result = await saveImage({
       client,

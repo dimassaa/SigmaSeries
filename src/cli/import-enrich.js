@@ -20,6 +20,7 @@ import { createTmdbClient } from '../services/import/tmdb.js';
 import { enrichAll } from '../services/import/enrich.js';
 import { collectPeople, collectGenres } from '../services/import/people.js';
 import { createImportStore } from '../services/import/store.js';
+import { assertNotFrozen } from '../services/import/freeze.js';
 import { IMPORT_SETTINGS } from '../config/settings.js';
 
 const DATA_DIR = process.env.IMDB_DATA_DIR ?? path.resolve('data/imdb');
@@ -77,6 +78,7 @@ async function main() {
   const store = createImportStore(pool);
 
   try {
+  await assertNotFrozen(pool);
     const matched = await matchedSeries(pool, { limit });
     if (!matched) {
       console.log('Нет успешного прогона: сначала `npm run import:candidates` и `npm run import:match`');

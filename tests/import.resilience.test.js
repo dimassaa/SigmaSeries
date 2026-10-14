@@ -29,7 +29,14 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  if (pool) await pool.end();
+  if (!pool) return;
+  // Прогоны, созданные тестом, убираются: незакрытая строка `running`
+  // осталась бы висеть и блокировала бы заморозку в режиме защиты.
+  await pool.query(
+    "DELETE FROM e_import_item_result WHERE run_id IN (SELECT id FROM e_import_run WHERE kind = 'ratings_sync' AND dry_run)",
+  );
+  await pool.query("DELETE FROM e_import_run WHERE kind = 'ratings_sync' AND dry_run");
+  await pool.end();
 });
 
 function serve(handler) {

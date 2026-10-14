@@ -10,6 +10,7 @@ import { createPool } from '../db/pool.js';
 import { createTmdbClient } from '../services/import/tmdb.js';
 import { discoverCandidates, internalKey, MAX_PAGES } from '../services/import/discover.js';
 import { createImportStore } from '../services/import/store.js';
+import { assertNotFrozen } from '../services/import/freeze.js';
 import { IMPORT_SETTINGS } from '../config/settings.js';
 
 /** Окончание окна расписания — из системных настроек. */
@@ -33,6 +34,7 @@ async function main() {
   let runId;
 
   try {
+  await assertNotFrozen(pool);
     const until = await untilOf(pool);
     const tmdb = createTmdbClient({ token: process.env.TMDB_TOKEN });
 
