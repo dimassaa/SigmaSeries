@@ -20,7 +20,8 @@
     "css:check": "node tools/build-css.mjs --check",
     "start": "node --env-file-if-exists=.env src/server.js",
     "import:candidates": "node --env-file-if-exists=.env src/cli/import-candidates.js",
-    "import:match": "node --env-file-if-exists=.env src/cli/import-match.js"
+    "import:match": "node --env-file-if-exists=.env src/cli/import-match.js",
+    "import:enrich": "node --env-file-if-exists=.env src/cli/import-enrich.js"
   },
   "dependencies": {
     "argon2": "^0.45.1",

@@ -123,6 +123,25 @@ test('но исход стадии перезаписывается, включ�
   assert.deepEqual(rows[0].reasons, []);
 });
 
+test('сырой слой переживает следующую стадию', { skip }, async () => {
+  // Обогащение кладёт `raw`, а последующая стадия (F-12-06) его читает и
+  // меняет только `stage`. Без COALESCE строка затиралась бы пустым JSON.
+  const runId = await startRun();
+  await store.saveItems(runId, [{
+    tconst: 'tt1',
+    stage: 'enriched',
+    outcome: 'ok',
+    rank: 1,
+    raw: { tmdbId: 1396, seasons: [{ number: 1, episodes: [] }], people: { directors: [], cast: [] } },
+  }]);
+  await store.saveItems(runId, [{ tconst: 'tt1', stage: 'written', outcome: 'ok' }]);
+
+  const { rows } = await pool.query('SELECT stage, raw FROM e_import_item_result WHERE run_id = $1', [runId]);
+  assert.equal(rows[0].stage, 'written');
+  assert.equal(rows[0].raw.tmdbId, 1396);
+  assert.equal(rows[0].raw.seasons.length, 1);
+});
+
 test('чужая стадия не пишется молча в обход CHECK', { skip }, async () => {
   const runId = await startRun();
   await assert.rejects(

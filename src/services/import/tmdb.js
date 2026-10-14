@@ -172,5 +172,42 @@ export function createTmdbClient({ token, baseUrl = 'https://api.themoviedb.org/
     async getDetails(id) {
       return request(`/tv/${encodeURIComponent(String(id))}?append_to_response=external_ids`);
     },
+
+    /**
+     * Карточка сериала для обогащения (F-12-03 §4(1)).
+     *
+     * Запрашивается на языке, поэтому русское и английское названия приходят
+     * двумя запросами, а не одним ответом со всеми переводами: переводы всех
+     * языков — это сотни килобайт на сериал, и хранить их в базе незачем.
+     *
+     * @param {number} id
+     * @param {string} language `ru-RU` или `en-US`
+     * @returns {Promise<object>}
+     */
+    async getDetailsLocalized(id, language) {
+      return request(
+        `/tv/${encodeURIComponent(String(id))}`
+        + `?language=${encodeURIComponent(language)}`
+        + '&append_to_response=content_ratings,external_ids,keywords',
+      );
+    },
+
+    /**
+     * Сезон со всеми сериями (F-12-03 §4(2)).
+     *
+     * Отдельный запрос на серию не делается: TMDB отдаёт их списком в одном
+     * ответе, а на 1000 сериалов разница составила бы тысячи запросов.
+     *
+     * @param {number} id
+     * @param {number} number
+     * @param {string} language
+     * @returns {Promise<object>}
+     */
+    async getSeason(id, number, language) {
+      return request(
+        `/tv/${encodeURIComponent(String(id))}/season/${encodeURIComponent(String(number))}`
+        + `?language=${encodeURIComponent(language)}`,
+      );
+    },
   };
 }

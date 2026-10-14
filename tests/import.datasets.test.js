@@ -209,7 +209,12 @@ test('таймаут обрывает скачивание', async () => {
 // ─── Адреса ───────────────────────────────────────────────────────────────────
 
 test('адреса датасетов ведут на datasets.imdbws.com', () => {
-  for (const { url } of Object.values(DATASETS)) {
-    assert.match(url, /^https:\/\/datasets\.imdbws\.com\/title\.[a-z]+\.tsv\.gz$/);
+  // Не только `title.*`: люди лежат в `title.crew`, `title.principals` и
+  // `name.basics`, и проверка на `title.` однажды обернулась бы ложной
+  // тревогой на каждом новом файле.
+  for (const { file, url } of Object.values(DATASETS)) {
+    assert.equal(url, `https://datasets.imdbws.com/${file}`);
+    assert.match(url, /^https:\/\/datasets\.imdbws\.com\/[a-z]+\.[a-z]+\.tsv\.gz$/);
+    assert.equal(file.endsWith('.tsv.gz'), true);
   }
 });

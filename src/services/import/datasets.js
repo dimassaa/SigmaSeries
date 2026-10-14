@@ -21,6 +21,11 @@ import { pipeline } from 'node:stream/promises';
 export const DATASETS = {
   basics: { file: 'title.basics.tsv.gz', url: 'https://datasets.imdbws.com/title.basics.tsv.gz' },
   ratings: { file: 'title.ratings.tsv.gz', url: 'https://datasets.imdbws.com/title.ratings.tsv.gz' },
+  // Люди (F-12-03 §4(3)). `title.principals` — самый крупный файл проекта:
+  // 750 МБ, и он читается потоком: целиком в память он не влезает.
+  crew: { file: 'title.crew.tsv.gz', url: 'https://datasets.imdbws.com/title.crew.tsv.gz' },
+  principals: { file: 'title.principals.tsv.gz', url: 'https://datasets.imdbws.com/title.principals.tsv.gz' },
+  names: { file: 'name.basics.tsv.gz', url: 'https://datasets.imdbws.com/name.basics.tsv.gz' },
 };
 
 const DAY_MS = 86_400_000;

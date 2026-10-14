@@ -17,6 +17,7 @@ const COLUMNS = [
   'num_votes',
   'average_rating',
   'start_year',
+  'raw',
 ];
 
 /** Сколько позиций уходит в одну вставку. */
@@ -45,6 +46,7 @@ async function saveChunk(pool, runId, items) {
       item.numVotes ?? null,
       item.averageRating ?? null,
       item.startYear ?? null,
+      item.raw === undefined ? null : item.raw,
     ];
     for (const value of values) params.push(value);
     const first = index * COLUMNS.length + 2;
@@ -74,6 +76,7 @@ async function saveChunk(pool, runId, items) {
     'http_codes = EXCLUDED.http_codes',
     'attempts = EXCLUDED.attempts',
     ...KEEP_ON_NULL.map((column) => `${column} = COALESCE(EXCLUDED.${column}, e_import_item_result.${column})`),
+    'raw = COALESCE(EXCLUDED.raw, e_import_item_result.raw)',
     'updated_at = now()',
   ].join(',\n       ');
 
