@@ -42,6 +42,8 @@ const raw = (overrides = {}) => {
     nextEpisode: null,
     lastEpisode: { date: '2019-05-01' },
     imdbGenres: ['Drama', 'Crime'],
+    votes: { average: 9.5, count: 100 },
+    tmdbVotes: { average: 9.4, count: 5000 },
     people: { directors: [{ nconst: `nm${counter}0001`, name: 'Режиссёр' }], cast: [{ nconst: `nm${counter}0002`, name: 'Актёр' }] },
     seasons: [
       {
@@ -140,6 +142,30 @@ test('три серии с одной датой дают один выход (E
 });
 
 // ─── Идемпотентность ──────────────────────────────────────────────────────────
+
+test('рейтинги площадок пишутся в шапку карточки', { skip }, async () => {
+  const result = await writeAndCleanup(raw());
+  const ratings = await pool.query(
+    'SELECT platform, value, votes, scale_max FROM e_external_rating WHERE series_id = $1 ORDER BY platform',
+    [result.seriesId],
+  );
+  assert.equal(ratings.rows.length, 2, 'обе площадки из сырого слоя');
+  assert.deepEqual(ratings.rows.map((r) => r.platform), ['imdb', 'tmdb']);
+  assert.equal(Number(ratings.rows[0].value), 9.5);
+  assert.equal(ratings.rows[0].votes, 100);
+  assert.equal(Number(ratings.rows[0].scale_max), 10);
+  assert.equal(Number(ratings.rows[1].value), 9.4);
+});
+
+test('оценка без голосов не пишется', { skip }, async () => {
+  // «9,5 у одного человека» — не рейтинг, а шум; в шапке он смотрелся бы как
+  // уверенное число.
+  const result = await writeAndCleanup(raw({ votes: { average: 9.5, count: null } }));
+  const ratings = await pool.query(
+    'SELECT platform FROM e_external_rating WHERE series_id = $1', [result.seriesId],
+  );
+  assert.deepEqual(ratings.rows.map((r) => r.platform), ['tmdb'], 'IMDb без голосов не пишется, TMDB на месте');
+});
 
 test('повторная запись не создаёт дублей', { skip }, async () => {
   const series = raw();

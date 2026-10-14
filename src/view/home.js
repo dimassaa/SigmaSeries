@@ -23,7 +23,7 @@ export function homeView({ locale, data }) {
   <ul class="banners" role="list">
     ${data.banners.map((b) => html`
     <li class="banners__item">
-      <a class="banner" href="${locale}/${b.seriesSlug}/"
+      <a class="banner" href="${locale}/series/${b.seriesSlug}/"
          aria-label="${t(locale, `home.banners.reason.${b.reason}`)}, ${b.title}, ${t(locale, 'home.banners.rating', { rating: b.imdb })}">
         <span class="banner__scrim"></span>
         <span class="banner__reason">${t(locale, `home.banners.reason.${b.reason}`)}</span>
@@ -41,7 +41,7 @@ export function homeView({ locale, data }) {
   <ol class="posters" role="list">
     ${data.fresh.map((s) => html`
     <li class="posters__item">
-      <a class="poster" href="${locale}/${s.slug}/"
+      <a class="poster" href="${locale}/series/${s.slug}/"
          aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
         <span class="poster__frame">
           ${when(s.posterUrl, () => html`<img class="poster__img" src="${s.posterUrl}"

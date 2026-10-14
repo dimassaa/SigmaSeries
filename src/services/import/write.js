@@ -148,6 +148,7 @@ export async function writeSeries({ pool, raw, slugs, now = new Date() }) {
       : await insertSeries({ client, raw, locked, exitState, reasons, level, publication, slug });
 
     await writeGenres({ client, seriesId, genres: raw.imdbGenres ?? [] });
+    await writeRatings({ client, seriesId, raw });
     const counts = await writeSeasons({ client, seriesId, raw });
     await writePeople({ client, seriesId, people: raw.people, slugs });
 
@@ -236,6 +237,31 @@ async function updateSeries({ client, id, raw, locked, exitState, reasons, level
     [...params, id],
   );
   return rows[0].id;
+}
+
+/**
+ * Рейтинги внешних площадок для шапки карточки (DATA-SOURCES §2).
+ *
+ * Обе шкалы десятибалльные, поэтому `scale_max` один. Оценка без голосов не
+ * пишется: «9,5 у одного человека» — это не рейтинг, а шум, и в шапке он
+ * выглядел бы как уверенное число.
+ */
+async function writeRatings({ client, seriesId, raw }) {
+  const pairs = [
+    ['imdb', raw.votes?.average, raw.votes?.count],
+    ['tmdb', raw.tmdbVotes?.average, raw.tmdbVotes?.count],
+  ];
+
+  for (const [platform, value, votes] of pairs) {
+    if (value === null || value === undefined || !votes) continue;
+    await client.query(
+      `INSERT INTO e_external_rating (series_id, platform, value, scale_max, votes, measured_on)
+       VALUES ($1, $2, $3, 10, $4, CURRENT_DATE)
+       ON CONFLICT (series_id, platform) DO UPDATE SET
+         value = EXCLUDED.value, votes = EXCLUDED.votes, measured_on = CURRENT_DATE`,
+      [seriesId, platform, Number(value).toFixed(1), votes],
+    );
+  }
 }
 
 /** Жанры: справочник пополняется, неизвестные — скрытые записи. */

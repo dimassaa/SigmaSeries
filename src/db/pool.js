@@ -19,6 +19,13 @@ const { Pool } = pg;
 // строкой: деньги и точные доли строкой и должны приходить.
 pg.types.setTypeParser(20, (value) => Number(value));
 
+// `DATE` приходит объектом Date в местном часовом поясе машины, и дата выхода
+// «12 октября» на машине в UTC+5 превращается в 11 октября. Даты выхода —
+// это то, что человек видит в календаре, поэтому они разбираются в текст
+// YYYY-MM-DD: дальше по коду они сравниваются со строками и форматируются
+// в вью с указанным часовым поясом, а не машинным.
+pg.types.setTypeParser(1082, (value) => value);
+
 export function createPool() {
   return new Pool({
     connectionString: process.env.DATABASE_URL ?? undefined,

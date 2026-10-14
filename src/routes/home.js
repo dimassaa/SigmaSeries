@@ -69,7 +69,7 @@ export function createNotFoundRoutes() {
   return router;
 }
 
-function notFound(locale) {
+export function notFound(locale) {
   return layout({
     locale,
     path: '/404',

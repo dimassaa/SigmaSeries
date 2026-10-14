@@ -20,7 +20,7 @@ import { t, LOCALES, LOCALE_NAMES, DEFAULT_LOCALE } from '../i18n/strings.js';
  * @param {string} [page.theme] системная тема пользователя, известная заранее
  */
 export function layout(page) {
-  const { locale, title, description, path, body = '', noindex = false } = page;
+  const { locale, title, description, path, body = '', noindex = false, jsonLd = null } = page;
   const other = LOCALES.find((l) => l !== locale);
   const canonical = `/${locale}${path === '/' ? '/' : path}`;
 
@@ -32,6 +32,7 @@ ${noindex ? html`<meta name="robots" content="noindex, follow">` : ''}
 <link rel="canonical" href="${canonical}">
 ${LOCALES.map((l) => html`<link rel="alternate" hreflang="${l}" href="/${l}${path === '/' ? '/' : path}">`)}
 <link rel="alternate" hreflang="x-default" href="/${DEFAULT_ROUTE(path)}">
+${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))}</script>` : ''}
 <link rel="stylesheet" href="/app.css">
 <script>
   // Тема ставится до первой отрисовки, иначе на тёмной теме виден белый

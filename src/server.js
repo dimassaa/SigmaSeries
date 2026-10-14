@@ -7,6 +7,7 @@
 import { createApp } from './app.js';
 import { createPool, checkConnection } from './db/pool.js';
 import { pgData } from './services/home/data.js';
+import { pgSeries } from './services/catalogue/series.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
@@ -79,6 +80,7 @@ const auth = pgAuthStore(pool);
 
 const app = createApp({
   data: pgData(pool),
+  series: pgSeries(pool),
   auth,
   sessionMw: createSessionMiddleware(pool),
   mailQueue,
