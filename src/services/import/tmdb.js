@@ -8,6 +8,7 @@
 // H-28).
 
 import { IMPORT_SETTINGS } from '../../config/settings.js';
+import { createBreaker } from './breaker.js';
 
 /** Ошибка TMDB, дошедшая до предела попыток. */
 export class TmdbError extends Error {
@@ -97,7 +98,13 @@ export async function pickCandidate({ results, tconst = null, getDetails }) {
  * @param {(ms:number) => Promise<void>} [options.sleep]
  * @returns {{findByImdbId: Function, getDetails: Function}}
  */
-export function createTmdbClient({ token, baseUrl = 'https://api.themoviedb.org/3', rps = IMPORT_SETTINGS.rps, sleep = wait }) {
+export function createTmdbClient({
+  token,
+  baseUrl = 'https://api.themoviedb.org/3',
+  rps = IMPORT_SETTINGS.rps,
+  sleep = wait,
+  breaker = createBreaker({ sleep }),
+}) {
   if (!token) throw new Error('не задан TMDB_TOKEN: сопоставление без ключа невозможно');
 
   // Токен v4 — длинный JWT, v3 — 32 символа. Ошибиться здесь нельзя: тихо
@@ -124,15 +131,22 @@ export function createTmdbClient({ token, baseUrl = 'https://api.themoviedb.org/
         const headers = isBearer ? { Authorization: `Bearer ${token}` } : {};
         response = await fetch(url, { headers });
       } catch (error) {
+        // Сеть недоступна — это исход для размыкателя, как и ответ 5xx.
+        await breaker.record(true);
         if (attempt === MAX_ATTEMPTS) throw new TmdbError(`сеть недоступна: ${error.message}`);
         await sleep(BACKOFF_MS[attempt - 1]);
         continue;
       }
 
       if (response.status === 401) {
+        // 401 — не повторяем: ключ от попытки не станет вернее. Размыкателю
+        // это тоже не сообщается: дело не в источнике, а в ключе.
         throw new TmdbError('TMDB отклонил ключ (401) — неверный ключ, запуск прерывается', 401);
       }
-      if (response.status === 404) return { notFound: true };
+      if (response.status === 404) {
+        await breaker.record(false);
+        return { notFound: true };
+      }
       if (response.status === 429) {
         const header = Number(response.headers.get('retry-after') ?? 1);
         const waitMs = Math.max(0, header * 1000 + RETRY_AFTER_PAD_MS);
@@ -141,12 +155,16 @@ export function createTmdbClient({ token, baseUrl = 'https://api.themoviedb.org/
         continue;
       }
       if (response.status >= 500) {
+        await breaker.record(true);
         if (attempt === MAX_ATTEMPTS) {
           throw new TmdbError(`TMDB отвечает ${response.status} после ${MAX_ATTEMPTS} попыток`, response.status);
         }
         await sleep(BACKOFF_MS[attempt - 1]);
         continue;
       }
+      if (response.status === 429) await breaker.record(true);
+      else await breaker.record(false);
+
       if (!response.ok) throw new TmdbError(`TMDB отвечает ${response.status}`, response.status);
       return response.json().catch(() => ({}));
     }
@@ -154,6 +172,15 @@ export function createTmdbClient({ token, baseUrl = 'https://api.themoviedb.org/
   }
 
   return {
+    /** Открыт ли размыкатель: пора завершать запуск как «частично» (F-12-09). */
+    get breakerTripped() {
+      return breaker.tripped;
+    },
+    /** Сколько пауз размыкателя было за запуск. */
+    get breakerPauses() {
+      return breaker.pausedCount;
+    },
+
     /**
      * Ищет сериал по внешнему идентификатору IMDb (F-12-02 §4).
      *

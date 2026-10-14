@@ -168,7 +168,15 @@ async function main() {
       'SELECT count(*)::int AS n FROM e_import_item_result WHERE run_id = $1 AND tmdb_id IS NOT NULL',
       [matched.runId],
     );
-    console.log(`\nПрогон #${matched.runId}: обогащено ${items.length} за ${seconds} с, ошибок ${errors.length}`);
+    // Размыкатель открыт — прогон не чистый, и молча закрыть его как успешный
+    // значило бы потерять это в отчёте (F-12-09 §3).
+    if (tmdb.breakerTripped) {
+      await store.finishRun(matched.runId, 'partial');
+      console.log(`\nПрогон #${matched.runId} частичный: размыкатель открыт после ${tmdb.breakerPauses} пауз`);
+    } else {
+      await store.finishRun(matched.runId, 'success');
+      console.log(`\nПрогон #${matched.runId}: обогащено ${items.length} за ${seconds} с, ошибок ${errors.length}`);
+    }
     // Подтверждённые пары, обогащённые прошлым прогоном, пропускаются. Молча
     // пропущенные позиции выглядят так, будто часть каталога потерялась.
     const skipped = counts[0].n - targets.length;

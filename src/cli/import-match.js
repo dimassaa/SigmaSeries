@@ -84,6 +84,7 @@ async function main() {
     const started = Date.now();
     console.log(`Прогон #${pending.runId}: сопоставляю ${pending.items.length} позиций…`);
 
+
     const results = await matchCandidates({
       items: pending.items.map((row) => ({ tconst: row.tconst, startYear: row.start_year })),
       tmdb,
@@ -101,7 +102,13 @@ async function main() {
 
     const tally = new Map();
     for (const r of results) tally.set(r.outcome, (tally.get(r.outcome) ?? 0) + 1);
-    console.log(`\nГотово за ${Math.round((Date.now() - started) / 1000)} с:`);
+    if (tmdb.breakerTripped) {
+      await store.finishRun(pending.runId, 'partial');
+      console.log(`\nПрогон #${pending.runId} частичный: размыкатель открыт после ${tmdb.breakerPauses} пауз`);
+    } else {
+      await store.finishRun(pending.runId, 'success');
+    }
+    console.log(`Готово за ${Math.round((Date.now() - started) / 1000)} с:`);
     for (const [outcome, count] of [...tally].sort((a, b) => b[1] - a[1])) {
       console.log(`  ${outcome}: ${count}`);
     }
