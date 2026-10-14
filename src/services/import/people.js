@@ -10,6 +10,8 @@ import fs from 'node:fs';
 import readline from 'node:readline';
 import zlib from 'node:zlib';
 
+import { BASICS_HEADER } from './imdb.js';
+
 /** Сколько актёров берём на сериал (F-12-03 §4(3), §9). */
 export const MAX_CAST = 10;
 
@@ -103,6 +105,38 @@ async function* rows(path, header, parseLine) {
     input.destroy();
     gunzip.destroy();
   }
+}
+
+/**
+ * Собирает жанры из `title.basics` (F-12-06 §4(3)).
+ *
+ * Справочник жанров наш, а имена приходят от IMDb, поэтому нужен проход по
+ * базовому файлу — 218 МБ, около 15 секунд. Отдельная колонка в таблице
+ * результата потребовала бы перезаписывать весь прогон отбора, а читать файл
+ * заново при записи каталога нельзя: там уже нет доступа к источнику.
+ *
+ * @param {object} options
+ * @param {Set<string>|string[]} options.tconsts
+ * @param {string} options.dataDir
+ * @returns {Promise<Map<string, string[]>>} жанры по сериалу
+ */
+export async function collectGenres({ tconsts, dataDir }) {
+  const wanted = new Set(tconsts);
+  const genres = new Map();
+
+  for await (const row of rows(`${dataDir}/title.basics.tsv.gz`, BASICS_HEADER, (line) => {
+    const cells = line.split('\t');
+    if (cells.length !== BASICS_HEADER.length || !wanted.has(cells[0])) return null;
+    const genreList = cells[BASICS_HEADER.length - 1];
+    return {
+      tconst: cells[0],
+      genres: genreList === '\\N' || genreList === '' ? [] : genreList.split(','),
+    };
+  })) {
+    genres.set(row.tconst, row.genres);
+  }
+
+  return genres;
 }
 
 /**

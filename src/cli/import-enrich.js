@@ -18,7 +18,7 @@ import { createPool } from '../db/pool.js';
 import { ensureDataset, DATASETS } from '../services/import/datasets.js';
 import { createTmdbClient } from '../services/import/tmdb.js';
 import { enrichAll } from '../services/import/enrich.js';
-import { collectPeople } from '../services/import/people.js';
+import { collectPeople, collectGenres } from '../services/import/people.js';
 import { createImportStore } from '../services/import/store.js';
 import { IMPORT_SETTINGS } from '../config/settings.js';
 
@@ -44,10 +44,14 @@ async function matchedSeries(pool, args) {
   const limit = args.limit;
   if (!Number.isFinite(limit) || limit < 0) throw new Error(`--limit должен быть числом, получено «${args.limit}»`);
 
+  // Отбираются ВСЕ строки с подтверждённой парой, а не только те, что ещё не
+  // обогащены. Иначе прогон нельзя переиграть: после записи в каталог стадия
+  // становится `written`, и повторное обогащение молча нашло бы ноль позиций —
+  // а новые сезоны и даты как раз и требуют повторного обогащения.
   const { rows } = await pool.query(
     `SELECT tconst, tmdb_id, popularity_rank, start_year, num_votes, average_rating
        FROM e_import_item_result
-      WHERE run_id = $1 AND tmdb_id IS NOT NULL AND stage IN ('candidates','matched')
+      WHERE run_id = $1 AND tmdb_id IS NOT NULL
       ORDER BY popularity_rank
       ${limit > 0 ? `LIMIT ${Math.floor(limit)}` : ''}`,
     [runs[0].id],
@@ -102,6 +106,12 @@ async function main() {
     const withCast = [...people.values()].filter((entry) => entry.cast.length).length;
     console.log(`  готово за ${Math.round((Date.now() - startedPeople) / 1000)} с, «В ролях» есть у ${withCast}`);
 
+    console.log('Читаю жанры из IMDb…');
+    const startedGenres = Date.now();
+    const genres = await collectGenres({ tconsts, dataDir: DATA_DIR });
+    const withGenres = [...genres.values()].filter((list) => list.length).length;
+    console.log(`  готово за ${Math.round((Date.now() - startedGenres) / 1000)} с, жанры есть у ${withGenres}`);
+
     console.log('Обхожу TMDB…');
     const tmdb = createTmdbClient({ token: process.env.TMDB_TOKEN });
     const started = Date.now();
@@ -119,7 +129,10 @@ async function main() {
           startYear: row.start_year,
           numVotes: row.num_votes,
           averageRating: row.average_rating,
-          genres: [],
+          // Жанры берутся из IMDb (DATA-SOURCES §2), а не из TMDB: справочник
+          // строится на именах IMDb, и без них F-12-06 записал бы `no_genre`
+          // каждому сериалу подряд.
+          genres: genres.get(row.tconst) ?? [],
         },
       }));
 

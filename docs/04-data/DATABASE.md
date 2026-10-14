@@ -174,6 +174,19 @@ CREATE TABLE e_series (
   exit_state    TEXT NOT NULL DEFAULT 'announced'
                 CHECK (exit_state IN ('announced','airing','waiting','ended','cancelled')),
   archived_at   TIMESTAMPTZ,
+  -- Состояние публикации (F-12-06 §6): «Импортирован» — записан, но не
+  -- показывается; «Опубликован» — есть минимум (название, год, жанр,
+  -- состояние выхода); «В архиве» — скрыт вручную или из-за снятия с
+  -- публикации (EC-C1). Это НЕ exit_state: сериал может быть опубликован и
+  -- при этом «Ждём сезон».
+  publication_state TEXT NOT NULL DEFAULT 'imported'
+                CHECK (publication_state IN ('imported','published','archived')),
+  -- Коды причин неполноты и уровень карточки (F-12-06 §8). Хранятся рядом с
+  -- сериалом, а не в отдельной таблице: фильтр в S-74 и бейджи на карточке —
+  -- это один запрос, и «без фона и без людей» не требует соединения.
+  reasons TEXT[] NOT NULL DEFAULT '{}',
+  level   TEXT NOT NULL DEFAULT 'minimum'
+          CHECK (level IN ('full','displayable','minimum')),
   added_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
   version       INTEGER NOT NULL DEFAULT 1,   -- оптимистичная блокировка (EC-R2)
   -- Либо IMDb-ключ, либо TMDB-идентификатор: без одного из них
@@ -231,6 +244,17 @@ CREATE INDEX ix_release_season ON e_release (season_id);
 -- Дата выхода — источник истины для состояния сериала; ради него
 -- есть индекс: календарь спрашивает по дате, а не по сериалу.
 
+-- Серии одного сезона с одной датой образуют ОДИН выход (EC-D11): в календаре
+-- это «3 серии выходят 12 октября», а не три одинаковых точки. Поэтому связь
+-- многие-ко-многим, а не колонка в e_release: там NULL уже занят под «весь
+-- сезон», и два разных случая слились бы в один.
+CREATE TABLE e_release_episode (
+  release_id BIGINT NOT NULL REFERENCES e_release(id) ON DELETE CASCADE,
+  episode_id BIGINT NOT NULL REFERENCES e_episode(id) ON DELETE CASCADE,
+  PRIMARY KEY (release_id, episode_id)
+);
+CREATE INDEX ix_release_episode_episode ON e_release_episode (episode_id);
+
 CREATE TABLE e_genre (
   code    TEXT PRIMARY KEY,
   name_ru TEXT NOT NULL,
@@ -242,8 +266,13 @@ CREATE TABLE e_series_genre (
   genre_code TEXT  NOT NULL REFERENCES e_genre(code) ON DELETE RESTRICT,
   PRIMARY KEY (series_id, genre_code)
 );
+-- Человек опознаётся по `imdb_key`, а не по имени: у IMDb десятки тёзок, и
+-- склеив их, мы получили бы одну биографию и одну фильмографию на двоих.
+-- `slug` при этом остаётся адресом страницы и может совпасть у разных людей
+-- только через суффикс — как у сериалов (H-32).
 CREATE TABLE e_person (
   id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  imdb_key  TEXT UNIQUE,
   slug      TEXT NOT NULL UNIQUE,
   name      TEXT NOT NULL,
   kind      TEXT NOT NULL CHECK (kind IN ('actor','director','creator')),
