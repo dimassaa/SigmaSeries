@@ -239,6 +239,35 @@ test('причины и уровень записываются в карточ�
   assert.ok(series.reasons.includes('no_backdrop'));
 });
 
+test('сериал без IMDb-идентификатора берёт жанры из TMDB', { skip }, async () => {
+  // Новинка из обзора TMDB может не иметь IMDb-ключа (F-12-04 §4). Если
+  // жанры брать только из IMDb, такой сериал остался бы неопубликованным
+  // навсегда: никто его не увидит, а обзор его каждый раз добавлять будет.
+  const result = await writeAndCleanup(raw({
+    imdbGenres: [],
+    genres: [{ code: 18, name: 'Drama' }, { code: 10768, name: 'War & Crime' }],
+  }));
+  const series = await row(result.seriesId);
+  assert.equal(series.publication_state, 'published');
+  assert.equal(series.reasons.includes('no_genre'), false);
+
+  const genres = await pool.query(
+    'SELECT genre_code FROM e_series_genre WHERE series_id = $1 ORDER BY genre_code', [result.seriesId],
+  );
+  assert.deepEqual(genres.rows.map((row) => row.genre_code), ['drama', 'imdb:war-crime']);
+});
+
+test('совпавшие жанры IMDb не дублируются с TMDB', { skip }, async () => {
+  const result = await writeAndCleanup(raw({
+    imdbGenres: ['Drama'],
+    genres: [{ code: 18, name: 'Drama' }, { code: 80, name: 'Crime' }],
+  }));
+  const genres = await pool.query(
+    'SELECT genre_code FROM e_series_genre WHERE series_id = $1 ORDER BY genre_code', [result.seriesId],
+  );
+  assert.deepEqual(genres.rows.map((row) => row.genre_code), ['drama'], 'IMDb — источник по умолчанию');
+});
+
 test('архивный сериал обновляется, но остаётся архивным (§5)', { skip }, async () => {
   const result = await writeAndCleanup(raw());
   await pool.query(

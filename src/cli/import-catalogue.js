@@ -47,7 +47,8 @@ async function main() {
 
   try {
     const { rows: runs } = await pool.query(
-      `SELECT id FROM e_import_run WHERE kind = 'full_run' AND status = 'success' ORDER BY id DESC LIMIT 1`,
+      // Как и в обогащении: новинки лежат в прогоне другого вида.
+      `SELECT id FROM e_import_run WHERE status = 'success' ORDER BY id DESC LIMIT 1`,
     );
     if (!runs.length) {
       console.log('Нет успешного прогона: сначала `npm run import:candidates`');

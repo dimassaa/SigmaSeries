@@ -136,7 +136,7 @@ export async function writeSeries({ pool, raw, slugs, now = new Date() }) {
     const published = Boolean(
       (raw.titles?.original?.text || raw.titles?.ru?.text)
       && raw.years?.start
-      && raw.imdbGenres?.length,
+      && genresFor(raw).length,
     );
     // Архивный сериал обновляет данные, но остаётся архивным (§5).
     const publication = existing
@@ -147,7 +147,7 @@ export async function writeSeries({ pool, raw, slugs, now = new Date() }) {
       ? await updateSeries({ client, id: existing.id, raw, locked, exitState, reasons, level, publication })
       : await insertSeries({ client, raw, locked, exitState, reasons, level, publication, slug });
 
-    await writeGenres({ client, seriesId, genres: raw.imdbGenres ?? [] });
+    await writeGenres({ client, seriesId, genres: genresFor(raw) });
     await writeRatings({ client, seriesId, raw });
     const counts = await writeSeasons({ client, seriesId, raw });
     await writePeople({ client, seriesId, people: raw.people, slugs });
@@ -237,6 +237,25 @@ async function updateSeries({ client, id, raw, locked, exitState, reasons, level
     [...params, id],
   );
   return rows[0].id;
+}
+
+/**
+ * Жанры для записи: сначала IMDb, а если его нет — TMDB.
+ *
+ * Новинка, найденная обзором TMDB, может не иметь IMDb-идентификатора
+ * (F-12-04 §4: таких около 17%). Тогда жанров IMDb нет физически, и запись по
+ * правилу «жанры только из IMDb» оставила бы сериал неопубликованным навсегда
+ * — то есть обзор добавлял бы то, что никто не увидит. Имена у TMDB и IMDb
+ * совпадают для большинства жанров, а несовпавшие попадут в справочник как
+ * скрытые записи и всплывут в отчёте как `new_genre`.
+ *
+ * @param {object} raw
+ * @returns {string[]}
+ */
+export function genresFor(raw) {
+  const imdb = raw.imdbGenres ?? [];
+  if (imdb.length) return imdb;
+  return (raw.genres ?? []).map((genre) => genre.name).filter(Boolean);
 }
 
 /**

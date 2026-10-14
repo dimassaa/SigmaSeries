@@ -108,6 +108,9 @@ export function createTmdbClient({ token, baseUrl = 'https://api.themoviedb.org/
   /** Отметка времени последнего запроса: пауза 1/rps между запросами. */
   let lastAt = 0;
 
+  /** Справочник жанров: один запрос на прогон, список не меняется. */
+  let genreCache = null;
+
   async function request(pathname) {
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt += 1) {
       const gap = Math.round(1000 / rps) - (Date.now() - lastAt);
@@ -208,6 +211,62 @@ export function createTmdbClient({ token, baseUrl = 'https://api.themoviedb.org/
         `/tv/${encodeURIComponent(String(id))}/season/${encodeURIComponent(String(number))}`
         + `?language=${encodeURIComponent(language)}`,
       );
+    },
+
+    /**
+     * Справочник жанров сериалов: имя → идентификатор.
+     *
+     * Нужен, чтобы исключать жанры поимённо: идентификаторы у TMDB заданы
+     * числами, а DEC-022 говорит о списке имён. Запрашивается один раз и
+     * запоминается — список не меняется от прогона к прогону.
+     *
+     * @returns {Promise<Record<string, number>>}
+     */
+    async getTvGenres() {
+      if (!genreCache) {
+        const body = await request('/genre/tv/list?language=en');
+        genreCache = Object.fromEntries((body?.genres ?? []).map((row) => [row.name, row.id]));
+      }
+      return genreCache;
+    },
+
+    /**
+     * Обзор сериалов с пагинацией (F-12-04 §4, §9).
+     *
+     * Ограничение скорости здесь сделано отдельно от `request()`: обзор
+     * делает до пяти запросов подряд, и каждому из них нужна своя пауза,
+     * иначе всплеск уходит мимо ограничения.
+     *
+     * @param {Record<string, string|number>} params фильтры TMDB
+     * @param {number} [pages] сколько страниц взять
+     * @returns {Promise<object[]>}
+     */
+    async discoverTv(params, pages = 1) {
+      const items = [];
+      for (let page = 1; page <= pages; page += 1) {
+        const url = new URL(`${baseUrl}/discover/tv`);
+        for (const [key, value] of Object.entries({ ...params, page })) {
+          url.searchParams.set(key, String(value));
+        }
+        if (!isBearer) url.searchParams.set('api_key', token);
+        const headers = isBearer ? { Authorization: `Bearer ${token}` } : {};
+        const gap = Math.round(1000 / rps) - (Date.now() - lastAt);
+        if (gap > 0) await sleep(gap);
+        lastAt = Date.now();
+
+        const response = await fetch(url, { headers });
+        if (response.status === 401) {
+          throw new TmdbError('TMDB отклонил ключ (401) — неверный ключ, запуск прерывается', 401);
+        }
+        if (!response.ok) throw new TmdbError(`TMDB отвечает ${response.status}`, response.status);
+
+        const body = await response.json().catch(() => ({}));
+        const results = body?.results ?? [];
+        items.push(...results);
+        // Страниц бывает меньше запрошенного: идти дальше незачем.
+        if (!results.length || page >= (body?.total_pages ?? pages)) break;
+      }
+      return items;
     },
   };
 }

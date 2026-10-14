@@ -35,8 +35,11 @@ function parseArgs(argv) {
 /** Подтверждённые пары последнего прогона: сопоставлять больше нечего. */
 async function matchedSeries(pool, args) {
   const { rows: runs } = await pool.query(
+    // Последний успешный запуск ЛЮБОГО вида: новинки приходят прогоном
+    // `discover_sync`, и если смотреть только на `full_run`, обогащение их
+    // просто не увидит.
     `SELECT id FROM e_import_run
-      WHERE kind = 'full_run' AND status = 'success'
+      WHERE status = 'success'
       ORDER BY id DESC LIMIT 1`,
   );
   if (!runs.length) return null;

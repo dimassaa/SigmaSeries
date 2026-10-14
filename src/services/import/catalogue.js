@@ -92,7 +92,11 @@ export function computeCompleteness({ raw, images = {}, now = new Date() }) {
   const hasTitle = Boolean(raw?.titles?.original?.text || raw?.titles?.ru?.text || raw?.titles?.en?.text);
   if (!hasTitle) add('no_tmdb');
   if (!raw?.tmdbId) add('no_tmdb');
-  if (!raw?.imdbGenres?.length) add('no_genre');
+  // Жанры приходят из IMDb, а у новинок без IMDb-идентификатора — из TMDB
+  // (см. `genresFor` в write.js). Отсутствие жанров в обоих источниках —
+  // вот настоящая причина `no_genre`.
+  const genres = raw?.imdbGenres?.length ? raw.imdbGenres : (raw?.genres ?? []).map((g) => g.name);
+  if (!genres.length) add('no_genre');
   if (!images.poster) add('no_poster');
   if (!raw?.descriptions?.ru?.text && !raw?.descriptions?.en?.text) add('no_overview');
   // `no_overview_ru` — это «русского нет, английский есть»: показать можно,
