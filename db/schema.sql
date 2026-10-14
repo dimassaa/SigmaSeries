@@ -459,6 +459,9 @@ CREATE TABLE e_import_item_result (
   popularity_rank INTEGER,
   num_votes       INTEGER,
   average_rating  NUMERIC(3,1),
+  -- Год начала по IMDb. Без него проверку пары (F-12-02 §4, H-28) нечем
+  -- было бы подтвердить: год пришлось бы каждый раз искать в датасете.
+  start_year      SMALLINT,
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (run_id, tconst)
 );

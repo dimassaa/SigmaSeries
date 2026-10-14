@@ -85,6 +85,7 @@ async function main() {
       rank: item.rank,
       numVotes: item.numVotes,
       averageRating: item.averageRating,
+      startYear: item.startYear,
     })));
     await store.finishRun(runId, 'success');
 

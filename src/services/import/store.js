@@ -16,6 +16,7 @@ const COLUMNS = [
   'popularity_rank',
   'num_votes',
   'average_rating',
+  'start_year',
 ];
 
 /** Сколько позиций уходит в одну вставку. */
@@ -43,6 +44,7 @@ async function saveChunk(pool, runId, items) {
       item.rank ?? null,
       item.numVotes ?? null,
       item.averageRating ?? null,
+      item.startYear ?? null,
     ];
     for (const value of values) params.push(value);
     const first = index * COLUMNS.length + 2;
@@ -52,20 +54,34 @@ async function saveChunk(pool, runId, items) {
     return `(${placeholders.join(', ')})`;
   });
 
+  // Колонки делятся на два типа, и путать их дорого.
+  //
+  // Данные IMDb (ранг, голоса, оценка, год начала) приходят один раз с
+  // отбором и не меняются от стадии к стадии. Поэтому NULL здесь означает
+  // «не передано», а не «стереть»: иначе сопоставление, которое знает только
+  // tconst и результат поиска, обнулило бы год начала, и следующий шаг уже
+  // не смог бы проверить пару.
+  //
+  // Данные стадии (стадия, исход, причины, коды, попытки, tmdb_id)
+  // перезаписываются целиком: там NULL означает «теперь не найдено», и это
+  // должно быть видно.
+  const KEEP_ON_NULL = ['popularity_rank', 'num_votes', 'average_rating', 'start_year'];
+  const update = [
+    'tmdb_id = EXCLUDED.tmdb_id',
+    'stage = EXCLUDED.stage',
+    'outcome = EXCLUDED.outcome',
+    'reasons = EXCLUDED.reasons',
+    'http_codes = EXCLUDED.http_codes',
+    'attempts = EXCLUDED.attempts',
+    ...KEEP_ON_NULL.map((column) => `${column} = COALESCE(EXCLUDED.${column}, e_import_item_result.${column})`),
+    'updated_at = now()',
+  ].join(',\n       ');
+
   await pool.query(
     `INSERT INTO e_import_item_result (run_id, ${COLUMNS.join(', ')})
      VALUES ${tuples.join(', ')}
      ON CONFLICT (run_id, tconst) DO UPDATE SET
-       tmdb_id = EXCLUDED.tmdb_id,
-       stage = EXCLUDED.stage,
-       outcome = EXCLUDED.outcome,
-       reasons = EXCLUDED.reasons,
-       http_codes = EXCLUDED.http_codes,
-       attempts = EXCLUDED.attempts,
-       popularity_rank = EXCLUDED.popularity_rank,
-       num_votes = EXCLUDED.num_votes,
-       average_rating = EXCLUDED.average_rating,
-       updated_at = now()`,
+       ${update}`,
     params,
   );
   return items.length;

@@ -79,6 +79,50 @@ test('одна и та же позиция перезаписывается, а 
   assert.equal(rows[0].attempts, 2);
 });
 
+test('следующая стадия не стирает данные отбора', { skip }, async () => {
+  // Сопоставление знает только tconst и результат поиска. Если бы upsert
+  // перезаписывал год начала на NULL, следующий шаг не смог бы проверить пару,
+  // а год был бы потерян без всякой ошибки.
+  const runId = await startRun();
+  await store.saveItems(runId, [{
+    tconst: 'tt1',
+    stage: 'candidates',
+    outcome: 'ok',
+    rank: 7,
+    numVotes: 900,
+    averageRating: 8.4,
+    startYear: 2008,
+  }]);
+  await store.saveItems(runId, [{ tconst: 'tt1', stage: 'matched', outcome: 'ok', tmdbId: 42 }]);
+
+  const { rows } = await pool.query(
+    `SELECT stage, tmdb_id, popularity_rank, num_votes, average_rating, start_year
+       FROM e_import_item_result WHERE run_id = $1`,
+    [runId],
+  );
+  assert.equal(rows[0].stage, 'matched');
+  assert.equal(rows[0].tmdb_id, 42);
+  assert.equal(rows[0].start_year, 2008);
+  assert.equal(rows[0].popularity_rank, 7);
+  assert.equal(rows[0].num_votes, 900);
+});
+
+test('но исход стадии перезаписывается, включая пустой', { skip }, async () => {
+  // Обратная сторона предыдущего правила: «не найдено» должно стирать прежний
+  // результат, иначе в отчёте осталась бы старая удачная пара.
+  const runId = await startRun();
+  await store.saveItems(runId, [{ tconst: 'tt1', stage: 'matched', outcome: 'ok', tmdbId: 42, reasons: ['a'] }]);
+  await store.saveItems(runId, [{ tconst: 'tt1', stage: 'matched', outcome: 'no_tmdb', reasons: [] }]);
+
+  const { rows } = await pool.query(
+    'SELECT outcome, tmdb_id, reasons FROM e_import_item_result WHERE run_id = $1',
+    [runId],
+  );
+  assert.equal(rows[0].outcome, 'no_tmdb');
+  assert.equal(rows[0].tmdb_id, null);
+  assert.deepEqual(rows[0].reasons, []);
+});
+
 test('чужая стадия не пишется молча в обход CHECK', { skip }, async () => {
   const runId = await startRun();
   await assert.rejects(
