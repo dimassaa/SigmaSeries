@@ -24,6 +24,7 @@ import { createSeasonRoutes } from './routes/season.js';
 import { createCollectionRoutes } from './routes/collection.js';
 import { createCalendarRoutes } from './routes/calendar.js';
 import { createStatusRoutes } from './routes/status.js';
+import { createLibraryRoutes } from './routes/library.js';
 import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
 import { createJournal } from './services/journal.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
@@ -51,6 +52,7 @@ export function createApp({
   calendar = null,
   watchStatus = null,
   statusLimiter = null,
+  library = null,
   pool = null,
   auth,
   sessionMw,
@@ -119,6 +121,8 @@ export function createApp({
   if (watchStatus && series && sessionMw) {
     app.use(createStatusRoutes({ status: watchStatus, series, sessionMw, limiter: statusLimiter ?? undefined }));
   }
+  // Закладки читают сессию: гостю показывается вход, вошедшему — свой список.
+  if (library && sessionMw) app.use(createLibraryRoutes({ library, sessionMw }));
 
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.
   if (pool) app.use(createImageRoutes({ pool }));

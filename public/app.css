@@ -1836,3 +1836,147 @@ a:hover { color: var(--accent-hover); }
   color: var(--text-secondary);
   font-size: 14px;
 }
+/* S-30 — закладки (F-03-04).
+   Вкладки — горизонтальная строка, на телефоне прокручивается: шесть вкладок с
+   счётчиками не помещаются в ширину, а прятать их означало бы потерять фильтр.
+   Правая панель «Предстоящие» на этой странице отсутствует (H-30). */
+
+.library {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.library__title {
+  margin-block: var(--space-4) 0;
+}
+
+.library__tabs {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-block-end: var(--space-2);
+  scrollbar-width: thin;
+}
+
+.library__tab {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  min-block-size: 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: 14px;
+  text-decoration: none;
+}
+
+.library__tab--on {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  font-weight: 500;
+}
+
+/* Счётчик — текстом рядом с названием, а не только цветом вкладки. */
+.library__tab-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.library__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.library__search,
+.library__sort {
+  min-block-size: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.library__list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.library__card {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.library__item--archived .library__card {
+  opacity: 0.8;
+}
+
+.library__poster-img,
+.library__poster-fallback {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.library__body {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-inline-size: 0;
+}
+
+.library__name {
+  margin: 0;
+  font-size: 16px;
+}
+
+.library__year {
+  margin-inline-start: var(--space-2);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.library__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.library__progress-bar {
+  inline-size: 120px;
+  block-size: 6px;
+  accent-color: var(--accent);
+}
+
+.library__progress-text,
+.library__continue,
+.library__next,
+.library__archived {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.library__archived {
+  color: var(--warning);
+}
+
+@media (min-width: 720px) {
+  .library__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}

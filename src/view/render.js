@@ -69,9 +69,19 @@ export function html(strings, ...values) {
 /**
  * Условный блок: ничего не выводит, если условие ложно.
  *
+ * Третий аргумент — блок «иначе». Раньше он молча игнорировался, и места,
+ * где он написан, выглядели недоделанными: подпись «описания пока нет» и
+ * заглушка фона на странице сериала просто не появлялись.
+ *
  * Возвращает готовую разметку, а не строку: результат подставляется в тег
  * html, и строка была бы экранирована повторно — вместе с разметкой внутри.
+ *
+ * @param {unknown} condition
+ * @param {() => unknown} fn ветка «если»
+ * @param {() => unknown} [otherwise] ветка «иначе»
  */
-export function when(condition, fn) {
-  return condition ? raw(render(fn())) : raw('');
+export function when(condition, fn, otherwise) {
+  if (condition) return raw(render(fn()));
+  if (otherwise) return raw(render(otherwise()));
+  return raw('');
 }

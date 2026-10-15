@@ -1,0 +1,181 @@
+// S-30 — закладки.
+// Спецификация: docs/01-product/features/M3-tracking.md, F-03-04.
+//
+// Состояние живёт в адресе (`?status=watching&sort=next`), и страница при этом
+// `noindex`: это личный список, в выдаче ему не место, а по ссылке он
+// открывается целиком.
+//
+// Вкладки — счётчики из всех статусов, а не из выборки: цифра, которая
+// меняется при переключении вкладки, читается как ошибка (F-03-04 §8).
+//
+// Правая панель «Предстоящие» здесь отсутствует (H-30), и вкладки не
+// превращаются в карусель: список читают целиком, по нему ставят статус.
+
+import { html, when } from './render.js';
+import { t } from '../i18n/strings.js';
+import { statusControl } from './status.js';
+import { fullDate, releaseLabel } from './dates.js';
+
+const TABS = ['all', 'watching', 'planned', 'watched', 'dropped', 'on_hold'];
+
+/**
+ * @param {object} page
+ * @param {string} page.locale
+ * @param {object} page.library данные источника
+ * @param {string} page.csrf
+ */
+export function libraryView({ locale, library, csrf }) {
+  return html`
+<h1 class="library__title">${t(locale, 'library.title')}</h1>
+
+${tabs({ locale, library })}
+
+<form class="library__controls" method="get" action="/${locale}/library">
+  <label class="visually-hidden" for="library-q">${t(locale, 'library.search')}</label>
+  <input class="library__search" id="library-q" type="search" name="q" value="${library.query}"
+         placeholder="${t(locale, 'library.search')}">
+  ${library.status ? html`<input type="hidden" name="status" value="${library.status}">` : ''}
+  <label class="visually-hidden" for="library-sort">${t(locale, 'library.sort')}</label>
+  <select class="library__sort" id="library-sort" name="sort">
+    ${Object.keys(SORT_LABEL).map((key) => html`
+    <option value="${key}" ${library.sort === key ? 'selected' : ''}>${t(locale, SORT_LABEL[key])}</option>`)}
+  </select>
+  <button class="button" type="submit">${t(locale, 'library.apply')}</button>
+</form>
+
+${when(library.items.length === 0, () => emptyView({ locale, library }))}
+
+${when(library.items.length > 0, () => html`
+<ol class="library__list" role="list">
+  ${library.items.map((item) => card({ locale, item, csrf }))}
+</ol>
+
+${when(library.pages > 1, () => pagination({ locale, library }))}`)}`;
+}
+
+/**
+ * Вкладки статусов со счётчиками.
+ *
+ * «Все» считается сложением счётчиков, а не числом строк на странице: цифра
+ * «3» на вкладке «Все» должна оставаться «3» и после того, как человек
+ * открыл вкладку «Смотрю» (F-03-04 §8).
+ */
+function tabs({ locale, library }) {
+  const count = (tab) => (tab === 'all'
+    ? Object.values(library.counts).reduce((sum, value) => sum + value, 0)
+    : library.counts[tab] ?? 0);
+
+  return html`
+<nav class="library__tabs" aria-label="${t(locale, 'library.tabs')}">
+  ${TABS.map((tab) => html`
+  <a class="library__tab${library.status === tab || (!library.status && tab === 'all') ? ' library__tab--on' : ''}"
+     href="${tabHref(locale, library, tab)}"
+     ${library.status === tab || (!library.status && tab === 'all') ? 'aria-current="true"' : ''}>
+    ${t(locale, `library.tab.${tab}`)} <span class="library__tab-count">${count(tab)}</span>
+  </a>`)}
+</nav>`;
+}
+
+function tabHref(locale, library, tab) {
+  const params = new URLSearchParams();
+  if (tab !== 'all') params.set('status', tab);
+  if (library.sort !== 'recent') params.set('sort', library.sort);
+  if (library.query) params.set('q', library.query);
+  const query = params.toString();
+  return `/${locale}/library${query ? `?${query}` : ''}`;
+}
+
+/** Карточка закладки: постер, название, статус, прогресс, «Продолжить». */
+function card({ locale, item, csrf }) {
+  return html`
+<li class="library__item${item.archived ? ' library__item--archived' : ''}">
+  <article class="library__card">
+    <a class="library__poster" href="/${locale}/series/${item.slug}">
+      ${when(item.posterWidth, () => html`
+      <img class="library__poster-img" src="/${locale}/images/${item.slug}/poster-${item.posterWidth}.webp"
+           alt="" width="185" height="278" loading="lazy" decoding="async">`)}
+      ${when(!item.posterWidth, () => html`<span class="library__poster-fallback" aria-hidden="true"></span>`)}
+    </a>
+
+    <div class="library__body">
+      <h2 class="library__name">
+        <a href="/${locale}/series/${item.slug}">${item.title}</a>
+        ${item.year ? html`<span class="library__year">${item.year}</span>` : ''}
+      </h2>
+
+      ${when(item.archived, () => html`
+      <p class="library__archived">${t(locale, 'library.archived')}</p>
+      ${statusControl({ locale, slug: item.slug, status: item.status, signedIn: true, csrf, archived: true, view: 'library' })}`,
+      () => html`
+      ${statusControl({ locale, slug: item.slug, status: item.status, signedIn: true, csrf, view: 'library' })}
+
+      ${when(item.progress.total > 0, () => html`
+      <div class="library__progress">
+        <progress class="library__progress-bar" value="${item.progress.percent}" max="100"
+                  aria-label="${t(locale, 'library.progress')}"></progress>
+        <span class="library__progress-text">${t(locale, 'library.progressText', {
+    marked: item.progress.marked,
+    total: item.progress.total,
+  })}</span>
+      </div>`)}
+
+      ${when(item.progress.nextEpisode !== null, () => html`
+      <p class="library__continue">
+        <a href="/${locale}/series/${item.slug}/seasons/${item.progress.nextSeason}/episodes/${item.progress.nextEpisode}"
+           >${t(locale, 'library.continue', {
+    season: item.progress.nextSeason,
+    episode: item.progress.nextEpisode,
+  })}</a>
+        ${when(item.progress.nextEpisodeDate, () => html`
+        <span class="library__next-date">${releaseLabel(locale, item.progress.nextEpisodeDate)}</span>`)}
+      </p>`)}
+
+      ${when(item.nextReleaseDate, () => html`
+      <p class="library__next">${t(locale, 'library.nextRelease', { date: fullDate(locale, item.nextReleaseDate) })}</p>`)}
+      `)}
+    </div>
+
+  </article>
+</li>`;
+}
+
+const SORT_LABEL = {
+  recent: 'library.sort.recent',
+  title: 'library.sort.title',
+  progress: 'library.sort.progress',
+  next: 'library.sort.next',
+  year: 'library.sort.year',
+};
+
+/** Пустое состояние: пустой список и фильтр без результата — разные вещи. */
+function emptyView({ locale, library }) {
+  if (library.status || library.query) {
+    return html`
+<p class="empty">${t(locale, 'library.emptyFiltered')}</p>
+<p><a class="button" href="/${locale}/library">${t(locale, 'library.reset')}</a></p>`;
+  }
+  return html`
+<p class="empty">${t(locale, 'library.empty')}</p>
+<p><a class="button" href="/${locale}/series">${t(locale, 'library.toCatalogue')}</a></p>`;
+}
+
+function pagination({ locale, library }) {
+  const href = (page) => {
+    const params = new URLSearchParams();
+    if (library.status) params.set('status', library.status);
+    if (library.sort !== 'recent') params.set('sort', library.sort);
+    if (library.query) params.set('q', library.query);
+    if (page > 1) params.set('page', String(page));
+    const query = params.toString();
+    return `/${locale}/library${query ? `?${query}` : ''}`;
+  };
+
+  return html`
+<nav class="pagination" aria-label="${t(locale, 'catalog.pagination.label')}">
+  ${when(library.page > 1, () => html`
+  <a class="pagination__step" rel="prev" href="${href(library.page - 1)}">${t(locale, 'catalog.pagination.prev')}</a>`)}
+  <span class="pagination__item" aria-current="page">${library.page}</span>
+  ${when(library.page < library.pages, () => html`
+  <a class="pagination__step" rel="next" href="${href(library.page + 1)}">${t(locale, 'catalog.pagination.next')}</a>`)}
+</nav>`;
+}
