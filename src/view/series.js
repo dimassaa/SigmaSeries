@@ -8,6 +8,7 @@
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { fullDate as formatDate } from './dates.js';
+import { statusControl } from './status.js';
 
 /** Подписи состояний выхода (`exit_state` → ключ интерфейса). */
 const STATE_KEY = {
@@ -27,8 +28,10 @@ function yearRange(series) {
  * @param {object} page
  * @param {string} page.locale
  * @param {object} page.series результат источника
+ * @param {{value: string|null, csrf: string, signedIn: boolean, archived: boolean}|null} [page.status]
+ *   статус зрителя; `null` — источник статусов не подключён или это гость без сессии
  */
-export function seriesView({ locale, series }) {
+export function seriesView({ locale, series, status = null }) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
   return html`
@@ -44,6 +47,15 @@ export function seriesView({ locale, series }) {
          alt="${series.title}" width="${series.posterWidth}" height="${Math.round(series.posterWidth * 3 / 2)}"
          loading="lazy" decoding="async">`)}
     <div class="series__plate">
+      ${when(status, () => html`
+      ${statusControl({
+        locale,
+        slug: series.slug,
+        status: status.value,
+        signedIn: status.signedIn,
+        csrf: status.csrf,
+        archived: status.archived,
+      })}`)}
       <h1 class="series__title">${series.title}</h1>
       ${when(series.titleOriginal !== series.title, () => html`
       <p class="series__original">${series.titleOriginal}</p>`)}

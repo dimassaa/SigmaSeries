@@ -8,14 +8,16 @@ import express from 'express';
 import { layout } from '../view/layout.js';
 import { notFound } from './home.js';
 import { seriesView, goneView } from '../view/series.js';
+import { csrfToken } from '../services/auth/session.js';
 import { t, isLocale } from '../i18n/strings.js';
 
 /** Ответ отправляется разобранной строкой: `send()` объекта ушёл бы в JSON. */
 const rawHtml = (page) => page.__raw;
 
-export function createSeriesRoutes({ series }) {
+export function createSeriesRoutes({ series, watchStatus = null, sessionMw = null }) {
   const router = express.Router({ strict: true });
-
+  // Сессия нужна ради одного — статуса зрителя на этой карточке.
+  if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
   router.get('/:locale/series/:slug', async (req, res, next) => {
     const { locale, slug } = req.params;
     if (!isLocale(locale)) return next('route');
@@ -47,6 +49,20 @@ export function createSeriesRoutes({ series }) {
       // индексируется: иначе в выдаче окажется пустая страница (R-SEO-04).
       const noindex = locale === 'en' && !found.descriptionRu;
 
+      const session = req.session ?? null;
+      const user = session?.user ?? null;
+      // Гость тоже получает место под кнопку — с приглашением войти: пустое
+      // место на странице сериала выглядит как ошибка вёрстки, а приглашение
+      // объясняет, что делать (F-03-01 §2).
+      const watch = watchStatus
+        ? {
+          status: user ? (await watchStatus.of(user.id, found.id))?.status ?? null : null,
+          csrf: session ? csrfToken(session) : '',
+          signedIn: Boolean(user),
+          archived: found.archived,
+        }
+        : null;
+
       return res.status(200).type('html').send(rawHtml(layout({
         locale,
         path: `/series/${slug}`,
@@ -54,7 +70,11 @@ export function createSeriesRoutes({ series }) {
         description: found.description.slice(0, 160),
         noindex,
         jsonLd: seriesJsonLd({ locale, series: found }),
-        body: seriesView({ locale, series: found }),
+        body: seriesView({
+          locale,
+          series: found,
+          status: watch ? { value: watch.status, csrf: watch.csrf, signedIn: watch.signedIn, archived: watch.archived } : null,
+        }),
       })));
     } catch (error) {
       return next(error);

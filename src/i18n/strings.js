@@ -48,6 +48,20 @@ const MESSAGES = {
     'date.tomorrow': 'завтра выходит',
     'date.inDays': 'через {count} дня выходит',
 
+    // F-03-01 — статус просмотра
+    'status.label': 'Статус просмотра',
+    'status.watching': 'Смотрю',
+    'status.planned': 'В планах',
+    'status.watched': 'Просмотрено',
+    'status.dropped': 'Брошено',
+    'status.onHold': 'Отложено',
+    'status.remove': 'Убрать из закладок',
+    'status.guest': 'Войдите, чтобы отметить',
+    'status.archived': 'Сериал снят с публикации — статус не меняется',
+    'status.error.csrf': 'Сессия устарела. Откройте страницу заново.',
+    'status.error.rate': 'Слишком много смен статуса подряд. Подождите минуту.',
+    'status.error.missing': 'Сериал не найден.',
+
     // S-16 — календарь (F-03-05)
     'calendar.title': 'Календарь выхода серий',
     'calendar.description': 'Даты выхода серий и сезонов: месяц, неделя или список.',
@@ -550,6 +564,20 @@ const MESSAGES = {
     'date.today': 'aired today',
     'date.tomorrow': 'airs tomorrow',
     'date.inDays': 'airs in {count} days',
+
+    // F-03-01 — watch status
+    'status.label': 'Watch status',
+    'status.watching': 'Watching',
+    'status.planned': 'Planned',
+    'status.watched': 'Watched',
+    'status.dropped': 'Dropped',
+    'status.onHold': 'On hold',
+    'status.remove': 'Remove from bookmarks',
+    'status.guest': 'Sign in to track',
+    'status.archived': 'This series was unpublished — the status cannot change',
+    'status.error.csrf': 'The session expired. Open the page again.',
+    'status.error.rate': 'Too many status changes in a row. Wait a minute.',
+    'status.error.missing': 'Series not found.',
 
     // S-16 — calendar (F-03-05)
     'calendar.title': 'Release calendar',

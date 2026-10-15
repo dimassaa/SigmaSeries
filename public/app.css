@@ -3,7 +3,7 @@
    Источник: src/styles/*.css, порядок по имени файла.
    Сборка:   node tools/build-css.mjs
    Проверка: npm run css:check
-   Частей: 11
+   Частей: 12
 */
 
 /* ─── 00-tokens.css ─── */
@@ -1737,4 +1737,102 @@ a:hover { color: var(--accent-hover); }
   .calendar__bar-title {
     inline-size: 100%;
   }
+}
+
+/* ─── 50-tracking.css ─── */
+/* Кнопка статуса просмотра (F-03-01, измерение 12).
+   Правила оформления: docs/02-design/PRINCIPLES.md, TOKENS.md.
+
+   Одно primary («Смотрю»), когда статуса нет; когда статус есть — он и есть
+   кнопка, а остальные живут в раскрывающемся меню. Состояние читается и по
+   значку, и по тексту: цвет статуса не единственный признак (R-A11Y-19). */
+
+.status {
+  margin-block-end: var(--space-3);
+}
+
+.status__primary,
+.status__button,
+.status__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 40px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.status__primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: transparent;
+  font-weight: 500;
+}
+
+.status__current {
+  position: relative;
+}
+
+.status__button {
+  background: var(--surface-overlay);
+  list-style: none;
+  cursor: pointer;
+}
+
+/* Стрелка у раскрывающегося списка: у `<summary>` своя, и она спорит с нашей. */
+.status__button::-webkit-details-marker {
+  display: none;
+}
+
+.status__list {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: calc(100% + var(--space-1));
+  z-index: 2;
+  min-inline-size: 200px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  /* Стекло разрешено для выпадающих меню (R-DES-21); здесь без размытия —
+     меню и так читается, а лишний слой тянет перерисовку при каждом открытии. */
+  background: var(--surface-overlay);
+}
+
+.status__item {
+  inline-size: 100%;
+  border-color: transparent;
+  justify-content: flex-start;
+}
+
+.status__item:hover,
+.status__button:hover {
+  background: var(--surface-hover);
+}
+
+.status__item--remove {
+  color: var(--danger);
+}
+
+.status__guest {
+  display: inline-flex;
+  min-block-size: 40px;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.status--readonly {
+  color: var(--text-secondary);
+  font-size: 14px;
 }
