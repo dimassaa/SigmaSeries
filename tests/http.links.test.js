@@ -13,6 +13,7 @@ import { createPool } from '../src/db/pool.js';
 import { createApp } from '../src/app.js';
 import { pgSeries } from '../src/services/catalogue/series.js';
 import { pgCatalogueList } from '../src/services/catalogue/list.js';
+import { pgSeasons } from '../src/services/catalogue/season.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -35,10 +36,13 @@ function stubData() {
 test.before(async () => {
   if (!available) return;
   pool = createPool();
+  // Страницы сезона и серии тоже монтируются: карточка сериала ссылается на них,
+  // и проверка ссылок обязана их видеть.
   const app = createApp({
     data: stubData(),
     series: pgSeries(pool),
     catalogue: pgCatalogueList(pool),
+    seasons: pgSeasons(pool),
   });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {

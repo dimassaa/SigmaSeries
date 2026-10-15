@@ -10,6 +10,7 @@ import { pgData } from './services/home/data.js';
 import { pgSeries } from './services/catalogue/series.js';
 import { pgCatalogueList } from './services/catalogue/list.js';
 import { pgSearch } from './services/search/service.js';
+import { pgSeasons } from './services/catalogue/season.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
@@ -90,6 +91,7 @@ const app = createApp({
   series: pgSeries(pool),
   catalogue: pgCatalogueList(pool),
   search: pgSearch(pool),
+  seasons: pgSeasons(pool),
   pool,
   auth,
   sessionMw: createSessionMiddleware(pool),

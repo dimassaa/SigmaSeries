@@ -103,16 +103,23 @@ export function seriesView({ locale, series }) {
     ${series.seasons.map((season) => html`
     <details class="season"${season.number === series.seasons[0].number ? html` open` : ''}>
       <summary class="season__title">
-        ${t(locale, 'series.season', { number: season.number })}
+        <!-- Сезон — отдельная страница (S-07), а не якорь: у неё свой адрес,
+             своя разметка для поисковика и ею можно поделиться. -->
+        <a href="/${locale}/series/${series.slug}/seasons/${season.number}">
+          ${t(locale, 'series.season', { number: season.number })}
+        </a>
         ${when(season.title && season.title !== t(locale, 'series.season', { number: season.number }),
           () => html` — ${season.title}`)}
       </summary>
       <ol class="episodes" role="list">
         ${season.episodes.map((episode) => html`
         <li class="episode">
-          <span class="episode__number">${episode.number}</span>
-          <span class="episode__title">${episode.title || t(locale, 'series.episode.untitled')}</span>
-          ${when(episode.date, () => html`<span class="episode__date">${formatDate(locale, episode.date)}</span>`)}
+          <a class="episode__link"
+             href="/${locale}/series/${series.slug}/seasons/${season.number}/episodes/${episode.number}">
+            <span class="episode__number">${episode.number}</span>
+            <span class="episode__title">${episode.title || t(locale, 'series.episode.untitled')}</span>
+            ${when(episode.date, () => html`<span class="episode__date">${formatDate(locale, episode.date)}</span>`)}
+          </a>
         </li>`)}
       </ol>
     </details>`)}
