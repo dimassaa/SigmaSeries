@@ -48,6 +48,13 @@ const MESSAGES = {
     'date.tomorrow': 'завтра выходит',
     'date.inDays': 'через {count} дня выходит',
 
+    // F-03-03 — прогресс
+    'progress.label': 'Прогресс просмотра',
+    'progress.continue': 'Продолжить: S{season}E{episode}',
+    'progress.awaiting': 'Всё вышедшее просмотрено · ждём серию {date}',
+    'progress.skipped': 'Пропущено серий: {count}',
+    'progress.noAired': 'Серий пока нет',
+
     // F-03-02 — отметки серий
     'mark.mark': 'Отметить серию {episode}',
     'mark.unmark': 'Снять отметку с серии {episode}',
@@ -83,8 +90,12 @@ const MESSAGES = {
     'library.sort.year': 'По году',
     'library.progress': 'Прогресс просмотра',
     'library.progressText': '{marked} из {total}',
+    'library.progressNoAired': 'Серий пока нет',
     'library.continue': 'Продолжить S{season}E{episode}',
     'library.nextRelease': 'Следующая серия {date}',
+    'library.awaiting': 'Всё вышедшее просмотрено · ждём серию {date}',
+    'library.skipped': 'Пропущено серий: {count}',
+    'library.badgeNew': 'Новые серии',
     'library.archived': 'Сериал снят с публикации',
     'library.empty': 'Здесь будут ваши сериалы.',
     'library.emptyFiltered': 'В закладках с такими условиями пусто.',
@@ -608,6 +619,13 @@ const MESSAGES = {
     'date.tomorrow': 'airs tomorrow',
     'date.inDays': 'airs in {count} days',
 
+    // F-03-03 — progress
+    'progress.label': 'Watch progress',
+    'progress.continue': 'Continue: S{season}E{episode}',
+    'progress.awaiting': 'All aired episodes watched · next on {date}',
+    'progress.skipped': 'Skipped episodes: {count}',
+    'progress.noAired': 'No episodes yet',
+
     // F-03-02 — episode marks
     'mark.mark': 'Mark episode {episode} as watched',
     'mark.unmark': 'Unmark episode {episode}',
@@ -643,8 +661,12 @@ const MESSAGES = {
     'library.sort.year': 'By year',
     'library.progress': 'Watch progress',
     'library.progressText': '{marked} of {total}',
+    'library.progressNoAired': 'No episodes yet',
     'library.continue': 'Continue S{season}E{episode}',
     'library.nextRelease': 'Next episode {date}',
+    'library.awaiting': 'All aired episodes watched · next on {date}',
+    'library.skipped': 'Skipped episodes: {count}',
+    'library.badgeNew': 'New episodes',
     'library.archived': 'This series was unpublished',
     'library.empty': 'Your series will show up here.',
     'library.emptyFiltered': 'No bookmarks match these filters.',

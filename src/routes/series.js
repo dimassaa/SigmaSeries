@@ -10,11 +10,12 @@ import { notFound } from './home.js';
 import { seriesView, goneView } from '../view/series.js';
 import { csrfToken } from '../services/auth/session.js';
 import { t, isLocale } from '../i18n/strings.js';
+import { timezoneOf, todayIn } from '../services/timezone.js';
 
 /** Ответ отправляется разобранной строкой: `send()` объекта ушёл бы в JSON. */
 const rawHtml = (page) => page.__raw;
 
-export function createSeriesRoutes({ series, watchStatus = null, sessionMw = null }) {
+export function createSeriesRoutes({ series, watchStatus = null, sessionMw = null, progress = null }) {
   const router = express.Router({ strict: true });
   // Сессия нужна ради одного — статуса зрителя на этой карточке.
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
@@ -51,6 +52,11 @@ export function createSeriesRoutes({ series, watchStatus = null, sessionMw = nul
 
       const session = req.session ?? null;
       const user = session?.user ?? null;
+      // Прогресс считается только вошедшему: гостю нечего «продолжать», а
+      // пустая полоса на странице сериала выглядит как ошибка вёрстки.
+      const watchProgress = progress && user
+        ? await progress.of({ userId: user.id, seriesId: found.id, today: todayIn(timezoneOf(req)) })
+        : null;
       // Гость тоже получает место под кнопку — с приглашением войти: пустое
       // место на странице сериала выглядит как ошибка вёрстки, а приглашение
       // объясняет, что делать (F-03-01 §2).
@@ -74,6 +80,7 @@ export function createSeriesRoutes({ series, watchStatus = null, sessionMw = nul
           locale,
           series: found,
           status: watch ? { value: watch.status, csrf: watch.csrf, signedIn: watch.signedIn, archived: watch.archived } : null,
+          progress: watchProgress,
         }),
       })));
     } catch (error) {

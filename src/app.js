@@ -54,6 +54,7 @@ export function createApp({
   watchStatus = null,
   statusLimiter = null,
   marks = null,
+  progress = null,
   markLimiter = null,
   library = null,
   pool = null,
@@ -115,7 +116,7 @@ export function createApp({
   if (catalogue) app.use(createCatalogueRoutes({ catalogue }));
   if (search) app.use(createSearchRoutes({ search, ratePerIp: searchRatePerIp ?? undefined }));
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw }));
-  if (series) app.use(createSeriesRoutes({ series, watchStatus, sessionMw }));
+  if (series) app.use(createSeriesRoutes({ series, watchStatus, sessionMw, progress }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
   if (calendar) app.use(createCalendarRoutes({ calendar, sessionMw }));
@@ -125,7 +126,7 @@ export function createApp({
     app.use(createStatusRoutes({ status: watchStatus, series, sessionMw, limiter: statusLimiter ?? undefined }));
   }
   // Закладки читают сессию: гостю показывается вход, вошедшему — свой список.
-  if (library && sessionMw) app.use(createLibraryRoutes({ library, sessionMw }));
+  if (library && sessionMw) app.use(createLibraryRoutes({ library, sessionMw, progress }));
   // Отметки серий: POST с CSRF, лимитом частоты и проверкой «вышла ли серия».
   if (marks && series && sessionMw) {
     app.use(createMarkRoutes({ marks, series, sessionMw, limiter: markLimiter ?? undefined }));

@@ -352,6 +352,13 @@ CREATE TABLE e_watch_status (
   series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
   status     TEXT   NOT NULL
              CHECK (status IN ('watching','planned','watched','dropped','on_hold')),
+  -- Кто поставил статус: человек или правило (`F-03-01` §8а, H-69).
+  --
+  -- Без этой пометки отмена массовой отметки не отличила бы «человек сам
+  -- выбрал Просмотрено» от «переход в Просмотрено случился по отметкам»: первое
+  -- откатывать нельзя, второе — нужно.
+  source     TEXT   NOT NULL DEFAULT 'manual'
+             CHECK (source IN ('manual','auto')),
   changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, series_id)
 );
@@ -383,9 +390,13 @@ CREATE INDEX ix_batch_user ON e_mark_batch (user_id, created_at DESC);
 
 -- Кэш прогресса (OP-10, F-03-03).
 --
--- Пересчитывается при каждой отметке; при чтении сравнивается с числом
--- вышедших серий, и расхождение пересчитывает строку — иначе новая серия,
--- вышедшая после импорта, годами показывала бы старый процент. Кэш можно
+-- Держит всё, что нужно карточке закладки: прогресс, «продолжить», дату
+-- ожидания и пропуски. Именно поэтому список закладок читает кэш, а не считает
+-- заново на каждой строке.
+--
+-- Пересчитывается при каждой отметке; при чтении число вышедших серий
+-- сравнивается с кэшем, и расхождение пересчитывает строку — иначе новая
+-- серия, вышедшая после импорта, годами показывала бы старый процент. Кэш можно
 -- удалить целиком и построить заново: это не источник правды, отметки в
 -- `e_watch_mark` — источник.
 CREATE TABLE e_progress (
@@ -395,10 +406,16 @@ CREATE TABLE e_progress (
   aired        INTEGER NOT NULL DEFAULT 0,   -- всего вышедших видимых серий
   last_season  INTEGER,
   last_episode INTEGER,                      -- последняя отмеченная по порядку (сезон, номер)
+  next_season  INTEGER,                      -- «продолжить»: первая вышедшая неотмеченная
+  next_episode INTEGER,                      --            после последней отмеченной (OP-10б)
+  next_date    DATE,                         -- дата её выхода
+  awaiting_date DATE,                        -- когда выйдет следующая, если всё отмечено
+  skipped      INTEGER NOT NULL DEFAULT 0,   -- неотмеченные серии до последней отмеченной (EC-T11)
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (user_id, series_id),
-  CONSTRAINT ck_progress_counts CHECK (marked >= 0 AND aired >= 0 AND marked <= aired)
+  CONSTRAINT ck_progress_counts CHECK (marked >= 0 AND aired >= 0 AND marked <= aired AND skipped >= 0)
 );
+CREATE INDEX ix_progress_updated ON e_progress (user_id, updated_at);
 CREATE TABLE e_bookmark (
   user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
   series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,

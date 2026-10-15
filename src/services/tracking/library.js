@@ -32,9 +32,10 @@ export const LIBRARY_PAGE_SIZE = 24;
 export const SORTS = {
   recent: 'changed_at DESC, series_id',
   title: 'title, series_id',
-  // Доля отмеченного считается в SQL: по ней сортируется вся выборка зрителя,
-  // а не страница, иначе прогресс пришлось бы считать для всех закладок.
-  progress: '(marked::float / nullif(total_episodes, 0)) DESC NULLS LAST, title, series_id',
+  // Сортировка по прогрессу идёт по строкам `e_progress`: выборка зрителя уже
+  // получает прогресс из кэша, и второй подсчёт на ту же строку был бы вдвое
+  // дороже без единой новой правды.
+  progress: `progress_percent DESC NULLS LAST, title, series_id`,
   next: 'next_release_date NULLS LAST, title, series_id',
   year: 'year_start DESC NULLS LAST, title, series_id',
 };
@@ -68,12 +69,15 @@ export function pgLibrary(pool) {
       limit = LIBRARY_PAGE_SIZE,
       query = '',
       today,
+      progressOf = null,
     }) {
       const wanted = STATUSES.includes(status) ? status : null;
       const orderBy = SORTS[sort] ?? SORTS.recent;
       const needle = String(query ?? '').trim();
 
-      const { rows, total, counts } = await loadRows({ pool, userId, status: wanted, needle, today, orderBy });
+      const { rows, total, counts } = await loadRows({
+        pool, userId, status: wanted, needle, today, orderBy, progressOf,
+      });
 
       // Страница за концом списка — последняя страница, а не пустая (EC-K6).
       const pages = Math.max(1, Math.ceil(total / limit));
@@ -105,24 +109,20 @@ export function pgLibrary(pool) {
  * @param {object} args
  * @returns {Promise<{rows: object[], total: number, counts: Record<string, number>}>}
  */
-async function loadRows({ pool, userId, status, needle, today, orderBy }) {
+async function loadRows({ pool, userId, status, needle, today, orderBy, progressOf }) {
   const counts = Object.fromEntries(STATUSES.map((value) => [value, 0]));
 
   const { rows } = await pool.query(
-    `SELECT * FROM (
+    `SELECT b.*,
+            (SELECT round(p.marked::numeric * 100 / nullif(p.aired, 0))
+               FROM e_progress p
+              WHERE p.user_id = $1 AND p.series_id = b.series_id) AS progress_percent
+       FROM (
     SELECT s.id AS series_id, s.slug,
             coalesce(s.title_ru, s.title_en, s.title_original) AS title,
             s.year_start, s.exit_state, s.archived_at IS NOT NULL AS archived,
             s.publication_state,
             ws.status, ws.changed_at::text AS changed_at,
-            (SELECT count(*)::int FROM e_episode e
-               JOIN e_season se ON se.id = e.season_id
-              WHERE se.series_id = s.id AND se.number > 0) AS total_episodes,
-            (SELECT count(*)::int FROM e_watch_mark m
-               JOIN e_episode e ON e.id = m.episode_id
-               JOIN e_season se ON se.id = e.season_id
-              WHERE m.user_id = $1 AND se.series_id = s.id AND se.number > 0) AS marked,
-            nx.season AS next_season, nx.number AS next_episode, nx.d AS next_episode_date,
             rel.d AS next_release_date,
             (SELECT iv.width FROM e_image_variant iv
                JOIN e_image i ON i.id = iv.image_id
@@ -131,36 +131,17 @@ async function loadRows({ pool, userId, status, needle, today, orderBy }) {
        FROM e_watch_status ws
        JOIN e_series s ON s.id = ws.series_id
        LEFT JOIN LATERAL (
-         -- «Продолжить»: первая вышедшая и неотмеченная серия. Невышедшая в
-         -- списке не показывается — продолжать нечего (F-03-03 §3).
-         SELECT se.number AS season, e.number, r.d
-           FROM e_episode e
-           JOIN e_season se ON se.id = e.season_id
-           JOIN LATERAL (
-             SELECT min(r2.release_date) AS d
-               FROM e_release_episode rle
-               JOIN e_release r2 ON r2.id = rle.release_id
-              WHERE rle.episode_id = e.id
-           ) r ON true
-          WHERE se.series_id = s.id
-            AND se.number > 0
-            AND r.d <= $3::date
-            AND NOT EXISTS (SELECT 1 FROM e_watch_mark m2 WHERE m2.user_id = $1 AND m2.episode_id = e.id)
-          ORDER BY se.number, e.number
-          LIMIT 1
-       ) nx ON true
-       LEFT JOIN LATERAL (
          SELECT min(r3.release_date) AS d
            FROM e_season se3
            JOIN e_release r3 ON r3.season_id = se3.id
-          WHERE se3.series_id = s.id AND r3.release_date > $3::date
+          WHERE se3.series_id = s.id AND se3.number > 0 AND r3.release_date > $3::date
        ) rel ON true
       WHERE ws.user_id = $1
         AND ($2::text IS NULL OR ws.status = $2)
         -- Имя выражения целиком, а не псевдоним: в WHERE псевдонимы из
         -- списка выбора не видны, и запрос падал бы с «столбец не существует».
         AND ($4::text = '' OR coalesce(s.title_ru, s.title_en, s.title_original) ILIKE $4)
-      ) AS bookmarks
+      ) AS b
       ORDER BY ${orderBy}`,
     [userId, status, today, needle ? `%${needle}%` : ''],
   );
@@ -173,9 +154,20 @@ async function loadRows({ pool, userId, status, needle, today, orderBy }) {
   );
   for (const row of tally) counts[row.status] = row.n;
 
+  // Прогресс приходит из кэша `e_progress` (F-03-03 §9), а не считается на
+  // каждую строку: двадцать четыре карточки — это двадцать четыре подзапроса.
+  // Источник передаёт его функцией, поэтому слой списка не знает, откуда взялись
+  // числа, а без прогресса остаётся рабочим — с нулями, а не с ошибкой.
+  const cached = progressOf
+    ? await progressOf(rows.map((row) => row.series_id))
+    : new Map();
+
   const items = rows.map((row) => {
-    const totalEpisodes = row.total_episodes ?? 0;
-    const marked = row.marked ?? 0;
+    const progress = cached.get(row.series_id) ?? {
+      marked: 0, aired: 0, percent: 0, nextSeason: null, nextEpisode: null,
+      nextDate: null, awaitingDate: null, skipped: 0, state: 'no-airdates',
+    };
+
     return {
       seriesId: row.series_id,
       slug: row.slug,
@@ -187,15 +179,14 @@ async function loadRows({ pool, userId, status, needle, today, orderBy }) {
       exitState: row.exit_state,
       posterWidth: row.poster_width,
       progress: {
-        marked,
-        total: totalEpisodes,
-        // Проценты считаются в Node, а не в SQL: округление `round()` в базе
-        // считает по целому и «12 из 24» превращает в 50 вместо 50 — а при
-        // 1 из 3 в 33 вместо 33.3, и полоса в карточке прыгает.
-        percent: totalEpisodes ? Math.round((marked / totalEpisodes) * 100) : 0,
-        nextSeason: row.next_season ?? null,
-        nextEpisode: row.next_episode ?? null,
-        nextEpisodeDate: row.next_episode_date ?? null,
+        marked: progress.marked,
+        total: progress.aired,
+        percent: progress.percent,
+        nextSeason: progress.nextSeason,
+        nextEpisode: progress.nextEpisode,
+        nextEpisodeDate: progress.nextDate,
+        skipped: progress.skipped,
+        state: progress.state,
       },
       nextReleaseDate: row.next_release_date ?? null,
     };

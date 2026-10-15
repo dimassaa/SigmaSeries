@@ -15,6 +15,7 @@
 import pg from 'pg';
 
 import { syncSubscriptionForStatus } from './status.js';
+import { recompute as refreshProgress } from './progress.js';
 
 /** `tracking.undo_window_s` (M3 §0): десять секунд на отмену. */
 export const UNDO_WINDOW_SECONDS = 10;
@@ -151,32 +152,31 @@ export function pgMarks(pool) {
       // враньём — человек решит, что отменил, а ничего не изменилось.
       if (!rows.length || rows[0].undone_at) return { ok: false, reason: 'not-found' };
 
+      // Сериалы собираются ДО удаления отметок: после удаления связь пропала бы,
+      // и прогресс с ними остался бы прежним — а человек увидел бы «3 из 3»
+      // после того, как отменил всё.
+      const { rows: affected } = await pool.query(
+        `SELECT DISTINCT se.series_id
+           FROM e_watch_mark m
+           JOIN e_episode e ON e.id = m.episode_id
+           JOIN e_season se ON se.id = e.season_id
+          WHERE m.user_id = $1 AND m.batch_id = $2`,
+        [userId, batchId],
+      );
+
       await pool.query('UPDATE e_mark_batch SET undone_at = now() WHERE id = $1', [batchId]);
       const removed = await pool.query(
         'DELETE FROM e_watch_mark WHERE user_id = $1 AND batch_id = $2',
         [userId, batchId],
       );
 
-      // Прогресс и статус считаются по тому, что осталось, а не по пакету.
-      const { rows: series } = await pool.query(
-        `SELECT DISTINCT se.series_id FROM e_watch_mark m
-           JOIN e_episode e ON e.id = m.episode_id
-           JOIN e_season se ON se.id = e.season_id
-          WHERE m.user_id = $1`,
-        [userId],
-      );
-      const { rows: touched } = await pool.query(
-        `SELECT DISTINCT se.series_id FROM e_watch_mark m
-           JOIN e_episode e ON e.id = m.episode_id
-           JOIN e_season se ON se.id = e.season_id
-          WHERE m.batch_id = $1`,
-        [batchId],
-      );
-      const ids = new Set([...series.map((row) => row.series_id), ...touched.map((row) => row.series_id)]);
-      for (const seriesId of ids) await afterChange(pool, { userId, seriesId, today });
+      for (const { series_id: seriesId } of affected) {
+        await afterChange(pool, { userId, seriesId, today });
+      }
 
       return { ok: true, removed: removed.rowCount };
     },
+
   };
 }
 
@@ -222,72 +222,12 @@ async function bulkMark(pool, { userId, episodeIds }) {
  * Что пересчитывается после смены отметок (F-03-02 §8д).
  *
  * Порядок важен: сначала прогресс (он считает статус), потом статус, иначе
- * статус пересчитался бы по устаревшему прогрессу.
+ * статус пересчитался бы по устаревшему прогрессу. Пересчёт живёт в
+ * `progress.js` — тем же кодом, который читает кэш.
  */
 async function afterChange(pool, { userId, seriesId, today = isoToday() }) {
   const progress = await refreshProgress(pool, { userId, seriesId, today });
   await applyStatusAfterMarks(pool, { userId, seriesId, progress, today });
-}
-
-/**
- * Пересчёт прогресса сериала (OP-10).
- *
- * @param {pg.Pool} pool
- * @param {object} args
- * @returns {Promise<{marked: number, aired: number, lastSeason: number|null, lastEpisode: number|null}>}
- */
-export async function refreshProgress(pool, { userId, seriesId, today = isoToday() }) {
-  const { rows } = await pool.query(
-    `WITH visible AS (
-       SELECT e.id, se.number AS season, e.number AS episode
-         FROM e_episode e
-         JOIN e_season se ON se.id = e.season_id
-         JOIN e_series s ON s.id = se.series_id
-        WHERE se.series_id = $2 AND se.number > 0
-          AND s.publication_state = 'published' AND s.archived_at IS NULL
-     ), aired AS (
-       SELECT v.id, v.season, v.episode,
-              EXISTS (SELECT 1 FROM e_watch_mark m
-                       WHERE m.user_id = $1 AND m.episode_id = v.id) AS marked
-         FROM visible v
-        WHERE (SELECT min(r.release_date) FROM e_release_episode rle
-                 JOIN e_release r ON r.id = rle.release_id
-                WHERE rle.episode_id = v.id) <= $3::date
-     )
-     SELECT count(*)::int AS aired, count(*) FILTER (WHERE marked)::int AS marked
-       FROM aired`,
-    [userId, seriesId, today],
-  );
-
-  const { rows: last } = await pool.query(
-    `SELECT se.number AS season, e.number AS episode
-       FROM e_watch_mark m
-       JOIN e_episode e ON e.id = m.episode_id
-       JOIN e_season se ON se.id = e.season_id
-      WHERE m.user_id = $1 AND se.series_id = $2
-      ORDER BY se.number DESC, e.number DESC
-      LIMIT 1`,
-    [userId, seriesId],
-  );
-
-  const progress = {
-    aired: rows[0].aired,
-    marked: Math.min(rows[0].marked, rows[0].aired),
-    lastSeason: last[0]?.season ?? null,
-    lastEpisode: last[0]?.episode ?? null,
-  };
-
-  await pool.query(
-    `INSERT INTO e_progress (user_id, series_id, marked, aired, last_season, last_episode, updated_at)
-     VALUES ($1, $2, $3, $4, $5, $6, now())
-     ON CONFLICT (user_id, series_id) DO UPDATE
-       SET marked = EXCLUDED.marked, aired = EXCLUDED.aired,
-           last_season = EXCLUDED.last_season, last_episode = EXCLUDED.last_episode,
-           updated_at = now()`,
-    [userId, seriesId, progress.marked, progress.aired, progress.lastSeason, progress.lastEpisode],
-  );
-
-  return progress;
 }
 
 /**
@@ -299,22 +239,69 @@ export async function refreshProgress(pool, { userId, seriesId, today = isoToday
  * одной новой отметки.
  */
 async function applyStatusAfterMarks(pool, { userId, seriesId, progress, today }) {
-  if (!progress.marked) return;
-
   const { rows } = await pool.query(
-    'SELECT status FROM e_watch_status WHERE user_id = $1 AND series_id = $2',
+    'SELECT status, source FROM e_watch_status WHERE user_id = $1 AND series_id = $2',
     [userId, seriesId],
   );
   const current = rows[0]?.status ?? null;
-  if (current === 'watching' || current === 'watched') return;
+  const source = rows[0]?.source ?? 'manual';
 
-  await pool.query(
-    `INSERT INTO e_watch_status (user_id, series_id, status) VALUES ($1, $2, 'watching')
-     ON CONFLICT (user_id, series_id) DO UPDATE SET status = 'watching', changed_at = now()`,
-    [userId, seriesId],
+  // Сняли все отметки: статус, который поставил человек, остаётся (EC-T12), а
+  // автоматический — отменяется вместе с отметками, которые его вызвали.
+  if (!progress.marked) {
+    if (current && source === 'auto') {
+      await pool.query('DELETE FROM e_watch_status WHERE user_id = $1 AND series_id = $2', [userId, seriesId]);
+      await syncSubscriptionForStatus(pool, { userId, seriesId, enabled: false });
+    }
+    return;
+  }
+  // Ручной «Просмотрено» или «Смотрю» — не трогаем: человек сказал, что он
+  // думает о сериале, и отметки не должны перебивать его решение.
+  if (current === 'watching' || (current === 'watched' && source === 'manual')) return;
+
+  const { rows: series } = await pool.query(
+    "SELECT exit_state FROM e_series WHERE id = $1",
+    [seriesId],
   );
+  const ended = series[0]?.exit_state === 'ended';
+  const complete = progress.aired > 0 && progress.marked === progress.aired;
+
+  // Автопереход в «Просмотрено» — только завершённому сериалу: у идущего статус
+  // сам не меняется (H-69, EC-T20).
+  if (complete && ended) {
+    await setStatus(pool, { userId, seriesId, status: 'watched' });
+    await syncSubscriptionForStatus(pool, { userId, seriesId, enabled: false });
+    return;
+  }
+
+  // Откат автоматического «Просмотрено», когда выход перестал быть полным:
+  // «Просмотрено» человека не трогаем (см. выше), автоматическое — можно.
+  if (current === 'watched') {
+    await setStatus(pool, { userId, seriesId, status: 'watching' });
+    await syncSubscriptionForStatus(pool, { userId, seriesId, enabled: true });
+    return;
+  }
+
+  await setStatus(pool, { userId, seriesId, status: 'watching' });
   // Статус «Смотрю» включает подписку на выходы (H-70), как и кнопка статуса.
   await syncSubscriptionForStatus(pool, { userId, seriesId, enabled: true });
+}
+
+/**
+ * Запись статуса с пометкой источника.
+ *
+ * @param {pg.Pool} pool
+ * @param {object} args
+ * @param {'manual'|'auto'} args.source
+ */
+async function setStatus(pool, { userId, seriesId, status, source = 'auto' }) {
+  await pool.query(
+    `INSERT INTO e_watch_status (user_id, series_id, status, source)
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (user_id, series_id) DO UPDATE
+       SET status = EXCLUDED.status, source = EXCLUDED.source, changed_at = now()`,
+    [userId, seriesId, status, source],
+  );
 }
 
 /** Серия с датой выхода и видимостью её сериала. */

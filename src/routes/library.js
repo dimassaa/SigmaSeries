@@ -24,8 +24,9 @@ const rawHtml = (page) => page.__raw;
  * @param {object} deps
  * @param {object} deps.library источник данных
  * @param {Function} deps.sessionMw
+ * @param {object|null} [deps.progress] прогресс из кэша; без него у карточек нули
  */
-export function createLibraryRoutes({ library, sessionMw }) {
+export function createLibraryRoutes({ library, sessionMw, progress = null }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -53,6 +54,11 @@ export function createLibraryRoutes({ library, sessionMw }) {
         page,
         limit: LIBRARY_PAGE_SIZE,
         today: todayIn(timezone),
+        // Прогресс и «продолжить» приходят из кэша одним запросом на страницу,
+        // а не считаются на каждую карточку (F-03-03 §9).
+        progressOf: progress
+          ? (seriesIds) => progress.forSeries({ userId: user.id, seriesIds, today: todayIn(timezone) })
+          : null,
       });
 
       return res.status(200).type('html').send(rawHtml(layout({

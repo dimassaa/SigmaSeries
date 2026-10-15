@@ -9,6 +9,7 @@ import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { fullDate as formatDate } from './dates.js';
 import { statusControl } from './status.js';
+import { progressView } from './progress.js';
 
 /** Подписи состояний выхода (`exit_state` → ключ интерфейса). */
 const STATE_KEY = {
@@ -30,8 +31,9 @@ function yearRange(series) {
  * @param {object} page.series результат источника
  * @param {{value: string|null, csrf: string, signedIn: boolean, archived: boolean}|null} [page.status]
  *   статус зрителя; `null` — источник статусов не подключён или это гость без сессии
+ * @param {object|null} [page.progress] прогресс и «продолжить» (F-03-03)
  */
-export function seriesView({ locale, series, status = null }) {
+export function seriesView({ locale, series, status = null, progress = null }) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
   return html`
@@ -64,6 +66,7 @@ export function seriesView({ locale, series, status = null }) {
         ${when(series.genres.length > 0, () => html` · ${series.genres.map((g) => g.name_ru).join(', ')}`)}
       </p>
       <p class="series__state">${t(locale, STATE_KEY[series.exitState] ?? 'series.state.waiting')}</p>
+      ${progressView({ locale, series, progress })}
       ${when(series.nextRelease, () => html`
       <p class="series__next">
         ${t(locale, 'series.next', {

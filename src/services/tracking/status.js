@@ -94,11 +94,13 @@ export function pgWatchStatus(pool) {
       // но человек не увидит результата и решит, что кнопка сломана (EC-T8).
       if (!visible || visible.archived) return { ok: false, reason: 'archived' };
 
+      // `source` всегда `manual`: это нажатие кнопки, даже если человек
+      // выбрал то же значение, что поставил бы код.
       await pool.query(
-        `INSERT INTO e_watch_status (user_id, series_id, status)
-         VALUES ($1, $2, $3)
+        `INSERT INTO e_watch_status (user_id, series_id, status, source)
+         VALUES ($1, $2, $3, 'manual')
          ON CONFLICT (user_id, series_id) DO UPDATE
-           SET status = EXCLUDED.status, changed_at = now()`,
+           SET status = EXCLUDED.status, source = 'manual', changed_at = now()`,
         [userId, seriesId, status],
       );
 

@@ -194,6 +194,55 @@ test('первая отметка переводит статус в «Смот�
     'отметка без статуса — это начало просмотра');
 });
 
+test('все вышедшие серии завершённого сериала переводят в «Просмотрено» (F-03-01 §8а)', { skip }, async () => {
+  const f = await fixture({ aired: 3 });
+  await pool.query("UPDATE e_series SET exit_state = 'ended' WHERE id = $1", [f.seriesId]);
+
+  await marks.markSeason({ userId: f.userId, seasonId: f.seasonId });
+
+  const { rows } = await pool.query(
+    'SELECT status, source FROM e_watch_status WHERE user_id = $1 AND series_id = $2',
+    [f.userId, f.seriesId],
+  );
+  assert.equal(rows[0].status, 'watched', 'всё вышедшее отмечено у завершённого сериала');
+  assert.equal(rows[0].source, 'auto', 'и это сделал код, а не человек');
+});
+
+test('ручной «Просмотрено» откат отметками не перебивается', { skip }, async () => {
+  const f = await fixture({ aired: 3 });
+  await pool.query("UPDATE e_series SET exit_state = 'ended' WHERE id = $1", [f.seriesId]);
+  await pool.query(
+    "INSERT INTO e_watch_status (user_id, series_id, status, source) VALUES ($1, $2, 'watched', 'manual')",
+    [f.userId, f.seriesId],
+  );
+
+  await marks.markSeason({ userId: f.userId, seasonId: f.seasonId });
+
+  const { rows } = await pool.query(
+    'SELECT status, source FROM e_watch_status WHERE user_id = $1 AND series_id = $2',
+    [f.userId, f.seriesId],
+  );
+  assert.equal(rows[0].status, 'watched', 'человек поставил сам — код не откатывает');
+  assert.equal(rows[0].source, 'manual', 'и источник остался человеческим');
+});
+
+test('отмена массовой отметки возвращает автоматический статус', { skip }, async () => {
+  const f = await fixture({ aired: 3 });
+  await pool.query("UPDATE e_series SET exit_state = 'ended' WHERE id = $1", [f.seriesId]);
+
+  const bulk = await marks.markSeason({ userId: f.userId, seasonId: f.seasonId });
+  assert.equal(bulk.ok, true);
+
+  await marks.undo({ userId: f.userId, batchId: bulk.batchId });
+
+  const { rows } = await pool.query(
+    'SELECT status FROM e_watch_status WHERE user_id = $1 AND series_id = $2',
+    [f.userId, f.seriesId],
+  );
+  assert.equal(rows.length, 0,
+    'отмена вернула состояние до действия: сериала нет в закладках вовсе');
+});
+
 test('отметка не трогает статус «Просмотрено» у идущего сериала (H-69, EC-T20)', { skip }, async () => {
   const f = await fixture({ aired: 3 });
   await pool.query(

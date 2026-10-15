@@ -103,32 +103,16 @@ function card({ locale, item, csrf }) {
         ${item.year ? html`<span class="library__year">${item.year}</span>` : ''}
       </h2>
 
+      ${when(item.status === 'watched' && item.progress.total > item.progress.marked, () => html`
+      <p class="library__badge">${t(locale, 'library.badgeNew')}</p>`)}
+
       ${when(item.archived, () => html`
       <p class="library__archived">${t(locale, 'library.archived')}</p>
       ${statusControl({ locale, slug: item.slug, status: item.status, signedIn: true, csrf, archived: true, view: 'library' })}`,
       () => html`
       ${statusControl({ locale, slug: item.slug, status: item.status, signedIn: true, csrf, view: 'library' })}
 
-      ${when(item.progress.total > 0, () => html`
-      <div class="library__progress">
-        <progress class="library__progress-bar" value="${item.progress.percent}" max="100"
-                  aria-label="${t(locale, 'library.progress')}"></progress>
-        <span class="library__progress-text">${t(locale, 'library.progressText', {
-    marked: item.progress.marked,
-    total: item.progress.total,
-  })}</span>
-      </div>`)}
-
-      ${when(item.progress.nextEpisode !== null, () => html`
-      <p class="library__continue">
-        <a href="/${locale}/series/${item.slug}/seasons/${item.progress.nextSeason}/episodes/${item.progress.nextEpisode}"
-           >${t(locale, 'library.continue', {
-    season: item.progress.nextSeason,
-    episode: item.progress.nextEpisode,
-  })}</a>
-        ${when(item.progress.nextEpisodeDate, () => html`
-        <span class="library__next-date">${releaseLabel(locale, item.progress.nextEpisodeDate)}</span>`)}
-      </p>`)}
+      ${progressBlock({ locale, item })}
 
       ${when(item.nextReleaseDate, () => html`
       <p class="library__next">${t(locale, 'library.nextRelease', { date: fullDate(locale, item.nextReleaseDate) })}</p>`)}
@@ -137,6 +121,44 @@ function card({ locale, item, csrf }) {
 
   </article>
 </li>`;
+}
+
+/**
+ * Прогресс и «продолжить» в карточке (F-03-03).
+ *
+ * Показываются все пять состояний, а не только «сколько отмечено»: у человека
+ * на руках сериал, у которого всё вышедшее отмечено, и для него главное —
+ * «когда следующая», а не процент.
+ */
+function progressBlock({ locale, item }) {
+  const { progress } = item;
+  const { total, marked, percent } = progress;
+
+  if (total === 0) {
+    return html`<p class="library__progress-text">${t(locale, 'library.progressNoAired')}</p>`;
+  }
+
+  return html`
+<div class="library__progress">
+  <progress class="library__progress-bar" value="${percent}" max="100"
+            aria-label="${t(locale, 'library.progress')}"></progress>
+  <span class="library__progress-text">${t(locale, 'library.progressText', { marked, total })}</span>
+  <span class="library__progress-percent">${percent}%</span>
+</div>
+
+${when(progress.nextEpisode !== null, () => html`
+<p class="library__continue">
+  <a href="/${locale}/series/${item.slug}/seasons/${progress.nextSeason}/episodes/${progress.nextEpisode}"
+     >${t(locale, 'library.continue', { season: progress.nextSeason, episode: progress.nextEpisode })}</a>
+  ${when(progress.nextEpisodeDate, () => html`
+  <span class="library__next-date">${releaseLabel(locale, progress.nextEpisodeDate)}</span>`)}
+</p>`)}
+
+${when(progress.state === 'all-aired-watched' && item.nextReleaseDate, () => html`
+<p class="library__next">${t(locale, 'library.awaiting', { date: fullDate(locale, item.nextReleaseDate) })}</p>`)}
+
+${when(progress.skipped > 0, () => html`
+<p class="library__skipped">${t(locale, 'library.skipped', { count: progress.skipped })}</p>`)}`;
 }
 
 const SORT_LABEL = {
