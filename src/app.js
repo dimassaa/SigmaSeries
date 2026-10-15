@@ -23,6 +23,7 @@ import { createSearchRoutes } from './routes/search.js';
 import { createSeasonRoutes } from './routes/season.js';
 import { createCollectionRoutes } from './routes/collection.js';
 import { createCalendarRoutes } from './routes/calendar.js';
+import { createMarkRoutes } from './routes/mark.js';
 import { createStatusRoutes } from './routes/status.js';
 import { createLibraryRoutes } from './routes/library.js';
 import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
@@ -52,6 +53,8 @@ export function createApp({
   calendar = null,
   watchStatus = null,
   statusLimiter = null,
+  marks = null,
+  markLimiter = null,
   library = null,
   pool = null,
   auth,
@@ -111,7 +114,7 @@ export function createApp({
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
   if (catalogue) app.use(createCatalogueRoutes({ catalogue }));
   if (search) app.use(createSearchRoutes({ search, ratePerIp: searchRatePerIp ?? undefined }));
-  if (seasons) app.use(createSeasonRoutes({ seasons }));
+  if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw }));
   if (series) app.use(createSeriesRoutes({ series, watchStatus, sessionMw }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
@@ -123,6 +126,10 @@ export function createApp({
   }
   // Закладки читают сессию: гостю показывается вход, вошедшему — свой список.
   if (library && sessionMw) app.use(createLibraryRoutes({ library, sessionMw }));
+  // Отметки серий: POST с CSRF, лимитом частоты и проверкой «вышла ли серия».
+  if (marks && series && sessionMw) {
+    app.use(createMarkRoutes({ marks, series, sessionMw, limiter: markLimiter ?? undefined }));
+  }
 
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.
   if (pool) app.use(createImageRoutes({ pool }));

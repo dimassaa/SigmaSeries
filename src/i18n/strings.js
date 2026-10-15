@@ -48,6 +48,21 @@ const MESSAGES = {
     'date.tomorrow': 'завтра выходит',
     'date.inDays': 'через {count} дня выходит',
 
+    // F-03-02 — отметки серий
+    'mark.mark': 'Отметить серию {episode}',
+    'mark.unmark': 'Снять отметку с серии {episode}',
+    'mark.soon': 'Серия выйдет {date}',
+    'mark.seasonAll': 'Отметить вышедшие серии сезона',
+    'mark.upto': 'Все до {episode}',
+    'mark.undo': 'Отменить',
+    'mark.notice.done': 'Отмечено серий: {count}.',
+    'mark.notice.soon': 'Серия ещё не вышла',
+    'mark.notice.nothing': 'В сезоне пока нет вышедших серий',
+    'mark.notice.undone': 'Отметки отменены',
+    'mark.error.csrf': 'Сессия устарела. Откройте страницу заново.',
+    'mark.error.rate': 'Слишком много отметок подряд. Подождите минуту.',
+    'mark.error.missing': 'Сериал не найден.',
+
     // S-30 — закладки (F-03-04)
     'library.title': 'Закладки',
     'library.description': 'Ваши сериалы со статусами просмотра.',
@@ -592,6 +607,21 @@ const MESSAGES = {
     'date.today': 'aired today',
     'date.tomorrow': 'airs tomorrow',
     'date.inDays': 'airs in {count} days',
+
+    // F-03-02 — episode marks
+    'mark.mark': 'Mark episode {episode} as watched',
+    'mark.unmark': 'Unmark episode {episode}',
+    'mark.soon': 'Episode airs {date}',
+    'mark.seasonAll': 'Mark aired episodes of the season',
+    'mark.upto': 'All up to {episode}',
+    'mark.undo': 'Undo',
+    'mark.notice.done': 'Marked episodes: {count}.',
+    'mark.notice.soon': 'The episode has not aired yet',
+    'mark.notice.nothing': 'No episodes have aired in this season yet',
+    'mark.notice.undone': 'Marks undone',
+    'mark.error.csrf': 'The session expired. Open the page again.',
+    'mark.error.rate': 'Too many marks in a row. Wait a minute.',
+    'mark.error.missing': 'Series not found.',
 
     // S-30 — bookmarks (F-03-04)
     'library.title': 'Bookmarks',

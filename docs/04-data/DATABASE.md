@@ -368,10 +368,44 @@ CREATE TABLE e_watch_mark (
   marked_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   precision  TEXT   NOT NULL CHECK (precision IN ('exact','retro')),
   -- ретро-отметка помечена, чтобы прогресс и Wrapped её игнорировали
-  batch_id   BIGINT,
+  batch_id   BIGINT REFERENCES e_mark_batch(id) ON DELETE SET NULL,
   PRIMARY KEY (user_id, episode_id)
 );
 CREATE INDEX ix_mark_exact ON e_watch_mark (user_id, episode_id) WHERE precision = 'exact';
+CREATE INDEX ix_mark_batch ON e_watch_mark (user_id, batch_id) WHERE batch_id IS NOT NULL;
+
+-- Пакет массовой отметки — только ради отмены.
+--
+-- Отмена «Отметить сезон» обязана вернуть именно то, что было до неё, поэтому
+-- помнить не «что отметили», а «отметили одним действием»: отмена удаляет
+-- отметки этого пакета и ничего больше. Строка остаётся после отмены —
+-- иначе повторная отмена того же номера была бы неотличима от новой отметки.
+CREATE TABLE e_mark_batch (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  undone_at  TIMESTAMPTZ
+);
+CREATE INDEX ix_batch_user ON e_mark_batch (user_id, created_at DESC);
+
+-- Кэш прогресса (OP-10, F-03-03).
+--
+-- Пересчитывается при каждой отметке; при чтении сравнивается с числом
+-- вышедших серий, и расхождение пересчитывает строку — иначе новая серия,
+-- вышедшая после импорта, годами показывала бы старый процент. Кэш можно
+-- удалить целиком и построить заново: это не источник правды, отметки в
+-- `e_watch_mark` — источник.
+CREATE TABLE e_progress (
+  user_id      BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  series_id    BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  marked       INTEGER NOT NULL DEFAULT 0,   -- отмечено видимых вышедших серий
+  aired        INTEGER NOT NULL DEFAULT 0,   -- всего вышедших видимых серий
+  last_season  INTEGER,
+  last_episode INTEGER,                      -- последняя отмеченная по порядку (сезон, номер)
+  updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, series_id),
+  CONSTRAINT ck_progress_counts CHECK (marked >= 0 AND aired >= 0 AND marked <= aired)
+);
 CREATE TABLE e_bookmark (
   user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
   series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,

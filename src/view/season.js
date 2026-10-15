@@ -8,6 +8,7 @@ import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { releaseLabel } from './dates.js';
 import { goneView } from './series.js';
+import { markCheckbox, markUpTo, markSeason, markNotice } from './mark.js';
 
 function runtime(locale, minutes) {
   if (!minutes) return '';
@@ -26,8 +27,13 @@ const episodeHref = (locale, slug, season, episode) =>
  * @param {string} page.locale
  * @param {object} page.page данные источника
  * @param {string} page.slug
+ * @param {{csrf: string, signedIn: boolean, undoWindow: number}|null} [page.marks]
+ *   отметки: без источника их на странице нет даже для гостя
+ * @param {string|null} [page.notice] что сообщить после действия
+ * @param {number} [page.noticeMarked]
+ * @param {number|null} [page.noticeBatch]
  */
-export function seasonView({ locale, page, slug }) {
+export function seasonView({ locale, page, slug, marks = null, notice = null, noticeMarked = 0, noticeBatch = null }) {
   const { series, season } = page;
 
   return html`
@@ -63,10 +69,36 @@ ${when(page.prevSeason !== null || page.nextSeason !== null, () => html`
 ${when(season.episodes.length === 0, () => html`
 <p class="empty">${t(locale, 'season.empty')}</p>`)}
 
+${markNotice({
+    locale,
+    slug,
+    csrf: marks?.csrf ?? '',
+    message: notice,
+    marked: noticeMarked,
+    batch: noticeBatch,
+    undoWindow: marks?.undoWindow,
+  })}
+
 ${when(season.episodes.length > 0, () => html`
+<div class="season__actions">
+  ${markSeason({ locale, slug, season: season.number, seasonId: season.id, csrf: marks?.csrf ?? '', signedIn: marks?.signedIn })}
+</div>
+
 <ol class="season__episode-list" role="list">
   ${season.episodes.map((episode) => html`
   <li class="season__episode">
+    ${markCheckbox({
+      locale,
+      slug,
+      season: season.number,
+      episode: episode.number,
+      episodeId: episode.id,
+      csrf: marks?.csrf ?? '',
+      marked: Boolean(episode.marked),
+      aired: episode.aired,
+      date: episode.date,
+      signedIn: marks?.signedIn ?? false,
+    })}
     <a class="season__episode-link" href="${episodeHref(locale, slug, season.number, episode.number)}">
       <span class="season__episode-number">${episode.number}</span>
       <span class="season__episode-body">
@@ -77,6 +109,15 @@ ${when(season.episodes.length > 0, () => html`
       <span class="season__episode-meta">
         ${when(episode.runtime, () => html`<span class="season__episode-runtime">${runtime(locale, episode.runtime)}</span>`)}
         <span class="season__episode-date">${releaseLabel(locale, episode.date)}</span>
+        ${when(episode.aired, () => html`
+        ${markUpTo({
+          locale,
+          slug,
+          season: season.number,
+          episode: episode.number,
+          csrf: marks?.csrf ?? '',
+          signedIn: marks?.signedIn ?? false,
+        })}`)}
       </span>
     </a>
   </li>`)}
@@ -90,8 +131,9 @@ ${when(season.episodes.length > 0, () => html`
  * @param {string} page.locale
  * @param {object} page.page данные источника
  * @param {string} page.slug
+ * @param {{csrf: string, signedIn: boolean}|null} [page.marks]
  */
-export function episodeView({ locale, page, slug }) {
+export function episodeView({ locale, page, slug, marks = null }) {
   const { series, season, episode } = page;
 
   return html`
@@ -110,7 +152,21 @@ export function episodeView({ locale, page, slug }) {
   number: episode.number,
 })}</p>
 
-<p class="episode__date">${releaseLabel(locale, episode.date)}</p>
+<div class="episode__mark">
+  ${markCheckbox({
+    locale,
+    slug,
+    season: season.number,
+    episode: episode.number,
+    episodeId: episode.id,
+    csrf: marks?.csrf ?? '',
+    marked: Boolean(episode.marked),
+    aired: episode.aired,
+    date: episode.date,
+    signedIn: marks?.signedIn ?? false,
+  })}
+  <p class="episode__date">${releaseLabel(locale, episode.date)}</p>
+</div>
 
 ${when(episode.description, () => html`
 <p class="episode__description">${episode.description}</p>`)}

@@ -22,7 +22,7 @@ export function pgSeasons(pool) {
      * @param {number} seasonNumber
      * @returns {Promise<object|null>}
      */
-    async season(slug, seasonNumber) {
+    async season(slug, seasonNumber, { userId = null, today = null } = {}) {
       const series = await visibleSeries(pool, slug);
       if (!series) return null;
 
@@ -32,7 +32,7 @@ export function pgSeasons(pool) {
       );
       if (!season.rows.length) return null;
 
-      const episodes = await episodesOf(pool, season.rows[0].id);
+      const episodes = await episodesOf(pool, season.rows[0].id, { userId, today });
       const siblings = await seasonNumbersOf(pool, series.id);
 
       return {
@@ -42,6 +42,7 @@ export function pgSeasons(pool) {
           titleOriginal: series.title_original,
         },
         season: {
+          id: season.rows[0].id,
           number: season.rows[0].number,
           title: season.rows[0].title_ru || '',
           episodes,
@@ -63,8 +64,8 @@ export function pgSeasons(pool) {
      * @param {number} episodeNumber
      * @returns {Promise<object|null>}
      */
-    async episode(slug, seasonNumber, episodeNumber) {
-      const seasonPage = await this.season(slug, seasonNumber);
+    async episode(slug, seasonNumber, episodeNumber, options = {}) {
+      const seasonPage = await this.season(slug, seasonNumber, options);
       if (!seasonPage) return null;
 
       const episode = seasonPage.season.episodes.find((item) => item.number === episodeNumber);
@@ -104,18 +105,23 @@ async function visibleSeries(pool, slug) {
 }
 
 /**
- * Серии сезона с описанием, датой и длительностью.
+ * Серии сезона с описанием, датой, длительностью и отметкой зрителя.
  *
  * Описание серии — это и есть её содержимое, поэтому оно берётся целиком и
  * решается на странице, а не здесь: правило скрытия (H-37) живёт в представлении.
+ *
+ * «Вышла» считается по дате в поясе зрителя: без этого флажок был бы доступен
+ * накануне премьеры, а чужой пояс сдвинул бы его на сутки (OP-08а).
  */
-async function episodesOf(pool, seasonId) {
+async function episodesOf(pool, seasonId, { userId = null, today = null } = {}) {
   const { rows } = await pool.query(
-    `SELECT e.number,
+    `SELECT e.id, e.number,
             coalesce(e.title_ru, e.title_en) AS title,
             coalesce(e.description_ru, e.description_en) AS description,
             e.runtime_min,
-            r.release_date::text AS date
+            r.release_date::text AS date,
+            (SELECT m.precision FROM e_watch_mark m
+              WHERE m.user_id = $3 AND m.episode_id = e.id) AS mark_precision
        FROM e_episode e
        LEFT JOIN LATERAL (
          SELECT rl.release_date
@@ -128,16 +134,20 @@ async function episodesOf(pool, seasonId) {
       WHERE e.season_id = $1
       ORDER BY e.number
       LIMIT $2`,
-    [seasonId, EPISODES_LIMIT],
+    [seasonId, EPISODES_LIMIT, userId],
   );
 
   return rows.map((row) => ({
+    id: row.id,
     number: row.number,
     title: row.title || '',
     description: row.description || '',
     descriptionRu: row.description,
     runtime: row.runtime_min,
     date: row.date,
+    marked: row.mark_precision !== null,
+    precision: row.mark_precision,
+    aired: row.date !== null && (today === null || row.date <= today),
   }));
 }
 

@@ -103,7 +103,7 @@ export function pgWatchStatus(pool) {
       );
 
       const subscribed = SUBSCRIBED.has(status);
-      await syncSubscription(pool, { userId, seriesId, enabled: subscribed });
+      await syncSubscriptionForStatus(pool, { userId, seriesId, enabled: subscribed });
       return { ok: true, status, subscribed };
     },
 
@@ -121,7 +121,7 @@ export function pgWatchStatus(pool) {
      */
     async remove({ userId, seriesId }) {
       await pool.query('DELETE FROM e_watch_status WHERE user_id = $1 AND series_id = $2', [userId, seriesId]);
-      await syncSubscription(pool, { userId, seriesId, enabled: false });
+      await syncSubscriptionForStatus(pool, { userId, seriesId, enabled: false });
       return { ok: true };
     },
   };
@@ -129,6 +129,10 @@ export function pgWatchStatus(pool) {
 
 /**
  * Подписка на выходы вслед за статусом (H-70).
+ *
+ * Экспортируется потому, что статус меняется не только кнопкой: первая отметка
+ * серии тоже переводит его в «Смотрю» (`marks.js`), и там нужно то же правило,
+ * а не его копия.
  *
  * Строка, созданная человеком вручную, не трогается: и ручное выключение, и
  * ручное включение переживают смену статуса (EC-T19).
@@ -139,7 +143,7 @@ export function pgWatchStatus(pool) {
  * @param {number} args.seriesId
  * @param {boolean} args.enabled
  */
-async function syncSubscription(pool, { userId, seriesId, enabled }) {
+export async function syncSubscriptionForStatus(pool, { userId, seriesId, enabled }) {
   await pool.query(
     `INSERT INTO e_subscription (user_id, series_id, kind, source, enabled)
      VALUES ($1, $2, 'release', 'auto', $3)

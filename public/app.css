@@ -1980,3 +1980,88 @@ a:hover { color: var(--accent-hover); }
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
+
+/* Флажок отметки серии (F-03-02).
+   Цель касания — 44 px: квадрат флажка может быть меньше, рамка вокруг него
+   обязана быть нет. На телефоне это разница между «отметил» и «не заметил». */
+
+.mark {
+  margin: 0;
+}
+
+.mark__button {
+  display: grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mark__button:hover {
+  border-color: var(--accent);
+}
+
+.mark__button--on {
+  background: var(--positive);
+  border-color: transparent;
+  color: var(--text-inverse);
+}
+
+/* Не вышедшая серия: флажок виден, но не нажимается, и человек читает дату
+   выхода из подсказки, а не гадает, что сломалось (EC-T2). */
+.mark__button[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mark--guest {
+  display: inline-block;
+  inline-size: 44px;
+}
+
+.mark--bulk .button {
+  font-size: 13px;
+}
+
+.season__episode {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.season__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.mark-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin-block: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  font-size: 14px;
+}
+
+.mark-notice--warn {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.episode__mark {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}

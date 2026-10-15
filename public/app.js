@@ -420,6 +420,15 @@
     if (list) list.click();   // один переход на список, дальше вид выбирает человек
   }
 
+  // Окно отмены массовой отметки (F-03-02 §4): кнопка исчезает сама, потому
+  // что человек занят своей жизнью и не обязан помнить про десять секунд.
+  function initUndoWindow() {
+    document.querySelectorAll('[data-undo-window]').forEach(function (form) {
+      var seconds = Number(form.getAttribute('data-undo-window')) || 10;
+      setTimeout(function () { form.remove(); }, seconds * 1000);
+    });
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -427,6 +436,7 @@
     initPasswordReveal();
     initSearch();
     initCalendarDefaultView();
+    initUndoWindow();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();

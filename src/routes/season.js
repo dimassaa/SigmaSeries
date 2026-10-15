@@ -9,6 +9,9 @@ import express from 'express';
 import { layout } from '../view/layout.js';
 import { notFound } from './home.js';
 import { seasonView, episodeView } from '../view/season.js';
+import { csrfToken } from '../services/auth/session.js';
+import { timezoneOf, todayIn } from '../services/timezone.js';
+import { UNDO_WINDOW_SECONDS } from '../services/tracking/marks.js';
 import { goneView } from '../view/series.js';
 import { t, isLocale } from '../i18n/strings.js';
 
@@ -20,8 +23,11 @@ const number = (value, min) => {
   return Number.isInteger(parsed) && parsed >= min ? parsed : null;
 };
 
-export function createSeasonRoutes({ seasons }) {
+export function createSeasonRoutes({ seasons, sessionMw = null }) {
   const router = express.Router({ strict: true });
+  // Сессия нужна ради отметок: гость видит такую же строку серии, но без
+  // флажка, а вошедший — с отметкой.
+  if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
 
   router.get('/:locale/series/:slug/seasons/:season', async (req, res, next) => {
     const { locale, slug } = req.params;
@@ -31,7 +37,8 @@ export function createSeasonRoutes({ seasons }) {
     if (seasonNumber === null) return res.status(404).type('html').send(notFound(locale).__raw);
 
     try {
-      const found = await seasons.season(slug, seasonNumber);
+      const marks = marksOf(req);
+      const found = await seasons.season(slug, seasonNumber, marks.options);
       // Отсутствие сезона у видимого сериала и отсутствие сериала — одно и то же
       // для посетителя: такого адреса нет. Различие живёт в источнике.
       if (!found) return res.status(404).type('html').send(notFound(locale).__raw);
@@ -49,7 +56,15 @@ export function createSeasonRoutes({ seasons }) {
           season: seasonNumber,
         }),
         noindex: locale === 'en' && !found.series.titleOriginal,
-        body: seasonView({ locale, page: found, slug }),
+        body: seasonView({
+          locale,
+          page: found,
+          slug,
+          marks,
+          notice: String(req.query.mark ?? '') || null,
+          noticeMarked: Number(req.query.marked ?? 0) || 0,
+          noticeBatch: req.query.batch ? Number(req.query.batch) : null,
+        }),
       })));
     } catch (error) {
       return next(error);
@@ -67,7 +82,8 @@ export function createSeasonRoutes({ seasons }) {
     }
 
     try {
-      const found = await seasons.episode(slug, seasonNumber, episodeNumber);
+      const marks = marksOf(req);
+      const found = await seasons.episode(slug, seasonNumber, episodeNumber, marks.options);
       if (!found) return res.status(404).type('html').send(notFound(locale).__raw);
 
       const path = `/series/${slug}/seasons/${seasonNumber}/episodes/${episodeNumber}`;
@@ -82,7 +98,7 @@ export function createSeasonRoutes({ seasons }) {
         // позже сегодняшней. Тонкие страницы — это тысячи почти пустых адресов.
         noindex: found.episode.thin || (locale === 'en' && !found.episode.descriptionRu),
         jsonLd: episodeJsonLd({ locale, page: found, seasonNumber, episodeNumber }),
-        body: episodeView({ locale, page: found, slug }),
+        body: episodeView({ locale, page: found, slug, marks }),
       })));
     } catch (error) {
       return next(error);
@@ -110,4 +126,26 @@ function episodeJsonLd({ locale, page, seasonNumber, episodeNumber }) {
   if (page.episode.description) data.description = page.episode.description;
   if (page.episode.date) data.datePublished = page.episode.date;
   return data;
+}
+
+/**
+ * Состояние отметок для страницы.
+ *
+ * Гостю отметок не бывает, и форма у него не рисуется: пустой флажок — это
+ * приглашение нажать кнопку, которая ничего не сделает.
+ *
+ * @param {import('express').Request} req
+ * @returns {{csrf: string, signedIn: boolean, undoWindow: number, options: object}}
+ */
+function marksOf(req) {
+  const user = req.session?.user ?? null;
+  const timezone = req.headers ? timezoneOf(req) : 'Europe/Minsk';
+  const today = todayIn(timezone);
+
+  return {
+    csrf: req.session ? csrfToken(req.session) : '',
+    signedIn: Boolean(user),
+    undoWindow: UNDO_WINDOW_SECONDS,
+    options: { userId: user?.id ?? null, today },
+  };
 }
