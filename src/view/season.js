@@ -1,44 +1,13 @@
 // S-07 — сезон и S-08 — серия.
 // Спецификация: docs/01-product/features/M2-catalog.md, F-02-02.
 //
-// Подписи дат — единый компонент (`R-I18N-05`): «сегодня», «завтра», «через N
-// дней» и дата. Тот же компонент потом понадобится панели «Предстоящие»,
-// календарю и закладкам, и три разные подписи на трёх экранах означали бы,
-// что человек видит разное об одном и том же.
+// Подписи дат берутся из `dates.js` — общего компонента `R-I18N-05`, которым
+// пользуется и календарь.
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { releaseLabel } from './dates.js';
 import { goneView } from './series.js';
-
-/**
- * Подпись даты выхода (`R-I18N-05`).
- *
- * @param {string} locale
- * @param {string|null} date `YYYY-MM-DD` или `null`
- * @param {Date} [today]
- * @returns {string} пустая строка, если даты нет: подписывать нечего
- */
-export function releaseLabel(locale, date, today = new Date()) {
-  if (!date) return t(locale, 'date.unknown');
-
-  const days = daysBetween(today, date);
-  if (days === 0) return t(locale, 'date.today');
-  if (days === 1) return t(locale, 'date.tomorrow');
-  if (days > 1 && days < 4) return t(locale, 'date.inDays', { count: days });
-
-  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(new Date(`${date}T00:00:00Z`));
-}
-
-function daysBetween(today, date) {
-  const start = Date.UTC(today.getUTCFullYear(), today.getUTCMonth(), today.getUTCDate());
-  const end = Date.UTC(...date.split('-').map((part, index) => (index === 1 ? Number(part) - 1 : Number(part))));
-  return Math.round((end - start) / 86_400_000);
-}
 
 function runtime(locale, minutes) {
   if (!minutes) return '';

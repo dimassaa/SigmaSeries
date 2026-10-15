@@ -244,7 +244,8 @@ CREATE TABLE e_episode (
 CREATE TABLE e_release (
   id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   season_id     BIGINT NOT NULL REFERENCES e_season(id) ON DELETE CASCADE,
-  episode_id    BIGINT REFERENCES e_episode(id) ON DELETE CASCADE,  -- NULL = весь сезон
+  episode_id    BIGINT REFERENCES e_episode(id) ON DELETE CASCADE,
+  covers_season BOOLEAN NOT NULL DEFAULT FALSE,   -- выход относится к сезону целиком
   release_date  DATE   NOT NULL,
   release_time  TIME,
   precision     TEXT   NOT NULL DEFAULT 'date' CHECK (precision IN ('date','exact')),
@@ -253,15 +254,21 @@ CREATE TABLE e_release (
                 CHECK (state IN ('tba','scheduled','aired','delayed','cancelled')),
   locked        BOOLEAN NOT NULL DEFAULT FALSE   -- ручная правка защищена от импорта
 );
+-- Состав выхода задаёт `e_release_episode`: одна связь — одна серия, несколько —
+-- группа серий с одной датой (EC-D11), ни одной — никакого состава. Отдельный
+-- случай «вышел весь сезон» помечен `covers_season`: угадывать его по связям
+-- нельзя, сезон с одной датированной серией неотличим от выхода одной серии,
+-- а календарь обязан сказать «весь сезон» (EC-T6). `episode_id` для этого не
+-- годился: импорт его не пишет, и NULL у всех строк не значил ничего.
 CREATE INDEX ix_release_date ON e_release (release_date);
 CREATE INDEX ix_release_season ON e_release (season_id);
 -- Дата выхода — источник истины для состояния сериала; ради него
 -- есть индекс: календарь спрашивает по дате, а не по сериалу.
 
 -- Серии одного сезона с одной датой образуют ОДИН выход (EC-D11): в календаре
--- это «3 серии выходят 12 октября», а не три одинаковых точки. Поэтому связь
--- многие-ко-многим, а не колонка в e_release: там NULL уже занят под «весь
--- сезон», и два разных случая слились бы в один.
+-- это «3 серии выходят 12 октября», а не три одинаковых точки. Поэтому состав
+-- выхода — связь многие-ко-многим, а не колонка в e_release: у выхода может быть
+-- и одна серия, и несколько, и ни одной.
 CREATE TABLE e_release_episode (
   release_id BIGINT NOT NULL REFERENCES e_release(id) ON DELETE CASCADE,
   episode_id BIGINT NOT NULL REFERENCES e_episode(id) ON DELETE CASCADE,

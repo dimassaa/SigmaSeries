@@ -1,0 +1,199 @@
+// Календарь (F-03-05, S-16): адреса, виды, индекс, гость.
+//
+// Проверяется то, что видит человек и что видит поисковик: три вида, месяц
+// вокруг текущего индексируется, дальше — `noindex` (R-SEO-02), гость на «Мои»
+// получает приглашение, а не пустую сетку (EC-T21), и содержимое уже в
+// начальном HTML (R-SEO-07, измерение 13).
+
+import test from 'node:test';
+import assert from 'node:assert/strict';
+
+import { createPool } from '../src/db/pool.js';
+import { createApp } from '../src/app.js';
+import { pgCalendar } from '../src/services/catalogue/calendar.js';
+import { stubData } from '../src/services/home/data.js';
+
+const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
+const skip = available
+  ? false
+  : 'нет PGHOST/PGUSER/PGDATABASE — страницы календаря не проверялись';
+
+let pool;
+let server;
+let baseUrl;
+
+test.before(async () => {
+  if (!available) return;
+  pool = createPool();
+  const app = createApp({ data: stubData(), calendar: pgCalendar(pool), pool });
+  await new Promise((resolve) => {
+    server = app.listen(0, '127.0.0.1', () => {
+      baseUrl = `http://127.0.0.1:${server.address().port}`;
+      resolve();
+    });
+  });
+});
+
+test.after(async () => {
+  if (server) await new Promise((resolve) => server.close(resolve));
+  if (pool) await pool.end();
+});
+
+const get = (path) => fetch(`${baseUrl}${path}`);
+
+/** Месяц, в котором календарь что-то показывает: будущий, где есть выходы. */
+async function monthWithReleases() {
+  const { rows } = await pool.query(
+    `SELECT to_char(date_trunc('month', release_date), 'YYYY-MM') AS month
+       FROM e_release WHERE release_date > CURRENT_DATE
+      GROUP BY 1 ORDER BY count(*) DESC LIMIT 1`,
+  );
+  assert.ok(rows.length, 'в базе есть будущие выходы');
+  return rows[0].month;
+}
+
+test('месяц открывается сеткой и подписью пояса', { skip }, async () => {
+  const response = await get('/ru/calendar');
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(body, /<table class="calendar__grid"/, 'месяц — таблица, а не набор div');
+  assert.match(body, /Europe\/Minsk/, 'пояс гостя назван (H-72)');
+  assert.ok(!/<script[^>]*>[\s\S]*дн<\/script>/.test(body),
+    'дни месяца в начальном HTML, а не нарисованы скриптом');
+});
+
+test('в ячейке месяца не больше трёх записей, остальное — «+N» (EC-T15)', { skip }, async () => {
+  const month = await monthWithReleases();
+  const body = await (await get(`/ru/calendar?month=${month}`)).text();
+
+  const cells = body.split('<td class="calendar__cell').slice(1);
+  assert.ok(cells.length >= 28, 'в месяце 28–31 ячеек');
+
+  let shown = 0;
+  for (const cell of cells) {
+    const entries = (cell.match(/class="calendar__entry"/g) ?? []).length;
+    assert.ok(entries <= 3, `в ячейке ${entries} записей, а показывать можно три`);
+    shown += entries;
+  }
+  assert.ok(shown > 0, 'в месяце есть выходы, и они показаны');
+
+  // День, где выходов больше трёх, обязан быть виден как ссылка на его
+  // список, иначе часть календаря просто пропала бы с экрана.
+  const { rows: [busy] } = await pool.query(
+    `SELECT release_date::text AS date FROM e_release
+      WHERE release_date >= date_trunc('month', CURRENT_DATE)
+        AND release_date < date_trunc('month', CURRENT_DATE) + interval '1 month'
+      GROUP BY release_date HAVING count(*) > 3 ORDER BY count(*) DESC LIMIT 1`,
+  );
+
+  if (!busy) return;
+  const more = body.match(/class="calendar__more" href="([^"]+)"\s*>\+(\d+)</);
+  assert.ok(more, 'в месяце есть день с числом выходов больше трёх — он обязан быть ссылкой «+N»');
+
+  const dayPage = await (await get(more[1].replace('&amp;', '&'))).text();
+  const listed = (dayPage.match(/class="calendar__entry"/g) ?? []).length;
+  assert.ok(listed > 3, `по ссылке «+N» открывается список дня: там ${listed} записей`);
+  assert.ok(dayPage.includes(busy.date), 'открыт именно тот день, где записей больше трёх');
+});
+
+test('неделя и список открываются тем же адресом с другим видом', { skip }, async () => {
+  const month = await monthWithReleases();
+
+  const week = await get(`/ru/calendar?view=week&month=${month}`);
+  const weekBody = await week.text();
+  assert.equal(week.status, 200);
+  assert.match(weekBody, /class="calendar__week"/, 'неделя — свой вид');
+
+  const list = await get(`/ru/calendar?view=list&month=${month}`);
+  const listBody = await list.text();
+  assert.equal(list.status, 200);
+  assert.match(listBody, /class="calendar__list"/, 'список — свой вид');
+});
+
+test('неизвестный вид показывает месяц, а не ошибку', { skip }, async () => {
+  const response = await get('/ru/calendar?view=какая-то-ерунда');
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /<table class="calendar__grid"/);
+});
+
+test('текущий месяц индексируется, далёкий — нет (R-SEO-02)', { skip }, async () => {
+  const { rows: [now] } = await pool.query(
+    "SELECT to_char(CURRENT_DATE, 'YYYY-MM') AS month",
+  );
+
+  const current = await (await get(`/ru/calendar?month=${now.month}`)).text();
+  assert.ok(!current.includes('noindex'), 'текущий месяц в индексе нужен');
+
+  const { rows: [far] } = await pool.query(
+    "SELECT to_char(CURRENT_DATE + interval '5 years', 'YYYY-MM') AS month",
+  );
+  const distant = await (await get(`/ru/calendar?month=${far.month}`)).text();
+  assert.match(distant, /<meta name="robots" content="noindex, follow">/,
+    'месяц через пять лет в индексе не нужен — это тысячи почти пустых адресов');
+});
+
+test('подпись состояния выхода видна в разметке', { skip }, async () => {
+  // В базе таких строк нет — правило проверяется на своём выходе, иначе тест
+  // был бы проверкой того, что колонка пуста.
+  const { rows: [season] } = await pool.query(
+    `SELECT se.id FROM e_season se
+       JOIN e_series s ON s.id = se.series_id
+      WHERE s.publication_state = 'published' AND s.archived_at IS NULL AND se.number > 0
+      LIMIT 1`,
+  );
+  const { rows: [moved] } = await pool.query(
+    `INSERT INTO e_release (season_id, covers_season, release_date, precision, state)
+     VALUES ($1, true, CURRENT_DATE + 7, 'date', 'delayed')
+     RETURNING id, release_date::text AS date`,
+    [season.id],
+  );
+
+  try {
+    const body = await (await get(`/ru/calendar?view=list&day=${moved.date}`)).text();
+    assert.match(body, /calendar__entry-state[^>]*>перенесён/,
+      'перенесённый выход обязан быть подписан: иначе человек придёт зря');
+  } finally {
+    await pool.query('DELETE FROM e_release WHERE id = $1', [moved.id]);
+  }
+});
+
+test('гость на «Мои» получает приглашение, а не пустую сетку (EC-T21)', { skip }, async () => {
+  const body = await (await get('/ru/calendar?filter=mine')).text();
+
+  assert.match(body, /Войдите|войти/, 'гостю предлагают войти');
+  assert.ok(!body.includes('class="calendar__grid"'),
+    'сетка без данных только сбивает: кажется, что выходов нет');
+});
+
+test('«Все» работает и гостю', { skip }, async () => {
+  const month = await monthWithReleases();
+  const body = await (await get(`/ru/calendar?month=${month}`)).text();
+
+  assert.match(body, /<table class="calendar__grid"/);
+  assert.ok(!body.includes('Войдите, чтобы'), 'гость видит календарь всех сериалов');
+});
+
+test('английский календарь открывается', { skip }, async () => {
+  const response = await get('/en/calendar');
+  assert.equal(response.status, 200);
+  assert.match(await response.text(), /<html lang="en"/);
+});
+
+test('переходы по месяцам и «сегодня» ведут по адресам, а не скриптом', { skip }, async () => {
+  const month = await monthWithReleases();
+  const body = await (await get(`/ru/calendar?month=${month}`)).text();
+
+  assert.ok(body.includes('/ru/calendar?month='), 'есть ссылка на соседний месяц');
+  assert.ok(body.includes('/ru/calendar'), 'есть ссылка «сегодня»');
+  assert.match(body, /rel="prev"/);
+  assert.match(body, /rel="next"/);
+});
+
+test('календарь отдаёт даты в разметке, а не только картинками (R-SEO-19)', { skip }, async () => {
+  const month = await monthWithReleases();
+  const body = await (await get(`/ru/calendar?view=list&month=${month}`)).text();
+
+  assert.match(body, /datetime="/, 'у записей есть машинная дата');
+  assert.match(body, /<time /, 'дата помечена элементом time');
+});

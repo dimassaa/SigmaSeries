@@ -16,6 +16,7 @@ import { pgCatalogueList } from '../src/services/catalogue/list.js';
 import { pgSeasons } from '../src/services/catalogue/season.js';
 import { pgCollections } from '../src/services/catalogue/collection.js';
 import { pgPerson } from '../src/services/catalogue/person.js';
+import { pgCalendar } from '../src/services/catalogue/calendar.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -47,6 +48,7 @@ test.before(async () => {
     seasons: pgSeasons(pool),
     collections: pgCollections(pool),
     person: pgPerson(pool),
+    calendar: pgCalendar(pool),
   });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {
@@ -80,10 +82,8 @@ function internalHrefs(html) {
  *
  *  · `/login` — маршруты личности здесь не подключены (это проверка каталога,
  *    а не входа); в бою страница есть;
- *  · `/calendar` — экран M3 (F-03-05) ещё не написан, а пункт меню задан
- *    документацией. Пропадёт из проверки вместе с экраном.
  */
-const NOT_MOUNTED = /^\/(ru|en)\/(login|register|settings|calendar|admin|notifications)/;
+const NOT_MOUNTED = /^\/(ru|en)\/(login|register|settings|admin|notifications)/;
 
 test('каждая ссылка главной ведёт на существующую страницу', { skip }, async () => {
   const page = await fetch(`${baseUrl}/ru/`);

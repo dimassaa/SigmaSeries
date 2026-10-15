@@ -3,7 +3,7 @@
    Источник: src/styles/*.css, порядок по имени файла.
    Сборка:   node tools/build-css.mjs
    Проверка: npm run css:check
-   Частей: 10
+   Частей: 11
 */
 
 /* ─── 00-tokens.css ─── */
@@ -1494,4 +1494,247 @@ a:hover { color: var(--accent-hover); }
 
 .person .poster__meta {
   display: block;
+}
+
+/* ─── 49-calendar.css ─── */
+/* S-16 — календарь (F-03-05, измерение 12).
+   Правила оформления: docs/02-design/PRINCIPLES.md, TOKENS.md.
+
+   Месяц — таблица: у неё есть заголовочные ячейки дней и она одинаковой
+   высоты в любом месяце. Анимируется только `transform` и `opacity`; всё, что
+   меняет раскладку (высота ячейки, ширина колонки), при переключении месяцев
+   прыгает — поэтому высота ячейки задана `min-block-size`, а не содержимым. */
+
+.calendar {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.calendar__title {
+  margin-block: var(--space-4) 0;
+}
+
+.calendar__bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.calendar__bar-title {
+  margin: 0;
+  font-size: 20px;
+}
+
+.calendar__nav,
+.calendar__views,
+.calendar__filter {
+  display: flex;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+/* Переключатель вида и фильтра — набор ссылок, а не вкладки: у каждой есть
+   адрес, и страницу можно переслать (R-SEO-09). Активная помечена не только
+   цветом (R-A11Y-19). */
+/* Переключатель вида — кнопки внутри формы, поэтому стиль задаётся целиком:
+   у кнопки свой фон и курсор, и без этого ряд выглядит серыми прямоугольниками. */
+.calendar__view,
+.calendar__filter-item,
+.calendar__nav-link {
+  padding: var(--space-1) var(--space-3);
+  min-block-size: 36px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  font-size: 14px;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.calendar__view--on,
+.calendar__filter-item--on {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  font-weight: 500;
+}
+
+.calendar__nav-link:hover,
+.calendar__view:hover,
+.calendar__filter-item:hover {
+  color: var(--text-primary);
+}
+
+/* --- Сетка месяца --- */
+
+.calendar__grid {
+  inline-size: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.calendar__grid th {
+  padding-block: var(--space-2);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-align: left;
+}
+
+.calendar__cell {
+  position: relative;
+  vertical-align: top;
+  /* Резервированная высота: число выходов в дне меняется от нуля до девяти, и
+     без резерва страница прыгала бы при каждом переходе месяца. */
+  min-block-size: 104px;
+  padding: var(--space-2);
+  border-block-start: 1px solid var(--border-subtle);
+  border-inline-start: 1px solid var(--border-subtle);
+}
+
+.calendar__cell--outside {
+  color: var(--text-secondary);
+  background: var(--surface-sunken);
+}
+
+/* Сегодняшний день отмечен рамкой и подписью — цветом одного (R-A11Y-19). */
+.calendar__cell--today {
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+
+.calendar__date {
+  display: inline-block;
+  font-variant-numeric: tabular-nums;
+  font-size: 14px;
+}
+
+.calendar__today {
+  margin-inline-start: var(--space-2);
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.calendar__entries {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: var(--space-2) 0 0;
+}
+
+.calendar__entry-title {
+  display: block;
+  font-size: 13px;
+  line-height: 1.3;
+}
+
+.calendar__entry-meta,
+.calendar__entry-time {
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.calendar__entry-link {
+  display: block;
+  color: inherit;
+  text-decoration: none;
+}
+
+.calendar__entry-link:hover .calendar__entry-title {
+  color: var(--accent);
+}
+
+/* Состояние выхода — подпись, а не цвет и не зачёркивание: человек должен
+   прочитать «перенесён», а не догадаться по наклону (R-A11Y-19). */
+.calendar__entry-state {
+  display: inline-block;
+  margin-inline-start: var(--space-1);
+  font-size: 12px;
+  color: var(--warning);
+}
+
+.calendar__more {
+  display: inline-block;
+  margin-block-start: var(--space-1);
+  font-size: 12px;
+  color: var(--accent);
+}
+
+.calendar__empty-day {
+  margin: var(--space-2) 0 0;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* --- Неделя и список --- */
+
+.calendar__week {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.calendar__weekday-title,
+.calendar__list-date {
+  margin: 0 0 var(--space-2);
+  font-size: 15px;
+  font-weight: 500;
+}
+
+.calendar__list {
+  display: grid;
+  gap: var(--space-5);
+}
+
+.calendar__list-day {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.calendar__list .calendar__entries {
+  margin-block-start: var(--space-2);
+}
+
+.calendar__timezone {
+  margin-block: var(--space-5) 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.calendar__invite {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.calendar__invite-text {
+  margin: 0;
+  max-inline-size: 60ch;
+  color: var(--text-secondary);
+}
+
+/* Телефон: сетка месяца нечитаема — колонки узкие, а записи в две строки.
+   Список остаётся основным видом, месяц уходит под него. */
+@media (max-width: 639px) {
+  .calendar__cell {
+    min-block-size: 76px;
+    padding: var(--space-1);
+  }
+
+  .calendar__entry-title {
+    font-size: 12px;
+  }
+
+  .calendar__bar-title {
+    inline-size: 100%;
+  }
 }

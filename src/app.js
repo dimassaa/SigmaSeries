@@ -22,6 +22,7 @@ import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
 import { createSeasonRoutes } from './routes/season.js';
 import { createCollectionRoutes } from './routes/collection.js';
+import { createCalendarRoutes } from './routes/calendar.js';
 import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
 import { createJournal } from './services/journal.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
@@ -46,6 +47,7 @@ export function createApp({
   seasons = null,
   collections = null,
   person = null,
+  calendar = null,
   pool = null,
   auth,
   sessionMw,
@@ -107,6 +109,8 @@ export function createApp({
   if (seasons) app.use(createSeasonRoutes({ seasons }));
   if (series) app.use(createSeriesRoutes({ series }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person }));
+  // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
+  if (calendar) app.use(createCalendarRoutes({ calendar, sessionMw }));
 
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.
   if (pool) app.use(createImageRoutes({ pool }));

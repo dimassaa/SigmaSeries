@@ -7,6 +7,7 @@
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { fullDate as formatDate } from './dates.js';
 
 /** Подписи состояний выхода (`exit_state` → ключ интерфейса). */
 const STATE_KEY = {
@@ -16,18 +17,6 @@ const STATE_KEY = {
   cancelled: 'series.state.cancelled',
   announced: 'series.state.announced',
 };
-
-/** Человеческая дата: 12 октября 2026 / 12 октября. */
-function formatDate(locale, value) {
-  const date = new Date(`${value}T00:00:00Z`);
-  if (Number.isNaN(date.getTime())) return '';
-  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-    timeZone: 'UTC',
-  }).format(date);
-}
 
 function yearRange(series) {
   if (!series.yearStart) return '';

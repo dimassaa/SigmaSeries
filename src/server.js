@@ -13,6 +13,7 @@ import { pgSearch } from './services/search/service.js';
 import { pgSeasons } from './services/catalogue/season.js';
 import { pgCollections } from './services/catalogue/collection.js';
 import { pgPerson } from './services/catalogue/person.js';
+import { pgCalendar } from './services/catalogue/calendar.js';
 import { searchSettings } from './services/search/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
@@ -101,6 +102,7 @@ const app = createApp({
   seasons: pgSeasons(pool),
   collections: pgCollections(pool),
   person: pgPerson(pool),
+  calendar: pgCalendar(pool),
   pool,
   auth,
   sessionMw: createSessionMiddleware(pool),

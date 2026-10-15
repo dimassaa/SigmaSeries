@@ -1,6 +1,6 @@
 // Клиентские скрипты формы.
 //
-// Здесь три вещи, без которых формы не работают:
+// Здесь четыре вещи, без которых формы и календарь работают не так, как задумано:
 //
 //  1. Невидимая проверка (R-SEC-34). Пока решение не подставлено, форма
 //     после трёх неудач становится непроходимой — это не «защита», а отказ
@@ -394,11 +394,39 @@
     });
   }
 
+  // ─── Часовой пояс и вид календаря ─────────────────────────────────────────
+
+  // Пояс посетителя без этого скрипта всегда был бы Europe/Minsk (H-72), а
+  // «сегодня» у человека в Лос-Анджелесе отличалось бы от серверного на сутки.
+  // Cookie без `httpOnly`: её читает только сервер и только этот скрипт.
+  function initTimezone() {
+    try {
+      var zone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (!zone) return;
+      document.cookie = 'tz=' + encodeURIComponent(zone) + '; path=/; max-age=31536000; samesite=lax';
+    } catch (e) { /* браузер без Intl — остаётся пояс проекта */ }
+  }
+
+  // Вид по умолчанию зависит от ширины экрана (F-03-05 §4: на телефоне —
+  // список), а сервер ширину не знает. Скрипт только уточняет вид: без него
+  // страница открывается месяцем и остаётся рабочей.
+  function initCalendarDefaultView() {
+    var form = document.querySelector('[data-calendar-default-view]');
+    if (!form || form.getAttribute('data-view-chosen') === 'true') return;
+    if (window.matchMedia('(min-width: 640px)').matches) return;
+    // Фокус сюда не переносится: страница открылась, человек читает её, и
+    // перехват фокуса при загрузке сбивает чтение с клавиатуры.
+    var list = form.querySelector('button[name="view"][value="list"]');
+    if (list) list.click();   // один переход на список, дальше вид выбирает человек
+  }
+
   function boot() {
     var path = location.pathname;
+    initTimezone();
     initTheme();
     initPasswordReveal();
     initSearch();
+    initCalendarDefaultView();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();
