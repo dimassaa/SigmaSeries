@@ -25,6 +25,7 @@
     "import:catalogue": "node --env-file-if-exists=.env src/cli/import-catalogue.js",
     "import:images": "node --env-file-if-exists=.env src/cli/import-images.js",
     "import:discover": "node --env-file-if-exists=.env src/cli/import-discover.js",
+    "import:schedule": "node --env-file-if-exists=.env src/cli/import-schedule.js",
     "import:freeze": "node --env-file-if-exists=.env src/cli/import-freeze.js"
   },
   "dependencies": {
@@ -32,6 +33,7 @@
     "connect-pg-simple": "^10.0.0",
     "express": "^5.3.0",
     "express-session": "^1.19.0",
+    "node-cron": "^4.6.0",
     "nodemailer": "^10.1.0",
     "pg": "^8.23.1",
     "qrcode-generator": "^2.0.4",

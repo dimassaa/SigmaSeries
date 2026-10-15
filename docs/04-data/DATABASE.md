@@ -475,11 +475,21 @@ CREATE TABLE e_import_run (
   kind       TEXT   NOT NULL
              CHECK (kind IN ('schedule_sync','discover_sync','ratings_sync','full_run')),
   dry_run    BOOLEAN NOT NULL DEFAULT FALSE,   -- флаг, а не отдельный вид (F-12-07)
+  -- У запланированного запуска здесь время, НА КОТОРОЕ он назначен; у идущего
+  -- и завершённого — фактическое начало. Отдельной колонки «когда запускать»
+  -- нет: без неё перезапуск процесса не знал бы, какую строку уже пора
+  -- начать, а план без времени — не план (F-12-07 §6).
   started_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   finished_at TIMESTAMPTZ,
-  status     TEXT   NOT NULL DEFAULT 'running'
-             CHECK (status IN ('running','success','partial','error','resumed'))
+  -- `planned` — назначен, но ещё не начат; `skipped` — подошёл срок, а
+  -- запустить нельзя: держал другой прогон (F-12-07 §5, §18);
+  -- `resumed` — прогон, продолжающийся после обрыва (F-12-09).
+  status     TEXT   NOT NULL DEFAULT 'planned'
+             CHECK (status IN ('planned','running','success','partial','error','skipped','resumed'))
 );
+-- Не больше одного запланированного запуска каждого вида: два плана на одну
+-- ночь означали бы либо двойную работу, либо вечный пропуск одного из них.
+CREATE UNIQUE INDEX ux_import_run_planned ON e_import_run (kind) WHERE status = 'planned';
 -- Что стало с каждой позицией запуска. Ключ пара (запуск, tconst) — это и
 -- результат, и контрольная точка возобновления: повторный запуск после сбоя
 -- пропускает то, что уже доведено до своей стадии (F-12-09).

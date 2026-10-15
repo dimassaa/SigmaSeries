@@ -101,13 +101,19 @@ export function createImportStore(pool) {
     /**
      * Открывает прогон.
      *
+     * Статус задаётся явно: по умолчанию строка заводится как «запланирована»
+     * (её создаёт планировщик заранее), а этот вызов означает «прогон начался
+     * сейчас» — иначе прогон, закрытый сразу после старта, не отличался бы от
+     * того, который ещё не начинали.
+     *
      * @param {'schedule_sync'|'discover_sync'|'ratings_sync'|'full_run'} kind
      * @param {{dryRun?: boolean}} [options]
      * @returns {Promise<number>} идентификатор прогона
      */
     async startRun(kind, { dryRun = false } = {}) {
       const { rows } = await pool.query(
-        'INSERT INTO e_import_run (kind, dry_run) VALUES ($1, $2) RETURNING id',
+        `INSERT INTO e_import_run (kind, dry_run, status, started_at)
+         VALUES ($1, $2, 'running', now()) RETURNING id`,
         [kind, dryRun],
       );
       return rows[0].id;

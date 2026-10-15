@@ -16,7 +16,12 @@ import { consoleMailer } from './services/mail/console-mailer.js';
 import { effectiveMode, smtpMailer } from './services/mail/mode.js';
 import { runDeletionSweep, DELETE_TICK_MS } from './services/auth/deletion.js';
 import { runExportSweep, EXPORT_TICK_MS } from './services/data/export-job.js';
+import { createImportStore } from './services/import/store.js';
+import { createScheduler } from './services/import/scheduler.js';
+import { createImportTasks } from './services/import/tasks.js';
+import { createTmdbClient } from './services/import/tmdb.js';
 import { MAIL_SETTINGS } from './config/settings.js';
+import cron from 'node-cron';
 
 const PORT = Number(process.env.PORT ?? 3000);
 const HOST = process.env.HOST ?? '127.0.0.1';
@@ -147,6 +152,66 @@ runExportSweep({ auth, mailQueue, journal, baseUrl }).catch((e) => {
   console.error(`[экспорт] ${e.message}`);
 });
 
+// Планировщик импорта (F-12-07, ADR-004): `node-cron` в этом же процессе.
+// Такт ежеминутный, а «пора ли» решает сам планировщик по `import.schedule_time`.
+// Так время из настроек меняется без перезапуска приложения — регистрировать
+// cron-выражение заново пришлось бы на каждый чих, а несостыковка расписания с
+// настройкой стоила бы пропущенной ночи.
+let schedulerTask = null;
+if (process.env.TMDB_TOKEN) {
+  const store = createImportStore(pool);
+  const scheduler = createScheduler({
+    pool,
+    store,
+    tasks: createImportTasks({
+      pool,
+      store,
+      tmdb: createTmdbClient({ token: process.env.TMDB_TOKEN }),
+      log: (line) => console.error(line),
+    }),
+    log: (line) => console.error(line),
+  });
+
+  // `unref` — как у остальных работников: таймер не должен держать процесс.
+  // `noOverlap` — такт длиннее минуты (ночная задача идёт минуты) не должен
+  // наезжать сам на себя.
+  schedulerTask = cron.schedule('* * * * *', async () => {
+    try {
+      const { ran, skipped, reason } = await scheduler.tick();
+      for (const kind of ran) console.log(`[планировщик] ${kind} выполнен`);
+      for (const kind of skipped) console.warn(`[планировщик] ${kind} пропущен`);
+      if (reason === 'defence') console.warn('[планировщик] режим защиты: импорт не запускается');
+    } catch (e) {
+      console.error(`[планировщик] ${e.message}`);
+    }
+  }, { noOverlap: true, unref: true });
+
+  // Строка при старте: планировщик либо есть, либо его нет — молча выключенного
+  // расписания не должно быть (F-12-07 §19, панель S-76).
+  scheduler.settings.scheduleTime().then((time) => {
+    console.log(`[планировщик] такт раз в минуту, ночной запуск в ${time}`);
+  }).catch((e) => {
+    console.error(`[планировщик] ${e.message}`);
+  });
+
+  // Догон при старте (EC-I10): сервер мог быть выключен ночью, а ждать первого
+  // такта — значило бы отдать ещё одну ночь.
+  scheduler.catchUp().then((state) => {
+    for (const kind of state.ran) console.log(`[планировщик] догон: ${kind} выполнен`);
+    for (const kind of state.skipped) console.warn(`[планировщик] догон: ${kind} пропущен`);
+    if (state.stale) {
+      // Данные старше 36 часов догон не трогает: это уже чужая неделя работы,
+      // а не одна пропущенная ночь. Честнее сказать об этом в журнал сейчас,
+      // чем ждать, пока это заметят на экране (S-76, F-12-08).
+      console.warn('[планировщик] данные устарели: последнее успешное расписание старше 36 часов');
+    }
+  }).catch((e) => {
+    console.error(`[планировщик] догон: ${e.message}`);
+  });
+} else {
+  console.warn('[планировщик] TMDB_TOKEN не задан: ночные задачи импорта не запускаются');
+}
+
 for (const signal of ['SIGINT', 'SIGTERM']) {
   process.on(signal, () => {
     console.log(`[shutdown] ${signal}`);
@@ -154,6 +219,9 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     clearInterval(deletionWorker);
     clearInterval(exportWorker);
     clearInterval(purgeWorker);
+    // Импорт, начатый до остановки, не ждёт: его прогон останется `running`,
+    // разомкнётся по `STALE_HOURS` и будет помечен как пропущенный (F-12-09).
+    schedulerTask?.stop();
     server.close(() => {
       pool.end().finally(() => process.exit(0));
     });

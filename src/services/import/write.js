@@ -14,6 +14,8 @@
 import {
   computeExitState,
   computeCompleteness,
+  carryOverReasons,
+  levelOf,
   groupReleases,
   slugFor,
 } from './catalogue.js';
@@ -95,17 +97,20 @@ const NEVER_OVERWRITTEN = new Set(['imdb_key', 'slug']);
  * @param {Set<string>} [deps.slugs] занятые адреса; берётся один раз на прогон
  * @param {Date} [deps.now]
  * @param {{poster?:boolean, backdrop?:boolean}} [deps.images]
+ * @param {string[]} [deps.unchecked] коды полноты, которых этот прогон не
+ *   проверял (F-12-07): они сохраняются из прежнего списка, иначе частичное
+ *   обновление обнуляло бы то, чего просто не смотрело
  * @returns {Promise<{seriesId:number, slug:string, exitState:string, level:string,
  *   reasons:string[], published:boolean, seasons:number, episodes:number, releases:number}>}
  * @throws {Error} транзакция откатывается, сериал остаётся как был
  */
-export async function writeSeries({ pool, raw, slugs, now = new Date() }) {
+export async function writeSeries({ pool, raw, slugs, now = new Date(), unchecked = [] }) {
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
 
     const { rows: found } = await client.query(
-      'SELECT id, slug FROM e_series WHERE imdb_key = $1',
+      'SELECT id, slug, reasons FROM e_series WHERE imdb_key = $1',
       [raw.tconst],
     );
     const existing = found[0] ?? null;
@@ -121,7 +126,9 @@ export async function writeSeries({ pool, raw, slugs, now = new Date() }) {
     const images = await loadImages(client, existing?.id);
 
     const exitState = computeExitState({ raw, today: now });
-    const { reasons, level } = computeCompleteness({ raw, images, now });
+    const computed = computeCompleteness({ raw, images, now, unchecked });
+    const reasons = carryOverReasons(computed.reasons, existing?.reasons ?? [], unchecked);
+    const level = levelOf(reasons);
 
     const slug = existing?.slug ?? slugFor({
       title: raw.titles?.original?.text || raw.titles?.ru?.text || '',

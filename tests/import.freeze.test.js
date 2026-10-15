@@ -9,6 +9,7 @@ import assert from 'node:assert/strict';
 
 import { createPool } from '../src/db/pool.js';
 import { createFreezeService } from '../src/services/import/freeze.js';
+import { acquireImportLock } from './helpers/import-lock.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -16,11 +17,14 @@ const skip = available
   : 'нет PGHOST/PGUSER/PGDATABASE или TEST_DATABASE_URL — режим защиты не проверялся';
 
 let pool;
+/** Отпускается в `after`: держит общую блокировку строк запуска. */
+let unlockImport;
 let freeze;
 
 test.before(async () => {
   if (!available) return;
   pool = createPool();
+  unlockImport = await acquireImportLock(pool);
   freeze = createFreezeService({ pool, mailMode: null });
 });
 
@@ -28,7 +32,8 @@ test.after(async () => {
   if (pool) {
     await pool.query("UPDATE e_system_setting SET value = 'on' WHERE key = 'import.enabled'");
     await pool.query("DELETE FROM e_system_setting WHERE key LIKE 'defence.%'");
-    await pool.end();
+    await unlockImport?.();
+  await pool.end();
   }
 });
 

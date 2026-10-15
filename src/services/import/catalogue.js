@@ -81,11 +81,15 @@ export function computeExitState({ raw, today = new Date() }) {
  * @param {object} options.raw
  * @param {{poster?:boolean, backdrop?:boolean}} [options.images]
  * @param {Date} [options.now]
+ * @param {string[]} [options.unchecked] коды, которых этот прогон не проверял:
+ *   они не добавляются, но и не исчезают — см. `carryOverReasons`
  * @returns {{reasons: string[], level: 'full'|'displayable'|'minimum'}}
  */
-export function computeCompleteness({ raw, images = {}, now = new Date() }) {
+export function computeCompleteness({ raw, images = {}, now = new Date(), unchecked = [] }) {
   const reasons = [];
+  const skip = new Set(unchecked);
   const add = (code) => {
+    if (skip.has(code)) return;
     if (!reasons.includes(code)) reasons.push(code);
   };
 
@@ -160,6 +164,28 @@ export function levelOf(reasons) {
 const BLOCKING = new Set(['no_tmdb', 'pair_doubt', 'no_genre']);
 const MINIMUM_ONLY = new Set(['no_poster', 'no_overview']);
 const PREVENTS_FULL = new Set(['no_overview_ru', 'no_backdrop', 'schedule_gap', 'no_people']);
+
+/**
+ * Возвращает непроверенные коды из прежнего списка причин.
+ *
+ * Ночной прогон (F-12-07) перечитывает расписание и детали, но не качает людей
+ * из датасета IMDb. Без этого переноса каждый активный сериал за одну ночь
+ * получал бы причину `no_people` и падал с «полной» до «минимума» — из-за
+ * того, чего прогон не смотрел, а не из-за данных.
+ *
+ * @param {string[]} reasons коды, найденные этим прогоном
+ * @param {string[]} previous коды, записанные ранее
+ * @param {string[]} unchecked коды, которых этот прогон не проверял
+ * @returns {string[]} полный список причин
+ */
+export function carryOverReasons(reasons, previous = [], unchecked = []) {
+  const out = [...reasons];
+  for (const code of previous) {
+    if (!unchecked.includes(code) || out.includes(code)) continue;
+    out.push(code);
+  }
+  return out;
+}
 
 /**
  * Адрес сериала (H-32).

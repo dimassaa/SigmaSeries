@@ -13,6 +13,7 @@ import { createTmdbClient } from '../src/services/import/tmdb.js';
 import { matchCandidates } from '../src/services/import/match.js';
 import { createImportStore } from '../src/services/import/store.js';
 import { PAUSE_MS, MAX_PAUSES } from '../src/services/import/breaker.js';
+import { acquireImportLock } from './helpers/import-lock.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -20,11 +21,14 @@ const skip = available
   : 'нет PGHOST/PGUSER/PGDATABASE или TEST_DATABASE_URL — устойчивость не проверялась';
 
 let pool;
+/** Отпускается в `after`: держит общую блокировку строк запуска. */
+let unlockImport;
 let store;
 
 test.before(async () => {
   if (!available) return;
   pool = createPool();
+  unlockImport = await acquireImportLock(pool);
   store = createImportStore(pool);
 });
 
@@ -36,6 +40,7 @@ test.after(async () => {
     "DELETE FROM e_import_item_result WHERE run_id IN (SELECT id FROM e_import_run WHERE kind = 'ratings_sync' AND dry_run)",
   );
   await pool.query("DELETE FROM e_import_run WHERE kind = 'ratings_sync' AND dry_run");
+  await unlockImport?.();
   await pool.end();
 });
 
