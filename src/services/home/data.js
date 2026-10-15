@@ -54,12 +54,12 @@ export function pgData(pool) {
                coalesce(s.title_ru, s.title_original) AS title,
                s.year_start,
                rel.release_date,
-               COALESCE(pv.has_file, false) AS has_poster
+               pv.width AS poster_width
           FROM e_series s
           JOIN e_season se ON se.series_id = s.id
           JOIN e_release rel ON rel.season_id = se.id
           LEFT JOIN LATERAL (
-            SELECT iv.file IS NOT NULL AS has_file FROM e_image_variant iv
+            SELECT iv.width FROM e_image_variant iv
             JOIN e_image i2 ON i2.id = iv.image_id
             WHERE i2.series_id = s.id AND i2.role = 'poster'
             ORDER BY iv.width LIMIT 1
@@ -68,7 +68,7 @@ export function pgData(pool) {
            AND s.exit_state IN ('airing','announced')
            AND rel.release_date <= CURRENT_DATE
            AND rel.release_date >= CURRENT_DATE - INTERVAL '14 days'
-         GROUP BY s.id, rel.release_date, pv.has_file
+         GROUP BY s.id, rel.release_date, pv.width
          ORDER BY rel.release_date DESC, s.year_start
          LIMIT $1`, [FRESH_LIMIT]);
       return rows.map(decorateSeries);
@@ -112,7 +112,7 @@ function decorateBanner(r) {
     reason: r.reason,
     yearRange: yearRange(r.year_start, r.year_end),
     imdb: formatRating(r.imdb),
-    backdropUrl: r.has_backdrop ? null : null,
+    backdropWidth: r.backdrop_width,
   };
 }
 
@@ -121,7 +121,7 @@ function decorateSeries(r) {
     slug: r.slug,
     title: r.title ?? '',
     year: r.year_start ?? '',
-    posterUrl: r.has_poster ? null : null,
+    posterWidth: r.poster_width,
   };
 }
 

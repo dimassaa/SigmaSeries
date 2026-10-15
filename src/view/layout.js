@@ -59,7 +59,7 @@ ${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))
 <header class="topbar">
   <a class="topbar__brand" href="/${locale}/">${t(locale, 'app.title')}</a>
   <nav class="topbar__nav" aria-label="${t(locale, 'nav.catalog')}">
-    <a href="/${locale}/catalog">${t(locale, 'nav.catalog')}</a>
+    <a href="/${locale}/series">${t(locale, 'nav.catalog')}</a>
     <a href="/${locale}/calendar">${t(locale, 'nav.calendar')}</a>
   </nav>
   <div class="topbar__controls">

@@ -38,6 +38,14 @@
 
 /* Подложка под текстом. Без неё контраст к фотографии не гарантирован
    ни на каком кадре (R-DES-23, R-A11Y-02): контраст считается к подложке. */
+.banner__image {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
 .banner__scrim {
   position: absolute; inset: 0;
   background: var(--scrim);

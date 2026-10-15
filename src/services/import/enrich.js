@@ -125,6 +125,18 @@ export function buildRawSeries({ detailsRu, detailsEn, seasons = [], imdb }) {
       })),
     },
     keywords: (detailsRu?.keywords?.results ?? []).map((k) => k.name).slice(0, 50),
+    // Страна производства и сети приходят из той же карточки, что и всё
+    // остальное (F-12-03 §4(4)). IMDb в датасетах стран не отдаёт, поэтому
+    // источник один — TMDB, и второй запрос не нужен.
+    countries: (detailsRu?.origin_country ?? []).map((code) => String(code).toUpperCase()).slice(0, 8),
+    networks: (detailsRu?.networks ?? [])
+      .filter((network) => Number.isInteger(network?.id) && network?.name)
+      .map((network) => ({
+        id: network.id,
+        name: String(network.name).slice(0, 200),
+        countryCode: network.origin_country ? String(network.origin_country).toUpperCase() : null,
+      }))
+      .slice(0, 12),
     seasons: seasons.map(normalizeSeason),
   };
 }

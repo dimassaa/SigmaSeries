@@ -25,6 +25,7 @@
     "import:catalogue": "node --env-file-if-exists=.env src/cli/import-catalogue.js",
     "import:images": "node --env-file-if-exists=.env src/cli/import-images.js",
     "import:discover": "node --env-file-if-exists=.env src/cli/import-discover.js",
+    "import:origins": "node --env-file-if-exists=.env src/cli/import-origins.js",
     "import:schedule": "node --env-file-if-exists=.env src/cli/import-schedule.js",
     "import:freeze": "node --env-file-if-exists=.env src/cli/import-freeze.js"
   },

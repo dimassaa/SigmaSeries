@@ -9,6 +9,14 @@ import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
 
 /**
+ * Адрес картинки.
+ *
+ * Собирается здесь, а не в источнике: адрес содержит локали, а источник данных
+ * о ней не знает (ADR-003). Роль и ширину он отдаёт готовыми.
+ */
+const imageUrl = (locale, slug, role, width) => (width ? `/${locale}/images/${slug}/${role}-${width}.webp` : null);
+
+/**
  * @param {object} page
  * @param {string} page.locale
  * @param {object} page.data результат data.js
@@ -23,8 +31,11 @@ export function homeView({ locale, data }) {
   <ul class="banners" role="list">
     ${data.banners.map((b) => html`
     <li class="banners__item">
-      <a class="banner" href="${locale}/series/${b.seriesSlug}/"
+      <a class="banner" href="/${locale}/series/${b.seriesSlug}"
          aria-label="${t(locale, `home.banners.reason.${b.reason}`)}, ${b.title}, ${t(locale, 'home.banners.rating', { rating: b.imdb })}">
+        ${when(imageUrl(locale, b.seriesSlug, 'backdrop', b.backdropWidth),
+          () => html`<img class="banner__image" src="${imageUrl(locale, b.seriesSlug, 'backdrop', b.backdropWidth)}"
+                    alt="" width="1280" height="720" loading="lazy" decoding="async">`)}
         <span class="banner__scrim"></span>
         <span class="banner__reason">${t(locale, `home.banners.reason.${b.reason}`)}</span>
         <span class="banner__title">${b.title}</span>
@@ -41,11 +52,11 @@ export function homeView({ locale, data }) {
   <ol class="posters" role="list">
     ${data.fresh.map((s) => html`
     <li class="posters__item">
-      <a class="poster" href="${locale}/series/${s.slug}/"
+      <a class="poster" href="/${locale}/series/${s.slug}"
          aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
         <span class="poster__frame">
-          ${when(s.posterUrl, () => html`<img class="poster__img" src="${s.posterUrl}"
-             alt="" width="200" height="300" loading="lazy" decoding="async">`)}
+          ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
+             alt="" width="185" height="278" loading="lazy" decoding="async">`)}
           ${when(!s.posterUrl, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
         </span>
         <span class="poster__title">${s.title}</span>
@@ -62,7 +73,7 @@ export function homeView({ locale, data }) {
   <ul class="marquee" role="list">
     ${data.collections.map((c) => html`
     <li class="marquee__item">
-      <a class="collection" href="${locale}/collections/${c.slug}/"
+      <a class="collection" href="/${locale}/collections/${c.slug}"
          aria-label="${t(locale, 'home.collections.itemLabel', { title: c.title, count: c.count })}">
         <span class="collection__title">${c.title}</span>
         <span class="collection__count">${c.count}</span>
@@ -78,7 +89,7 @@ export function homeView({ locale, data }) {
   <ul class="genres" role="list">
     ${data.genres.map((g) => html`
     <li class="genres__item">
-      <a class="genre" href="${locale}/genres/${g.code}/"
+      <a class="genre" href="/${locale}/genres/${g.code}"
          aria-label="${t(locale, 'home.genres.itemLabel', { title: g.title })}">
         <span class="genre__title">${g.title}</span>
       </a>

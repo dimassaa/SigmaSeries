@@ -150,7 +150,7 @@ export function goneView({ locale, slug }) {
 <section class="gone">
   <h1 class="gone__title">${t(locale, 'series.gone.title')}</h1>
   <p class="gone__text">${t(locale, 'series.gone.text')}</p>
-  <p><a href="${locale}/">${t(locale, 'series.gone.home')}</a></p>
+  <p><a href="/${locale}/">${t(locale, 'series.gone.home')}</a></p>
   <p class="gone__slug"><code>${slug}</code></p>
 </section>`;
 }

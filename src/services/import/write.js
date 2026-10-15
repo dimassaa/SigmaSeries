@@ -156,6 +156,7 @@ export async function writeSeries({ pool, raw, slugs, now = new Date(), unchecke
 
     await writeGenres({ client, seriesId, genres: genresFor(raw) });
     await writeRatings({ client, seriesId, raw });
+    await writeOrigins({ client, seriesId, countries: raw.countries ?? [], networks: raw.networks ?? [] });
     const counts = await writeSeasons({ client, seriesId, raw });
     await writePeople({ client, seriesId, people: raw.people, slugs });
 
@@ -287,6 +288,77 @@ async function writeRatings({ client, seriesId, raw }) {
          value = EXCLUDED.value, votes = EXCLUDED.votes, measured_on = CURRENT_DATE`,
       [seriesId, platform, Number(value).toFixed(1), votes],
     );
+  }
+}
+
+/**
+ * Страна производства и сети сериала (F-12-03 §4(4), фильтры S-02).
+ *
+ * Названия стран берутся из `Intl.DisplayNames`, а не из справочника в коде:
+ * переводы, написанные руками, разошлись бы с ICU при первом обновлении Node,
+ * а страна при этом осталась бы с прежним названием навсегда.
+ *
+ * @param {object} client
+ * @param {number} seriesId
+ * @param {string[]} countries ISO 3166-1, коды верхнего регистра
+ * @param {{id: number, name: string, countryCode?: string|null}[]} networks
+ */
+export async function writeOrigins({ client, seriesId, countries = [], networks = [] }) {
+  const codes = [...new Set(countries.filter((code) => typeof code === 'string' && /^[A-Z]{2}$/.test(code)))];
+  for (const code of codes) {
+    // Страна сети может прийти раньше страны сериала: сеть пишется в тот же
+    // справочник, поэтому подстраховка от ограничения нужна.
+    await client.query(
+      `INSERT INTO e_country (code, name_ru, name_en) VALUES ($1, $2, $3)
+       ON CONFLICT (code) DO NOTHING`,
+      [code, regionName(code, 'ru'), regionName(code, 'en')],
+    );
+  }
+  await client.query('DELETE FROM e_series_country WHERE series_id = $1', [seriesId]);
+  for (const code of codes) {
+    await client.query(
+      'INSERT INTO e_series_country (series_id, country_code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [seriesId, code],
+    );
+  }
+
+  await client.query('DELETE FROM e_series_network WHERE series_id = $1', [seriesId]);
+  for (const network of networks) {
+    if (!Number.isInteger(network?.id) || !network.name) continue;
+    if (network.countryCode && /^[A-Z]{2}$/.test(network.countryCode)) {
+      await client.query(
+        `INSERT INTO e_country (code, name_ru, name_en) VALUES ($1, $2, $3)
+         ON CONFLICT (code) DO NOTHING`,
+        [network.countryCode, regionName(network.countryCode, 'ru'), regionName(network.countryCode, 'en')],
+      );
+    }
+    await client.query(
+      `INSERT INTO e_network (id, name, country_code) VALUES ($1, $2, $3)
+       ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, country_code = EXCLUDED.country_code`,
+      [network.id, String(network.name).slice(0, 200), network.countryCode ?? null],
+    );
+    await client.query(
+      'INSERT INTO e_series_network (series_id, network_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+      [seriesId, network.id],
+    );
+  }
+
+  return { countries: codes.length, networks: networks.length };
+}
+
+/**
+ * Название региона по ISO 3166-1.
+ *
+ * @param {string} code
+ * @param {'ru'|'en'} locale
+ * @returns {string} код, если ICU его не знает: выдуманное название страны
+ *   хуже кода — код хотя бы однозначен
+ */
+function regionName(code, locale) {
+  try {
+    return new Intl.DisplayNames([locale], { type: 'region' }).of(code) ?? code;
+  } catch {
+    return code;
   }
 }
 
@@ -422,6 +494,35 @@ async function writePeople({ client, seriesId, people, slugs }) {
 export async function loadSlugs(pool) {
   const { rows } = await pool.query('SELECT slug FROM e_series UNION SELECT slug FROM e_person');
   return new Set(rows.map((row) => row.slug));
+}
+
+/**
+ * Записывает страны и сети одного сериала своей транзакцией.
+ *
+ * Обёртка над `writeOrigins` для дозагрузки (`npm run import:origins`): полный
+ * `writeSeries` там не нужен и был бы дорог — он пересчитывает полноту,
+ * состояние выхода и сезоны, а здесь нужно только доставить недостающие связи.
+ *
+ * @param {object} deps
+ * @param {object} deps.pool
+ * @param {number} deps.seriesId
+ * @param {string[]} deps.countries
+ * @param {object[]} deps.networks
+ * @returns {Promise<{countries: number, networks: number}>}
+ */
+export async function writeOriginsForSeries({ pool, seriesId, countries, networks }) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const counts = await writeOrigins({ client, seriesId, countries, networks });
+    await client.query('COMMIT');
+    return counts;
+  } catch (error) {
+    await client.query('ROLLBACK');
+    throw error;
+  } finally {
+    client.release();
+  }
 }
 
 /**

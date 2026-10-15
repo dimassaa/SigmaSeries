@@ -5,6 +5,8 @@
 // размножением строк. Зато каждый запрос отвечает на один вопрос и читается
 // отдельно — как и положено источнику, который не знает про разметку.
 
+import { importSettings } from './settings.js';
+
 /** Сколько сериалов в списке одного сезона показываем сразу. */
 const EPISODES_LIMIT = 50;
 
@@ -186,9 +188,13 @@ async function seasonsOf(pool, seriesId) {
 
 /** Три рейтинга в шапке: IMDb и TMDB из источников, третий — агрегат сайта (M4). */
 async function ratingsOf(pool, seriesId) {
+  // Порог голосов тот же, что в каталоге: «8,5 от трёх человек» не должно
+  // появляться на карточке после того, как из выдачи каталога исчезло (M2 §0).
+  const { ratingFloor } = await importSettings(pool);
   const { rows } = await pool.query(
-    `SELECT platform, value, votes FROM e_external_rating WHERE series_id = $1`,
-    [seriesId],
+    `SELECT platform, value, votes FROM e_external_rating
+      WHERE series_id = $1 AND (votes IS NULL OR votes >= $2)`,
+    [seriesId, ratingFloor],
   );
   const map = new Map(rows.map((row) => [row.platform, { value: Number(row.value), votes: row.votes }]));
   const site = await pool.query(

@@ -577,6 +577,27 @@ CREATE TABLE e_series_country (
   country_code TEXT  NOT NULL REFERENCES e_country(code) ON DELETE RESTRICT,
   PRIMARY KEY (series_id, country_code)
 );
+-- Канал или платформа сериала (фильтр S-02, F-02-03).
+--
+-- Источник — `networks` карточки TMDB: там лежат и вещательные сети (AMC, HBO),
+-- и стриминговые платформы (Netflix, Apple TV+), а «канал или платформа» в
+-- спецификации — это один фильтр. Производственные компании сюда не пишутся:
+-- это студия, её дело M10 (F-10-03).
+--
+-- Идентификатор — число TMDB, а не слаг: переименование сети не должно
+-- разрывать связь с уже записанными сериалами.
+CREATE TABLE e_network (
+  id           INTEGER PRIMARY KEY,        -- идентификатор TMDB
+  name         TEXT NOT NULL,
+  country_code TEXT REFERENCES e_country(code) ON DELETE SET NULL,
+  active       BOOLEAN NOT NULL DEFAULT TRUE
+);
+CREATE TABLE e_series_network (
+  series_id  BIGINT  NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  network_id INTEGER NOT NULL REFERENCES e_network(id) ON DELETE RESTRICT,
+  PRIMARY KEY (series_id, network_id)
+);
+CREATE INDEX ix_network_name ON e_network (name);
 CREATE TABLE e_rating_platform (
   code      TEXT PRIMARY KEY,
   name      TEXT NOT NULL,
