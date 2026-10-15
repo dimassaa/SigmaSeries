@@ -19,6 +19,7 @@ import { createSettingsRoutes } from './routes/settings.js';
 import { createMailboxRoutes } from './routes/mailbox.js';
 import { createSeriesRoutes } from './routes/series.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
+import { createSearchRoutes } from './routes/search.js';
 import { createImageRoutes } from './routes/images.js';
 import { createJournal } from './services/journal.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
@@ -38,6 +39,7 @@ export function createApp({
   data,
   series = null,
   catalogue = null,
+  search = null,
   pool = null,
   auth,
   sessionMw,
@@ -95,6 +97,7 @@ export function createApp({
   // Каталог и карточка сериала подключаются, когда есть источник: без него
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
   if (catalogue) app.use(createCatalogueRoutes({ catalogue }));
+  if (search) app.use(createSearchRoutes({ search }));
   if (series) app.use(createSeriesRoutes({ series }));
 
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.

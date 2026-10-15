@@ -232,6 +232,147 @@
     setTimeout(tick, 5000);
   }
 
+  // ─── Поиск в верхней панели (F-02-06, UI-09) ───────────────────────────────
+  //
+  // Поле работает и без скриптов: это обычная форма GET, Enter уводит на S-17.
+  // Здесь появляются подсказки и навигация стрелками — улучшение, а не условие
+  // работы. Задержка и число подсказок приходят из настроек модуля
+  // (`search.suggest_debounce_ms`, `search.suggest_max`), поэтому спецификация
+  // меняется без правки этого файла.
+  function initSearch() {
+    var form = document.querySelector('[data-search]');
+    if (!form) return;
+    var input = form.querySelector('[data-search-input]');
+    var status = document.querySelector('[data-search-status]');
+    if (!input) return;
+
+    var locale = (location.pathname.split('/')[1] || 'ru');
+    var debounce = Number(form.getAttribute('data-debounce')) || 200;
+    var timer = null;
+    var controller = null;
+    var items = [];
+    var active = -1;
+    var layer = null;
+
+    var closeLayer = function () {
+      if (layer) layer.remove();
+      layer = null;
+      items = [];
+      active = -1;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    };
+
+    var highlight = function (next) {
+      if (!items.length) return;
+      active = (next + items.length) % items.length;
+      for (var i = 0; i < items.length; i += 1) {
+        var on = i === active;
+        items[i].setAttribute('aria-selected', on ? 'true' : 'false');
+        if (on) {
+          input.setAttribute('aria-activedescendant', items[i].id);
+          items[i].scrollIntoView({ block: 'nearest' });
+        }
+      }
+    };
+
+    var render = function (groups) {
+      var flat = [];
+      groups.forEach(function (group) {
+        group.items.forEach(function (item) { flat.push(item); });
+      });
+      if (!flat.length) {
+        closeLayer();
+        if (status) status.textContent = '';
+        return;
+      }
+
+      if (!layer) {
+        layer = document.createElement('div');
+        layer.className = 'search__suggestions';
+        layer.id = 'search-suggestions';
+        layer.setAttribute('role', 'listbox');
+        form.appendChild(layer);
+      }
+      layer.textContent = '';
+      items = [];
+      flat.forEach(function (item, index) {
+        var row = document.createElement('a');
+        row.className = 'search__suggestion';
+        row.id = 'search-suggestion-' + index;
+        row.setAttribute('role', 'option');
+        row.setAttribute('aria-selected', 'false');
+        row.href = item.href;
+        row.textContent = item.title;
+        layer.appendChild(row);
+        items.push(row);
+      });
+      input.setAttribute('aria-expanded', 'true');
+      // Число найденного объявляется: иначе подсказки появились «молча»
+      // (F-02-06 §8).
+      if (status) status.textContent = String(flat.length);
+    };
+
+    var request = function () {
+      var query = input.value.trim();
+      if (controller) controller.abort();
+      if (query.length < 2) {
+        closeLayer();
+        return;
+      }
+      controller = typeof AbortController === 'function' ? new AbortController() : null;
+      fetch('/' + locale + '/search/suggest?q=' + encodeURIComponent(query), {
+        headers: { Accept: 'application/json' },
+        signal: controller ? controller.signal : undefined,
+      })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (data) {
+          if (!data) return;
+          var href = function (path) { return '/' + locale + path; };
+          render([
+            {
+              items: (data.series || []).map(function (item) {
+                return { title: item.title, href: href('/series/' + item.slug) };
+              }),
+            },
+            {
+              items: (data.people || []).map(function (item) {
+                return { title: item.name, href: href('/people/' + item.slug) };
+              }),
+            },
+            {
+              items: (data.collections || []).map(function (item) {
+                return { title: item.title, href: href('/collections/' + item.slug) };
+              }),
+            },
+          ]);
+        })
+        .catch(function () {
+          // Прерванный запрос или нет сети — не ошибка: подсказки просто не
+          // появятся, а страница поиска по Enter продолжит работать (§6).
+        });
+    };
+
+    input.addEventListener('input', function () {
+      clearTimeout(timer);
+      timer = setTimeout(request, debounce);
+    });
+
+    // Esc закрывает слой и оставляет набранное (R-A11Y-05).
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') { closeLayer(); return; }
+      if (!items.length) return;
+      if (event.key === 'ArrowDown') { event.preventDefault(); highlight(active + 1); }
+      else if (event.key === 'ArrowUp') { event.preventDefault(); highlight(active - 1); }
+      else if (event.key === 'Enter' && active >= 0) {
+        event.preventDefault();
+        location.href = items[active].href;
+      }
+    });
+
+    input.addEventListener('blur', function () { setTimeout(closeLayer, 120); });
+  }
+
   // ─── «Показать» у поля пароля (F-01-04) ───────────────────────────────────
 
   // Своя кнопка, а не встроенный «глаз» браузера: у того нет доступного
@@ -257,6 +398,7 @@
     var path = location.pathname;
     initTheme();
     initPasswordReveal();
+    initSearch();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();

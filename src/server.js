@@ -9,6 +9,7 @@ import { createPool, checkConnection } from './db/pool.js';
 import { pgData } from './services/home/data.js';
 import { pgSeries } from './services/catalogue/series.js';
 import { pgCatalogueList } from './services/catalogue/list.js';
+import { pgSearch } from './services/search/service.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
@@ -88,6 +89,7 @@ const app = createApp({
   data: pgData(pool),
   series: pgSeries(pool),
   catalogue: pgCatalogueList(pool),
+  search: pgSearch(pool),
   pool,
   auth,
   sessionMw: createSessionMiddleware(pool),

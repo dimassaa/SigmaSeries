@@ -23,6 +23,26 @@ const MESSAGES = {
     'nav.search': 'Поиск',
     'nav.signIn': 'Войти',
 
+    // S-17 — результаты поиска (F-02-06)
+    'search.title': 'Поиск',
+    'search.titleWith': 'Поиск: {query}',
+    'search.description': 'Поиск по названиям сериалов, людям и подборкам.',
+    'search.field': 'Поисковый запрос',
+    'search.placeholder': 'Название, актёр или подборка',
+    'search.submit': 'Найти',
+    'search.found': 'Найдено: {count}',
+    'search.group.series': 'Сериалы',
+    'search.group.people': 'Люди',
+    'search.group.collections': 'Подборки',
+    'search.person.actor': 'Актёр',
+    'search.person.director': 'Режиссёр',
+    'search.person.creator': 'Создатель',
+    'search.layoutHint': 'Возможно, имелось в виду «{value}».',
+    'search.layoutAsIs': 'Искать как было введено',
+    'search.empty.title': 'Ничего не найдено',
+    'search.empty.text': 'По запросу «{query}» в каталоге ничего нет.',
+    'search.empty.tryGenre': 'Попробуйте жанр:',
+
     // S-02 — каталог сериалов (F-02-03)
     'catalog.title': 'Каталог сериалов',
     'catalog.description': 'Сериалы с фильтрами по жанру, году, рейтингу и состоянию выхода.',
@@ -445,6 +465,26 @@ const MESSAGES = {
     'nav.calendar': 'Calendar',
     'nav.search': 'Search',
     'nav.signIn': 'Sign in',
+
+    // S-17 — search results (F-02-06)
+    'search.title': 'Search',
+    'search.titleWith': 'Search: {query}',
+    'search.description': 'Search series, people and collections by name.',
+    'search.field': 'Search query',
+    'search.placeholder': 'Title, actor or collection',
+    'search.submit': 'Search',
+    'search.found': 'Found: {count}',
+    'search.group.series': 'Series',
+    'search.group.people': 'People',
+    'search.group.collections': 'Collections',
+    'search.person.actor': 'Actor',
+    'search.person.director': 'Director',
+    'search.person.creator': 'Creator',
+    'search.layoutHint': 'Perhaps you meant “{value}”.',
+    'search.layoutAsIs': 'Search as typed',
+    'search.empty.title': 'Nothing found',
+    'search.empty.text': 'Nothing in the catalogue matches “{query}”.',
+    'search.empty.tryGenre': 'Try a genre:',
 
     // S-02 — catalogue (F-02-03)
     'catalog.title': 'Series catalogue',

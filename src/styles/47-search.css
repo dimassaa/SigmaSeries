@@ -1,0 +1,119 @@
+/* --- S-17 — поиск (F-02-06) --- */
+
+.search__title { margin-block-end: var(--space-5); }
+
+/* Поле поиска — комбобокс: без `role` и `aria-expanded` подсказки для
+   скринридера не существуют (F-02-06 §8), и визуально выпадающий список
+   остаётся просто списком. */
+.search__form {
+  display: flex;
+  gap: var(--space-2);
+  margin-block-end: var(--space-5);
+  position: relative;
+}
+
+.search__input {
+  flex: 1;
+  min-height: 48px;
+  padding: 0 var(--space-4);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  font: inherit;
+}
+
+.search__input:focus-visible { border-color: var(--accent); }
+
+/* Слой подсказок под полем: стекло допустимо — он лежит над контентом
+   (R-DES-21), и без подложки подписи поверх фотографии не прочитать. */
+.search__suggestions {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + var(--space-1));
+  z-index: 10;
+  max-block-size: 60vh;
+  overflow-y: auto;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+}
+
+@supports (backdrop-filter: blur(8px)) {
+  .search__suggestions {
+    backdrop-filter: blur(var(--blur-light));
+  }
+}
+
+.search__suggestion {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  min-block-size: 44px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.search__suggestion:hover,
+.search__suggestion[aria-selected="true"] { background: var(--surface-hover); }
+
+.search__count { color: var(--text-secondary); margin-block-end: var(--space-4); }
+
+.search__group { margin-block-end: var(--space-6); }
+.search__group-title { font-size: 16px; font-weight: 600; margin-block-end: var(--space-3); }
+
+.search__list { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.search__row {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.search__link {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-3);
+  min-block-size: 44px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.search__link:hover { border-color: var(--accent); }
+.search__row-title { font-weight: 500; }
+.search__row-meta { color: var(--text-secondary); font-size: 13px; }
+
+/* Пометка о раскладке: не только цветом, но и словами (R-A11Y-19). */
+.search__layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin-block-end: var(--space-4);
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.search__layout-as-is { font-size: 13px; }
+
+.empty-state__genres { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 36px;
+  padding-inline: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: inherit;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.chip:hover { border-color: var(--accent); color: var(--accent); }

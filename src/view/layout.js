@@ -6,6 +6,7 @@
 
 import { html, raw, attr, esc } from './render.js';
 import { t, LOCALES, LOCALE_NAMES, DEFAULT_LOCALE } from '../i18n/strings.js';
+import { SEARCH_SETTINGS } from '../config/settings.js';
 
 /**
  * Собирает полный документ.
@@ -62,6 +63,15 @@ ${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))
     <a href="/${locale}/series">${t(locale, 'nav.catalog')}</a>
     <a href="/${locale}/calendar">${t(locale, 'nav.calendar')}</a>
   </nav>
+  <form class="topbar__search" method="get" action="/${locale}/search" role="search"
+        data-search data-debounce="${SEARCH_SETTINGS.suggestDebounceMs}">
+    <label class="visually-hidden" for="topbar-q">${t(locale, 'search.field')}</label>
+    <input class="topbar__search-input" id="topbar-q" type="search" name="q"
+           placeholder="${t(locale, 'search.placeholder')}" autocomplete="off"
+           role="combobox" aria-expanded="false" aria-controls="search-suggestions"
+           aria-autocomplete="list" data-search-input>
+    <span class="visually-hidden" role="status" data-search-status></span>
+  </form>
   <div class="topbar__controls">
     <button type="button" class="topbar__theme" data-theme-toggle
             aria-label="${t(locale, 'app.theme.toggle')}">◐</button>
