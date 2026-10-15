@@ -1,11 +1,20 @@
 // Поиск по каталогу: сериалы, люди, подборки (F-02-06, S-17).
 //
-// Индекс названий — это вычисление на лету, а не отдельная таблица: при
-// 1200 сериалах (измерение DATA-SOURCES §10) полнотекстовый индекс даёт
-// преимущество только на порядках больше, а лишняя таблица означала бы ещё
-// одно место, где индекс может разойтись с каталогом. Ранжирование целиком в
-// SQL не выражается — сравнение основ и расстояние Левенштейна живут в Node,
-// поэтому кандидаты сужаются базой, а порядок и падеж — здесь.
+// Три ступени, и порядок не переставляется:
+//
+//  1. Полнотекстовый поиск PostgreSQL со стеммером Snowball (`russian`).
+//     «человеком» находит «людей», «кинематографом» — «кинематографа» — и идёт
+//     по индексу `ix_series_search`, потому что выражение в запросе совпадает с
+//     выражением в индексе дословно (находка #114).
+//  2. Совпадение как есть — запасной путь для опечаток и раскладки: Snowball
+//     слова «тяжких» в словаре не знает и ничего не найдёт.
+//  3. Ранжирование в Node по правилам §3 — выразить их в tsquery нельзя.
+//
+// Что важно и не видно сверху: ступень 1 не отбрасывает строки, которые Node
+// не смог оценить своим правилом. Именно на этом держится морфология — база
+// нашла «людей» по слову «человеком», и сортировщик обязан их оставить, даже
+// если его основы разошлись с основами PostgreSQL. Порядок при этом
+// сохраняется: такие строки уходят в конец, но не исчезают.
 
 import { isEmptyQuery, normalize, otherLayout, queryStems, rankOf, trimQuery } from './query.js';
 
@@ -17,6 +26,87 @@ const DEFAULT_SUGGEST_MAX = 8;
 
 /** Порог подсказок: меньше двух знаков подсказки не показывают (§2). */
 const DEFAULT_SUGGEST_MIN_CHARS = 2;
+
+/**
+ * Ранг для строки, найденной базой, но не оценённой правилами §3.
+ *
+ * Больше любого настоящего ранга (их пять), но всё-таки число: тест на
+ * неубывание рангов должен видеть порядок, а не дыру в нём.
+ */
+const MORPHOLOGY_RANK = 9;
+
+/**
+ * Минимальная длина слова для совпадения как есть.
+ *
+ * Совпадение подстрокой берёт всё, что содержит слово, а `of` содержится в
+ * половине латинских фамилий: `game of thrones` выдавал бы Beau Mirchoff.
+ * Слова короче трёх знаков в запасной ступени не участвуют — потерять можно
+ * запрос из одних предлогов, которого человек и не ищет.
+ */
+const MIN_PARTIAL_WORD = 3;
+
+/**
+ * Текст, по которому ищется сериал.
+ *
+ * Повторяет выражение `ix_series_search` из `DATABASE.md` посимвольно.
+ * Расхождение здесь означает не «чуть медленнее», а «индекс не используется, и
+ * каждый запрос читает таблицу целиком».
+ */
+const SERIES_TEXT = "coalesce(s.title_ru,'') || ' ' || coalesce(s.title_original,'') || ' ' || coalesce(s.title_en,'')";
+
+const SERIES_COLUMNS = `
+       s.id, s.slug,
+       coalesce(s.title_ru, s.title_en, s.title_original) AS title,
+       s.title_ru, s.title_en, s.title_original,
+       s.year_start, s.exit_state,
+       r.votes,
+       (SELECT iv.width FROM e_image_variant iv
+          JOIN e_image i ON i.id = iv.image_id
+         WHERE i.series_id = s.id AND i.role = 'poster'
+         ORDER BY iv.width LIMIT 1) AS poster_width`;
+
+const SERIES_FROM = `
+       e_series s
+       LEFT JOIN e_external_rating r ON r.series_id = s.id AND r.platform = 'imdb'`;
+
+/**
+ * Что и где ищется.
+ *
+ * Три одинаковых по форме описания — чтобы ступени 1 и 2 не расходились между
+ * собой: у сериалов, людей и подборок разные только текст, видимость и то,
+ * какое поле показывается человеку.
+ */
+const TARGETS = {
+  series: {
+    columns: SERIES_COLUMNS,
+    from: SERIES_FROM,
+    text: SERIES_TEXT,
+    visible: "s.publication_state = 'published' AND s.archived_at IS NULL",
+    titleOf: null,   // сравниваются все три названия
+  },
+  people: {
+    columns: 'p.id, p.slug, p.name, p.kind',
+    from: 'e_person p',
+    text: 'p.name',
+    // Человек показывается, если он есть хотя бы в одном видимом сериале.
+    // `EXISTS` вместо соединения — иначе одна роль в одном сериале даёт
+    // несколько одинаковых строк, и `DISTINCT` пришлось бы тащить в каждый
+    // запрос вместе с его требованиями к `ORDER BY`.
+    visible: `EXISTS (
+       SELECT 1 FROM e_series_person sp
+         JOIN e_series s ON s.id = sp.series_id
+        WHERE sp.person_id = p.id
+          AND s.publication_state = 'published' AND s.archived_at IS NULL)`,
+    titleOf: (row) => row.name,
+  },
+  collections: {
+    columns: 'c.id, c.slug, c.title, c.description',
+    from: 'e_collection c',
+    text: 'c.title',
+    visible: 'c.active AND c.is_demo = FALSE',
+    titleOf: (row) => row.title,
+  },
+};
 
 export function pgSearch(pool) {
   return {
@@ -32,33 +122,35 @@ export function pgSearch(pool) {
     async find({ query, limit = 24 }) {
       const trimmed = trimQuery(query);
       const original = trimmed.query;
+      const empty = {
+        query: original,
+        truncated: trimmed.truncated,
+        layoutFixed: null,
+        series: [],
+        people: [],
+        collections: [],
+        total: 0,
+      };
 
-      if (isEmptyQuery(original)) {
-        return { query: original, truncated: trimmed.truncated, layoutFixed: null, series: [], people: [], collections: [], total: 0 };
-      }
+      if (isEmptyQuery(original)) return empty;
 
       // Сначала ищем как введено. Только если ничего не нашлось — пробуем другую
-      // раскладку и говорим об этом (F-02-06 §3): подсказка появляется там, где
+      // раскладку и говорим об этом (F-02-06 §3): пометка появляется там, где
       // человек действительно ошибся, а не перед каждым запросом.
       const direct = await run(pool, original, limit);
       if (direct.total > 0) {
-        return { query: original, truncated: trimmed.truncated, layoutFixed: null, ...direct };
+        return { ...empty, ...direct };
       }
 
       const translated = otherLayout(original);
       if (translated) {
         const fixed = await run(pool, translated, limit);
         if (fixed.total > 0) {
-          return {
-            query: original,
-            truncated: trimmed.truncated,
-            layoutFixed: translated,
-            ...fixed,
-          };
+          return { ...empty, layoutFixed: translated, ...fixed };
         }
       }
 
-      return { query: original, truncated: trimmed.truncated, layoutFixed: null, ...direct };
+      return empty;
     },
 
     /**
@@ -95,9 +187,10 @@ export function pgSearch(pool) {
      */
     async suggest({ query, max = null }) {
       const trimmed = trimQuery(query);
-      const limit = max ?? await suggestMax(pool);
+      const limit = max ?? await setting(pool, 'search.suggest_max', DEFAULT_SUGGEST_MAX);
+      const minChars = await setting(pool, 'search.suggest_min_chars', DEFAULT_SUGGEST_MIN_CHARS);
 
-      if (isEmptyQuery(trimmed.query) || trimmed.query.length < await suggestMinChars(pool)) {
+      if (isEmptyQuery(trimmed.query) || trimmed.query.length < minChars) {
         return { series: [], people: [], collections: [] };
       }
 
@@ -108,6 +201,9 @@ export function pgSearch(pool) {
         collections: found.collections.slice(0, limit),
       };
     },
+
+    /** Выражение поиска по сериалу — проверяется тестом против `DATABASE.md`. */
+    vectorExpression: `to_tsvector('russian', ${SERIES_TEXT})`,
   };
 }
 
@@ -117,189 +213,133 @@ export function pgSearch(pool) {
  * @param {object} pool
  * @param {string} query
  * @param {number} limit
+ * @returns {Promise<{series: object[], people: object[], collections: object[], total: number}>}
  */
 async function run(pool, query, limit) {
   const needles = queryStems(query);
   if (!needles.length) return { series: [], people: [], collections: [], total: 0 };
 
-  // Предварительный отбор базой идёт по СЛОВАМ как они есть, а не по основам:
-  // в баке лежит исходный текст, и сравнение основы с ним не совпало бы
-  // никогда («полосат» ≠ «полосатый»). Основы нужны позже, в Node, для ранга.
+  // Слова запроса как есть: в базе лежит исходный текст, и сравнение основы с
+  // ним не совпало бы никогда («полосат» ≠ «полосатый»). Основы нужны позже, для
+  // ранга.
   const words = normalize(query).split(' ').filter(Boolean);
 
   const [series, people, collections] = await Promise.all([
-    findSeries(pool, needles, words, limit),
-    findPeople(pool, needles, words, limit),
-    findCollections(pool, needles, words, limit),
+    searchTarget(pool, TARGETS.series, words, needles, limit),
+    searchTarget(pool, TARGETS.people, words, needles, limit),
+    searchTarget(pool, TARGETS.collections, words, needles, limit),
   ]);
 
   return {
-    series: series.items,
-    people: people.items,
-    collections: collections.items,
-    total: series.total + people.total + collections.total,
+    series,
+    people,
+    collections,
+    total: series.length + people.length + collections.length,
   };
 }
 
 /**
- * Условие «любое слово запроса встречается в тексте».
+ * Поиск по одной цели: полнотекстовый, при пустом результате — как есть.
  *
- * Значения подставляются только параметрами: слова приходят из адреса, а
- * собирать из них строку условия нельзя (R-SEC-16).
- *
- * @param {string[]} words
- * @returns {{text: (column: string, offset: number) => string, params: (words: string[]) => string[]}}
+ * @param {object} pool
+ * @param {object} target описание из `TARGETS`
+ * @param {string[]} words слова запроса как есть
+ * @param {string[]} needles основы слов запроса
+ * @param {number} limit
+ * @returns {Promise<object[]>}
  */
-function anyWord(words) {
-  const list = words.length ? words : [''];
-  return {
-    text: (column, offset) => `(${list
-      .map((_, index) => `${column} ILIKE $${offset + index}`)
-      .join(' OR ')})`,
-    params: (values) => values.map((word) => `%${word}%`),
-  };
+async function searchTarget(pool, target, words, needles, limit) {
+  const vector = `to_tsvector('russian', ${target.text})`;
+  const byText = await pool.query(
+    `SELECT ${target.columns},
+            ts_rank_cd(${vector}, plainto_tsquery('russian', $1)) AS text_rank
+       FROM ${target.from}
+      WHERE ${target.visible}
+        AND ${vector} @@ plainto_tsquery('russian', $1)
+      ORDER BY text_rank DESC
+      LIMIT $2`,
+    [words.join(' '), CANDIDATES],
+  );
+
+  // Найденное базой не выбрасывается: об этом сказано в шапке файла.
+  if (byText.rows.length) return rank(byText.rows, needles, limit, target.titleOf);
+
+  const parts = words.filter((word) => word.length >= MIN_PARTIAL_WORD);
+  if (!parts.length) return [];
+
+  const byLike = await pool.query(
+    `SELECT ${target.columns}
+       FROM ${target.from}
+      WHERE ${target.visible}
+        AND ${anyWord(target.text, parts, 1)}
+      LIMIT $${parts.length + 1}`,
+    [...parts.map((word) => `%${word}%`), CANDIDATES],
+  );
+
+  return rank(byLike.rows, needles, limit, target.titleOf);
 }
 
 /**
- * Нормализация на стороне базы.
+ * Условие «любое слово запроса встречается в тексте как есть».
  *
- * `ё → е` обязана происходить и в SQL: локаль базы — `ru_RU.UTF-8`, где `ILIKE`
- * не считает «ёж» и «еж» одним словом, а Node уже нормализовал запрос. Без
- * этого человек пишет «режиссер» и не находит «Режиссёр» — а это фамилия в
- * названии должности, то есть почти весь каталог IMDb-людей.
+ * `ё` приводится к `е` прямо в базе: текст из `IMPORT` может сохранить `ё`,
+ * а нормализация в Node приводит его к `е` всегда, и без перевода слово не
+ * находило бы само себя. Значения подставляются только параметрами (R-SEC-16).
  *
- * `unaccent` требует расширения, которого в списке `STACK` §3 нет, поэтому
- * приведение делается таблицей `translate` — двух букв здесь хватает.
- *
- * @param {string} expression
+ * @param {string} text выражение текста
+ * @param {string[]} words
+ * @param {number} offset номер первого параметра
  * @returns {string}
  */
-const folded = (expression) => `translate(${expression}, 'ёЁ', 'еЕ')`;
-
-/**
- * Сериалы.
- *
- * Кандидаты берутся по вхождению и по началу слова — этого достаточно, чтобы не
- * принести в Node весь каталог, а ранжирование всё равно делается здесь.
- *
- * Индекс `ix_series_search` полнотекстовый и по `to_tsvector` его не покрывает:
- * он нужен для морфологии, которой здесь нет. При 1200 сериалах (DATA-SOURCES
- * §10) последовательный проход по таблице — единицы миллисекунд; при росте на
- * порядок понадобится `pg_trgm`, и это отдельное решение (находка).
- */
-async function findSeries(pool, needles, words, limit) {
-  const match = anyWord(words);
-
-  const { rows } = await pool.query(
-    `SELECT s.id, s.slug,
-            coalesce(s.title_ru, s.title_en, s.title_original) AS title,
-            s.title_ru, s.title_en, s.title_original,
-            s.year_start,
-            r.votes,
-            (SELECT iv.width FROM e_image_variant iv
-               JOIN e_image i ON i.id = iv.image_id
-              WHERE i.series_id = s.id AND i.role = 'poster'
-              ORDER BY iv.width LIMIT 1) AS poster_width
-       FROM e_series s
-       LEFT JOIN e_external_rating r ON r.series_id = s.id AND r.platform = 'imdb'
-       WHERE s.publication_state = 'published'
-         AND s.archived_at IS NULL
-         AND ${match.text(folded("concat_ws(' ', s.title_ru, s.title_en, s.title_original)"), 1)}
-       ORDER BY r.votes DESC NULLS LAST, s.title_ru
-       LIMIT $${words.length + 1}`,
-    [...match.params(words), CANDIDATES],
-  );
-
-  const ranked = rank(rows, needles, limit);
-  return { items: ranked.items, total: ranked.total };
-}
-
-/** Люди: актёры и режиссёры из опубликованных сериалов. */
-async function findPeople(pool, needles, words, limit) {
-  const match = anyWord(words);
-  const { rows } = await pool.query(
-    `SELECT DISTINCT p.id, p.slug, p.name, p.kind
-       FROM e_person p
-       JOIN e_series_person sp ON sp.person_id = p.id
-       JOIN e_series s ON s.id = sp.series_id
-      WHERE s.publication_state = 'published' AND s.archived_at IS NULL
-        AND ${match.text(folded('p.name'), 1)}
-      LIMIT $${words.length + 1}`,
-    [...match.params(words), CANDIDATES],
-  );
-
-  const ranked = rank(rows, needles, limit, (row) => row.name);
-  return { items: ranked.items, total: ranked.total };
-}
-
-/** Подборки: активные и видимые. */
-async function findCollections(pool, needles, words, limit) {
-  const match = anyWord(words);
-  const { rows } = await pool.query(
-    `SELECT c.id, c.slug, c.title, c.description
-       FROM e_collection c
-      WHERE c.active AND c.is_demo = FALSE
-        AND ${match.text(folded('c.title'), 1)}
-      LIMIT $${words.length + 1}`,
-    [...match.params(words), CANDIDATES],
-  );
-
-  const ranked = rank(rows, needles, limit, (row) => row.title);
-  return { items: ranked.items, total: ranked.total };
+function anyWord(text, words, offset) {
+  const conditions = words
+    .map((_, index) => `translate(${text}, 'ёЁ', 'еЕ') ILIKE $${offset + index}`)
+    .join(' OR ');
+  return `(${conditions})`;
 }
 
 /**
  * Ранжирование кандидатов.
  *
- * Название для сравнения берётся из всех трёх полей: человек ищет «Игра
+ * Название для сравнения берётся из всех трёх полей сериала: человек ищет «Игра
  * престолов» по-русски и `Game of Thrones` по-английски, а в базе лежат оба.
- * Приоритет совпадения — русский, как он показан в карточке.
+ * Приоритет совпадения — русское название, как оно показано в карточке.
  *
  * @param {object[]} rows
  * @param {string[]} needles
  * @param {number} limit
- * @param {(row: object) => string} [titleOf]
+ * @param {((row: object) => string)|null} [titleOf]
+ * @returns {object[]}
  */
-function rank(rows, needles, limit, titleOf = defaultTitleOf) {
+function rank(rows, needles, limit, titleOf = null) {
   const scored = [];
   for (const row of rows) {
-    const haystacks = haystacksOf(row, titleOf);
+    const haystacks = titleOf ? [titleOf(row)] : [row.title_ru, row.title_original, row.title_en].filter(Boolean);
     let best = null;
     for (const hay of haystacks) {
-      const rank = rankOf(queryStems(hay), needles);
-      if (rank === null) continue;
-      if (best === null || rank < best) best = rank;
+      const found = rankOf(queryStems(hay), needles);
+      if (found === null) continue;
+      if (best === null || found < best) best = found;
     }
-    if (best === null) continue;
-    scored.push({ ...row, rank: best });
+    // Строка без оценки Node остаётся в выдаче: база её нашла, и это основание
+    // лучше, чем наше собственное мнение о сходстве основ.
+    scored.push({ ...row, rank: best ?? MORPHOLOGY_RANK });
   }
 
-  // Ранг важнее голосов: сначала насколько совпало, потом насколько известно.
+  // Ранг важнее всего остального: сначала насколько совпало, потом насколько
+  // известно (`text_rank` отдаёт база), затем по названию — чтобы порядок не
+  // прыгал между прогонами.
   scored.sort((a, b) => (a.rank - b.rank)
     || ((b.votes ?? 0) - (a.votes ?? 0))
+    || ((b.text_rank ?? 0) - (a.text_rank ?? 0))
     || String(a.title ?? a.name ?? '').localeCompare(String(b.title ?? b.name ?? '')));
 
-  return { items: scored.slice(0, limit), total: scored.length };
+  return scored.slice(0, limit);
 }
 
-function defaultTitleOf(row) {
-  return `${row.title_ru ?? ''} ${row.title_original ?? ''} ${row.title_en ?? ''}`;
-}
-
-/** Названия, по которым сравнивается совпадение: русское, оригинал, английское. */
-function haystacksOf(row, titleOf) {
-  if (titleOf !== defaultTitleOf) return [titleOf(row)];
-  return [row.title_ru, row.title_original, row.title_en].filter(Boolean);
-}
-
-async function suggestMax(pool) {
-  const { rows } = await pool.query("SELECT value FROM e_system_setting WHERE key = 'search.suggest_max'");
+/** Число из настроек модуля, а не из кода. */
+async function setting(pool, key, fallback) {
+  const { rows } = await pool.query('SELECT value FROM e_system_setting WHERE key = $1', [key]);
   const value = Number(rows[0]?.value);
-  return Number.isInteger(value) && value > 0 ? value : DEFAULT_SUGGEST_MAX;
-}
-
-async function suggestMinChars(pool) {
-  const { rows } = await pool.query("SELECT value FROM e_system_setting WHERE key = 'search.suggest_min_chars'");
-  const value = Number(rows[0]?.value);
-  return Number.isInteger(value) && value > 0 ? value : DEFAULT_SUGGEST_MIN_CHARS;
+  return Number.isInteger(value) && value > 0 ? value : fallback;
 }

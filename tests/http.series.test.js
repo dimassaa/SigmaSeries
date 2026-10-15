@@ -53,7 +53,7 @@ const get = (path) => fetch(`${baseUrl}${path}`);
 
 async function anySlug() {
   const { rows } = await pool.query(
-    "SELECT slug FROM e_series WHERE publication_state = 'published' ORDER BY year_start DESC LIMIT 1",
+    "SELECT slug FROM e_series WHERE publication_state = 'published' AND archived_at IS NULL AND year_start IS NOT NULL ORDER BY year_start DESC LIMIT 1",
   );
   return rows[0]?.slug;
 }

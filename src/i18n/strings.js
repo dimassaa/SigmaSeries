@@ -48,6 +48,14 @@ const MESSAGES = {
     'date.tomorrow': 'завтра выходит',
     'date.inDays': 'через {count} дня выходит',
 
+    // S-05 и S-15 — подборка и персона (F-02-05, F-02-09)
+    'collection.series': 'Сериалы в подборке ({count})',
+    'person.series': 'Сериалы ({count})',
+    'person.description': 'Сериалы каталога с участием: {name}',
+    'person.role.actor': 'актёр',
+    'person.role.director': 'режиссёр',
+    'person.role.creator': 'создатель',
+
     // S-17 — результаты поиска (F-02-06)
     'search.title': 'Поиск',
     'search.titleWith': 'Поиск: {query}',
@@ -515,6 +523,14 @@ const MESSAGES = {
     'date.today': 'aired today',
     'date.tomorrow': 'airs tomorrow',
     'date.inDays': 'airs in {count} days',
+
+    // S-05 and S-15 — collection and person (F-02-05, F-02-09)
+    'collection.series': 'Series in this collection ({count})',
+    'person.series': 'Series ({count})',
+    'person.description': 'Series from the catalogue featuring: {name}',
+    'person.role.actor': 'actor',
+    'person.role.director': 'director',
+    'person.role.creator': 'creator',
 
     // S-17 — search results (F-02-06)
     'search.title': 'Search',

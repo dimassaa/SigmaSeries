@@ -130,7 +130,9 @@ export function seriesView({ locale, series }) {
     <h2 class="series__section-title" id="h-cast">${t(locale, 'series.menu.cast')}</h2>
     <ul class="people" role="list">
       ${series.people.cast.map((person) => html`
-      <li class="people__item">${person.name}</li>`)}
+      <li class="people__item">
+        <a href="/${locale}/people/${person.slug}">${person.name}</a>
+      </li>`)}
     </ul>
   </section>`)}
 </article>`;

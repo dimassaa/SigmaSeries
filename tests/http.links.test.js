@@ -14,6 +14,8 @@ import { createApp } from '../src/app.js';
 import { pgSeries } from '../src/services/catalogue/series.js';
 import { pgCatalogueList } from '../src/services/catalogue/list.js';
 import { pgSeasons } from '../src/services/catalogue/season.js';
+import { pgCollections } from '../src/services/catalogue/collection.js';
+import { pgPerson } from '../src/services/catalogue/person.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -43,6 +45,8 @@ test.before(async () => {
     series: pgSeries(pool),
     catalogue: pgCatalogueList(pool),
     seasons: pgSeasons(pool),
+    collections: pgCollections(pool),
+    person: pgPerson(pool),
   });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {

@@ -7,6 +7,9 @@
 
 import express from 'express';
 
+import { bannerOf } from '../services/catalogue/banner.js';
+import { isLocale } from '../i18n/strings.js';
+
 /** Куда идти за картинкой: роль, сериал и нужная ширина. */
 const IMAGE_SQL = `
   SELECT iv.file, iv.mime, iv.bytes, iv.checksum, iv.width
@@ -52,6 +55,56 @@ export function createImageRoutes({ pool }) {
          ORDER BY iv.width
          LIMIT 1`,
         [seriesRows[0].id, role, wanted],
+      );
+      const variant = rows[0];
+      if (!variant) return notFound(res);
+
+      res.set('ETag', `"${variant.checksum}"`);
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      res.type(variant.mime);
+      return res.status(200).send(variant.file);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  return router;
+}
+
+/**
+ * Маршруты картинок подборки.
+ *
+ * Отдельный адрес нужен потому, что у баннера подборки может не быть сериала:
+ * картинка администратора лежит в `e_image` с пустым `series_id`, и по адресу
+ * вида `/{locale}/images/{сериал}/...` она недостижима. Правило выбора — своя
+ * картинка, иначе фон первого сериала — живёт в `services/catalogue/banner.js`:
+ * страница и этот маршрут обязаны показывать одну и ту же картинку.
+ *
+ * @param {object} deps
+ * @param {import('pg').Pool} deps.pool
+ * @returns {import('express').Router}
+ */
+export function createCollectionImageRoutes({ pool }) {
+  const router = express.Router({ strict: true });
+
+  router.get('/:locale/collections/:slug/banner-:width.webp', async (req, res, next) => {
+    const { slug, width, locale } = req.params;
+    const wanted = Number(width);
+
+    if (!/^\d+$/.test(String(width)) || wanted < 1 || wanted > 4000) return next('route');
+    if (!isLocale(locale)) return next('route');
+
+    try {
+      const banner = await bannerOf(pool, slug);
+      if (!banner) return notFound(res);
+
+      const { rows } = await pool.query(
+        `SELECT iv.file, iv.mime, iv.checksum
+           FROM e_image_variant iv
+          WHERE iv.image_id = $1 AND iv.width >= $2
+          ORDER BY iv.width
+          LIMIT 1`,
+        [banner.imageId, wanted],
       );
       const variant = rows[0];
       if (!variant) return notFound(res);

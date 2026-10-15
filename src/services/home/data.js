@@ -6,6 +6,8 @@
 
 import pg from 'pg';
 
+import { MIN_VISIBLE_SERIES } from '../catalogue/collection.js';
+
 const BANNER_LIMIT = 3;
 const FRESH_LIMIT = 6;
 const COLLECTION_LIMIT = 6;
@@ -75,14 +77,20 @@ export function pgData(pool) {
     },
 
     async collections() {
+      // Порог шести видимых сериалов — тот же, что и на странице подборки
+      // (F-02-05 §5): подборка из пяти пунктов не появляется на главной.
+      // Считать по-разному значило бы, что ссылка ведёт в 404.
       const { rows } = await pool.query(`
-        SELECT c.slug, c.title, count(ci.series_id)::int AS count
+        SELECT c.slug, c.title, count(*)::int AS count
           FROM e_collection c
-          LEFT JOIN e_collection_item ci ON ci.collection_id = c.id
-         WHERE c.active
+          JOIN e_collection_item ci ON ci.collection_id = c.id
+          JOIN e_series s ON s.id = ci.series_id
+         WHERE c.active AND NOT c.is_demo
+           AND s.publication_state = 'published' AND s.archived_at IS NULL
          GROUP BY c.id
+        HAVING count(*) >= $2
          ORDER BY c.weight DESC, c.title
-         LIMIT $1`, [COLLECTION_LIMIT]);
+         LIMIT $1`, [COLLECTION_LIMIT, MIN_VISIBLE_SERIES]);
       return rows.map((r) => ({ slug: r.slug, title: r.title, count: r.count }));
     },
 

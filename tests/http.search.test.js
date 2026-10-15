@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { createPool } from '../src/db/pool.js';
 import { createApp } from '../src/app.js';
 import { pgSearch } from '../src/services/search/service.js';
+import { searchSettings } from '../src/services/search/limits.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -32,7 +33,10 @@ function stubData() {
 test.before(async () => {
   if (!available) return;
   pool = createPool();
-  const app = createApp({ data: stubData(), search: pgSearch(pool) });
+  // Лимит берётся из настроек, как в `server.js`: иначе проверка лимита
+  // проверяла бы число из кода, а не то, что поставил бы админ.
+  const { ratePerIp } = await searchSettings(pool);
+  const app = createApp({ data: stubData(), search: pgSearch(pool), searchRatePerIp: ratePerIp });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {
       baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -111,8 +115,8 @@ test('один символ подсказок не возвращает (§2)',
 });
 
 test('лимит частоты поиска отвечает 429, а не кладёт базу (R-SEC-31)', { skip }, async () => {
-  const { rows } = await pool.query("SELECT value FROM e_system_setting WHERE key = 'search.rate_limit'");
-  const limit = rows[0] ? Number(rows[0].value) : 30;
+  const { ratePerIp: limit } = await searchSettings(pool);
+  assert.ok(limit > 0);
 
   let limited = false;
   for (let i = 0; i < limit + 5; i += 1) {

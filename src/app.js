@@ -21,7 +21,8 @@ import { createSeriesRoutes } from './routes/series.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
 import { createSeasonRoutes } from './routes/season.js';
-import { createImageRoutes } from './routes/images.js';
+import { createCollectionRoutes } from './routes/collection.js';
+import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
 import { createJournal } from './services/journal.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
 
@@ -41,7 +42,10 @@ export function createApp({
   series = null,
   catalogue = null,
   search = null,
+  searchRatePerIp = null,
   seasons = null,
+  collections = null,
+  person = null,
   pool = null,
   auth,
   sessionMw,
@@ -99,12 +103,14 @@ export function createApp({
   // Каталог и карточка сериала подключаются, когда есть источник: без него
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
   if (catalogue) app.use(createCatalogueRoutes({ catalogue }));
-  if (search) app.use(createSearchRoutes({ search }));
+  if (search) app.use(createSearchRoutes({ search, ratePerIp: searchRatePerIp ?? undefined }));
   if (seasons) app.use(createSeasonRoutes({ seasons }));
   if (series) app.use(createSeriesRoutes({ series }));
+  if (collections && person) app.use(createCollectionRoutes({ collections, person }));
 
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.
   if (pool) app.use(createImageRoutes({ pool }));
+  if (pool) app.use(createCollectionImageRoutes({ pool }));
 
   if (auth && sessionMw) {
     // Маршруты входа подключаются только если есть и хранилище, и middleware:

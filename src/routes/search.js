@@ -9,7 +9,7 @@ import express from 'express';
 import { layout } from '../view/layout.js';
 import { searchView } from '../view/search.js';
 import { t, isLocale } from '../i18n/strings.js';
-import { searchLimits } from '../config/settings.js';
+import { DEFAULT_RATE_PER_MINUTE } from '../services/search/limits.js';
 
 const rawHtml = (page) => page.__raw;
 
@@ -26,18 +26,19 @@ const rawHtml = (page) => page.__raw;
 const hits = new Map();
 
 /** Окно, за которое считаются запросы. */
-const WINDOW_MS = searchLimits.rateWindowMs;
+const WINDOW_MS = 60_000;
 
 /**
  * Превышен ли лимит частоты для адреса.
  *
  * @param {string} ip
+ * @param {number} rate сколько запросов допустимо за окно
  * @param {number} [now]
  * @returns {boolean}
  */
-export function searchLimited(ip, now = Date.now()) {
+export function searchLimited(ip, rate, now = Date.now()) {
   const times = (hits.get(ip) ?? []).filter((time) => now - time < WINDOW_MS);
-  if (times.length >= searchLimits.ratePerIp) return true;
+  if (times.length >= rate) return true;
   times.push(now);
   hits.set(ip, times);
   // Периодическая чистка: без неё карта растёт по числу заходивших адресов и
@@ -50,7 +51,7 @@ export function searchLimited(ip, now = Date.now()) {
   return false;
 }
 
-export function createSearchRoutes({ search }) {
+export function createSearchRoutes({ search, ratePerIp = DEFAULT_RATE_PER_MINUTE }) {
   const router = express.Router({ strict: true });
 
   router.get('/:locale/search', async (req, res, next) => {
@@ -58,7 +59,7 @@ export function createSearchRoutes({ search }) {
     if (!isLocale(locale)) return next('route');
 
     const query = String(req.query.q ?? '');
-    if (searchLimited(req.ip)) {
+    if (searchLimited(req.ip, ratePerIp)) {
       return res.status(429)
         .set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))
         .type('html')
@@ -100,7 +101,7 @@ export function createSearchRoutes({ search }) {
     const { locale } = req.params;
     if (!isLocale(locale)) return next('route');
 
-    if (searchLimited(req.ip)) {
+    if (searchLimited(req.ip, ratePerIp)) {
       return res.status(429)
         .set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))
         .type('application/json')

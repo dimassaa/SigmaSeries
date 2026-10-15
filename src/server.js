@@ -11,6 +11,9 @@ import { pgSeries } from './services/catalogue/series.js';
 import { pgCatalogueList } from './services/catalogue/list.js';
 import { pgSearch } from './services/search/service.js';
 import { pgSeasons } from './services/catalogue/season.js';
+import { pgCollections } from './services/catalogue/collection.js';
+import { pgPerson } from './services/catalogue/person.js';
+import { searchSettings } from './services/search/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
@@ -86,12 +89,18 @@ const mailQueue = createMailQueue({
 // как две разные копии учётных записей — и расхождение было бы не видно.
 const auth = pgAuthStore(pool);
 
+// Лимит читается один раз при старте: см. services/search/limits.js.
+const { ratePerIp: searchRatePerIp } = await searchSettings(pool);
+
 const app = createApp({
   data: pgData(pool),
   series: pgSeries(pool),
   catalogue: pgCatalogueList(pool),
   search: pgSearch(pool),
+  searchRatePerIp,
   seasons: pgSeasons(pool),
+  collections: pgCollections(pool),
+  person: pgPerson(pool),
   pool,
   auth,
   sessionMw: createSessionMiddleware(pool),

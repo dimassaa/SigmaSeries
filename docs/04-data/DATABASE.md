@@ -205,9 +205,14 @@ CREATE TABLE e_series (
 CREATE INDEX ix_series_exit  ON e_series (exit_state) WHERE archived_at IS NULL;
 CREATE INDEX ix_series_year   ON e_series (year_start);
 CREATE INDEX ix_series_added  ON e_series (added_at DESC);
--- Поиск по названиям ru/en/original одним запросом
+-- Поиск по названиям ru/en/original одним запросом.
+--
+-- Конфигурация `russian` — это стеммер Snowball: «человеком» находит «людей»,
+-- а не только точное слово. Выражение обязано совпадать с запросом в
+-- `src/services/search/service.js` дословно, иначе PostgreSQL перестаёт
+-- пользоваться индексом и ищет по всей таблице (F-02-06 §3).
 CREATE INDEX ix_series_search ON e_series
-  USING gin (to_tsvector('russian', coalesce(title_ru,'') || ' ' || coalesce(title_original,'')));
+  USING gin (to_tsvector('russian', coalesce(title_ru,'') || ' ' || coalesce(title_original,'') || ' ' || coalesce(title_en,'')));
 
 -- Изображения объявлены раньше сериалов, поэтому связь добавляется здесь.
 -- Без неё постер и фон не принадлежат ни к чему и в каталог не попадают:

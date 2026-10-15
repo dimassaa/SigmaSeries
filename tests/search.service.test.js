@@ -231,3 +231,88 @@ test('поиск не видит неопубликованное и архив�
   const result = await search.find({ query: 'неопубликованный тестовый сериал' });
   assert.ok(!result.series.some((item) => item.slug === rows[0].slug));
 });
+
+// --- Морфология и индекс (находки #114 и #115) ---
+
+test('падеж находит слово в другом падеже, а не только в своём', { skip }, async () => {
+  // Берём слово из названия и ищем его в форме, которой в названии нет:
+  // если морфологии нет, выдача пуста и это видно сразу.
+  const { rows } = await pool.query(
+    `SELECT title_ru FROM e_series
+      WHERE publication_state = 'published' AND archived_at IS NULL
+        AND title_ru ~* '\\mчеловек\\M' LIMIT 1`,
+  );
+  assert.ok(rows.length, 'в каталоге есть название со словом «человек»');
+
+  const exact = await search.find({ query: 'человек' });
+  assert.ok(exact.series.length > 0, 'точная форма находится');
+
+  const declined = await search.find({ query: 'человеком' });
+  assert.ok(
+    declined.series.some((item) => item.title === rows[0].title_ru),
+    `«человеком» не нашёл «${rows[0].title_ru}» — морфология не работает`,
+  );
+});
+
+test('строка, найденная базой, не выбрасывается сортировкой', { skip }, async () => {
+  const { rows } = await pool.query(
+    `SELECT title_ru FROM e_series
+      WHERE publication_state = 'published' AND archived_at IS NULL
+        AND title_ru ~* '\\mчеловек\\M' LIMIT 1`,
+  );
+  if (!rows.length) return;
+
+  const result = await search.find({ query: 'человеком' });
+  const ranks = result.series.map((item) => item.rank);
+  assert.ok(ranks.length > 0);
+  assert.deepEqual(ranks, [...ranks].sort((a, b) => a - b), 'ранги не убывают');
+});
+
+test('английское название ищется через тот же индекс', { skip }, async () => {
+  // Если из выражения выпадет `title_en`, английское название перестанет
+  // находиться по индексу — и это заметит только этот тест.
+  const { rows } = await pool.query(
+    `EXPLAIN (COSTS OFF)
+     SELECT s.id FROM e_series s
+      WHERE s.publication_state = 'published'
+        AND (${search.vectorExpression}) @@ plainto_tsquery('russian', $1)
+      LIMIT 200`,
+    ['thrones'],
+  );
+  const plan = rows.map((row) => row['QUERY PLAN']).join('\n');
+  assert.match(plan, /ix_series_search/, `индекс не использован:\n${plan}`);
+});
+
+test('поиск идёт по индексу, а не просмотром таблицы', { skip }, async () => {
+  const { rows } = await pool.query(
+    `EXPLAIN (COSTS OFF)
+     SELECT s.id FROM e_series s
+      WHERE s.publication_state = 'published'
+        AND (${search.vectorExpression}) @@ plainto_tsquery('russian', $1)
+      LIMIT 200`,
+    ['престолов'],
+  );
+  const plan = rows.map((row) => row['QUERY PLAN']).join('\n');
+  assert.match(plan, /ix_series_search/, `индекс не использован:\n${plan}`);
+});
+
+test('короткое слово запроса не подставляет чужих людей', { skip }, async () => {
+  // `of` содержится в половине латинских фамилий: без проверки запрос
+  // «game of thrones» выдавал бы Beau Mirchoff среди людей.
+  const { rows } = await pool.query(
+    `SELECT s.title_original FROM e_series s
+      WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+        AND s.title_original ~* '^[A-Za-z ]+$' LIMIT 1`,
+  );
+  if (!rows.length) return;   // латинских названий нет
+
+  const title = rows[0].title_original.trim();
+  const result = await search.find({ query: title });
+  const found = result.people.map((person) => person.name.toLowerCase());
+
+  for (const word of title.toLowerCase().split(' ').filter((word) => word.length === 2)) {
+    const falsePositives = found.filter((name) => name.includes(word));
+    assert.deepEqual(falsePositives, [],
+      `люди найдены только по слову «${word}» из запроса «${title}»`);
+  }
+});
