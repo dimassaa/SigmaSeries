@@ -28,7 +28,8 @@
     "import:origins": "node --env-file-if-exists=.env src/cli/import-origins.js",
     "import:schedule": "node --env-file-if-exists=.env src/cli/import-schedule.js",
     "import:freeze": "node --env-file-if-exists=.env src/cli/import-freeze.js",
-    "role": "node src/cli/role.js"
+    "role": "node src/cli/role.js",
+    "demo:db": "node src/cli/demo-db.js"
   },
   "dependencies": {
     "argon2": "^0.45.1",

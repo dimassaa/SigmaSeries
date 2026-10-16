@@ -26,13 +26,17 @@ pg.types.setTypeParser(20, (value) => Number(value));
 // в вью с указанным часовым поясом, а не машинным.
 pg.types.setTypeParser(1082, (value) => value);
 
-export function createPool() {
+export function createPool({ database = process.env.PGDATABASE } = {}) {
   return new Pool({
+    // `DATABASE_URL` сильнее переменных — так ведёт сам PostgreSQL, и
+    // подмена базы при заданном адресе подключения означала бы, что команда
+    // quietly работает не с той базой. Поэтому подмена живёт только там, где
+    // подключение собирается из PG* (сборка демо-базы).
     connectionString: process.env.DATABASE_URL ?? undefined,
     host: process.env.PGHOST,
     port: Number(process.env.PGPORT ?? 5432),
     user: process.env.PGUSER,
-    database: process.env.PGDATABASE,
+    database: process.env.DATABASE_URL ? process.env.PGDATABASE : database,
     max: 10,
     idleTimeoutMillis: 30_000,
     // Пул живёт дольше процесса между запросами при перезапуске воркера,

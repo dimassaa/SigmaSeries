@@ -55,12 +55,21 @@ async function published() {
  * @returns {Promise<object>} страница, для которой числа сошлись
  */
 async function assertTotalMatches(options) {
-  let page = await catalogue.list(options);
-  for (let attempt = 0; attempt < 3 && page.total !== await published(); attempt += 1) {
-    page = await catalogue.list(options);
+  // База общая, и параллельные прогоны создают и убирают фикстуры между
+  // чтениями. Поэтому сравнение повторяется: ослаблять его до «примерно равно»
+  // нельзя — расхождение означало бы, что список считает не то, что фильтр,
+  // а повторение просто ждёт момента, когда каталог не меняется.
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const page = await catalogue.list(options);
+    // eslint-disable-next-line no-await-in-loop
+    const total = await published();
+    if (page.total === total) return page;
   }
 
-  assert.equal(page.total, await published(), 'в списке ровно опубликованные видимые сериалы');
+  const page = await catalogue.list(options);
+  assert.equal(page.total, await published(),
+    'в списке ровно опубликованные видимые сериалы (шесть попыток — каталог менялся под ногами)');
   return page;
 }
 
