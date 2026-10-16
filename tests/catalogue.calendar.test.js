@@ -172,18 +172,25 @@ test('серии с одной датой образуют одну запись
 });
 
 test('выход за весь сезон помечен явно, а не угадан по связям (DEC-056)', { skip }, async () => {
-  const { rows: [seasonRow] } = await pool.query(
-    `SELECT id, slug FROM e_series
-      WHERE publication_state = 'published' AND archived_at IS NULL
-        AND EXISTS (SELECT 1 FROM e_season se WHERE se.series_id = e_series.id AND se.number > 0)
-      LIMIT 1`,
+  // Своя фикстура вместо чужого сезона: у каталожного сезона уже есть выходы
+  // на эти даты, и проверка падала бы на чужой строке — а с уникальным
+  // индексом на (сезон, дата) падала бы сразу.
+  const slug = `cal-covers-${crypto.randomUUID().slice(0, 8)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Весь сезон', 'Whole season', 970000003, 'published', 'airing', 2024) RETURNING id`,
+    [slug],
   );
-  assert.ok(seasonRow, 'в каталоге есть опубликованный сериал с сезоном');
-
   const { rows: [season] } = await pool.query(
-    'SELECT id FROM e_season WHERE series_id = $1 AND number > 0 LIMIT 1',
-    [seasonRow.id],
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [series.id],
   );
+  const { rows: [episode] } = await pool.query(
+    `INSERT INTO e_episode (season_id, number, title_ru, runtime_min)
+     VALUES ($1, 1, 'Пилот', 45) RETURNING id`, [season.id],
+  );
+  // Даты разные: один выход на день в сезоне запрещён базой
+  // (`uq_release_season_date`), и EC-D11 требует ровно этого — несколько серий
+  // одного дня должны быть одной записью, а не двумя.
   const { rows: [whole] } = await pool.query(
     `INSERT INTO e_release (season_id, covers_season, release_date, precision, state)
      VALUES ($1, true, CURRENT_DATE + 5, 'date', 'scheduled') RETURNING id, release_date::text AS date`,
@@ -191,12 +198,7 @@ test('выход за весь сезон помечен явно, а не уг�
   );
   const { rows: [one] } = await pool.query(
     `INSERT INTO e_release (season_id, covers_season, release_date, precision, state)
-     VALUES ($1, false, CURRENT_DATE + 5, 'date', 'scheduled') RETURNING id, release_date::text AS date`,
-    [season.id],
-  );
-  // Одна связь — выход одной серии: без колонки он неотличим от сезонного.
-  const { rows: [episode] } = await pool.query(
-    'SELECT id FROM e_episode WHERE season_id = $1 AND number > 0 LIMIT 1',
+     VALUES ($1, false, CURRENT_DATE + 6, 'date', 'scheduled') RETURNING id, release_date::text AS date`,
     [season.id],
   );
   await pool.query(
@@ -205,19 +207,18 @@ test('выход за весь сезон помечен явно, а не уг�
   );
 
   try {
-    const page = await calendar.days({ from: whole.date, to: whole.date });
-    const entries = page.days.get(whole.date) ?? [];
+    const page = await calendar.days({ from: whole.date, to: one.date });
 
-    const seasonEntry = entries.find((item) => item.id === whole.id);
+    const seasonEntry = (page.days.get(whole.date) ?? []).find((item) => item.id === whole.id);
     assert.ok(seasonEntry, 'сезонный выход виден');
     assert.equal(seasonEntry.kind, 'season', 'помеченный сезон виден как сезон');
 
-    const single = entries.find((item) => item.id === one.id);
+    const single = (page.days.get(one.date) ?? []).find((item) => item.id === one.id);
     assert.equal(single?.kind, 'episode',
       'выход одной серии остаётся серией, а не превращается в сезон');
   } finally {
-    await pool.query('DELETE FROM e_release_episode WHERE release_id IN ($1, $2)', [whole.id, one.id]);
-    await pool.query('DELETE FROM e_release WHERE id IN ($1, $2)', [whole.id, one.id]);
+    await pool.query('DELETE FROM e_season WHERE id = $1', [season.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
   }
 });
 

@@ -330,3 +330,63 @@ test('тёзки с разными nconst остаются разными люд
   );
   assert.equal(linked.rows.length, 2, 'разные nconst — разные люди, даже с одинаковым именем');
 });
+
+// ─── Обновление, а не пересоздание (DEC-061, #133) ───────────────────────────
+
+test('повторный импорт не меняет идентификатор выхода и его состояние', { skip }, async () => {
+  const first = await writeAndCleanup(raw());
+  const before = await pool.query(
+    `SELECT r.id, r.release_date::text AS date FROM e_release r
+       JOIN e_season se ON se.id = r.season_id WHERE se.series_id = $1
+      ORDER BY r.release_date`,
+    [first.seriesId],
+  );
+  assert.ok(before.rows.length, 'выходы записаны');
+
+  // Человек или другой код пометил выход как перенесённый.
+  await pool.query("UPDATE e_release SET state = 'delayed' WHERE id = $1", [before.rows[0].id]);
+
+  const second = await writeSeries({ pool, raw: raw({ tconst: first.tconst, tmdbId: 999001 }), slugs: new Set() });
+
+  const after = await pool.query(
+    `SELECT r.id, r.state FROM e_release r JOIN e_season se ON se.id = r.season_id
+      WHERE se.series_id = $1 ORDER BY r.release_date`,
+    [first.seriesId],
+  );
+  assert.deepEqual(after.rows.map((r) => r.id), before.rows.map((r) => r.id),
+    'идентификаторы выходов те же — иначе каждая ночь ломала бы ключи и ссылки');
+  assert.equal(after.rows[0].state, 'delayed',
+    'состояние, выставленное не импортом, ночной прогон не обнуляет');
+  void second;
+});
+
+test('дата, исчезнувшая из источника, уходит, а ручная правка остаётся', { skip }, async () => {
+  const first = await writeAndCleanup(raw());
+  const before = await pool.query(
+    `SELECT r.id, r.release_date::text AS date FROM e_release r
+       JOIN e_season se ON se.id = r.season_id WHERE se.series_id = $1 ORDER BY r.release_date`,
+    [first.seriesId],
+  );
+  assert.ok(before.rows.length >= 2, 'в фикстуре больше одной даты');
+
+  // Первая строка — ручная правка, её импорт не трогает.
+  await pool.query('UPDATE e_release SET locked = TRUE WHERE id = $1', [before.rows[0].id]);
+
+  const without = raw({ tconst: first.tconst, tmdbId: 999002 });
+  without.seasons = [{
+    ...without.seasons[0],
+    episodes: without.seasons[0].episodes.map((one) => (
+      one.date === before.rows[1].date ? { ...one, date: null } : one)),
+  }];
+  await writeSeries({ pool, raw: without, slugs: new Set() });
+
+  const after = await pool.query(
+    `SELECT r.id FROM e_release r JOIN e_season se ON se.id = r.season_id
+      WHERE se.series_id = $1 ORDER BY r.release_date`,
+    [first.seriesId],
+  );
+  assert.ok(!after.rows.some((r) => r.id === before.rows[1].id),
+    'дата, которой больше нет в источнике, из каталога ушла');
+  assert.ok(after.rows.some((r) => r.id === before.rows[0].id),
+    'а защищённая правкой строка осталась: человек поставил дату сам');
+});

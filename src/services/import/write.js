@@ -420,25 +420,54 @@ async function writeSeasons({ client, seriesId, raw }) {
       episodes += 1;
     }
 
-    await client.query('DELETE FROM e_release WHERE season_id = $1', [seasonId]);
+    // Выходы обновляются, а не пересоздаются (DEC-061). Удаление и вставка
+    // каждый раз меняли идентификатор выхода, а вместе с ним — ключ
+    // дедупликации уведомлений, ссылки и состояние, выставленное вручную:
+    // ночной прогон обнулял «перенесён» и «отменён», и на следующей ночи
+    // каждый подписчик получал то же уведомление заново (#133).
+    const grouped = groupReleases(season);
+    const touched = [];
 
-    for (const release of groupReleases(season)) {
+    for (const release of grouped) {
       const { rows: releaseRows } = await client.query(
         `INSERT INTO e_release (season_id, release_date, precision, state)
-         VALUES ($1, $2, 'date', 'scheduled') RETURNING id`,
+         VALUES ($1, $2, 'date', 'scheduled')
+         ON CONFLICT (season_id, release_date) DO UPDATE
+           SET precision = EXCLUDED.precision
+         -- locked — ручная правка: импорт её не трогает, иначе редактор
+         -- написал дату, а ночной прогон её стёр.
+         WHERE e_release.locked = FALSE
+         RETURNING id`,
         [seasonId, release.date],
       );
+      // Ничего не вернулось — значит строка защищена правкой человека.
+      if (!releaseRows.length) continue;
       const releaseId = releaseRows[0].id;
+      touched.push(releaseId);
       releases += 1;
 
+      await client.query('DELETE FROM e_release_episode WHERE release_id = $1', [releaseId]);
       for (const number of release.episodeNumbers) {
         const episodeId = episodeIds.get(number);
         if (!episodeId) continue;
+        // eslint-disable-next-line no-await-in-loop
         await client.query(
           'INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2) ON CONFLICT DO NOTHING',
           [releaseId, episodeId],
         );
       }
+    }
+
+    // Даты, которых больше нет в источнике, уходят. Защищённые правкой
+    // остаются: человек поставил дату руками, и «источник её не знает» —
+    // не повод её стирать.
+    if (grouped.length) {
+      await client.query(
+        `DELETE FROM e_release
+          WHERE season_id = $1 AND locked = FALSE
+            AND NOT (release_date = ANY($2::date[]))`,
+        [seasonId, grouped.map((one) => one.date)],
+      );
     }
   }
 

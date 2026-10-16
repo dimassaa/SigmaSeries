@@ -255,6 +255,10 @@ CREATE TABLE e_release (
 -- годился: импорт его не пишет, и NULL у всех строк не значил ничего.
 CREATE INDEX ix_release_date ON e_release (release_date);
 CREATE INDEX ix_release_season ON e_release (season_id);
+-- Один выход на дату в сезоне: серии одного дня схлопываются в один (EC-D11),
+-- и импорт обновляет выход по этой паре, а не удаляет и вставляет заново —
+-- иначе каждая ночь меняла бы идентификаторы и обнуляла состояние (DEC-061).
+CREATE UNIQUE INDEX uq_release_season_date ON e_release (season_id, release_date);
 -- Дата выхода — источник истины для состояния сериала; ради него
 -- есть индекс: календарь спрашивает по дате, а не по сериалу.
 
