@@ -17,6 +17,8 @@ import { pgCalendar } from './services/catalogue/calendar.js';
 import { pgWatchStatus } from './services/tracking/status.js';
 import { pgMarks } from './services/tracking/marks.js';
 import { pgProgress } from './services/tracking/progress.js';
+import { pgNotifications } from './services/notify/notification.js';
+import { createNotificationSweep } from './services/notify/sweep.js';
 import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
@@ -60,6 +62,11 @@ const baseUrl = `http://${HOST}:${PORT}`;
 const journal = createJournal();
 const mailer = consoleMailer();
 
+// Такт работника уведомлений: раз в час (F-03-08 §3(а)). Отдельного ключа в
+// настройках модуля нет — час задан текстом фичи, и выдумывать «настраиваемый
+// период» без решения автора нельзя.
+const NOTIFY_SWEEP_MS = 60 * 60 * 1000;
+
 // Режим решает, кто доставляет письма (F-01-12 §4). В `devbox` доставки нет
 // вовсе: письмо остаётся в базе и показывается в S-84, иначе токены подтверждения
 // ушли бы наружу там, где интернета нет (H-51).
@@ -97,6 +104,25 @@ const auth = pgAuthStore(pool);
 
 // Лимит читается один раз при старте: см. services/search/limits.js.
 const { ratePerIp: searchRatePerIp } = await searchSettings(pool);
+
+// Уведомления о выходах (F-03-08). Работник ежечасный и запускается сразу при
+// старте: пока сервер был выключен, могли выйти серии у кого-то «сегодня» —
+// их уведомления обязаны догнаться при первом же запуске (EC-T17), а не через
+// час ожидания.
+const notifications = pgNotifications(pool);
+const notificationSweep = createNotificationSweep({
+  pool,
+  notifications,
+  log: (line) => console.log(line),
+});
+
+const sweepNotifications = () => notificationSweep.run()
+  .catch((error) => console.error(`[уведомления] ${error.message}`));
+
+const notificationWorker = setInterval(sweepNotifications, NOTIFY_SWEEP_MS);
+notificationWorker.unref();
+
+sweepNotifications();
 
 const app = createApp({
   data: pgData(pool),
@@ -194,6 +220,7 @@ if (process.env.TMDB_TOKEN) {
       pool,
       store,
       tmdb: createTmdbClient({ token: process.env.TMDB_TOKEN }),
+      notifications,
       log: (line) => console.error(line),
     }),
     log: (line) => console.error(line),

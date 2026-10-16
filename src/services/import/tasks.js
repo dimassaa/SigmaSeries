@@ -14,6 +14,7 @@ import { ensureDataset } from './datasets.js';
 import { discoverSync } from './discover-sync.js';
 import { refreshRatings } from './ratings.js';
 import { scheduleSync } from './schedule-sync.js';
+import { notifyScheduleChanges } from '../notify/changes.js';
 import { loadSlugs } from './write.js';
 import { IMPORT_SETTINGS } from '../../config/settings.js';
 
@@ -28,14 +29,35 @@ export const DATA_DIR = process.env.IMDB_DATA_DIR ?? path.resolve('data/imdb');
  * @param {object} deps.store
  * @param {object} deps.tmdb клиент TMDB; без ключа задачи обзора упадут сами
  * @param {string} [deps.dataDir] каталог с датасетами IMDb
+ * @param {object|null} [deps.notifications] уведомления M3; без них переносы
+ *   остаются в отчёте прогона и никому не пишутся
  * @param {(line: string) => void} [deps.log]
  * @returns {Record<string, Function>}
  */
-export function createImportTasks({ pool, store, tmdb, dataDir = DATA_DIR, log = () => {} }) {
+export function createImportTasks({ pool, store, tmdb, dataDir = DATA_DIR, notifications = null, log = () => {} }) {
   return {
-    schedule_sync: async ({ runId, dryRun, now }) => scheduleSync({
-      pool, store, tmdb, runId, dryRun, now, slugs: await loadSlugs(pool), log,
-    }),
+    schedule_sync: async ({ runId, dryRun, now }) => {
+      const result = await scheduleSync({
+        pool, store, tmdb, runId, dryRun, now, slugs: await loadSlugs(pool), log,
+      });
+
+      // События о переносах уходят подписчикам здесь, а не отдельной задачей:
+      // догонять их потом нечем — в базе хранятся только коды (`postponed`,
+      // `advanced`), а даты «до» и «после» остались в результате прогона
+      // (F-03-08 §3б). Сухой прогон ничего не пишет в каталог, поэтому и
+      // уведомлений не создаёт.
+      if (notifications && !dryRun) {
+        const notified = await notifyScheduleChanges({
+          pool, notifications, changes: result.changes ?? [],
+        });
+        if (notified.created) {
+          log(`[уведомления] переносов: уведомлений ${notified.created}, `
+            + `заменено предыдущих ${notified.superseded}`);
+        }
+      }
+
+      return result;
+    },
 
     // Сухого прогона у обзора нет: добавление новинок пишет в каталог всегда,
     // а «посмотреть, что нашлось бы» — это `npm run import:discover`.

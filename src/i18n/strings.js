@@ -48,6 +48,22 @@ const MESSAGES = {
     'date.tomorrow': 'завтра выходит',
     'date.inDays': 'через {count} дня выходит',
 
+    // F-03-08 — уведомления о выходах.
+    // Уведомление хранит тип и параметры, а не текст: текст собирается при
+    // чтении на языке читателя (R-I18N-04, M3 §11).
+    'notify.release_today.title': 'Вышла новая серия',
+    'notify.release_today.body': '{series}: S{season}E{episodes} выходит сегодня, {date}',
+    'notify.release_today.digest.title': 'Сегодня вышли серии ваших сериалов',
+    'notify.release_today.digest.body': 'Вышло серий: {count}. Откройте список, чтобы посмотреть, какие',
+    'notify.release_changed.title': 'Серию перенесли',
+    'notify.release_changed.body': '{series}: S{season}E{episodes} теперь выходит {date}',
+    'notify.release_cancelled.title': 'Серию отменили',
+    'notify.release_cancelled.body': '{series}: S{season}E{episodes} больше не выходит',
+    'notify.category.release': 'Выходы серий',
+    'notify.category.moderation': 'Модерация',
+    'notify.category.reply': 'Ответы',
+    'notify.category.service': 'Служебное',
+
     // F-03-07 — подписки на выходы
     'subs.on': 'Вы следите за выходом',
     'subs.off': 'Следить за выходом',
@@ -630,6 +646,22 @@ const MESSAGES = {
     'date.today': 'aired today',
     'date.tomorrow': 'airs tomorrow',
     'date.inDays': 'airs in {count} days',
+
+    // F-03-08 — release notifications.
+    // A notification stores its type and parameters, not the text: the text is
+    // built at read time in the reader's language (R-I18N-04, M3 §11).
+    'notify.release_today.title': 'A new episode is out',
+    'notify.release_today.body': '{series}: S{season}E{episodes} airs today, {date}',
+    'notify.release_today.digest.title': 'Episodes of your series are out today',
+    'notify.release_today.digest.body': 'Episodes: {count}. Open the list to see which',
+    'notify.release_changed.title': 'An episode was moved',
+    'notify.release_changed.body': '{series}: S{season}E{episodes} now airs on {date}',
+    'notify.release_cancelled.title': 'An episode was cancelled',
+    'notify.release_cancelled.body': '{series}: S{season}E{episodes} will not air',
+    'notify.category.release': 'Episode releases',
+    'notify.category.moderation': 'Moderation',
+    'notify.category.reply': 'Replies',
+    'notify.category.service': 'Service',
 
     // F-03-07 — release subscriptions
     'subs.on': 'You follow releases',
