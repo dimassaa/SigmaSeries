@@ -7,17 +7,31 @@
 
 import express from 'express';
 
+import { createRateLimiter } from '../services/limits.js';
 import { csrfValid } from '../services/auth/session.js';
 import { KINDS } from '../services/tracking/subscription.js';
 import { isLocale, t } from '../i18n/strings.js';
+
+/** `subs.rate_per_min` (M3 §0): шестьдесят нажатий в минуту на зрителя. */
+const RATE_PER_MINUTE = 60;
+const WINDOW_MS = 60_000;
+
+/**
+ * Счётчик по умолчанию — один на приложение.
+ *
+ * Подменяется в тестах: общий счётчик копит запросы от прогона к прогону, и
+ * проверка лимита зависела бы от того, что нажали раньше.
+ */
+const defaultLimiter = createRateLimiter({ limit: RATE_PER_MINUTE, windowMs: WINDOW_MS });
 
 /**
  * @param {object} deps
  * @param {object} deps.subscriptions источник данных
  * @param {object} deps.series источник карточки: адрес сериала должен существовать
  * @param {Function} deps.sessionMw
+ * @param {{allow: (key: string) => boolean, windowMs: number}} [deps.limiter]
  */
-export function createSubscribeRoutes({ subscriptions, series, sessionMw }) {
+export function createSubscribeRoutes({ subscriptions, series, sessionMw, limiter = defaultLimiter }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -33,6 +47,13 @@ export function createSubscribeRoutes({ subscriptions, series, sessionMw }) {
     if (!csrfValid(req.session, req.body?.csrf)) {
       return res.status(403).type('text/plain; charset=utf-8')
         .send(`${t(locale, 'subs.error.csrf')}\n\n${back}`);
+    }
+
+    if (!limiter.allow(String(req.session.user.id))) {
+      return res.status(429)
+        .set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))
+        .type('text/plain; charset=utf-8')
+        .send(t(locale, 'subs.error.rate'));
     }
 
     const found = await series.bySlug(slug);

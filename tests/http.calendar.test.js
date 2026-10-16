@@ -52,6 +52,44 @@ async function monthWithReleases() {
   return rows[0].month;
 }
 
+test('перенесённый выход на странице календаря помечен словом (#124)', { skip }, async () => {
+  // Путь до глаза: база → источник → вид. Своя фикстура, потому что импорт
+  // пишет только `scheduled`, и проверять было бы нечего.
+  const slug = `cal-http-moved-${crypto.randomUUID()}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Сериал с переносом', 'Moved', 970000002, 'published', 'airing', 2024) RETURNING id`,
+    [slug],
+  );
+  const { rows: [season] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [series.id],
+  );
+  const { rows: [episode] } = await pool.query(
+    'INSERT INTO e_episode (season_id, number, title_ru, runtime_min) VALUES ($1, 1, $2, 45) RETURNING id',
+    [season.id, 'Пилот'],
+  );
+  const date = new Date(Date.now() + 5 * 86_400_000).toISOString().slice(0, 10);
+  const { rows: [release] } = await pool.query(
+    "INSERT INTO e_release (season_id, release_date, state) VALUES ($1, $2, 'delayed') RETURNING id",
+    [season.id, date],
+  );
+  await pool.query('INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)',
+    [release.id, episode.id]);
+
+  try {
+    const month = date.slice(0, 7);
+    const body = await (await get(`/ru/calendar?month=${month}&view=list`)).text();
+
+    assert.match(body, /перенесён/,
+      'человек видит, что дата перенесена, а не принимает её за обычную');
+    assert.match(body, /Сериал с переносом/);
+  } finally {
+    await pool.query('DELETE FROM e_release WHERE id = $1', [release.id]);
+    await pool.query('DELETE FROM e_season WHERE id = $1', [season.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
+});
+
 test('месяц открывается сеткой и подписью пояса', { skip }, async () => {
   const response = await get('/ru/calendar');
   const body = await response.text();

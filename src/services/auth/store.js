@@ -529,7 +529,7 @@ export function pgAuthStore(pool) {
 
         // Личные ряды: то, что принадлежит только человеку.
         for (const table of [
-          'e_watch_status', 'e_watch_mark', 'e_bookmark', 'e_subscription',
+          'e_watch_status', 'e_watch_mark', 'e_subscription',
           'e_notification', 'e_session', 'e_auth_token', 'e_two_factor',
           'e_email_change', 'e_nickname_history',
         ]) {

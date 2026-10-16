@@ -423,12 +423,6 @@ CREATE TABLE e_progress (
   CONSTRAINT ck_progress_counts CHECK (marked >= 0 AND aired >= 0 AND marked <= aired AND skipped >= 0)
 );
 CREATE INDEX ix_progress_updated ON e_progress (user_id, updated_at);
-CREATE TABLE e_bookmark (
-  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
-  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
-  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  PRIMARY KEY (user_id, series_id)
-);
 CREATE TABLE e_subscription (
   user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
   series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,

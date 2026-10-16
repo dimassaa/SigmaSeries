@@ -39,7 +39,35 @@ test.before(async () => {
 });
 
 test.after(async () => {
-  if (pool) await pool.end();
+  if (!pool) return;
+  // Сериалы фикстур уходят за собой: без этого каждый прогон оставлял в рабочей
+  // базе сотни строк `test-series-…`, а база одна и та же — та, с которой
+  // показывают проект (#132).
+  //
+  // Порядок задан не удобством, а схемой: `e_rating` и `e_material` ссылаются на
+  // сериал с RESTRICT, `e_season.series_id` объявлен RESTRICT намеренно, а
+  // ответ на материал осиротить нельзя — `ck_material_target` требует цель. Поэтому
+  // сначала собираются ответы на фикстурные материалы (рекурсией, а не одним
+  // уровнем), потом то, что на них ссылается, и только потом сериалы.
+  //
+  // Дерево ответов повторяется в каждом запросе, а не кладётся во временную
+  // таблицу: пул отдаёт соседним запросам другое соединение, а временная таблица
+  // живёт в том, где её создали.
+  const tree = `WITH RECURSIVE tree(id) AS (
+       SELECT m.id FROM e_material m
+         JOIN e_series s ON s.id = m.series_id AND s.slug LIKE 'test-series-%'
+       UNION
+       SELECT m.id FROM e_material m JOIN tree t ON m.parent_id = t.id
+     ) SELECT id FROM tree`;
+
+  await pool.query(
+    `DELETE FROM e_rating WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE 'test-series-%')`,
+  );
+  await pool.query(`DELETE FROM e_helpful_vote WHERE material_id IN (${tree})`);
+  await pool.query(`DELETE FROM e_material WHERE id IN (${tree})`);
+  await pool.query(`DELETE FROM e_season WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE 'test-series-%')`);
+  await pool.query("DELETE FROM e_series WHERE slug LIKE 'test-series-%'");
+  await pool.end();
 });
 
 /**

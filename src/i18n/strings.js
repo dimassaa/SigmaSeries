@@ -57,6 +57,7 @@ const MESSAGES = {
     'subs.guest': 'Войдите, чтобы следить за выходом',
     'subs.notice.limit': 'Подписок слишком много, отключите ненужные',
     'subs.error.csrf': 'Сессия устарела. Откройте страницу заново.',
+    'subs.error.rate': 'Слишком частые нажатия. Подождите минуту.',
     'subs.error.missing': 'Сериал не найден.',
 
     // F-03-03 — прогресс
@@ -639,6 +640,7 @@ const MESSAGES = {
     'subs.guest': 'Sign in to follow releases',
     'subs.notice.limit': 'Too many subscriptions \u2014 switch some off',
     'subs.error.csrf': 'The session expired. Open the page again.',
+    'subs.error.rate': 'Too many presses. Wait a minute.',
     'subs.error.missing': 'Series not found.',
 
     // F-03-03 — progress

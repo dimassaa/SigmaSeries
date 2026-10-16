@@ -8,6 +8,7 @@ import assert from 'node:assert/strict';
 
 import { createPool } from '../src/db/pool.js';
 import { createApp } from '../src/app.js';
+import { createRateLimiter } from '../src/services/limits.js';
 import { stubData } from '../src/services/home/data.js';
 import { stubAuthStore, pgAuthStore } from '../src/services/auth/store.js';
 import { createSessionMiddleware, createMemorySessionStore } from '../src/services/auth/session.js';
@@ -96,7 +97,7 @@ test.after(async () => {
   await pool.end();
 });
 
-async function withServer({ signedIn = true, run }) {
+async function withServer({ signedIn = true, limiter = null, run }) {
   const app = createApp({
     data: stubData(),
     series: pgSeries(pool),
@@ -108,6 +109,7 @@ async function withServer({ signedIn = true, run }) {
     watchStatus: pgWatchStatus(pool),
     library: pgLibrary(pool),
     subscriptions: pgSubscriptions(pool),
+    subscribeLimiter: limiter,
     pool,
     auth: stubAuthStore({ [account.email]: account }),
     sessionMw: createSessionMiddleware(
@@ -231,6 +233,27 @@ test('подделка без токена не переключает подп�
 
       const after = await (await get(`/ru/series/${other.slug}`)).text();
       assert.equal(bellOf(after), before, 'состояние не изменилось');
+    },
+  });
+});
+
+test('слишком частые нажатия получают 429 с Retry-After (R-SEC-31)', { skip }, async () => {
+  // Счётчик свой и с низким пределом: общий копит запросы от прогона к прогону,
+  // и проверка лимита зависела бы от того, что нажали раньше в этом же файле.
+  await withServer({
+    limiter: createRateLimiter({ limit: 3, windowMs: 60_000 }),
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/series/${series.slug}`)).text();
+      const csrf = csrfOf(page);
+
+      let limited = null;
+      for (let i = 0; i < 6 && !limited; i += 1) {
+        const res = await post(`/ru/series/${series.slug}/subscribe`, { on: i % 2 ? '0' : '1', csrf });
+        if (res.status === 429) limited = res;
+      }
+
+      assert.ok(limited, 'предел — это предел, а не пожелание');
+      assert.equal(limited.headers.get('retry-after'), '60', 'и сказано, когда повторить');
     },
   });
 });

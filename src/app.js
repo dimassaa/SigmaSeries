@@ -57,6 +57,7 @@ export function createApp({
   marks = null,
   progress = null,
   subscriptions = null,
+  subscribeLimiter = null,
   markLimiter = null,
   library = null,
   pool = null,
@@ -133,10 +134,14 @@ export function createApp({
   if (marks && series && sessionMw) {
     app.use(createMarkRoutes({ marks, series, sessionMw, limiter: markLimiter ?? undefined }));
   }
-  // Колокольчик подписки: POST с CSRF, без лимита частоты — ключа для него в
-  // M3 §0 нет (находка #131).
+  // Колокольчик подписки: POST с CSRF и лимитом частоты `subs.rate_per_min`.
   if (subscriptions && series && sessionMw) {
-    app.use(createSubscribeRoutes({ subscriptions, series, sessionMw }));
+    app.use(createSubscribeRoutes({
+      subscriptions,
+      series,
+      sessionMw,
+      limiter: subscribeLimiter ?? undefined,
+    }));
   }
 
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.

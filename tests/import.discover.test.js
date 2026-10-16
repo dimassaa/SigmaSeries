@@ -71,7 +71,10 @@ test('потолок ограничивает только новые добав
   const many = Array.from({ length: 500 }, (_, i) => item(i + 1, { popularity: 500 - i }));
   const merged = mergeDiscoveries([newWindow(many)], { cap: IMPORT_SETTINGS.newCap });
   assert.equal(merged.length, IMPORT_SETTINGS.newCap);
-  assert.equal(IMPORT_SETTINGS.newCap, 300);
+  // Потолок держится на пределе обзора TMDB (5 страниц по 20): больше сотни
+  // обзор всё равно не вернёт, и завышенное число в настройке только вводит
+  // в заблуждение при чтении журнала (#91).
+  assert.equal(IMPORT_SETTINGS.newCap, MAX_PAGES * 20);
 });
 
 test('причина ставится по тому, откуда пришёл сериал', () => {

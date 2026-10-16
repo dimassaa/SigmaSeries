@@ -78,6 +78,58 @@ test('выходы приходят по дням и внутри дня по в
   }
 });
 
+test('перенесённый и отменённый выход помечены, а не выглядят обычной датой (#124)', { skip }, async () => {
+  // Своя фикстура: в рабочей базе таких строк нет — импорт пишет только
+  // `scheduled`, — и глобальный поиск молчал бы, пока их не появилось бы.
+  const slug = `cal-moved-${crypto.randomUUID()}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Перенесённый сериал', 'Moved series', 970000001, 'published', 'airing', 2024)
+     RETURNING id`,
+    [slug],
+  );
+  const { rows: [season] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [series.id],
+  );
+  const { rows: [episode] } = await pool.query(
+    'INSERT INTO e_episode (season_id, number, title_ru, runtime_min) VALUES ($1, 1, $2, 45) RETURNING id',
+    [season.id, 'Пилот'],
+  );
+  const today = new Date();
+  const soon = new Date(today.getTime() + 5 * 86_400_000).toISOString().slice(0, 10);
+  const later = new Date(today.getTime() + 6 * 86_400_000).toISOString().slice(0, 10);
+
+  const releases = [];
+  for (const [date, state] of [[soon, 'delayed'], [later, 'cancelled']]) {
+    // eslint-disable-next-line no-await-in-loop
+    const { rows: [release] } = await pool.query(
+      'INSERT INTO e_release (season_id, release_date, state) VALUES ($1, $2, $3) RETURNING id',
+      [season.id, date, state],
+    );
+    // Состав выхода задаёт `e_release_episode` (DEC-056): выход без связей в
+    // календарь не попадает, и проверка молчала бы вовсе.
+    // eslint-disable-next-line no-await-in-loop
+    await pool.query('INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)',
+      [release.id, episode.id]);
+    releases.push({ ...release, date });
+  }
+
+  try {
+    const page = await calendar.days({ from: soon, to: later });
+    const found = [...page.days.values()].flat().filter((entry) => entry.seriesSlug === slug);
+
+    assert.deepEqual(
+      found.map((entry) => entry.state).sort(),
+      ['cancelled', 'delayed'],
+      'состояние выхода доезжает до записи календаря — иначе «12 октября» выглядит как обычная дата',
+    );
+  } finally {
+    await pool.query('DELETE FROM e_release WHERE id = ANY($1::bigint[])', [releases.map((one) => one.id)]);
+    await pool.query('DELETE FROM e_season WHERE id = $1', [season.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
+});
+
 test('выходы невидимых сериалов в календаре нет', { skip }, async () => {
   const { rows } = await pool.query(
     `SELECT s.slug FROM e_release r
