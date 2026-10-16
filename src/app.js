@@ -25,6 +25,7 @@ import { createCollectionRoutes } from './routes/collection.js';
 import { createCalendarRoutes } from './routes/calendar.js';
 import { createMarkRoutes } from './routes/mark.js';
 import { createSubscribeRoutes } from './routes/subscribe.js';
+import { createNotificationRoutes } from './routes/notifications.js';
 import { createStatusRoutes } from './routes/status.js';
 import { createLibraryRoutes } from './routes/library.js';
 import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
@@ -58,6 +59,7 @@ export function createApp({
   progress = null,
   subscriptions = null,
   subscribeLimiter = null,
+  feed = null,
   markLimiter = null,
   library = null,
   pool = null,
@@ -112,15 +114,15 @@ export function createApp({
     },
   }));
 
-  app.use(createHomeRoutes({ data }));
+  app.use(createHomeRoutes({ data, sessionMw }));
 
   // Каталог и карточка сериала подключаются, когда есть источник: без него
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
-  if (catalogue) app.use(createCatalogueRoutes({ catalogue }));
-  if (search) app.use(createSearchRoutes({ search, ratePerIp: searchRatePerIp ?? undefined }));
+  if (catalogue) app.use(createCatalogueRoutes({ catalogue, sessionMw }));
+  if (search) app.use(createSearchRoutes({ search, sessionMw, ratePerIp: searchRatePerIp ?? undefined }));
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series }));
   if (series) app.use(createSeriesRoutes({ series, watchStatus, sessionMw, progress, subscriptions }));
-  if (collections && person) app.use(createCollectionRoutes({ collections, person }));
+  if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
   if (calendar) app.use(createCalendarRoutes({ calendar, sessionMw }));
   // Статус меняется по POST с CSRF и проверкой сессии: без них кнопка
@@ -134,6 +136,10 @@ export function createApp({
   if (marks && series && sessionMw) {
     app.use(createMarkRoutes({ marks, series, sessionMw, limiter: markLimiter ?? undefined }));
   }
+  // Лента уведомлений (F-03-09). Живёт рядом с подпиской: колокольчик
+  // создаёт записи, а лента их показывает, и обе части читают одну таблицу.
+  if (feed && sessionMw) app.use(createNotificationRoutes({ feed, sessionMw }));
+
   // Колокольчик подписки: POST с CSRF и лимитом частоты `subs.rate_per_min`.
   if (subscriptions && series && sessionMw) {
     app.use(createSubscribeRoutes({

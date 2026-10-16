@@ -34,7 +34,7 @@ export function createSeasonRoutes({ seasons, sessionMw = null, series = null })
     if (!isLocale(locale)) return next('route');
 
     const seasonNumber = number(req.params.season, 0);
-    if (seasonNumber === null) return res.status(404).type('html').send(notFound(locale).__raw);
+    if (seasonNumber === null) return res.status(404).type('html').send(notFound(locale, account).__raw);
 
     try {
       const marks = marksOf(req);
@@ -44,10 +44,11 @@ export function createSeasonRoutes({ seasons, sessionMw = null, series = null })
       //
       // Снятый с публикации — исключение: сериал был, и человек должен об этом
       // узнать, поэтому 410, а не 404 (EC-C1, как на странице сериала).
-      if (!found) return sendMissing({ res, locale, slug, series });
+      if (!found) return sendMissing({ res, locale, slug, series, account: req.account });
 
       const path = `/series/${slug}/seasons/${seasonNumber}`;
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         path,
         title: t(locale, 'season.title', {
@@ -81,16 +82,17 @@ export function createSeasonRoutes({ seasons, sessionMw = null, series = null })
     const seasonNumber = number(req.params.season, 0);
     const episodeNumber = number(req.params.episode, 1);
     if (seasonNumber === null || episodeNumber === null) {
-      return res.status(404).type('html').send(notFound(locale).__raw);
+      return res.status(404).type('html').send(notFound(locale, account).__raw);
     }
 
     try {
       const marks = marksOf(req);
       const found = await seasons.episode(slug, seasonNumber, episodeNumber, marks.options);
-      if (!found) return sendMissing({ res, locale, slug, series });
+      if (!found) return sendMissing({ res, locale, slug, series, account: req.account });
 
       const path = `/series/${slug}/seasons/${seasonNumber}/episodes/${episodeNumber}`;
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         path,
         title: found.episode.title
@@ -123,14 +125,15 @@ export function createSeasonRoutes({ seasons, sessionMw = null, series = null })
  * @param {string} args.locale
  * @param {string} args.slug
  * @param {object|null} args.series источник карточки; без него всегда 404
+ * @param {object|null} [args.account] меню аккаунта из верхней панели
  */
-async function sendMissing({ res, locale, slug, series }) {
+async function sendMissing({ res, locale, slug, series, account = null }) {
   const found = series ? await series.bySlug(slug) : null;
 
   if (found?.archived) {
     return res.status(410).type('html').send(goneView({ locale, slug }).__raw);
   }
-  return res.status(404).type('html').send(notFound(locale).__raw);
+  return res.status(404).type('html').send(notFound(locale, account).__raw);
 }
 
 /**

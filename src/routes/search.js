@@ -51,8 +51,14 @@ export function searchLimited(ip, rate, now = Date.now()) {
   return false;
 }
 
-export function createSearchRoutes({ search, ratePerIp = DEFAULT_RATE_PER_MINUTE }) {
+export function createSearchRoutes({ search, ratePerIp = DEFAULT_RATE_PER_MINUTE, sessionMw = null }) {
   const router = express.Router({ strict: true });
+  // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
+  // вход вместо аватара, и верхняя панель выглядела бы по-разному в
+  // зависимости от раздела (UI-02). Гостю она ничего не стоит: у гостя нет
+  // cookie сессии, значит и запроса в базу не будет.
+  if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
+
 
   router.get('/:locale/search', async (req, res, next) => {
     const { locale } = req.params;
@@ -64,6 +70,7 @@ export function createSearchRoutes({ search, ratePerIp = DEFAULT_RATE_PER_MINUTE
         .set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))
         .type('html')
         .send(rawHtml(layout({
+          account: req.account,
           locale,
           path: '/search',
           title: t(locale, 'search.title'),
@@ -76,6 +83,7 @@ export function createSearchRoutes({ search, ratePerIp = DEFAULT_RATE_PER_MINUTE
     try {
       const result = await search.find({ query });
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         path: '/search',
         title: query ? t(locale, 'search.titleWith', { query }) : t(locale, 'search.title'),

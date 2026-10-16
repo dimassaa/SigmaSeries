@@ -15,10 +15,16 @@ import { html, raw } from '../view/render.js';
 /** Страницы, которые не попадают в индекс (R-SEO-06). */
 const NOINDEX_PATHS = ['/search', '/signin', '/signup', '/settings', '/notifications'];
 
-export function createHomeRoutes({ data }) {
+export function createHomeRoutes({ data, sessionMw = null }) {
   // strict: без него Express считает /ru и /ru/ одним адресом, и маршрут
   // «локо��ь без слеша» перехватывал бы /ru/, редиректя его на себя же.
   const router = express.Router({ strict: true });
+  // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
+  // вход вместо аватара, и верхняя панель выглядела бы по-разному в
+  // зависимости от раздела (UI-02). Гостю она ничего не стоит: у гостя нет
+  // cookie сессии, значит и запроса в базу не будет.
+  if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
+
 
   // Локаль всегда в пути (ADR-003, R-SEO-01). Без префикса — 301 на русский.
   router.get('/:locale', (req, res, next) => {
@@ -33,6 +39,7 @@ export function createHomeRoutes({ data }) {
     try {
       const homeData = await collectHomeData(data, locale);
       const page = layout({
+        account: req.account,
         locale,
         path: '/',
         title: t(locale, 'home.title'),
@@ -63,14 +70,15 @@ export function createNotFoundRoutes() {
       return res.status(200).type('text/plain').send(t(locale, 'error.generic.title'));
     }
     res.set('X-Robots-Tag', 'noindex, follow');
-    res.status(404).type('html').send(notFound(locale).__raw);
+    res.status(404).type('html').send(notFound(locale, req.account).__raw);
   });
 
   return router;
 }
 
-export function notFound(locale) {
+export function notFound(locale, account = null) {
   return layout({
+    account,
     locale,
     path: '/404',
     title: `${t(locale, 'error.notFound.title')} — ${t(locale, 'app.title')}`,
@@ -98,6 +106,7 @@ export function errorHandler(locale) {
     console.error('[error]', err?.stack ?? err);
     const loc = isLocale(req.params?.locale) ? req.params.locale : locale;
     res.status(500).type('html').send(layout({
+      account: req.account,
       locale: loc,
       path: '/500',
       title: `${t(loc, 'error.generic.title')} — ${t(loc, 'app.title')}`,

@@ -25,6 +25,7 @@
 | `OP-16` | `src/services/auth/deletion.js`, `auth/store.js` | 1 (`http.data-delete`) + удаление аккаунта внутри `auth.store` | **ПРОВЕРЕНО** |
 | `OP-17` | `src/services/backup/job.js` | 14 (`tests/backup.job.test.js`) | **ПРОВЕРЕНО** |
 | `OP-09` | `src/services/notify/sweep.js`, `changes.js`, `notification.js` | 17 (`tests/notify.test.js`) | **ПРОВЕРЕНО** |
+| `OP-09`, лента | `src/services/notify/feed.js`, `routes/notifications.js` | 13 (`tests/http.notifications.test.js`) | **ПРОВЕРЕНО** |
 | `OP-02`, `OP-03`, `OP-04` | антиспам (M5), расчёт рейтинга и групп отзывов (M4) | — | **СПЕЦИФИЦИРОВАНО** |
 | `OP-05`, `OP-11`, `OP-12`, `OP-14`, `OP-15`, `OP-18` | баннеры дня, рекомендации, итоги, онлайн, агрегация аналитики, подборки по правилам — все P1 | — | **СПЕЦИФИЦИРОВАНО** |
 

@@ -1,0 +1,179 @@
+/* Меню аккаунта и лента уведомлений (F-03-09, UI-02, UI-11, S-31). */
+
+/* Меню — на `<details>`, поэтому раскрывается без скрипта. Позиционирование
+   абсолютное, а не на `position: sticky` слоя: меню не должно двигать
+   содержимое страницы при открытии. */
+.account {
+  position: relative;
+}
+
+.account__avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+}
+.account__avatar::-webkit-details-marker { display: none; }
+.account__avatar:hover { background: var(--border-subtle); }
+.account__avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.account__letter {
+  font-weight: 600;
+  font-size: 15px;
+  text-transform: uppercase;
+}
+
+/* Красная точка — не единственный признак: рядом в меню стоит число
+   (R-A11Y-19). Сама точка скрыта от чтения с экрана. */
+.account__dot {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 10px; height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  border: 2px solid var(--surface-canvas);
+}
+
+.account__menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  display: flex; flex-direction: column;
+  padding: var(--space-2);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.account__link {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.account__link:hover { background: var(--surface-hover); }
+.account__link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Лента — одна колонка, как в спецификации (F-03-09 §19). */
+.notifications__title { margin-block-end: var(--space-5); }
+
+.notifications__all { margin-block-end: var(--space-4); }
+
+.notifications__categories {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  margin-block-end: var(--space-5);
+}
+.notifications__filter {
+  display: inline-flex; align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: 14px;
+}
+.notifications__filter:hover { color: var(--text-primary); border-color: var(--border-strong); }
+/* Выбранный фильтр помечен не только цветом, но и подчёркиванием. */
+.notifications__filter--on {
+  color: var(--text-primary);
+  border-color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.notifications__feed { margin: 0; padding: 0; }
+
+.notifications__day + .notifications__day { margin-block-start: var(--space-6); }
+
+.notifications__day-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-block-end: var(--space-2);
+  position: sticky;
+  top: 0;
+  padding-block: var(--space-1);
+  background: var(--surface-canvas);
+}
+
+.notifications__items {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex; flex-direction: column;
+  gap: var(--space-2);
+}
+
+.notifications__item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.notifications__icon { font-size: 20px; line-height: 1.4; }
+
+.notifications__body { min-width: 0; }
+
+.notifications__item-title { font-weight: 600; margin: 0; }
+.notifications__item--unread .notifications__item-title { font-weight: 700; }
+.notifications__item--unread { border-left: 3px solid var(--accent); }
+
+.notifications__item-text { margin: var(--space-1) 0 0; color: var(--text-primary); }
+
+.notifications__item-meta {
+  margin: var(--space-1) 0 0;
+  font-size: 13px;
+  color: var(--text-secondary);
+  display: flex; gap: var(--space-2);
+}
+
+/* Недоступный сериал: без ссылки, но объяснением, куда делась (EC-T14). */
+.notifications__gone { color: var(--warning); }
+
+.notifications__actions {
+  display: flex; flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+.notifications__actions form { margin: 0; }
+
+.notifications__open {
+  display: inline-flex; align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  color: var(--accent);
+  text-decoration: none;
+  font-size: 14px;
+}
+.notifications__open:hover { text-decoration: underline; }
+
+.notifications__pager { margin-block-start: var(--space-5); }
+
+.notifications__hint {
+  margin-block-start: var(--space-6);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+/* Телефон: те же строки на всю ширину (F-03-09 §19). */
+@media (max-width: 640px) {
+  .notifications__item { grid-template-columns: 24px 1fr; }
+  .notifications__actions {
+    grid-column: 1 / -1;
+    flex-direction: row; flex-wrap: wrap; align-items: center;
+  }
+}

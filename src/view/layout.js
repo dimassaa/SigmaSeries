@@ -4,7 +4,7 @@
 // единственный h1, ссылка «перейти к содержимому», видимый фокус,
 // canonical и взаимные hreflang (R-SEO-02, R-SEO-03, R-A11Y-04).
 
-import { html, raw, attr, esc } from './render.js';
+import { html, raw, attr, esc, when } from './render.js';
 import { t, LOCALES, LOCALE_NAMES, DEFAULT_LOCALE } from '../i18n/strings.js';
 import { SEARCH_SETTINGS } from '../config/settings.js';
 
@@ -19,6 +19,8 @@ import { SEARCH_SETTINGS } from '../config/settings.js';
  * @param {object} [page.body] фрагмент содержимого
  * @param {boolean} [page.noindex] служебная страница
  * @param {string} [page.theme] системная тема пользователя, известная заранее
+ * @param {{nickname: string, unread: number, pollSeconds?: number}|null} [page.account]
+ *   меню аккаунта; `null` — гость, и вместо меню показывается вход
  */
 export function layout(page) {
   const { locale, title, description, path, body = '', noindex = false, jsonLd = null } = page;
@@ -76,7 +78,8 @@ ${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))
     <button type="button" class="topbar__theme" data-theme-toggle
             aria-label="${t(locale, 'app.theme.toggle')}">◐</button>
     <div class="topbar__locales">${localeLinks}</div>
-    <a class="topbar__signin" href="/${locale}/login">${t(locale, 'nav.signIn')}</a>
+    ${when(page.account, () => accountMenu({ locale, account: page.account, poll: page.account.pollSeconds ?? 0 }),
+      () => html`<a class="topbar__signin" href="/${locale}/login">${t(locale, 'nav.signIn')}</a>`)}
   </div>
 </header>
 
@@ -89,6 +92,40 @@ ${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))
 ${head}
 </head>
 ${bodyHtml}</html>`;
+}
+
+/**
+ * Меню аккаунта: аватар, красная точка и ссылки (UI-02, UI-11).
+ *
+ * Без скрипта: раскрытие на `<details>`, поэтому меню работает и при выключенном
+ * JavaScript. Красная точка — не единственный признак непрочитанных: в меню
+ * стоит число, а точка помечает аватар (R-A11Y-19).
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {{nickname: string, unread: number}} args.account
+ * @param {string} args.poll период опроса в секундах; `0` — не опрашивать
+ * @returns {object}
+ */
+function accountMenu({ locale, account, poll }) {
+  const letter = (account.nickname ?? '?').trim().charAt(0).toUpperCase();
+  const counter = account.unread > 99 ? '99+' : String(account.unread);
+
+  return html`
+<details class="account" data-account-menu${poll ? raw(` data-notify-poll="${poll}"`) : ''}>
+  <summary class="account__avatar" aria-label="${t(locale, 'account.menu')}">
+    <span class="account__letter" aria-hidden="true">${letter}</span>
+    ${when(account.unread > 0, () => html`
+    <span class="account__dot" data-unread-dot aria-hidden="true"></span>`)}
+  </summary>
+  <div class="account__menu">
+    <a class="account__link" href="/${locale}/notifications">
+      ${t(locale, 'account.notifications')}${account.unread > 0 ? ` · ${counter}` : ''}
+      ${when(account.unread > 0, () => html`<span class="visually-hidden" data-unread-count>${counter}</span>`)}
+    </a>
+    <a class="account__link" href="/${locale}/settings">${t(locale, 'account.settings')}</a>
+  </div>
+</details>`;
 }
 
 /**

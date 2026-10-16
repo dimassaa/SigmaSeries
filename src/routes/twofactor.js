@@ -218,6 +218,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
     }
 
     const page = layout({
+      account: req.account,
       locale,
       path: CODE_PATH,
       title: `${t(locale, 'twoFactor.backup.title')} — ${t(locale, 'app.title')}`,
@@ -301,6 +302,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
   function renderCode(req, { error, backupUsed = false, codesLeft = null }) {
     const locale = req.params.locale;
     return layout({
+      account: req.account,
       locale,
       path: CODE_PATH,
       title: `${t(locale, 'twoFactor.title')} — ${t(locale, 'app.title')}`,
@@ -319,6 +321,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
   function renderSetup(req, { setup, error }) {
     const locale = req.params.locale;
     return layout({
+      account: req.account,
       locale,
       path: SETUP_PATH,
       title: `${t(locale, 'twoFactor.setup.title')} — ${t(locale, 'app.title')}`,

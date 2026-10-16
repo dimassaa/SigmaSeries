@@ -12,6 +12,34 @@
 }
 .button:hover { background: var(--accent-hover); color: var(--accent-contrast); }
 
+/* Модификаторы кнопки. Разметка их использовала и раньше (экран удаления,
+   отметки, лента уведомлений), но правил не было: тихая и опасная кнопки
+   выглядели как обычная — то есть главное действие на экране оказывалось
+   невыделенным, а разрушающее выглядело так же, как безопасное. */
+
+/* Тихая: вторичное действие рядом с главным. Главная на экране одна
+   (R-DES-24), поэтому тихих может быть сколько угодно. */
+.button--quiet {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  font-weight: 500;
+}
+.button--quiet:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* Опасная: цветом и рамкой, а не только цветом — иначе при плохом зрении
+   «продолжить удаление» неотличимо от «отменить» (R-A11Y-19). */
+.button--danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.button--danger:hover { background: var(--danger); color: var(--text-inverse); }
+
 /* Стекло появляется только когда под ним есть изображение. На сплошной
    поверхности размытие нечего размывать (MATERIALS-GLASS §1). */
 @supports (backdrop-filter: blur(8px)) {

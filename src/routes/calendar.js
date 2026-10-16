@@ -59,6 +59,7 @@ export function createCalendarRoutes({ calendar, sessionMw = null }) {
         : await calendar.days({ ...range, userId: user?.id ?? null, timezone });
 
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         // Путь без параметров: `canonical` в оболочке собирается из пути, а
         // фильтры и месяц канонизируются на базовый адрес (R-SEO-02).

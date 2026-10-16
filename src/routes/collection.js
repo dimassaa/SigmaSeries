@@ -15,8 +15,14 @@ import { t, isLocale } from '../i18n/strings.js';
 
 const rawHtml = (page) => page.__raw;
 
-export function createCollectionRoutes({ collections, person }) {
+export function createCollectionRoutes({ collections, person, sessionMw = null }) {
   const router = express.Router({ strict: true });
+  // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
+  // вход вместо аватара, и верхняя панель выглядела бы по-разному в
+  // зависимости от раздела (UI-02). Гостю она ничего не стоит: у гостя нет
+  // cookie сессии, значит и запроса в базу не будет.
+  if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
+
 
   router.get('/:locale/collections/:slug', async (req, res, next) => {
     const { locale, slug } = req.params;
@@ -24,9 +30,10 @@ export function createCollectionRoutes({ collections, person }) {
 
     try {
       const found = await collections.collection(slug);
-      if (!found) return res.status(404).type('html').send(notFound(locale).__raw);
+      if (!found) return res.status(404).type('html').send(notFound(locale, req.account).__raw);
 
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         path: `/collections/${slug}`,
         title: found.title,
@@ -54,9 +61,10 @@ export function createCollectionRoutes({ collections, person }) {
 
     try {
       const found = await person.person(slug, { page });
-      if (!found) return res.status(404).type('html').send(notFound(locale).__raw);
+      if (!found) return res.status(404).type('html').send(notFound(locale, req.account).__raw);
 
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         path: `/people/${slug}`,
         title: found.name,

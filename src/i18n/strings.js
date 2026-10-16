@@ -48,6 +48,28 @@ const MESSAGES = {
     'date.tomorrow': 'завтра выходит',
     'date.inDays': 'через {count} дня выходит',
 
+    // F-03-09 — лента уведомлений (S-31)
+    'notifications.title': 'Уведомления',
+    'notifications.description': 'Что вышло, что перенесли и что пришло к вам.',
+    'notifications.day.today': 'Сегодня',
+    'notifications.day.yesterday': 'Вчера',
+    'notifications.empty': 'Новых уведомлений нет.',
+    'notifications.unread': 'новое',
+    'notifications.gone': 'Сериал недоступен',
+    'notifications.open': 'Открыть',
+    'notifications.markRead': 'Прочитано',
+    'notifications.markUnread': 'Не прочитано',
+    'notifications.remove': 'Удалить',
+    'notifications.readAll': 'Прочитать все',
+    'notifications.filter': 'Категории уведомлений',
+    'notifications.filter.all': 'Все',
+    'notifications.hint': 'Открытие ленты ничего не помечает прочитанным: это делает действие.',
+    'notifications.error.csrf': 'Сессия устарела. Откройте страницу заново.',
+    'notifications.error.action': 'Непонятное действие. Обновите страницу.',
+    'account.menu': 'Меню аккаунта',
+    'account.notifications': 'Уведомления',
+    'account.settings': 'Настройки',
+
     // F-03-08 — уведомления о выходах.
     // Уведомление хранит тип и параметры, а не текст: текст собирается при
     // чтении на языке читателя (R-I18N-04, M3 §11).
@@ -646,6 +668,28 @@ const MESSAGES = {
     'date.today': 'aired today',
     'date.tomorrow': 'airs tomorrow',
     'date.inDays': 'airs in {count} days',
+
+    // F-03-09 — notification feed (S-31)
+    'notifications.title': 'Notifications',
+    'notifications.description': 'What aired, what moved and what came for you.',
+    'notifications.day.today': 'Today',
+    'notifications.day.yesterday': 'Yesterday',
+    'notifications.empty': 'No new notifications.',
+    'notifications.unread': 'new',
+    'notifications.gone': 'Series unavailable',
+    'notifications.open': 'Open',
+    'notifications.markRead': 'Read',
+    'notifications.markUnread': 'Unread',
+    'notifications.remove': 'Delete',
+    'notifications.readAll': 'Mark all read',
+    'notifications.filter': 'Notification categories',
+    'notifications.filter.all': 'All',
+    'notifications.hint': 'Opening the feed marks nothing as read: an action does that.',
+    'notifications.error.csrf': 'The session expired. Open the page again.',
+    'notifications.error.action': 'Unknown action. Reload the page.',
+    'account.menu': 'Account menu',
+    'account.notifications': 'Notifications',
+    'account.settings': 'Settings',
 
     // F-03-08 — release notifications.
     // A notification stores its type and parameters, not the text: the text is

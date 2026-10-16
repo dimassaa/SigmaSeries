@@ -42,6 +42,8 @@ export const DIGEST_THRESHOLD = 5;
  * @param {object} deps
  * @param {import('pg').Pool} deps.pool
  * @param {object} deps.notifications источник данных уведомлений
+ * @param {object|null} [deps.feed] лента: ею убираются старые записи
+ *   (`notify.retention_read_days`, `notify.retention_unread_days`)
  * @param {number} [deps.maxPerUser] `notify.max_per_user`
  * @param {number} [deps.digestThreshold] `notify.digest_threshold`
  * @param {Date} [deps.now]
@@ -50,6 +52,7 @@ export const DIGEST_THRESHOLD = 5;
 export function createNotificationSweep({
   pool,
   notifications,
+  feed = null,
   maxPerUser = MAX_PER_USER,
   digestThreshold = DIGEST_THRESHOLD,
   now = new Date(),
@@ -59,7 +62,8 @@ export function createNotificationSweep({
     /**
      * Один проход. Идемпотентен: повторный вызов на том же окне ничего не меняет.
      *
-     * @returns {Promise<{releases: number, created: number, digests: number, progress: number}>}
+     * @returns {Promise<{releases: number, created: number, digests: number,
+     *   progress: number, audit: number, expired: number}>}
      */
     async run() {
       const cursor = await notifications.cursor();
@@ -118,12 +122,16 @@ export function createNotificationSweep({
       const digests = await digestsToday(notifications, digestThreshold, now);
       const progress = await recomputeStaleProgress(pool, now);
       const audit = await pruneAuditLog(pool);
+      // Хранение записей — тоже работа прохода (F-03-09 §8в): отдельный таймер
+      // означал бы второе место, где можно забыть про сроки.
+      const expired = feed ? await feed.prune() : 0;
 
       await notifications.saveCursor(now.toISOString());
 
-      const summary = { releases, created, digests, progress, audit };
+      const summary = { releases, created, digests, progress, audit, expired };
       log(`[уведомления] выходов ${releases}, уведомлений ${created}, `
-        + `сводок ${digests}, прогресс ${progress}, журнал ${audit}`);
+        + `сводок ${digests}, прогресс ${progress}, журнал ${audit}, `
+        + `по сроку хранения ${expired}`);
       return summary;
     },
   };

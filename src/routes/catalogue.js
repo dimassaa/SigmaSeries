@@ -17,8 +17,14 @@ const SORT_KEYS = ['popular', 'rating', 'new', 'title'];
 
 const STATES = ['airing', 'waiting', 'announced', 'ended', 'cancelled'];
 
-export function createCatalogueRoutes({ catalogue }) {
+export function createCatalogueRoutes({ catalogue, sessionMw = null }) {
   const router = express.Router({ strict: true });
+  // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
+  // вход вместо аватара, и верхняя панель выглядела бы по-разному в
+  // зависимости от раздела (UI-02). Гостю она ничего не стоит: у гостя нет
+  // cookie сессии, значит и запроса в базу не будет.
+  if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
+
 
   router.get('/:locale/series', async (req, res, next) => {
     const { locale } = req.params;
@@ -43,6 +49,7 @@ export function createCatalogueRoutes({ catalogue }) {
       const noindex = page.items.length === 0;
 
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         path: '/series',
         title: t(locale, 'catalog.title'),

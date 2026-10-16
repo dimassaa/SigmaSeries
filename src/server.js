@@ -18,6 +18,7 @@ import { pgWatchStatus } from './services/tracking/status.js';
 import { pgMarks } from './services/tracking/marks.js';
 import { pgProgress } from './services/tracking/progress.js';
 import { pgNotifications } from './services/notify/notification.js';
+import { pgNotificationFeed, POLL_SECONDS } from './services/notify/feed.js';
 import { createNotificationSweep } from './services/notify/sweep.js';
 import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
@@ -110,9 +111,11 @@ const { ratePerIp: searchRatePerIp } = await searchSettings(pool);
 // их уведомления обязаны догнаться при первом же запуске (EC-T17), а не через
 // час ожидания.
 const notifications = pgNotifications(pool);
+const feed = pgNotificationFeed(pool);
 const notificationSweep = createNotificationSweep({
   pool,
   notifications,
+  feed,
   log: (line) => console.log(line),
 });
 
@@ -138,10 +141,14 @@ const app = createApp({
   marks: pgMarks(pool),
   progress: pgProgress(pool),
   subscriptions: pgSubscriptions(pool),
+  feed,
   library: pgLibrary(pool),
   pool,
   auth,
-  sessionMw: createSessionMiddleware(pool),
+  sessionMw: createSessionMiddleware(pool, undefined, {
+    // Один запрос на страницу, только вошедшим: гостю меню не показывается.
+    account: async (user) => ({ nickname: user.nickname, unread: await feed.unreadCount(user.id), pollSeconds: POLL_SECONDS }),
+  }),
   mailQueue,
   mailMode,
   journal,

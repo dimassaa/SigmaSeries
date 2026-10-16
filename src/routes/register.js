@@ -64,6 +64,7 @@ export function createRegisterRoutes({
       ?? (pow.required ? limitsApi.issueChallenge(limitsApi.registrationKey(ip), pow.zeros) : null);
 
     return layout({
+      account: req.account,
       locale,
       path: '/register',
       title: `${t(locale, 'register.title')} — ${t(locale, 'app.title')}`,
@@ -410,6 +411,7 @@ async function demoLink(req, res, mailQueue, mailMode) {
 function renderConfirm(req, pending, opts = {}) {
   const locale = req.params.locale;
   return layout({
+    account: req.account,
     locale,
     path: '/register',
     description: t(locale, 'register.step2.title'),
@@ -439,6 +441,7 @@ function renderVerify(req, state) {
     error: 'error.generic.title',
   };
   return layout({
+    account: req.account,
     locale,
     path: '/verify',
     title: `${t(locale, titles[state.state] ?? 'verify.title')} — ${t(locale, 'app.title')}`,

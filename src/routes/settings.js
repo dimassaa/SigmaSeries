@@ -427,6 +427,7 @@ export function createSettingsRoutes({
 
     const token = typeof req.query.token === 'string' ? req.query.token : '';
     return respond(res, 200, layout({
+      account: req.account,
       locale,
       path: EMAIL_CHANGE_PATH,
       title: `${t(locale, 'settings.email.title')} — ${t(locale, 'app.title')}`,
@@ -449,6 +450,7 @@ export function createSettingsRoutes({
     const body = req.body ?? {};
     if (!csrfValid(req.session, body.csrf)) {
       return respond(res, 403, layout({
+        account: req.account,
         locale, path: EMAIL_CHANGE_PATH, title: t(locale, 'settings.email.title'),
         description: t(locale, 'settings.email.lead'), noindex: true,
         body: emailChangeView({
@@ -460,6 +462,7 @@ export function createSettingsRoutes({
 
     const token = String(body.token ?? '');
     const stale = () => respond(res, 200, layout({
+      account: req.account,
       locale, path: EMAIL_CHANGE_PATH, title: t(locale, 'settings.email.title'),
       description: t(locale, 'settings.email.lead'), noindex: true,
       body: emailChangeView({
@@ -661,12 +664,18 @@ export function createSettingsRoutes({
       .send(file.payload);
   });
 
-  /** Экран удаления целиком: тело вида плюс оболочка страницы. */
-  function deletedPage(locale, session, view) {
+  /**
+   * Экран удаления целиком: тело вида плюс оболочка страницы.
+   *
+   * Данные меню аккаунта приходят аргументом, а не из замыкания: функция
+   * живёт вне обработчика, где `req` нет.
+   */
+  function deletedPage(locale, session, view, account = null) {
     const title = view.pending
       ? t(locale, 'settings.deletePending.title')
       : t(locale, 'settings.deleted.title');
     return layout({
+      account,
       locale,
       path: view.pending ? DELETE_PENDING_PATH : DELETE_DONE_PATH,
       title: `${title} — ${t(locale, 'app.title')}`,
@@ -679,6 +688,7 @@ export function createSettingsRoutes({
 /** Экран подтверждения удаления с перечнем последствий (R-SEC-12). */
   async function renderDeleteConfirm(req, { locale, user, error, values }) {
     return layout({
+      account: req.account,
       locale,
       path: `${BASE}/data/delete`,
       title: `${t(locale, 'settings.delete.title')} — ${t(locale, 'app.title')}`,
@@ -763,6 +773,7 @@ router.get(`/:locale${BASE}/data/delete`, (req, res, next) => {
     if (!user) return res.redirect(303, `/${locale}/login`);
 
     return respond(res, 200, layout({
+      account: req.account,
       locale,
       path: `${BASE}/data/delete`,
       title: `${t(locale, 'settings.delete.title')} — ${t(locale, 'app.title')}`,
@@ -837,7 +848,7 @@ router.get(`/:locale${BASE}/data/delete`, (req, res, next) => {
     if (!csrfValid(req.session, body.csrf)) {
       return respond(res, 403, deletedPage(locale, req.session, {
         pending: true, error: t(locale, 'twoFactor.error.csrf'),
-      }));
+      }, req.account));
     }
 
     if (body.action === 'cancel') {
@@ -859,6 +870,7 @@ router.get(`/:locale${BASE}/data/delete`, (req, res, next) => {
   async function render(req, { section, user, error, saved = false, values = null, ...rest }) {
     const locale = req.params.locale;
     return layout({
+      account: req.account,
       locale,
       path: `${BASE}/${section}`,
       title: `${t(locale, SECTIONS[section])} — ${t(locale, 'app.title')}`,

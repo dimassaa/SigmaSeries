@@ -68,6 +68,7 @@ export function createLibraryRoutes({ library, sessionMw, progress = null, subsc
         : null;
 
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         path: '/library',
         title: t(locale, 'library.title'),

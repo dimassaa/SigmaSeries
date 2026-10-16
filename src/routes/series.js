@@ -36,13 +36,14 @@ export function createSeriesRoutes({
       // `next('notfound')` в Express 5 — не сигнал, а ошибка, поэтому 404
       // отдаётся здесь же, тем же видом, что и на главной.
       if (!found) {
-        return res.status(404).type('html').send(notFound(locale).__raw);
+        return res.status(404).type('html').send(notFound(locale, req.account).__raw);
       }
 
       // Снятый с публикации сериал — 410, а не 404: он был, и человек должен
       // об этом узнать (EC-C1).
       if (found.archived) {
         return res.status(410).type('html').send(rawHtml(layout({
+          account: req.account,
           locale,
           path: `/series/${slug}`,
           title: t(locale, 'series.gone.title'),
@@ -85,6 +86,7 @@ export function createSeriesRoutes({
         : null;
 
       return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
         locale,
         path: `/series/${slug}`,
         title: found.title,

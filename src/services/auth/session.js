@@ -12,7 +12,7 @@ import connectPgSimple from 'connect-pg-simple';
 
 import { AUTH } from '../../config/settings.js';
 
-export function createSessionMiddleware(pool, providedStore) {
+export function createSessionMiddleware(pool, providedStore, { account = null } = {}) {
   const store = providedStore ?? new (connectPgSimple(session))({
     pool,
     tableName: 'session',
@@ -21,7 +21,7 @@ export function createSessionMiddleware(pool, providedStore) {
     pruneSessionInterval: 15 * 60,
   });
 
-  return session({
+  const sessionMw = session({
     name: AUTH.cookieName,
     store,
     secret: process.env.SESSION_SECRET,
@@ -37,6 +37,30 @@ export function createSessionMiddleware(pool, providedStore) {
       maxAge: AUTH.viewerAbsoluteMs,
     },
   });
+
+  // Данные меню аккаунта (UI-02, UI-11) собираются здесь, а не в каждом
+  // маршруте: верхняя панель одинакова на всех страницах, и число
+  // непрочитанных нужно везде. Считает его модуль уведомлений, а этот
+  // middleware только выполняет переданную функцию — знания о таблице у него
+  // нет. Без функции (тесты, заглушки) поведение прежнее: один middleware.
+  if (!account) return sessionMw;
+
+  return [
+    sessionMw,
+    // Функция асинхронна (счётчик непрочитанных берётся из базы), а раньше её
+    // результат клался в `req.account` без ожидания: туда попадало обещание, а
+    // не объект. Страница при этом отдавалась — просто без точки и числа.
+    async (req, res, next) => {
+      try {
+        const user = req.session?.user ?? null;
+        const data = user ? await account(user) : null;
+        req.account = res.locals.account = data;
+        next();
+      } catch (error) {
+        next(error);
+      }
+    },
+  ];
 }
 
 /**

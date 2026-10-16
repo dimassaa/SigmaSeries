@@ -429,6 +429,77 @@
     });
   }
 
+  // Счётчик непрочитанных (F-03-09 §8а, UI-11).
+  //
+  // Опрос идёт только пока вкладка видима: в фоне человек ничего не видит, а
+  // запросы в это время всё равно уходят. Возврат на вкладку опрашивает сразу,
+  // иначе после часа в соседнем окне точка осталась бы старой до следующего
+  // периода.
+  function initUnreadPoll() {
+    var menu = document.querySelector('[data-account-menu]');
+    if (!menu) return;
+
+    var seconds = Number(menu.getAttribute('data-notify-poll')) || 0;
+    var locale = document.documentElement.lang || 'ru';
+    var url = '/' + locale + '/notifications/count';
+    var timer = null;
+
+    var dot = menu.querySelector('[data-unread-dot]');
+    var counter = menu.querySelector('[data-unread-count]');
+    var label = menu.querySelector('.account__link');
+
+    function apply(unread) {
+      var shown = unread > 99 ? '99+' : String(unread);
+      if (unread > 0) {
+        if (!dot) {
+          dot = document.createElement('span');
+          dot.className = 'account__dot';
+          dot.setAttribute('data-unread-dot', '');
+          dot.setAttribute('aria-hidden', 'true');
+          menu.querySelector('.account__avatar').appendChild(dot);
+        }
+        if (label && label.textContent.indexOf(' · ') === -1) {
+          label.textContent = label.textContent + ' · ' + shown;
+        }
+        if (counter) counter.textContent = shown;
+      } else if (dot) {
+        dot.remove();
+        if (label) {
+          label.textContent = label.textContent.split(' · ')[0];
+        }
+      }
+    }
+
+    function once() {
+      fetch(url, { credentials: 'same-origin', headers: { Accept: 'application/json' } })
+        .then(function (res) { return res.ok ? res.json() : null; })
+        .then(function (data) { if (data) apply(Number(data.unread) || 0); })
+        .catch(function () { /* счётчик не критичен: молчание лучше ошибки в углу */ });
+    }
+
+    function start() {
+      if (timer || seconds <= 0) return;
+      timer = setInterval(once, seconds * 1000);
+    }
+
+    function stop() {
+      if (!timer) return;
+      clearInterval(timer);
+      timer = null;
+    }
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') {
+        once();
+        start();
+      } else {
+        stop();
+      }
+    });
+
+    if (document.visibilityState !== 'hidden') start();
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -437,6 +508,7 @@
     initSearch();
     initCalendarDefaultView();
     initUndoWindow();
+    initUnreadPoll();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();

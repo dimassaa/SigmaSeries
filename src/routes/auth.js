@@ -21,6 +21,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
   router.get('/:locale/login', (req, res) => {
     const locale = req.params.locale;
     return respond(res, 200, renderForm({
+        account: req.account,
       locale,
       csrf: csrfToken(req.session),
       challenge: limitsApi.needsProofOfWork(req.query.email ?? '')
@@ -46,6 +47,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
     // запросы с чужой страницы.
     if (!csrfValid(req.session, body.csrf)) {
       return respond(res, 403, renderForm({
+          account: req.account,
         locale, csrf: csrfToken(req.session), values: { email },
         error: t(locale, 'signin.error.csrf'), returnTo,
       }));
@@ -57,6 +59,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
       const seconds = Math.ceil(delay / 1000);
       res.set('Retry-After', String(seconds));
       return respond(res, 429, renderForm({
+          account: req.account,
         locale, csrf: csrfToken(req.session), values: { email },
         error: t(locale, 'signin.error.tooMany', { seconds }), returnTo,
       }));
@@ -67,6 +70,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
       limitsApi.accountKey(email), body.pow,
     )) {
       return respond(res, 400, renderForm({
+          account: req.account,
         locale, csrf: csrfToken(req.session), values: { email },
         challenge: limitsApi.issueChallenge(limitsApi.accountKey(email)),
         powZeros: limitsApi.powZeros ?? AUTH.powZeros,
@@ -81,6 +85,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
       limitsApi.recordFailure(email, clientIp(req));
       // R-SEC-06: один ответ на «нет аккаунта» и «неверный пароль».
       return respond(res, 401, renderForm({
+          account: req.account,
         locale, csrf: csrfToken(req.session), values: { email },
         error: t(locale, 'signin.error.credentials'), returnTo,
       }));
@@ -92,6 +97,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
       // Бан показывается только сейчас: пароль уже верен.
       limitsApi.recordFailure(email, clientIp(req));
       return respond(res, 403, renderForm({
+          account: req.account,
         locale, csrf: csrfToken(req.session), values: { email },
         error: t(locale, 'signin.error.blocked', { reason: '' }), returnTo,
       }));
@@ -204,6 +210,7 @@ function respond(res, status, page) {
 
 function renderForm(ctx) {
   return layout({
+    account: ctx.account,
     locale: ctx.locale,
     path: '/login',
     title: `${t(ctx.locale, 'signin.title')} — ${t(ctx.locale, 'app.title')}`,

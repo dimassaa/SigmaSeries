@@ -243,6 +243,7 @@ export function createResetRoutes({
     const locale = req.params.locale;
     const body = resetView({ locale, csrf: csrfToken(req.session), ...ctx });
     return layout({
+      account: req.account,
       locale,
       path: PATH,
       title: `${t(locale, headingKey(ctx.state))} — ${t(locale, 'app.title')}`,

@@ -64,6 +64,7 @@ export function createMailboxRoutes({ auth, sessionMw, mailQueue, mailMode, jour
       : null;
 
     return respond(res, 200, layout({
+      account: req.account,
       locale,
       path: BASE,
       title: `${t(locale, 'mailbox.title')} — ${t(locale, 'app.title')}`,
@@ -127,6 +128,7 @@ export function createMailboxRoutes({ auth, sessionMw, mailQueue, mailMode, jour
       mailMode.current(),
     ]);
     return layout({
+      account: req.account,
       locale,
       path: BASE,
       title: `${t(locale, 'mailbox.title')} — ${t(locale, 'app.title')}`,
