@@ -443,6 +443,18 @@ CREATE TABLE e_notification (
   CONSTRAINT uq_notification_dedup UNIQUE (user_id, dedup_key)
 );
 CREATE INDEX ix_notif_unread ON e_notification (user_id, created_at DESC) WHERE read_at IS NULL;
+CREATE TABLE e_notification_preference (
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  category   TEXT   NOT NULL CHECK (category IN ('release','moderation','reply','service')),
+  channel    TEXT   NOT NULL CHECK (channel IN ('in_service','email','push')),
+  enabled    BOOLEAN NOT NULL DEFAULT TRUE,
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, category, channel),
+  -- `moderation` выключить нельзя (R-MOD-19): человек должен знать судьбу
+  -- своего материала. Ограничение держит база, а не только экран — иначе
+  -- запись могла бы появиться из кода в обход правила.
+  CONSTRAINT ck_notif_pref_moderation CHECK (category <> 'moderation' OR enabled)
+);
 
 -- ---------- Оценки и материалы ----------
 
@@ -592,6 +604,9 @@ CREATE TABLE e_backup_job (
                CHECK (status IN ('running','created','verified','error')),
   size_bytes   BIGINT,
   checksum     TEXT,
+  -- Где лежит дамп. Без пути журнал отвечает на вопрос «была ли копия», но не
+  -- на «где она»: на защите это разница между страховкой и её отсутствием.
+  file_path    TEXT,
   -- Проверена означает фактически выполненное восстановление (M9 F-09-04),
   -- а не запись в лог об окончании дампа.
   verified_at  TIMESTAMPTZ

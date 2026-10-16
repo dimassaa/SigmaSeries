@@ -27,7 +27,8 @@
     "import:discover": "node --env-file-if-exists=.env src/cli/import-discover.js",
     "import:origins": "node --env-file-if-exists=.env src/cli/import-origins.js",
     "import:schedule": "node --env-file-if-exists=.env src/cli/import-schedule.js",
-    "import:freeze": "node --env-file-if-exists=.env src/cli/import-freeze.js"
+    "import:freeze": "node --env-file-if-exists=.env src/cli/import-freeze.js",
+    "role": "node src/cli/role.js"
   },
   "dependencies": {
     "argon2": "^0.45.1",

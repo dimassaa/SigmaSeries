@@ -130,3 +130,61 @@ export function diff(before, after) {
   }
   return Object.keys(b).length ? { before: sanitize(b), after: sanitize(a) } : null;
 }
+/**
+ * Запись журнала в базу.
+ *
+ * Писатель живёт здесь, а не в вызывающем коде по трём причинам: очистка
+ * секретов (`sanitize`) обязана применяться всегда, формат строки — одно
+ * место, а не копия в каждом модуле, и потому что без писателя таблица
+ * `e_audit_log` была пустой: построители записи существовали, а записи не
+ * создавал никто — и S-81 показывать было нечего.
+ *
+ * @param {import('pg').Pool} pool
+ * @returns {{write: (entry: object) => Promise<object>, prune: (options?: object) => Promise<number>}}
+ */
+export function pgAuditLog(pool) {
+  return {
+    /**
+     * Записать действие.
+     *
+     * @param {object} entry те же поля, что у `buildEntry`
+     * @returns {Promise<object>} записанная строка
+     */
+    async write(entry) {
+      const row = buildEntry(entry);
+      const { rows } = await pool.query(
+        `INSERT INTO e_audit_log
+           (actor_id, action, object_type, object_id, result, reason, before_data, after_data)
+         VALUES ($1, $2, $3, $4, $5, $6, $7::jsonb, $8::jsonb)
+         RETURNING id, at`,
+        [
+          row.actor_id, row.action, row.object_type, row.object_id, row.result, row.reason,
+          row.before_data ? JSON.stringify(row.before_data) : null,
+          row.after_data ? JSON.stringify(row.after_data) : null,
+        ],
+      );
+      return rows[0];
+    },
+
+    /**
+     * Убрать записи старше срока (`audit.retention_days`).
+     *
+     * Ключа нет — значит «бессрочно»: так и написано в настройках модуля, и
+     * выдумывать срок, которого автор не решал, нельзя. Число приходит от
+     * администратора в S-83, и тогда уборка едет в ежечасный проход.
+     *
+     * @param {{keepDays?: number|null}} [options]
+     * @returns {Promise<number>} сколько записей убрано
+     */
+    async prune({ keepDays = null } = {}) {
+      const days = Number(keepDays);
+      if (!Number.isFinite(days) || days <= 0) return 0;
+
+      const { rowCount } = await pool.query(
+        `DELETE FROM e_audit_log WHERE at < now() - ($1 || ' days')::interval`,
+        [String(days)],
+      );
+      return rowCount;
+    },
+  };
+}

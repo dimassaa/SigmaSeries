@@ -7,6 +7,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -36,10 +37,13 @@ function fakeExec({ liveCount = 42, restoredCount = 42, failOn = null } = {}) {
 }
 
 const tmpDir = () => fs.mkdtemp(path.join(os.tmpdir(), 'snapshot-test-'));
+// Каталог копий тоже временный: по умолчанию это `backups/` в корне проекта,
+// и прогон тестов не должен оставлять там файлы.
+const keepDir = () => fs.mkdtemp(path.join(os.tmpdir(), 'snapshot-keep-'));
 
 test('порядок: снять, создать временную базу, развернуть, сверить, удалить', async () => {
   const { exec, calls, pool } = fakeExec();
-  const result = await createSnapshotBackup({ pool, exec, tmpDir });
+  const result = await createSnapshotBackup({ pool, exec, tmpDir, keepDir });
 
   assert.equal(result.status, 'verified', result.error);
   assert.deepEqual(calls.map((c) => c.split(' ')[0]), [
@@ -50,7 +54,7 @@ test('порядок: снять, создать временную базу, р
 
 test('во временную базу, а не в рабочую', async () => {
   const { exec, calls, pool } = fakeExec();
-  await createSnapshotBackup({ pool, exec, tmpDir });
+  await createSnapshotBackup({ pool, exec, tmpDir, keepDir });
 
   const restore = calls.find((c) => c.startsWith('pg_restore'));
   assert.match(restore, /defence_check_/, 'имя временной базы обязано отличаться от рабочей');
@@ -59,7 +63,7 @@ test('во временную базу, а не в рабочую', async () => 
 
 test('меньше сериалов, чем в жизни — это ошибка, а не «примерно»', async () => {
   const { exec, pool } = fakeExec({ liveCount: 1052, restoredCount: 1040 });
-  const result = await createSnapshotBackup({ pool, exec, tmpDir });
+  const result = await createSnapshotBackup({ pool, exec, tmpDir, keepDir });
 
   assert.equal(result.status, 'error');
   assert.match(result.error, /1040/);
@@ -67,33 +71,33 @@ test('меньше сериалов, чем в жизни — это ошибк�
 
 test('больше сериалов, чем в жизни — тоже ошибка', async () => {
   const { exec, pool } = fakeExec({ liveCount: 10, restoredCount: 11 });
-  const result = await createSnapshotBackup({ pool, exec, tmpDir });
+  const result = await createSnapshotBackup({ pool, exec, tmpDir, keepDir });
   assert.equal(result.status, 'error', 'лишние строки означают, что восстановили не тот снимок');
 });
 
 test('пустая база сверяется как нулевая, а не пропускается', async () => {
   // Иначе первая же заморозка на пустой базе прошла бы с любым мусором.
   const { exec, pool } = fakeExec({ liveCount: 0, restoredCount: 7 });
-  const result = await createSnapshotBackup({ pool, exec, tmpDir });
+  const result = await createSnapshotBackup({ pool, exec, tmpDir, keepDir });
   assert.equal(result.status, 'verified', result.error);
 });
 
 test('упавший pg_dump — это ошибка, а не пустая копия', async () => {
   const { exec, pool } = fakeExec({ failOn: 'pg_dump' });
-  const result = await createSnapshotBackup({ pool, exec, tmpDir });
+  const result = await createSnapshotBackup({ pool, exec, tmpDir, keepDir });
   assert.equal(result.status, 'error');
   assert.match(result.error, /pg_dump/);
 });
 
 test('упавший pg_restore — ошибка', async () => {
   const { exec, pool } = fakeExec({ failOn: 'pg_restore' });
-  const result = await createSnapshotBackup({ pool, exec, tmpDir });
+  const result = await createSnapshotBackup({ pool, exec, tmpDir, keepDir });
   assert.equal(result.status, 'error');
 });
 
 test('временная база удаляется даже при упавшем восстановлении', async () => {
   const { exec, calls, pool } = fakeExec({ failOn: 'pg_restore' });
-  await createSnapshotBackup({ pool, exec, tmpDir });
+  await createSnapshotBackup({ pool, exec, tmpDir, keepDir });
   assert.ok(
     calls.some((c) => c.startsWith('dropdb')),
     'иначе каждая неудачная заморозка оставляла бы базу на диске',
@@ -108,6 +112,25 @@ test('отказ удаления временной базы не превра�
     if (file === 'dropdb') throw new Error('нет прав');
     return base.exec(file, args, options);
   };
-  const result = await createSnapshotBackup({ pool: base.pool, exec, tmpDir });
+  const result = await createSnapshotBackup({ pool: base.pool, exec, tmpDir, keepDir });
   assert.equal(result.status, 'verified');
+});
+
+test('проверенный дамп остаётся, а временная папка исчезает', async () => {
+  // Дыра, найденная на этапе доступа: копия проверялась восстановлением и
+  // сразу удалялась вместе с временным каталогом. «Копия создана и проверена»
+  // было правдой, а копии не было — и на защите страховки тоже не было бы.
+  const base = fakeExec();
+  const temp = await tmpDir();
+  const keep = await keepDir();
+  const result = await createSnapshotBackup({ pool: base.pool, exec: base.exec, tmpDir: () => temp, keepDir: () => keep });
+
+  assert.equal(result.status, 'verified', result.error);
+  assert.ok(result.file, 'путь к копии возвращается — иначе в журнале будет нечего показать');
+  assert.equal(path.dirname(result.file), keep, 'копия лежит в каталоге копий, а не во временной папке');
+  assert.ok(existsSync(result.file), 'файл копии на месте');
+  assert.ok(!existsSync(path.join(temp, 'snapshot.dump')), 'а из временной папки он ушёл');
+  assert.ok(!existsSync(temp), 'временная папка удалена');
+
+  await fs.rm(keep, { recursive: true, force: true });
 });

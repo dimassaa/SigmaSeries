@@ -89,8 +89,15 @@ test('страницы не пересекаются и считаются от 
 });
 
 test('страница за пределами списка пуста, а не обрезается молча', { skip }, async () => {
-  const first = await catalogue.list({ page: 1 });
-  const beyond = await catalogue.list({ page: first.pages + 3 });
+  // Два чтения подряд видят разные моменты: параллельные прогоны добавляют и
+  // убирают фикстуры между ними. Поэтому общая величина сравнивается повторно,
+  // а не ослабляется до «примерно равно».
+  let first = await catalogue.list({ page: 1 });
+  let beyond = await catalogue.list({ page: first.pages + 3 });
+  for (let attempt = 0; attempt < 3 && beyond.total !== first.total; attempt += 1) {
+    first = await catalogue.list({ page: 1 });
+    beyond = await catalogue.list({ page: first.pages + 3 });
+  }
 
   assert.deepEqual(beyond.items, [], 'выдача пуста — маршрут отвечает 301 на последнюю страницу');
   assert.equal(beyond.total, first.total, 'общее число остаётся, по нему считается последняя страница');
@@ -203,7 +210,11 @@ test('страна сужает выдачу, а серия — по канал�
   );
   assert.ok(country.length, 'страны залиты хотя бы для одного сериала');
   const byCountry = await catalogue.list({ countries: [country[0].code] });
-  assert.ok(byCountry.total > 0 && byCountry.total < await published());
+  let all = await published();
+  for (let attempt = 0; attempt < 3 && byCountry.total >= all; attempt += 1) {
+    all = await published();
+  }
+  assert.ok(byCountry.total > 0 && byCountry.total < all, 'страна действительно сужает выдачу');
 
   const { rows: foreign } = await pool.query(
     `SELECT sn.network_id::text AS id, count(*)::int AS n
@@ -220,8 +231,7 @@ test('страна сужает выдачу, а серия — по канал�
   );
   assert.ok(byNetwork.total <= members[0].n, 'фильтр по сети не может дать больше, чем есть связей');
 
-  const junk = await catalogue.list({ countries: ['ZZ'], networks: ['нет такого'] });
-  assert.equal(junk.total, await published(), 'несуществующие значения игнорируются');
+  await assertTotalMatches({ countries: ['ZZ'], networks: ['нет такого'] });
 });
 
 test('поиск по справочнику сужает список вариантов, а не выдачу', { skip }, async () => {

@@ -14,6 +14,7 @@
 import { createPool } from '../db/pool.js';
 import { createFreezeService } from '../services/import/freeze.js';
 import { createSnapshotBackup } from '../services/backup/snapshot.js';
+import { pgBackupJobs } from '../services/backup/store.js';
 import { effectiveMode } from '../services/mail/mode.js';
 
 async function main() {
@@ -41,11 +42,20 @@ async function main() {
   };
   // Копия подключается здесь же: без неё заморозка проходила «успешно», не
   // создав страховки, и тесты этого не видели — у них была своя заглушка.
-  const freeze = createFreezeService({
-    pool,
-    mailMode,
-    backup: () => createSnapshotBackup({ pool }),
-  });
+  // Запись в `e_backup_job` идёт здесь же: копия, о которой никто не знает,
+  // не отличается от отсутствия копии (F-09-04, S-82).
+  const backups = pgBackupJobs(pool);
+  const snapshot = async () => {
+    const result = await createSnapshotBackup({ pool });
+    await backups.record({
+      status: result.status,
+      sizeBytes: result.bytes,
+      filePath: result.file ?? null,
+    });
+    await backups.prune({ keepLast: await backups.keepLast() });
+    return result;
+  };
+  const freeze = createFreezeService({ pool, mailMode, backup: snapshot });
 
   try {
     const state = await freeze.state();
@@ -75,6 +85,7 @@ async function main() {
     console.log(`\nКаталог заморожен с ${result.since}`);
     if (result.backup) {
       console.log(`  копия: ${(result.backup.bytes / 1048576).toFixed(0)} МБ, восстановление проверено`);
+      console.log(`  файл: ${result.backup.file ?? '—'}`);
     }
     console.log(`  импорт выключен, запросы к внешним API прекращены`);
     console.log(`  почта: ${mailDevbox ? 'devbox' : 'без изменений'}`);

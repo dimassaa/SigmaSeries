@@ -8,7 +8,7 @@ import pg from 'pg';
 import { makeToken, hashToken, verifyPassword } from './password.js';
 import { blindIndex, encryptValue, decryptValue } from './crypto.js';
 import { sealSecret } from './totp.js';
-import { AUTH } from '../../config/settings.js';
+import { AUTH, STAFF_ROLES } from '../../config/settings.js';
 
 const { Pool } = pg;
 
@@ -686,6 +686,70 @@ export function pgAuthStore(pool) {
       return rows.map((r) => r.role);
     },
 
+    /**
+     * Выдать служебную роль.
+     *
+     * Выдать роль — действие администратора, поэтому оно требует и роли
+     * `admin` у выдающего, и причины: без причины в журнале не останется
+     * ничего, кроме факта, что у кого-то вдруг появился доступ. Истечение
+     * срока обязательно для `analyst` и `editor` — иначе временная роль
+     * становится вечной молча.
+     *
+     * @param {object} args
+     * @param {number} args.userId кому
+     * @param {string} args.role `editor | analyst | admin`
+     * @param {number|null} [args.grantedBy] кто выдаёт; без него роль выдаётся
+     *   только с командной строки и остаётся в журнале без актора
+     * @param {Date|null} [args.expiresAt]
+     * @param {string} [args.reason] обязательна: попадёт в журнал аудита
+     * @returns {Promise<{ok: boolean, reason?: string}>}
+     */
+    async assignRole({ userId, role, grantedBy = null, expiresAt = null, reason }) {
+      if (!STAFF_ROLES.includes(role)) return { ok: false, reason: 'unknown-role' };
+      if (!String(reason ?? '').trim()) return { ok: false, reason: 'no-reason' };
+      if (role !== 'admin' && !expiresAt) return { ok: false, reason: 'no-expiry' };
+
+      if (grantedBy) {
+        const { rows } = await pool.query(
+          `SELECT 1 FROM e_role_assignment
+            WHERE user_id = $1 AND role = 'admin'
+              AND (expires_at IS NULL OR expires_at > now())`,
+          [grantedBy],
+        );
+        if (!rows.length) return { ok: false, reason: 'not-admin' };
+      }
+
+      const { rowCount } = await pool.query(
+        `INSERT INTO e_role_assignment (user_id, role, granted_by, expires_at, note)
+         VALUES ($1, $2, $3, $4, $5)
+         ON CONFLICT (user_id, role) WHERE expires_at IS NULL
+         DO UPDATE SET granted_by = EXCLUDED.granted_by, expires_at = EXCLUDED.expires_at,
+                       note = EXCLUDED.note, granted_at = now()`,
+        [userId, role, grantedBy, expiresAt, String(reason).trim()],
+      );
+      return { ok: rowCount > 0 };
+    },
+
+    /**
+     * Снять роль.
+     *
+     * @param {object} args
+     * @param {number} args.userId
+     * @param {string} args.role
+     * @returns {Promise<{ok: boolean, removed: number}>}
+     */
+    async revokeRole({ userId, role }) {
+      if (!STAFF_ROLES.includes(role)) return { ok: false, removed: 0 };
+
+      const { rowCount } = await pool.query(
+        `DELETE FROM e_role_assignment
+          WHERE user_id = $1 AND role = $2
+            AND (expires_at IS NULL OR expires_at > now())`,
+        [userId, role],
+      );
+      return { ok: true, removed: rowCount };
+    },
+
     /** Устройства пользователя для списка S-32 (F-01-03). */
     async sessions(userId) {
       const { rows } = await pool.query(
@@ -1088,6 +1152,20 @@ export function stubAuthStore(users = {}, roles = {}) {
     async recordLogin() {},
     async roles(userId) {
       return roles[userId] ?? [];
+    },
+
+    // Роли выдаются настоящим хранилищем: заглушка держит список, чтобы тесты
+    // маршрутов могли выдать роль и увидеть короткую сессию служебного входа
+    // (R-SEC-03), но никто из маршрутов роли не выдаёт.
+    async assignRole({ userId, role, expiresAt = null }) {
+      roles[userId] = [...new Set([...(roles[userId] ?? []), role])];
+      return { ok: true, expiresAt };
+    },
+
+    async revokeRole({ userId, role }) {
+      const before = roles[userId] ?? [];
+      roles[userId] = before.filter((one) => one !== role);
+      return { ok: true, removed: before.length - roles[userId].length };
     },
     async sessions() {
       return [];

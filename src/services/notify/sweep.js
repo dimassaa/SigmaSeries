@@ -16,6 +16,7 @@
 // не касаются уведомлений в сервисе, а письма — задача F-03-10.
 
 import { recompute } from '../tracking/progress.js';
+import { pgAuditLog } from '../audit/log.js';
 import { DEFAULT_TIMEZONE, todayIn } from '../timezone.js';
 import { STEP } from './notification.js';
 
@@ -116,12 +117,13 @@ export function createNotificationSweep({
 
       const digests = await digestsToday(notifications, digestThreshold, now);
       const progress = await recomputeStaleProgress(pool, now);
+      const audit = await pruneAuditLog(pool);
 
       await notifications.saveCursor(now.toISOString());
 
-      const summary = { releases, created, digests, progress };
+      const summary = { releases, created, digests, progress, audit };
       log(`[уведомления] выходов ${releases}, уведомлений ${created}, `
-        + `сводок ${digests}, прогресс ${progress}`);
+        + `сводок ${digests}, прогресс ${progress}, журнал ${audit}`);
       return summary;
     },
   };
@@ -243,6 +245,22 @@ async function recomputeStaleProgress(pool, now) {
   }
 
   return done;
+}
+
+/**
+ * Убрать старые записи журнала аудита (`audit.retention_days`).
+ *
+ * Уборка живёт здесь, а не в отдельном работнике: ещё один таймер — это ещё
+ * одно место, где можно забыть про курсор, а работы на два запроса.
+ *
+ * @param {import('pg').Pool} pool
+ * @returns {Promise<number>} сколько записей убрано; 0 — срок не задан
+ */
+async function pruneAuditLog(pool) {
+  const { rows } = await pool.query(
+    "SELECT value FROM e_system_setting WHERE key = 'audit.retention_days'",
+  );
+  return pgAuditLog(pool).prune({ keepDays: Number(rows[0]?.value) });
 }
 
 /** `YYYY-MM-DD` из ISO-момента. */

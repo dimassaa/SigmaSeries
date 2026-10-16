@@ -7,11 +7,7 @@
 import pg from 'pg';
 
 import { MIN_VISIBLE_SERIES } from '../catalogue/collection.js';
-
-const BANNER_LIMIT = 3;
-const FRESH_LIMIT = 6;
-const COLLECTION_LIMIT = 6;
-const GENRE_LIMIT = 6;
+import { homeSettings } from './settings.js';
 
 /**
  * Данные из базы.
@@ -23,8 +19,20 @@ const GENRE_LIMIT = 6;
  * @param {pg.Pool} pool
  */
 export function pgData(pool) {
+  // Настройки читаются один раз на источник: главная открывается часто, а
+  // ключи меняются администратором в S-83, а не на каждый запрос. Источник
+  // живёт дольше одного открытия страницы, поэтому чтение на каждый вызов
+  // оборачивалось бы двенадцатью запросами на страницу (M6 §0).
+  const settings = { settings: null };
+
+  const current = async () => {
+    if (!settings.settings) settings.settings = await homeSettings(pool);
+    return settings.settings;
+  };
+
   return {
     async banners() {
+      const { bannersPerDay } = await current();
       const { rows } = await pool.query(`
         SELECT s.slug,
                coalesce(s.title_ru, s.title_original) AS title,
@@ -46,11 +54,12 @@ export function pgData(pool) {
          WHERE b.active AND b.show_on <= CURRENT_DATE
            AND s.archived_at IS NULL
          ORDER BY b.show_on DESC
-         LIMIT $1`, [BANNER_LIMIT]);
+         LIMIT $1`, [bannersPerDay]);
       return rows.map(decorateBanner);
     },
 
     async fresh() {
+      const { freshPerPage } = await current();
       const { rows } = await pool.query(`
         SELECT s.slug,
                coalesce(s.title_ru, s.title_original) AS title,
@@ -72,11 +81,12 @@ export function pgData(pool) {
            AND rel.release_date >= CURRENT_DATE - INTERVAL '14 days'
          GROUP BY s.id, rel.release_date, pv.width
          ORDER BY rel.release_date DESC, s.year_start
-         LIMIT $1`, [FRESH_LIMIT]);
+         LIMIT $1`, [freshPerPage]);
       return rows.map(decorateSeries);
     },
 
     async collections() {
+      const { marqueeCollections } = await current();
       // Порог шести видимых сериалов — тот же, что и на странице подборки
       // (F-02-05 §5): подборка из пяти пунктов не появляется на главной.
       // Считать по-разному значило бы, что ссылка ведёт в 404.
@@ -90,11 +100,12 @@ export function pgData(pool) {
          GROUP BY c.id
         HAVING count(*) >= $2
          ORDER BY c.weight DESC, c.title
-         LIMIT $1`, [COLLECTION_LIMIT, MIN_VISIBLE_SERIES]);
+         LIMIT $1`, [marqueeCollections, MIN_VISIBLE_SERIES]);
       return rows.map((r) => ({ slug: r.slug, title: r.title, count: r.count }));
     },
 
     async genres() {
+      const { genresPerRow } = await current();
       const { rows } = await pool.query(`
         SELECT g.code, coalesce(NULLIF($2, 'ru'), g.name_ru) AS title,
                count(sg.series_id)::int AS series_count
@@ -105,7 +116,7 @@ export function pgData(pool) {
          GROUP BY g.code, g.name_ru, g.name_en
         HAVING count(sg.series_id) > 0
          ORDER BY series_count DESC
-         LIMIT $1`, [GENRE_LIMIT, 'ru']);
+         LIMIT $1`, [genresPerRow, 'ru']);
       return rows.map((r) => ({ code: r.code, title: r.title }));
     },
   };
