@@ -24,6 +24,7 @@ import { createSeasonRoutes } from './routes/season.js';
 import { createCollectionRoutes } from './routes/collection.js';
 import { createCalendarRoutes } from './routes/calendar.js';
 import { createMarkRoutes } from './routes/mark.js';
+import { createSubscribeRoutes } from './routes/subscribe.js';
 import { createStatusRoutes } from './routes/status.js';
 import { createLibraryRoutes } from './routes/library.js';
 import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
@@ -55,6 +56,7 @@ export function createApp({
   statusLimiter = null,
   marks = null,
   progress = null,
+  subscriptions = null,
   markLimiter = null,
   library = null,
   pool = null,
@@ -115,8 +117,8 @@ export function createApp({
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
   if (catalogue) app.use(createCatalogueRoutes({ catalogue }));
   if (search) app.use(createSearchRoutes({ search, ratePerIp: searchRatePerIp ?? undefined }));
-  if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw }));
-  if (series) app.use(createSeriesRoutes({ series, watchStatus, sessionMw, progress }));
+  if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series }));
+  if (series) app.use(createSeriesRoutes({ series, watchStatus, sessionMw, progress, subscriptions }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
   if (calendar) app.use(createCalendarRoutes({ calendar, sessionMw }));
@@ -126,10 +128,15 @@ export function createApp({
     app.use(createStatusRoutes({ status: watchStatus, series, sessionMw, limiter: statusLimiter ?? undefined }));
   }
   // Закладки читают сессию: гостю показывается вход, вошедшему — свой список.
-  if (library && sessionMw) app.use(createLibraryRoutes({ library, sessionMw, progress }));
+  if (library && sessionMw) app.use(createLibraryRoutes({ library, sessionMw, progress, subscriptions }));
   // Отметки серий: POST с CSRF, лимитом частоты и проверкой «вышла ли серия».
   if (marks && series && sessionMw) {
     app.use(createMarkRoutes({ marks, series, sessionMw, limiter: markLimiter ?? undefined }));
+  }
+  // Колокольчик подписки: POST с CSRF, без лимита частоты — ключа для него в
+  // M3 §0 нет (находка #131).
+  if (subscriptions && series && sessionMw) {
+    app.use(createSubscribeRoutes({ subscriptions, series, sessionMw }));
   }
 
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.

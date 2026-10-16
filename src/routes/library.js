@@ -25,8 +25,9 @@ const rawHtml = (page) => page.__raw;
  * @param {object} deps.library источник данных
  * @param {Function} deps.sessionMw
  * @param {object|null} [deps.progress] прогресс из кэша; без него у карточек нули
+ * @param {object|null} [deps.subscriptions] состояние колокольчиков на карточках
  */
-export function createLibraryRoutes({ library, sessionMw, progress = null }) {
+export function createLibraryRoutes({ library, sessionMw, progress = null, subscriptions = null }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -61,13 +62,18 @@ export function createLibraryRoutes({ library, sessionMw, progress = null }) {
           : null,
       });
 
+      // Колокольчики карточек — одним запросом на страницу (F-03-07 §3).
+      const subs = subscriptions
+        ? await subscriptions.listOf(user.id, data.items.map((item) => item.seriesId))
+        : null;
+
       return res.status(200).type('html').send(rawHtml(layout({
         locale,
         path: '/library',
         title: t(locale, 'library.title'),
         description: t(locale, 'library.description'),
         noindex: true,
-        body: libraryView({ locale, library: data, csrf: csrfToken(req.session) }),
+        body: libraryView({ locale, library: data, csrf: csrfToken(req.session), subs }),
       })));
     } catch (error) {
       return next(error);

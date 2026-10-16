@@ -17,6 +17,7 @@ import { pgCalendar } from './services/catalogue/calendar.js';
 import { pgWatchStatus } from './services/tracking/status.js';
 import { pgMarks } from './services/tracking/marks.js';
 import { pgProgress } from './services/tracking/progress.js';
+import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
@@ -110,6 +111,7 @@ const app = createApp({
   watchStatus: pgWatchStatus(pool),
   marks: pgMarks(pool),
   progress: pgProgress(pool),
+  subscriptions: pgSubscriptions(pool),
   library: pgLibrary(pool),
   pool,
   auth,

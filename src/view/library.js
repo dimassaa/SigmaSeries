@@ -14,6 +14,7 @@
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { statusControl } from './status.js';
+import { subscribeBell } from './subscribe.js';
 import { fullDate, releaseLabel } from './dates.js';
 
 const TABS = ['all', 'watching', 'planned', 'watched', 'dropped', 'on_hold'];
@@ -23,8 +24,9 @@ const TABS = ['all', 'watching', 'planned', 'watched', 'dropped', 'on_hold'];
  * @param {string} page.locale
  * @param {object} page.library данные источника
  * @param {string} page.csrf
+ * @param {Map<number, object>|null} [page.subs] состояние подписки по сериалам
  */
-export function libraryView({ locale, library, csrf }) {
+export function libraryView({ locale, library, csrf, subs = null }) {
   return html`
 <h1 class="library__title">${t(locale, 'library.title')}</h1>
 
@@ -47,7 +49,7 @@ ${when(library.items.length === 0, () => emptyView({ locale, library }))}
 
 ${when(library.items.length > 0, () => html`
 <ol class="library__list" role="list">
-  ${library.items.map((item) => card({ locale, item, csrf }))}
+  ${library.items.map((item) => card({ locale, item, csrf, subs: subs?.get(item.seriesId) ?? null }))}
 </ol>
 
 ${when(library.pages > 1, () => pagination({ locale, library }))}`)}`;
@@ -86,7 +88,7 @@ function tabHref(locale, library, tab) {
 }
 
 /** Карточка закладки: постер, название, статус, прогресс, «Продолжить». */
-function card({ locale, item, csrf }) {
+function card({ locale, item, csrf, subs }) {
   return html`
 <li class="library__item${item.archived ? ' library__item--archived' : ''}">
   <article class="library__card">
@@ -108,9 +110,11 @@ function card({ locale, item, csrf }) {
 
       ${when(item.archived, () => html`
       <p class="library__archived">${t(locale, 'library.archived')}</p>
-      ${statusControl({ locale, slug: item.slug, status: item.status, signedIn: true, csrf, archived: true, view: 'library' })}`,
+      ${statusControl({ locale, slug: item.slug, status: item.status, signedIn: true, csrf, archived: true, view: 'library' })}
+      ${subscribeBell({ locale, slug: item.slug, state: subs, csrf, signedIn: true, archived: true, view: 'library' })}`,
       () => html`
       ${statusControl({ locale, slug: item.slug, status: item.status, signedIn: true, csrf, view: 'library' })}
+      ${subscribeBell({ locale, slug: item.slug, state: subs, csrf, signedIn: true, view: 'library' })}
 
       ${progressBlock({ locale, item })}
 

@@ -28,13 +28,23 @@ test.after(async () => {
 
 let counter = 0;
 
-/** Сырой слой с уникальным tconst, чтобы тесты не мешали друг другу. */
+/**
+ * Сырой слой с уникальным tconst, чтобы тесты не мешали друг другу.
+ *
+ * Номера берутся из блока `tt1900001…` / tmdb `1900001…`, свободного и от
+ * живого каталога (там tmdb до 206 586), и от соседних файлов: блок
+ * `tt9000001`–`tt9000012` с tmdb `900001`–`900012` держит
+ * `import.schedule-sync.test.js`. Общий tconst означал общий сериал — два
+ * параллельно идущих файла писали в одну строку, и проверки падали на чужих
+ * данных. `node --test` гоняет файлы одновременно, поэтому блоки разводятся, а
+ * не размечаются комментарием.
+ */
 const raw = (overrides = {}) => {
   counter += 1;
-  const tconst = `tt9${String(counter).padStart(6, '0')}`;
+  const tconst = `tt19${String(counter).padStart(6, '0')}`;
   return {
     tconst,
-    tmdbId: 900000 + counter,
+    tmdbId: 1900000 + counter,
     status: 'Ended',
     titles: { original: { text: `Тестовый сериал ${counter}` }, ru: { text: '' }, en: { text: '' } },
     descriptions: { ru: { text: 'Описание' }, en: { text: '' } },

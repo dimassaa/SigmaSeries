@@ -10,6 +10,7 @@ import { t } from '../i18n/strings.js';
 import { fullDate as formatDate } from './dates.js';
 import { statusControl } from './status.js';
 import { progressView } from './progress.js';
+import { subscribeBell } from './subscribe.js';
 
 /** Подписи состояний выхода (`exit_state` → ключ интерфейса). */
 const STATE_KEY = {
@@ -32,8 +33,12 @@ function yearRange(series) {
  * @param {{value: string|null, csrf: string, signedIn: boolean, archived: boolean}|null} [page.status]
  *   статус зрителя; `null` — источник статусов не подключён или это гость без сессии
  * @param {object|null} [page.progress] прогресс и «продолжить» (F-03-03)
+ * @param {{state: object|null, csrf: string, signedIn: boolean}|null} [page.subscribe]
+ *   колокольчик подписки; `null` — источник подписок не подключён. Снятый с
+ *   публикации сериал до вида не доходит: выше стоит 410 (EC-C1)
+ * @param {string|null} [page.notice] отказ после действия: `limit`
  */
-export function seriesView({ locale, series, status = null, progress = null }) {
+export function seriesView({ locale, series, status = null, progress = null, subscribe = null, notice = null }) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
   return html`
@@ -58,6 +63,19 @@ export function seriesView({ locale, series, status = null, progress = null }) {
         csrf: status.csrf,
         archived: status.archived,
       })}`)}
+
+      ${when(subscribe, () => html`
+      ${subscribeBell({
+        locale,
+        slug: series.slug,
+        state: subscribe.state,
+        csrf: subscribe.csrf,
+        signedIn: subscribe.signedIn,
+      })}`)}
+
+      ${when(notice === 'limit', () => html`
+      <p class="subs-notice" role="status">${t(locale, 'subs.notice.limit')}</p>`)}
+
       <h1 class="series__title">${series.title}</h1>
       ${when(series.titleOriginal !== series.title, () => html`
       <p class="series__original">${series.titleOriginal}</p>`)}

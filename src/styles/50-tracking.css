@@ -400,3 +400,67 @@
 .progress__skipped {
   color: var(--warning);
 }
+
+/* Колокольчик «Следить за выходом» (F-03-07).
+   Кнопка не «светится»: включённое состояние — акцентная рамка и другой
+   значок, а не только цвет (R-A11Y-19). Подпись под кнопкой объясняет, кто
+   решил: человек или автоматика, — иначе «Смотрю» выглядит как «приложение
+   само всё сделало». */
+
+.subs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin-block: var(--space-2);
+}
+
+.subs form {
+  margin: 0;
+}
+
+.subs__button {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-block-size: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.subs__button:hover {
+  border-color: var(--accent);
+}
+
+.subs__button--on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.subs__note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.subs--archived,
+.subs--guest {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+.subs-notice {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  font-size: 14px;
+}

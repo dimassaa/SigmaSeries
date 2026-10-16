@@ -15,7 +15,13 @@ import { timezoneOf, todayIn } from '../services/timezone.js';
 /** Ответ отправляется разобранной строкой: `send()` объекта ушёл бы в JSON. */
 const rawHtml = (page) => page.__raw;
 
-export function createSeriesRoutes({ series, watchStatus = null, sessionMw = null, progress = null }) {
+export function createSeriesRoutes({
+  series,
+  watchStatus = null,
+  sessionMw = null,
+  progress = null,
+  subscriptions = null,
+}) {
   const router = express.Router({ strict: true });
   // Сессия нужна ради одного — статуса зрителя на этой карточке.
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
@@ -69,6 +75,15 @@ export function createSeriesRoutes({ series, watchStatus = null, sessionMw = nul
         }
         : null;
 
+      // Колокольчик есть и у гостя: вместо него — приглашение войти (F-03-07 §4).
+      const bell = subscriptions
+        ? {
+          state: user ? await subscriptions.state(user.id, found.id) : null,
+          csrf: session ? csrfToken(session) : '',
+          signedIn: Boolean(user),
+        }
+        : null;
+
       return res.status(200).type('html').send(rawHtml(layout({
         locale,
         path: `/series/${slug}`,
@@ -81,6 +96,8 @@ export function createSeriesRoutes({ series, watchStatus = null, sessionMw = nul
           series: found,
           status: watch ? { value: watch.status, csrf: watch.csrf, signedIn: watch.signedIn, archived: watch.archived } : null,
           progress: watchProgress,
+          subscribe: bell,
+          notice: String(req.query.subs ?? '') || null,
         }),
       })));
     } catch (error) {

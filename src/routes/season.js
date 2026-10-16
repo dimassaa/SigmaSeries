@@ -23,7 +23,7 @@ const number = (value, min) => {
   return Number.isInteger(parsed) && parsed >= min ? parsed : null;
 };
 
-export function createSeasonRoutes({ seasons, sessionMw = null }) {
+export function createSeasonRoutes({ seasons, sessionMw = null, series = null }) {
   const router = express.Router({ strict: true });
   // Сессия нужна ради отметок: гость видит такую же строку серии, но без
   // флажка, а вошедший — с отметкой.
@@ -41,7 +41,10 @@ export function createSeasonRoutes({ seasons, sessionMw = null }) {
       const found = await seasons.season(slug, seasonNumber, marks.options);
       // Отсутствие сезона у видимого сериала и отсутствие сериала — одно и то же
       // для посетителя: такого адреса нет. Различие живёт в источнике.
-      if (!found) return res.status(404).type('html').send(notFound(locale).__raw);
+      //
+      // Снятый с публикации — исключение: сериал был, и человек должен об этом
+      // узнать, поэтому 410, а не 404 (EC-C1, как на странице сериала).
+      if (!found) return sendMissing({ res, locale, slug, series });
 
       const path = `/series/${slug}/seasons/${seasonNumber}`;
       return res.status(200).type('html').send(rawHtml(layout({
@@ -84,7 +87,7 @@ export function createSeasonRoutes({ seasons, sessionMw = null }) {
     try {
       const marks = marksOf(req);
       const found = await seasons.episode(slug, seasonNumber, episodeNumber, marks.options);
-      if (!found) return res.status(404).type('html').send(notFound(locale).__raw);
+      if (!found) return sendMissing({ res, locale, slug, series });
 
       const path = `/series/${slug}/seasons/${seasonNumber}/episodes/${episodeNumber}`;
       return res.status(200).type('html').send(rawHtml(layout({
@@ -106,6 +109,28 @@ export function createSeasonRoutes({ seasons, sessionMw = null }) {
   });
 
   return router;
+}
+
+/**
+ * Ответ на адрес, страницы для которого нет: 410 или 404.
+ *
+ * Дополнительный запрос делается только на этом пути — на живом адресе лишнего
+ * запроса не появляется, а различие 404 и 410 иначе пришлось бы угадывать в
+ * каждом маршруте отдельно.
+ *
+ * @param {object} args
+ * @param {import('express').Response} args.res
+ * @param {string} args.locale
+ * @param {string} args.slug
+ * @param {object|null} args.series источник карточки; без него всегда 404
+ */
+async function sendMissing({ res, locale, slug, series }) {
+  const found = series ? await series.bySlug(slug) : null;
+
+  if (found?.archived) {
+    return res.status(410).type('html').send(goneView({ locale, slug }).__raw);
+  }
+  return res.status(404).type('html').send(notFound(locale).__raw);
 }
 
 /**

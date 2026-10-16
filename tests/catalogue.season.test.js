@@ -143,11 +143,23 @@ test('неопубликованный сериал недоступен и по
 });
 
 test('архивный сериал сезоном не отдаётся, но отличается от неопубликованного', { skip }, async () => {
-  const { rows } = await pool.query(
-    'SELECT slug FROM e_series WHERE archived_at IS NOT NULL AND publication_state = \'published\' LIMIT 1',
+  // Своя фикстура, а не поиск по всей таблице: глобальный поиск молчал, когда
+  // чужой архивный сериал ещё не появился или уже исчез, и проверка ничего не
+  // проверяла.
+  const slug = `sn-arch-${crypto.randomUUID()}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start, archived_at)
+     VALUES ($1, 'Снят с публикации', 'Archived fixture', 980000001, 'published', 'ended', 2019, now())
+     RETURNING id`,
+    [slug],
   );
-  if (!rows.length) return;
+  await pool.query('INSERT INTO e_season (series_id, number) VALUES ($1, 1)', [series.id]);
 
-  const page = await seasons.season(rows[0].slug, 1);
-  assert.equal(page, null, 'снятый с публикации сериал не должен открываться как актуальный');
+  try {
+    const page = await seasons.season(slug, 1);
+    assert.equal(page, null, 'снятый с публикации сериал не должен открываться как актуальный');
+  } finally {
+    await pool.query('DELETE FROM e_season WHERE series_id = $1', [series.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
 });

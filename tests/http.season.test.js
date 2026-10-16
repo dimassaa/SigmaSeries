@@ -93,6 +93,41 @@ test('серия без описания или с будущей датой н�
     'тонкая страница серии в индексе не нужна');
 });
 
+test('снятый с публикации сериал не отдаёт ни сезон, ни серию (410, EC-C1)', { skip }, async () => {
+  // Проверка появилась после находки: карточка сериала отдавала 410, а сезон и
+  // серия по прямой ссылке — 200 с содержимым. Отозванный контент оставался
+  // доступен, хотя снявший его считал обратное.
+  const slug = `hs-arch-${crypto.randomUUID()}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start, archived_at)
+     VALUES ($1, 'Снят с публикации', 'Archived', $2, 'published', 'ended', 2019, now())
+     RETURNING id`,
+    [slug, Math.floor(Math.random() * 900000) + 960000000],
+  );
+  await pool.query('INSERT INTO e_season (series_id, number) VALUES ($1, 1)', [series.id]);
+  await pool.query(
+    `INSERT INTO e_episode (season_id, number, title_ru, runtime_min)
+     SELECT id, 1, 'Пилот', 45 FROM e_season WHERE series_id = $1`,
+    [series.id],
+  );
+
+  try {
+    const card = await get(`/ru/series/${slug}`);
+    assert.equal(card.status, 410, 'карточка снятого сериала закрыта — так было и раньше');
+
+    const season = await get(`/ru/series/${slug}/seasons/1`);
+    assert.equal(season.status, 410, 'страница сезона закрыта так же');
+    assert.ok(!(await season.text()).includes('Пилот'),
+      'и содержимое снятого сериала не протекает в ответ');
+
+    const episode = await get(`/ru/series/${slug}/seasons/1/episodes/1`);
+    assert.equal(episode.status, 410, 'страница серии закрыта так же');
+  } finally {
+    await pool.query('DELETE FROM e_season WHERE series_id = $1', [series.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
+});
+
 test('несуществующие номер сезона и серии — 404, а не пустая страница', { skip }, async () => {
   const found = await anySeason();
 

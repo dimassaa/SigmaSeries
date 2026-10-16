@@ -220,19 +220,24 @@ test('состояние выхода доходит до записи: пере
 
 test('выход серии несёт номер и дату', { skip }, async () => {
   const { rows } = await pool.query(
-    `SELECT r.release_date::text AS date, rle.episode_id, e.number, se.number AS season
+    `SELECT r.release_date::text AS date, rle.episode_id, e.number, se.number AS season, s.slug
        FROM e_release r
        JOIN e_release_episode rle ON rle.release_id = r.id
        JOIN e_episode e ON e.id = rle.episode_id
        JOIN e_season se ON se.id = r.season_id
+       JOIN e_series s ON s.id = se.series_id
       WHERE r.release_date > CURRENT_DATE AND se.number > 0
+        AND s.publication_state = 'published' AND s.archived_at IS NULL
       LIMIT 1`,
   );
   if (!rows.length) return;   // будущих выходов серий нет
 
   const page = await calendar.days({ from: rows[0].date, to: rows[0].date });
   const entries = page.days.get(rows[0].date) ?? [];
-  const found = entries.find((entry) => entry.kind === 'episode' && entry.seriesSlug);
+  // Запись ищется по адресу сериала, а не «первая попавшаяся»: в один день
+  // выходит много серий, и любая чужая запись делала проверку случайной —
+  // тем более что строки в базе появляют параллельные прогоны тестов.
+  const found = entries.find((entry) => entry.kind === 'episode' && entry.seriesSlug === rows[0].slug);
 
   assert.ok(found, 'выход серии виден в календаре');
   assert.ok(found.episodeNumbers.includes(rows[0].number),

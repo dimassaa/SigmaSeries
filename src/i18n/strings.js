@@ -48,6 +48,17 @@ const MESSAGES = {
     'date.tomorrow': 'завтра выходит',
     'date.inDays': 'через {count} дня выходит',
 
+    // F-03-07 — подписки на выходы
+    'subs.on': 'Вы следите за выходом',
+    'subs.off': 'Следить за выходом',
+    'subs.auto': 'Включено автоматически по статусу «Смотрю» или «В планах»',
+    'subs.manualOff': 'Выключено вручную: смена статуса не включит обратно',
+    'subs.archived': 'Снят с публикации — уведомлений не будет',
+    'subs.guest': 'Войдите, чтобы следить за выходом',
+    'subs.notice.limit': 'Подписок слишком много, отключите ненужные',
+    'subs.error.csrf': 'Сессия устарела. Откройте страницу заново.',
+    'subs.error.missing': 'Сериал не найден.',
+
     // F-03-03 — прогресс
     'progress.label': 'Прогресс просмотра',
     'progress.continue': 'Продолжить: S{season}E{episode}',
@@ -618,6 +629,17 @@ const MESSAGES = {
     'date.today': 'aired today',
     'date.tomorrow': 'airs tomorrow',
     'date.inDays': 'airs in {count} days',
+
+    // F-03-07 — release subscriptions
+    'subs.on': 'You follow releases',
+    'subs.off': 'Follow releases',
+    'subs.auto': 'Turned on automatically by the Watching or Planned status',
+    'subs.manualOff': 'Turned off by hand: a status change will not switch it back on',
+    'subs.archived': 'Unpublished \u2014 no notifications',
+    'subs.guest': 'Sign in to follow releases',
+    'subs.notice.limit': 'Too many subscriptions \u2014 switch some off',
+    'subs.error.csrf': 'The session expired. Open the page again.',
+    'subs.error.missing': 'Series not found.',
 
     // F-03-03 — progress
     'progress.label': 'Watch progress',

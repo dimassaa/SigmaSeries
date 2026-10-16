@@ -91,6 +91,11 @@ export function pgSeasons(pool) {
 /**
  * Сериал, видимый посетителю.
  *
+ * Снятый с публикации не виден здесь же, а не в маршруте: отозванный контент
+ * не должен уезжать из слоя данных вообще, даже по прямой ссылке на сезон или
+ * серию. Иначе редактор снимает сериал с публикации, а его страницы продолжают
+ * отдаваться — и тот, кто это сделал, уверен, что всё убрано (EC-T8, EC-C1).
+ *
  * @returns {Promise<object|null>}
  */
 async function visibleSeries(pool, slug) {
@@ -101,6 +106,7 @@ async function visibleSeries(pool, slug) {
   );
   const series = rows[0];
   if (!series || series.publication_state === 'imported') return null;
+  if (series.archived_at) return null;
   return series;
 }
 
