@@ -74,9 +74,9 @@ const MESSAGES = {
     // Уведомление хранит тип и параметры, а не текст: текст собирается при
     // чтении на языке читателя (R-I18N-04, M3 §11).
     'notify.release_today.title': 'Вышла новая серия',
-    'notify.release_today.body': '{series}: S{season}E{episodes} выходит сегодня, {date}',
+    'notify.release_today.body': '{series}: S{season}E{episodes} выходит сегодня',
     'notify.release_today.digest.title': 'Сегодня вышли серии ваших сериалов',
-    'notify.release_today.digest.body': 'Вышло серий: {count}. Откройте список, чтобы посмотреть, какие',
+    'notify.release_today.digest.body': 'Вышло серий: {count}. Откройте уведомления, чтобы посмотреть, какие именно.',
     'notify.release_changed.title': 'Серию перенесли',
     'notify.release_changed.body': '{series}: S{season}E{episodes} теперь выходит {date}',
     'notify.release_cancelled.title': 'Серию отменили',
@@ -695,9 +695,9 @@ const MESSAGES = {
     // A notification stores its type and parameters, not the text: the text is
     // built at read time in the reader's language (R-I18N-04, M3 §11).
     'notify.release_today.title': 'A new episode is out',
-    'notify.release_today.body': '{series}: S{season}E{episodes} airs today, {date}',
+    'notify.release_today.body': '{series}: S{season}E{episodes} airs today',
     'notify.release_today.digest.title': 'Episodes of your series are out today',
-    'notify.release_today.digest.body': 'Episodes: {count}. Open the list to see which',
+    'notify.release_today.digest.body': 'Episodes: {count}. Open the notifications to see which ones.',
     'notify.release_changed.title': 'An episode was moved',
     'notify.release_changed.body': '{series}: S{season}E{episodes} now airs on {date}',
     'notify.release_cancelled.title': 'An episode was cancelled',
