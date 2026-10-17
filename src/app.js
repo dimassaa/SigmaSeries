@@ -60,6 +60,7 @@ export function createApp({
   subscriptions = null,
   subscribeLimiter = null,
   feed = null,
+  preferences = null,
   markLimiter = null,
   library = null,
   pool = null,
@@ -165,7 +166,9 @@ export function createApp({
   // Настройки доступны и гостю: тема и язык хранятся у него на стороне
   // браузера, вход для них не нужен (F-01-06 §8(а)).
   if (auth && sessionMw) {
-    app.use(createSettingsRoutes({ auth, sessionMw, journal, mailQueue, now, baseUrl }));
+    app.use(createSettingsRoutes({
+      auth, sessionMw, journal, mailQueue, preferences, now, baseUrl,
+    }));
   }
   // Ящик разработчика (S-84) и режим почты: без них режим `devbox` нечем
   // включить, а на защите без интернета показывать нечего.

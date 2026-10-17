@@ -37,7 +37,7 @@ async function viewer(over = {}) {
     recs_enabled: true,
     profile_public: false,
     stats_public: false,
-    notifications_enabled: true,
+    quiet_hours: false,
     quiet_hours: false,
     ...over,
   };

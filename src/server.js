@@ -19,6 +19,7 @@ import { pgMarks } from './services/tracking/marks.js';
 import { pgProgress } from './services/tracking/progress.js';
 import { pgNotifications } from './services/notify/notification.js';
 import { pgNotificationFeed, POLL_SECONDS } from './services/notify/feed.js';
+import { pgNotificationPreferences } from './services/notify/preferences.js';
 import { createNotificationSweep } from './services/notify/sweep.js';
 import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
@@ -112,10 +113,12 @@ const { ratePerIp: searchRatePerIp } = await searchSettings(pool);
 // час ожидания.
 const notifications = pgNotifications(pool);
 const feed = pgNotificationFeed(pool);
+const preferences = pgNotificationPreferences(pool);
 const notificationSweep = createNotificationSweep({
   pool,
   notifications,
   feed,
+  preferences,
   log: (line) => console.log(line),
 });
 

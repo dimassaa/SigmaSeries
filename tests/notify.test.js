@@ -17,6 +17,7 @@ import { pgNotifications, STEP } from '../src/services/notify/notification.js';
 import { createNotificationSweep } from '../src/services/notify/sweep.js';
 import { notifyScheduleChanges } from '../src/services/notify/changes.js';
 import { categoryOf, KINDS } from '../src/services/notify/types.js';
+import { pgNotificationPreferences } from '../src/services/notify/preferences.js';
 import { pgAuthStore } from '../src/services/auth/store.js';
 import { makeToken } from '../src/services/auth/password.js';
 import { pgSubscriptions } from '../src/services/tracking/subscription.js';
@@ -33,6 +34,7 @@ const skip = available
 
 let pool;
 let notify;
+let preferences;
 let subscriptions;
 let counter = 0;
 
@@ -40,6 +42,7 @@ test.before(async () => {
   if (!available) return;
   pool = createPool();
   notify = pgNotifications(pool);
+  preferences = pgNotificationPreferences(pool);
   subscriptions = pgSubscriptions(pool);
 });
 
@@ -94,7 +97,7 @@ async function fixture({ releases = [], coversSeason = false, archived = false }
 }
 
 /** Аккаунт для подписки. */
-async function user({ timezone = 'Europe/Minsk', notificationsEnabled = true, status = 'active' } = {}) {
+async function user({ timezone = 'Europe/Minsk', status = 'active' } = {}) {
   counter += 1;
   const id = `ntu${String(counter).padStart(4, '0')}-${crypto.randomUUID().slice(0, 8)}`;
   const { hash } = makeToken();
@@ -107,11 +110,13 @@ async function user({ timezone = 'Europe/Minsk', notificationsEnabled = true, st
     locale: 'ru',
     theme: 'dark',
   });
+  // Общего выключателя уведомлений больше нет: выключается категория
+  // (F-03-10), а не всё сразу, поэтому фикстуре достаточно статуса.
   await pool.query(
-    'UPDATE e_user SET notifications_enabled = $2, status = $3 WHERE id = $1',
-    [created.id, notificationsEnabled, status],
+    'UPDATE e_user SET status = $2 WHERE id = $1',
+    [created.id, status],
   );
-  return { ...created, timezone, notificationsEnabled };
+  return { ...created, timezone };
 }
 
 const sweep = (options = {}) => createNotificationSweep({
@@ -233,7 +238,10 @@ test('выключенные уведомления, неактивный акк
   const f = await fixture({ releases: [day()] });
   const archived = await fixture({ releases: [day()], archived: true });
 
-  const off = await user({ notificationsEnabled: false });
+  // «Выключил уведомления» по F-03-10 — это выключенная категория «выходы»,
+  // а не общий рубильник: он убран вместе с экраном.
+  const off = await user();
+  await preferences.set({ userId: off.id, category: 'release', channel: 'in_service', enabled: false });
   const banned = await user({ status: 'banned' });
   const alive = await user();
   for (const viewer of [off, banned, alive]) {
@@ -245,7 +253,7 @@ test('выключенные уведомления, неактивный акк
 
   await sweep().run();
 
-  assert.equal((await rowsOf(off.id)).length, 0, 'человек выключил уведомления — их нет');
+  assert.equal((await rowsOf(off.id)).length, 0, 'человек выключил категорию «выходы» — их нет');
   assert.equal((await rowsOf(banned.id)).length, 0, 'заблокированному уведомления не пишут');
   assert.equal((await rowsOf(alive.id)).length, 1, 'а живому подписчику выход приходит один раз');
 });

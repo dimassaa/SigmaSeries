@@ -32,7 +32,7 @@ export function buildExport(mine, theirs) {
       'nickname', 'locale', 'theme', 'timezone',
       'emailConfirmed', 'registeredAt', 'lastActiveAt',
       'recsEnabled', 'profilePublic', 'statsPublic',
-      'notificationsEnabled', 'quietHours',
+      'quietHours', 'quietFrom', 'quietTo',
     ]),
     watchStatus: mine.watchStatus ?? [],
     watchMarks: mine.watchMarks ?? [],

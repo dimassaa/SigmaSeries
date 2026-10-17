@@ -460,20 +460,24 @@ test('свой ник не занят, чужой занят', { skip }, async (
   assert.equal(await store.nicknameFree(stranger.fields.nickname), false);
 });
 
-test('уведомления сохраняются отдельными полями', { skip }, async () => {
+test('тихие часы сохраняются отдельными полями, границы — временем', { skip }, async () => {
   const { user } = await confirmedUser();
 
   await store.updateNotifications(user.id, {
-    notifications_enabled: false, quiet_hours: true, nickname: 'подмена',
+    quietHours: true, quietFrom: '23:30', quietTo: '07:45', nickname: 'подмена',
   });
 
   const { rows } = await pool.query(
-    'SELECT notifications_enabled, quiet_hours, nickname FROM e_user WHERE id = $1',
+    `SELECT quiet_hours, quiet_hours_from::text AS f, quiet_hours_to::text AS t, nickname
+       FROM e_user WHERE id = $1`,
     [user.id],
   );
-  assert.equal(rows[0].notifications_enabled, false, 'общий выключатель сохранён');
   assert.equal(rows[0].quiet_hours, true, 'тихий режим сохранён');
+  assert.equal(rows[0].f, '23:30:00', 'граница «с» сохранена');
+  assert.equal(rows[0].t, '07:45:00', 'граница «до» сохранена');
   assert.match(rows[0].nickname, /^nick-/, 'чужое поле не записано');
+
+  await store.updateNotifications(user.id, { quietHours: false });
 });
 
 test('выключение 2FA удаляет состояние и говорит, было ли оно', { skip }, async () => {
@@ -701,7 +705,7 @@ test('обезличивание стирает личное и освобожд
   const { rows } = await pool.query(
     `SELECT status, deleted_at, anonymized_at, email_hash, email_blind_idx, email_enc,
             password_hash, nickname, locale, theme, timezone, recs_enabled,
-            notifications_enabled, anonymize_after
+            quiet_hours, anonymize_after
        FROM e_user WHERE id = $1`,
     [user.id],
   );
@@ -718,7 +722,7 @@ test('обезличивание стирает личное и освобожд
   assert.equal(row.theme, 'system');
   assert.equal(row.timezone, 'UTC');
   assert.equal(row.recs_enabled, false);
-  assert.equal(row.notifications_enabled, false);
+  assert.equal(row.quiet_hours, false, 'тихие часы сняты вместе с аккаунтом');
   assert.equal(row.anonymize_after, null, 'срок снят');
   assert.equal(await store.byEmail(fields.email), null, 'по старому адресу не войти');
   assert.equal(await store.nicknameFree(fields.nickname), true, 'ник свободен под новый');

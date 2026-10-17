@@ -127,8 +127,11 @@ function initialsOf(nickname) {
  * назван, доступны общий выключатель и тихие часы — без них человек не может
  * даже прекратить писать ему письма.
  */
-function notifications({ locale, csrf, user, error }) {
-  const on = (field, fallback) => (user ? Boolean(user[field]) : fallback);
+function notifications({ locale, csrf, user, matrix = null, staff = false }) {
+  if (!user) {
+    return html`
+<p class="form__text">${t(locale, 'settings.notifications.guest')}</p>`;
+  }
 
   return html`
 <form class="form settings__form" method="post" action="/${locale}/settings/notifications" novalidate>
@@ -137,16 +140,122 @@ function notifications({ locale, csrf, user, error }) {
   <fieldset class="settings__group">
     <legend class="settings__legend">${t(locale, 'settings.notifications.legend')}</legend>
 
-    ${switchRow('notifications_enabled', t(locale, 'settings.notifications.all'),
-    t(locale, 'settings.notifications.all.hint'), on('notifications_enabled', true))}
-    ${switchRow('quiet_hours', t(locale, 'settings.notifications.quiet'),
-    t(locale, 'settings.notifications.quiet.hint'), on('quiet_hours', false))}
+    <table class="notify-matrix">
+      <caption class="visually-hidden">${t(locale, 'settings.notifications.matrix')}</caption>
+      <thead>
+        <tr>
+          <th scope="col">${t(locale, 'settings.notifications.category')}</th>
+          <th scope="col">${t(locale, 'settings.notifications.inService')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${matrixRow({ locale, csrf, category: 'release', label: 'settings.notifications.release', matrix, staff })}
+        ${soonRow({ locale, label: 'settings.notifications.announce' })}
+        ${matrixRow({ locale, csrf, category: 'reply', label: 'settings.notifications.reply', matrix, staff })}
+        ${lockedRow({
+          locale, csrf,
+          label: 'settings.notifications.moderation',
+          hint: 'settings.notifications.moderation.hint',
+        })}
+        ${when(staff, () => matrixRow({
+    locale, csrf, category: 'service', label: 'settings.notifications.service', matrix, staff,
+  }))}
+      </tbody>
+    </table>
+
+    <p class="field__hint">${t(locale, 'settings.notifications.channelsHint')}</p>
   </fieldset>
 
-  <p class="field__hint">${t(locale, 'settings.notifications.categoriesHint')}</p>
+  <fieldset class="settings__group">
+    <legend class="settings__legend">${t(locale, 'settings.notifications.quietLegend')}</legend>
+
+    ${switchRow('quiet_hours', t(locale, 'settings.notifications.quiet'),
+    t(locale, 'settings.notifications.quiet.hint'), Boolean(user.quietHours))}
+
+    <div class="field">
+      <label class="field__label" for="quiet_from">${t(locale, 'settings.notifications.quietFrom')}</label>
+      <input class="field__input" id="quiet_from" name="quiet_from" type="time"
+             value="${(user.quietFrom ?? '23:00').slice(0, 5)}" step="300">
+    </div>
+    <div class="field">
+      <label class="field__label" for="quiet_to">${t(locale, 'settings.notifications.quietTo')}</label>
+      <input class="field__input" id="quiet_to" name="quiet_to" type="time"
+             value="${(user.quietTo ?? '08:00').slice(0, 5)}" step="300">
+    </div>
+  </fieldset>
 
   <button class="button form__submit" type="submit">${t(locale, 'settings.apply')}</button>
 </form>`;
+}
+
+/**
+ * Строка матрицы с переключателем (F-03-10 §19).
+ *
+ * У переключателя `role="switch"`, а не просто галочка: человек должен слышать
+ * «включено» или «выключено», а не угадывать по наличию отметки.
+ *
+ * @param {object} args
+ * @returns {object}
+ */
+function matrixRow({ locale, csrf, category, label, matrix, staff }) {
+  const on = matrix?.[category]?.in_service ?? true;
+
+  return html`
+<tr class="notify-matrix__row">
+  <th scope="row">${t(locale, label)}</th>
+  <td>
+    <form class="notify-matrix__form" method="post" action="/${locale}/settings/notifications">
+      <input type="hidden" name="csrf" value="${csrf}">
+      <input type="hidden" name="category" value="${category}">
+      <input type="hidden" name="channel" value="in_service">
+      <input type="hidden" name="enabled" value="${on ? 'off' : 'on'}">
+      <button class="field__switch" type="submit" role="switch" aria-checked="${on ? 'true' : 'false'}">
+        <span class="field__switch-box" aria-hidden="true"></span>
+        <span class="field__switch-text">${t(locale, on ? 'settings.notifications.stateOn' : 'settings.notifications.stateOff')}</span>
+      </button>
+    </form>
+  </td>
+</tr>`;
+}
+
+/**
+ * Строка, которой ещё нет.
+ *
+ * Показана, а не спрятана: человек видит, что объявление сезона в списке есть
+ * и скоро появится, вместо того чтобы гадать, потерялась ли настройка.
+ */
+function soonRow({ locale, label }) {
+  return html`
+<tr class="notify-matrix__row notify-matrix__row--soon">
+  <th scope="row">${t(locale, label)} <span class="notify-matrix__soon">${t(locale, 'settings.notifications.soon')}</span></th>
+  <td><span class="notify-matrix__state" aria-disabled="true">${t(locale, 'settings.notifications.stateOff')}</span></td>
+</tr>`;
+}
+
+/**
+ * Обязательная категория: переключателя нет, объяснение есть.
+ *
+ * Запрет держит сервер, но и в разметке строка выглядит как запертая: иначе
+ * человек тратит попытку на переключатель, который не сработает (F-03-10 §5).
+ */
+function lockedRow({ locale, csrf, label, hint }) {
+  return html`
+<tr class="notify-matrix__row notify-matrix__row--locked">
+  <th scope="row">${t(locale, label)}</th>
+  <td>
+    <form class="notify-matrix__form" method="post" action="/${locale}/settings/notifications">
+      <input type="hidden" name="csrf" value="${csrf}">
+      <input type="hidden" name="category" value="moderation">
+      <input type="hidden" name="channel" value="in_service">
+      <button class="field__switch" type="submit" role="switch" aria-checked="true" disabled
+              aria-describedby="notify-mandatory">
+        <span class="field__switch-box" aria-hidden="true"></span>
+        <span class="field__switch-text">${t(locale, 'settings.notifications.stateOn')}</span>
+      </button>
+    </form>
+    <p class="field__hint" id="notify-mandatory">${t(locale, hint)}</p>
+  </td>
+</tr>`;
 }
 
 /**

@@ -74,7 +74,7 @@ const THEMES = ['light', 'dark', 'system'];
  * @param {object} [deps.journal] журнал безопасности
  */
 export function createSettingsRoutes({
-  auth, sessionMw, journal, mailQueue, now = () => Date.now(), baseUrl = '',
+  auth, sessionMw, journal, mailQueue, preferences = null, now = () => Date.now(), baseUrl = '',
 }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
@@ -130,6 +130,9 @@ export function createSettingsRoutes({
       values: null,
       backupCodes: backup,
       ...extra,
+      // Настройки читаются при отрисовке, а не при входе: переключатель мог
+      // поменяться в другой вкладке, и матрица обязана показать актуальное.
+      ...(section === 'notifications' ? { matrix: await matrixOf(user) } : {}),
     }));
   });
 
@@ -207,16 +210,52 @@ export function createSettingsRoutes({
    * категории не названы, хранится тихий режим и общий выключатель: без них
    * человек не может даже прекратить писать ему письма.
    */
+  /**
+   * Раздел уведомлений (F-03-10): переключатель категории или тихие часы.
+   *
+   * Одной кнопки «Сохранить» для матрицы нет намеренно: переключатель
+   * отправляет свою форму целиком, и человек не должен искать кнопку под
+   * таблицей. Тихие часы — обычная форма с кнопкой: там два значения, которые
+   * применяются вместе.
+   */
   async function applyNotifications(req, res, body, ctx) {
-    const { user } = ctx;
+    const { locale, user } = ctx;
+
+    if (body.category !== undefined) {
+      if (!preferences) throw new Error('настройки уведомлений не подключены');
+      const result = await preferences.set({
+        userId: user.id,
+        category: String(body.category ?? ''),
+        channel: String(body.channel ?? ''),
+        enabled: String(body.enabled ?? '') === 'on',
+      });
+
+      if (result.ok) return res.redirect(303, `/${locale}${BASE}/notifications?saved=1`);
+
+      // Отказ с пояснением, а не пустая страница: человек должен понять, что
+      // именно нельзя, иначе он будет ждать результата проверки вечно (R-SEC-24).
+      const message = result.reason === 'mandatory'
+        ? t(locale, 'settings.notifications.error.mandatory')
+        : t(locale, 'settings.notifications.error.unknown');
+      return respond(res, result.reason === 'mandatory' ? 403 : 400, await render(req, {
+        section: 'notifications', user, error: message, matrix: await matrixOf(user),
+      }));
+    }
 
     if (user) {
       await auth.updateNotifications(user.id, {
-        notifications_enabled: body.notifications_enabled === 'on',
-        quiet_hours: body.quiet_hours === 'on',
+        quietHours: body.quiet_hours === 'on',
+        quietFrom: String(body.quiet_from ?? ''),
+        quietTo: String(body.quiet_to ?? ''),
       });
     }
-    return res.redirect(303, `/${ctx.locale}${BASE}/notifications?saved=1`);
+    return res.redirect(303, `/${locale}${BASE}/notifications?saved=1`);
+  }
+
+  /** Матрица настроек для вида; без источника — пустая, и всё включено. */
+  async function matrixOf(user) {
+    if (!preferences || !user) return null;
+    return preferences.matrix(user.id);
   }
 
   /**

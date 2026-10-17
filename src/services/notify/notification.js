@@ -95,7 +95,6 @@ export function pgNotifications(pool) {
             AND sub.kind = 'release' AND sub.enabled
             AND s.publication_state = 'published' AND s.archived_at IS NULL
             AND u.status = 'active' AND u.deleted_at IS NULL
-            AND u.notifications_enabled
             AND ($5::boolean IS FALSE OR $2::date <= (now() AT TIME ZONE u.timezone)::date)
             AND NOT (sub.user_id = ANY($3::bigint[]))
             AND (SELECT count(*) FROM e_notification n WHERE n.user_id = sub.user_id) < $4
@@ -127,6 +126,13 @@ export function pgNotifications(pool) {
         const { rowCount } = await pool.query(
           `INSERT INTO e_notification (user_id, kind, category, params, dedup_key)
            SELECT u, $1, $2, $3::jsonb, $4 FROM unnest($5::bigint[]) AS u
+            -- Человек выключил категорию — уведомление не создаётся вовсе
+            -- (F-03-10 §18). Условие в самой вставке, а не после неё: иначе
+            -- запись появлялась бы и удалялась, а счётчик прохода врал бы.
+            WHERE NOT EXISTS (
+              SELECT 1 FROM e_notification_preference p
+               WHERE p.user_id = u AND p.channel = 'in_service'
+                 AND p.category = $2 AND p.enabled = FALSE)
            ON CONFLICT DO NOTHING`,
           [kind, categoryOf(kind), JSON.stringify(params), dedupKey, chunk],
         );
@@ -154,6 +160,10 @@ export function pgNotifications(pool) {
       const { rows: touched } = await pool.query(
         `INSERT INTO e_notification (user_id, kind, category, params, dedup_key)
          SELECT u, $1, $2, $3::jsonb, $4 FROM unnest($5::bigint[]) AS u
+          WHERE NOT EXISTS (
+            SELECT 1 FROM e_notification_preference p
+             WHERE p.user_id = u AND p.channel = 'in_service'
+               AND p.category = $2 AND p.enabled = FALSE)
          ON CONFLICT (user_id, dedup_key) DO UPDATE
             SET params = EXCLUDED.params, created_at = now(), read_at = NULL
           WHERE e_notification.created_at > now() - interval '24 hours'
@@ -220,8 +230,15 @@ export function pgNotifications(pool) {
           [userId, kind, date],
         );
         const { rowCount } = await client.query(
+          // Свёртка дня тоже уважает настройку: выключенная категория не
+           // должна просачиваться в сводку, иначе человек получил бы её
+          // вопреки собственному переключателю.
           `INSERT INTO e_notification (user_id, kind, category, params, dedup_key)
-           VALUES ($1, $2, $3, $4::jsonb, $5)
+           SELECT $1, $2, $3, $4::jsonb, $5
+            WHERE NOT EXISTS (
+              SELECT 1 FROM e_notification_preference p
+               WHERE p.user_id = $1 AND p.channel = 'in_service'
+                 AND p.category = $3 AND p.enabled = FALSE)
            ON CONFLICT (user_id, dedup_key) DO NOTHING`,
           [userId, kind, categoryOf(kind), JSON.stringify({ digest: { count, series, date } }),
             `digest:${date}`],

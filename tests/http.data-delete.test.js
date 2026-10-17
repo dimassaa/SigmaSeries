@@ -50,7 +50,7 @@ async function viewer(over = {}) {
     recs_enabled: true,
     profile_public: false,
     stats_public: false,
-    notifications_enabled: true,
+    quiet_hours: false,
     quiet_hours: false,
     ...over,
   };
@@ -405,7 +405,7 @@ test('по истечении срока личные данные обезли�
   assert.equal(found.locale, 'ru', 'язык сброшен к стартовому');
   assert.equal(found.theme, 'system', 'тема сброшена к стартовой');
   assert.equal(found.timezone, 'UTC');
-  assert.equal(found.notifications_enabled, false, 'уведомления выключены');
+  assert.equal(found.quiet_hours, false, 'тихие часы сняты вместе с аккаунтом');
   assert.equal(found.profile_public, false, 'приватность сброшена');
   assert.equal(found.anonymized_at !== null, true);
   assert.equal(found.anonymize_after, null, 'срок снят: обезличивание состоялось');

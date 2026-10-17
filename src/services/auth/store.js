@@ -16,6 +16,9 @@ const { Pool } = pg;
  * Поиск по email идёт через слепой индекс: сам адрес хранится зашифрованным
  * и сравнить его в базе нельзя (M1 §0, `DATABASE.md` §2).
  */
+/** Время в виде `ЧЧ:ММ` — единственное, что принимают тихие часы (F-03-10 §9). */
+const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
+
 export function pgAuthStore(pool) {
   return {
     /** @returns {object|null} строка пользователя или null */
@@ -311,7 +314,7 @@ export function pgAuthStore(pool) {
       const { rows } = await pool.query(
         `SELECT nickname, locale, theme, timezone, email_confirmed, registered_at,
                 last_active_at, recs_enabled, profile_public, stats_public,
-                notifications_enabled, quiet_hours
+                quiet_hours, quiet_hours_from, quiet_hours_to
            FROM e_user WHERE id = $1`,
         [userId],
       );
@@ -331,8 +334,9 @@ export function pgAuthStore(pool) {
           recsEnabled: u.recs_enabled,
           profilePublic: u.profile_public,
           statsPublic: u.stats_public,
-          notificationsEnabled: u.notifications_enabled,
           quietHours: u.quiet_hours,
+          quietFrom: u.quiet_hours_from,
+          quietTo: u.quiet_hours_to,
         },
         watchStatus: await q(
           `SELECT s.title_original AS series, w.status, w.changed_at AS "changedAt"
@@ -556,7 +560,7 @@ export function pgAuthStore(pool) {
                   last_active_at = NULL, timezone = 'UTC',
                   locale = 'ru', theme = 'system',
                   recs_enabled = FALSE, profile_public = FALSE, stats_public = FALSE,
-                  notifications_enabled = FALSE, quiet_hours = FALSE,
+                  quiet_hours = FALSE,
                   delete_requested_at = NULL, anonymize_after = NULL
             WHERE id = $1`,
           [userId],
@@ -822,15 +826,24 @@ export function pgAuthStore(pool) {
      * категории и свои правила хранения.
      */
     async updateNotifications(userId, values) {
-      const columns = {
-        notifications_enabled: 'notifications_enabled',
-        quiet_hours: 'quiet_hours',
-      };
+      // Ключи — те, что приходят из формы (`quietHours`), значения — колонки.
+      const columns = { quietHours: 'quiet_hours' };
       const sets = [];
       const params = [userId];
       for (const [key, column] of Object.entries(columns)) {
         if (!(key in values)) continue;
         params.push(Boolean(values[key]));
+        sets.push(`${column} = $${params.length}`);
+      }
+
+      // Границы времени принимаются только в виде `ЧЧ:ММ`. Значение из формы,
+      // которое не время, молча превратило бы тихие часы в пустое окно, а
+      // человек узнал бы об этом из пропущенного письма.
+      for (const [key, column] of [['quietFrom', 'quiet_hours_from'], ['quietTo', 'quiet_hours_to']]) {
+        if (!(key in values)) continue;
+        const value = String(values[key] ?? '');
+        if (!TIME_OF_DAY.test(value)) continue;
+        params.push(value);
         sets.push(`${column} = $${params.length}`);
       }
       if (!sets.length) return;
@@ -1444,7 +1457,7 @@ export function stubAuthStore(users = {}, roles = {}) {
     async updateNotifications(userId, values) {
       const found = Object.values(users).find((u) => u.id === userId);
       if (!found) return;
-      const allowed = ['notifications_enabled', 'quiet_hours'];
+      const allowed = ['quietHours', 'quietFrom', 'quietTo'];
       for (const [key, value] of Object.entries(values)) {
         if (allowed.includes(key)) found[key] = value;
       }
@@ -1529,8 +1542,9 @@ export function stubAuthStore(users = {}, roles = {}) {
           recsEnabled: found.recs_enabled,
           profilePublic: found.profile_public,
           statsPublic: found.stats_public,
-          notificationsEnabled: found.notifications_enabled,
           quietHours: found.quiet_hours,
+          quietFrom: found.quietFrom ?? '23:00',
+          quietTo: found.quietTo ?? '08:00',
         },
         watchStatus: watchStatus.get(userId) ?? [],
         watchMarks: watchMarks.get(userId) ?? [],
@@ -1652,7 +1666,7 @@ export function stubAuthStore(users = {}, roles = {}) {
         recs_enabled: false,
         profile_public: false,
         stats_public: false,
-        notifications_enabled: false,
+        quiet_hours: false,
         quiet_hours: false,
         delete_requested_at: null,
         anonymize_after: null,
