@@ -26,6 +26,8 @@ import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
+import { pgBackupJobs } from './services/backup/store.js';
+import { createBackupTask, TICK_MS as BACKUP_TICK_MS } from './services/backup/schedule.js';
 import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
@@ -186,6 +188,27 @@ const app = createApp({
   journal,
   baseUrl,
 });
+
+// Резервная копия по расписанию (F-09-04 §3, `backup.schedule`). Проверка
+// «пора ли» — раз в четверть часа, сама копия снимается только когда назначенный
+// час прошёл, а копии за сегодня ещё нет. Так сервер, поднятый после обеда,
+// всё равно сделает копию за день: пропущенная копия хуже поздней.
+const backups = pgBackupJobs(pool);
+const backupTask = createBackupTask({
+  pool, backups, log: (line) => console.log(line),
+});
+
+const backupTick = () => backupTask.due()
+  .then((due) => (due ? backupTask.run() : null))
+  .catch((error) => console.error(`[копия] ${error.message}`));
+
+const backupWorker = setInterval(backupTick, BACKUP_TICK_MS);
+backupWorker.unref();
+
+// Первой проверки сразу при старте здесь нет, в отличие от задач уведомлений и
+// обезличивания: снятие копии занимает минуты и весит сотни мегабайт, и
+// человек, поднявший сервер, не ждёт этого в первые секунды работы. Через
+// четверть часа проверка всё равно произойдёт и копия за день встанет.
 
 const server = app.listen(PORT, HOST, async () => {
   console.log(`[startup] sigmaseries слушает ${baseUrl}`);

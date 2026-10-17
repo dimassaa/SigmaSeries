@@ -35,7 +35,7 @@ const at = (hour, minute) => {
   return date;
 };
 
-test('до назначенного часа копия не нужна', () => {
+test('до назначенного часа копия не нужна', async () => {
   const task = createBackupTask({
     pool: null,
     backups: {},
@@ -43,10 +43,10 @@ test('до назначенного часа копия не нужна', () => 
     now: () => at(2, 0),
     lastBackupAt: async () => null,
   });
-  assert.equal(task.due(), false, 'в 02:00 копия на 03:30 не делается');
+  assert.equal(await task.due(), false, 'в 02:00 копия на 03:30 не делается');
 });
 
-test('после назначенного часа копия нужна', () => {
+test('после назначенного часа копия нужна', async () => {
   const task = createBackupTask({
     pool: null,
     backups: {},
@@ -54,10 +54,10 @@ test('после назначенного часа копия нужна', () =>
     now: () => at(3, 45),
     lastBackupAt: async () => null,
   });
-  assert.equal(task.due(), true, 'в 03:45 копия за сегодня ещё не делалась');
+  assert.equal(await task.due(), true, 'в 03:45 копия за сегодня ещё не делалась');
 });
 
-test('копия за сегодня уже есть — повторно не делается', () => {
+test('копия за сегодня уже есть — повторно не делается', async () => {
   // Без этой проверки задача создавала бы копию при каждом тике.
   const task = createBackupTask({
     pool: null,
@@ -66,10 +66,10 @@ test('копия за сегодня уже есть — повторно не �
     now: () => at(9, 0),
     lastBackupAt: async () => at(3, 30),
   });
-  assert.equal(task.due(), false, 'вторая копия за тот же день не нужна');
+  assert.equal(await task.due(), false, 'вторая копия за тот же день не нужна');
 });
 
-test('копия вчерашнего дня копию сегодняшнего не отменяет', () => {
+test('копия сегодняшним утром копию вечернюю не отменяет', async () => {
   const task = createBackupTask({
     pool: null,
     backups: {},
@@ -77,7 +77,7 @@ test('копия вчерашнего дня копию сегодняшнего
     now: () => at(9, 0),
     lastBackupAt: async () => at(0, 1),   // сегодня, но до расписания
   });
-  assert.equal(task.due(), true, 'важно время копии, а не только дата');
+  assert.equal(await task.due(), true, 'важно время копии, а не только дата');
 });
 
 test('проход снимает копию, пишет в журнал и чистит старые', async () => {
@@ -87,6 +87,7 @@ test('проход снимает копию, пишет в журнал и чи
     backups: {
       record: async (row) => { calls.push(['record', row]); return { id: 1 }; },
       prune: async (args) => { calls.push(['prune', args]); return 0; },
+      keepLast: async () => 7,
     },
     snapshot: async () => ({ status: 'verified', bytes: 4096, file: '/backups/сегодня.dump' }),
     now: () => at(4, 0),
@@ -110,6 +111,7 @@ test('неудачная копия тоже попадает в журнал', 
     backups: {
       record: async (row) => { calls.push(row); return { id: 2 }; },
       prune: async () => 0,
+      keepLast: async () => 7,
     },
     snapshot: async () => ({ status: 'error', bytes: 0, error: 'pg_dump: нет доступа' }),
     now: () => at(4, 0),
