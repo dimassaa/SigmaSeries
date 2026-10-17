@@ -16,9 +16,6 @@ import { AUTH, MINUTE, HOUR } from '../../config/settings.js';
 /** @type {Map<string, number[]>} ключ → временные метки неудачных попыток */
 const failures = new Map();
 
-/** @type {Map<string, number>} ключ задачи → момент, когда можно повторить */
-const blocked = new Map();
-
 /** @type {Map<string, {challenge:string, issuedAt:number}>} */
 const challenges = new Map();
 
@@ -54,6 +51,22 @@ export function delayFor(email, now = Date.now()) {
 export function ipLimited(ip, now = Date.now()) {
   const times = prune('ip:' + ip, now);
   return times.length >= AUTH.attemptsPerIp;
+}
+
+/**
+ * Сколько секунд ждать до освобождения лимита по адресу.
+ *
+ * Считается по самой старой попытке в окне, а не величиной окна целиком: иначе
+ * человек, у которого лимит истёк две минуты назад, ждал бы ещё тринадцать.
+ *
+ * @param {string} ip
+ * @param {number} [now]
+ * @returns {number} секунды; 0 — лимит не превышен
+ */
+export function ipRetryAfter(ip, now = Date.now()) {
+  const times = prune('ip:' + ip, now);
+  if (times.length < AUTH.attemptsPerIp) return 0;
+  return Math.max(1, Math.ceil((times[0] + AUTH.attemptsWindowMs - now) / 1000));
 }
 
 /** Записывает неудачную попытку по обоим ключам. */
@@ -107,14 +120,14 @@ function leadingZeros(hex) {
 /**
  * Проверяет решение задачи.
  *
- * Задача выдаётся на конкретный ключ и живёт пять минут: иначе решение
- * можно было бы перебрать один раз и переиспользовать.
+ * Задача выдаётся на конкретный ключ и живёт `AUTH.challengeTtlMs`: иначе
+ * решение можно было бы перебрать один раз и переиспользовать.
  */
 export function verifyChallenge(key, nonce) {
   const task = challenges.get(key);
   if (!task) return false;
   challenges.delete(key);
-  if (Date.now() - task.issuedAt > 5 * 60 * 1000) return false;
+  if (Date.now() - task.issuedAt > AUTH.challengeTtlMs) return false;
   if (typeof nonce !== 'string' || nonce.length > 64) return false;
   const digest = crypto.createHash('sha256').update(task.challenge + nonce, 'utf8').digest('hex');
   return leadingZeros(digest) >= task.zeros;
@@ -342,6 +355,5 @@ export function clearTwoFactorFailures(userId) {
 /** Сбрасывает состояние. Нужен тестам: счётчики живут в модуле. */
 export function _reset() {
   failures.clear();
-  blocked.clear();
   challenges.clear();
 }

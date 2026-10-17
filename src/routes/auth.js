@@ -53,7 +53,21 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
       }));
     }
 
-    // R-SEC-31: лимит по IP отвечает 429 с Retry-After.
+    // R-SEC-05, R-SEC-31: лимит по адресу сети. Проверяется до лимита по
+    // аккаунту, потому что адрес — внешняя граница, а аккаунт неизвестен и не
+    // проверен. Ответ тот же, что у задержки: 429 с Retry-After, без слов о
+    // том, сколько аккаунтов перебирается.
+    const ipWait = limitsApi.ipRetryAfter?.(clientIp(req)) ?? 0;
+    if (ipWait > 0) {
+      res.set('Retry-After', String(ipWait));
+      return respond(res, 429, renderForm({
+          account: req.account,
+        locale, csrf: csrfToken(req.session), values: { email },
+        error: t(locale, 'signin.error.tooMany', { seconds: ipWait }), returnTo,
+      }));
+    }
+
+    // R-SEC-31: лимит по аккаунту отвечает 429 с Retry-After.
     const delay = limitsApi.delayFor(email);
     if (delay > 0) {
       const seconds = Math.ceil(delay / 1000);

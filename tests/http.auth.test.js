@@ -15,6 +15,15 @@ import { AUTH } from '../src/config/settings.js';
 
 const PASSWORD = 'правильный-пароль-из-десяти';
 
+/**
+ * Адрес, под которым сервер видит тестовый запрос.
+ *
+ * Проверен: приложение слушает `127.0.0.1`, `trust proxy` не включён, и
+ * `req.ip` для такого соединения — ровно `127.0.0.1`. Лимит по адресу сети
+ * считается по нему же, поэтому сид счётчика в тесте должен совпадать.
+ */
+const LOCAL_IP = '127.0.0.1';
+
 /** Приложение с сессиями в памяти: развёрнутая база здесь не проверяется. */
 function makeApp(users = {}, roles = {}) {
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
@@ -305,6 +314,44 @@ test('задержка отдаётся кодом 429 с Retry-After', async ()
     });
     assert.equal(res.status, 429);
     assert.ok(Number(res.headers.get('retry-after')) > 0, 'нужен Retry-After');
+  });
+});
+
+test('вход упирается в лимит по адресу сети, а не по аккаунту', async () => {
+  // Лимит по IP (`ipLimited`) был написан и проверен отдельно, но ни один
+  // маршрут его не спрашивал: перебор двадцати аккаунтов с одного адреса
+  // проходил без помех. Проверка нужна именно на другом аккаунте — иначе
+  // сработала бы задержка по аккаунту, и тест зеленел бы не по той причине.
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, {}, async ({ get, post, csrfOf }) => {
+    for (let i = 0; i < AUTH.attemptsPerIp; i++) {
+      limits.recordFailure(`чужой-${i}@b.c`, LOCAL_IP);
+    }
+    const form = await (await get('/ru/login')).text();
+    const res = await post('/ru/login', {
+      // Верный пароль: лимит по адресу не должен зависеть от того, верен он.
+      email: 'a@b.c', password: PASSWORD, csrf: csrfOf(form),
+    });
+    assert.equal(res.status, 429);
+    assert.ok(Number(res.headers.get('retry-after')) > 0, 'нужен Retry-After');
+    assert.match(await res.text(), /[Пп]опробуйте/);
+  });
+});
+
+test('под лимитом по адресу вход проходит', async () => {
+  // Контроль к предыдущей проверке: тот же верный пароль, на одну неудачу
+  // меньше лимита — вход должен состояться. Иначе 429 выше объяснялся бы чем
+  // угодно, кроме лимита по адресу.
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, {}, async ({ get, post, csrfOf }) => {
+    for (let i = 0; i < AUTH.attemptsPerIp - 1; i++) {
+      limits.recordFailure(`чужой-${i}@b.c`, LOCAL_IP);
+    }
+    const form = await (await get('/ru/login')).text();
+    const res = await post('/ru/login', {
+      email: 'a@b.c', password: PASSWORD, csrf: csrfOf(form),
+    });
+    assert.equal(res.status, 303, 'под лимитом вход не блокируется');
   });
 });
 

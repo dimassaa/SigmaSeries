@@ -22,11 +22,12 @@ import {
   issueChallenge,
   verifyChallenge,
   ipLimited,
+  ipRetryAfter,
   accountKey,
   _reset,
 } from '../src/services/auth/limits.js';
 import { hashPassword, makeToken } from '../src/services/auth/password.js';
-import { AUTH } from '../src/config/settings.js';
+import { AUTH, MINUTE } from '../src/config/settings.js';
 
 test.beforeEach(() => _reset());
 
@@ -203,6 +204,18 @@ test('ключ аккаунта не содержит адрес', () => {
   assert.ok(!key.includes('@'));
 });
 
+test('ожидание лимита по адресу считается по самой старой попытке', () => {
+  const now = 1_700_000_000_000;
+  // Первая попытка на 14 минут старше последней: ждать остаётся до её выхода
+  // из окна, а не всё окно целиком.
+  for (let i = 0; i < AUTH.attemptsPerIp; i++) {
+    recordFailure(`u${i}@b.c`, '9.9.9.9', now - 14 * MINUTE + i * 1000);
+  }
+  const wait = ipRetryAfter('9.9.9.9', now);
+  assert.ok(wait > 0 && wait <= MINUTE, `ждать осталось ${wait} с, а не пол-окна`);
+  assert.equal(ipRetryAfter('8.8.8.8', now), 0, 'чужой адрес не ждёт');
+});
+
 // ─── Невидимая проверка (R-SEC-34) ────────────────────────────────────────────
 
 test('проверка включается после трёх неудач и не раньше', () => {
@@ -245,9 +258,10 @@ test('просроченная задача не принимается', () => 
   const key = accountKey('a@b.c');
   const challenge = issueChallenge(key);
   const nonce = solve(challenge, AUTH.powZeros);
-  // Срок пять минут; проверяем без ожидания — подменяем время выдачи.
+  // Срок берётся из настроек: проверка с зашитой минутой прошла бы и после
+  // того, как срок в коде изменят.
   const realNow = Date.now;
-  Date.now = () => realNow() + 6 * 60 * 1000;
+  Date.now = () => realNow() + AUTH.challengeTtlMs + 60 * 1000;
   try {
     assert.equal(verifyChallenge(key, nonce), false);
   } finally {
