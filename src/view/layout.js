@@ -107,7 +107,7 @@ ${bodyHtml}</html>`;
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {{nickname: string, unread: number}} args.account
+ * @param {{nickname: string, unread: number, csrf: string}} args.account
  * @param {string} args.poll период опроса в секундах; `0` — не опрашивать
  * @returns {object}
  */
@@ -128,6 +128,14 @@ function accountMenu({ locale, account, poll }) {
       ${when(account.unread > 0, () => html`<span class="visually-hidden" data-unread-count>${counter}</span>`)}
     </a>
     <a class="account__link" href="/${locale}/settings">${t(locale, 'account.settings')}</a>
+    <!-- Форма, а не ссылка: выход отзывает сессию на сервере, то есть меняет
+         состояние, и R-SEC-23 требует токен на всех изменяющих запросах.
+         Ссылка на выход выбила бы человека из аккаунта с чужой страницы. -->
+    <form class="account__form" method="post" action="/${locale}/logout">
+      <input type="hidden" name="csrf" value="${account.csrf}">
+      <button class="account__link account__link--signout" type="submit"
+        >${t(locale, 'signout.submit')}</button>
+    </form>
   </div>
 </details>`;
 }

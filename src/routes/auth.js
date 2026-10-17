@@ -190,6 +190,18 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
 
   router.post('/:locale/logout', (req, res) => {
     const locale = req.params.locale;
+    // R-SEC-23: выход меняет состояние на сервере, поэтому токен обязателен.
+    // Без проверки любую страницу со ссылкой на `/logout` могли бы выбить
+    // человека из аккаунта — это тот же отказ в обслуживании, что и раньше,
+    // только без блокировки пароля.
+    if (!csrfValid(req.session, req.body?.csrf)) {
+      return respond(res, 403, renderForm({
+          account: req.account,
+        locale, csrf: csrfToken(req.session), values: {},
+        error: t(locale, 'signin.error.csrf'), returnTo: null,
+      }));
+    }
+
     // Отзыв на сервере плюс очистка cookie: иначе идентификатор продолжит
     // работать, пока не истечёт срок.
     req.session.destroy(() => {

@@ -32,7 +32,11 @@ const CHROME_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 function makeApp(users = {}, roles = {}) {
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
   const store = createMemorySessionStore();
-  const sessionMw = createSessionMiddleware(pool, store);
+  const sessionMw = createSessionMiddleware(pool, store, {
+    // То же, что собирает `server.js`: без функции меню аккаунта в шапке нет,
+    // и проверки пункта «Выйти» смотрели бы на страницу гостя.
+    account: async (user) => ({ nickname: user.nickname, unread: 0, pollSeconds: 0 }),
+  });
   const auth = stubAuthStore(users, roles);
   const app = createApp({ data: stubData(), auth, sessionMw });
   return { app, sessionMw, store, auth };
@@ -44,7 +48,13 @@ async function withServer(users, roles, run) {
   const base = `http://127.0.0.1:${server.address().port}`;
   let jar = '';
   const get = async (path, init = {}) => {
-    const res = await fetch(base + path, { redirect: 'manual', ...init });
+    // Cookie отправляется и на `get`: без неё страница после входа приходила
+    // гостевой, и проверки личной шапки смотрели не туда.
+    const res = await fetch(base + path, {
+      redirect: 'manual',
+      ...init,
+      headers: { cookie: jar, ...(init.headers ?? {}) },
+    });
     const set = res.headers.getSetCookie?.() ?? [];
     if (set.length) jar = set.map((c) => c.split(';')[0]).join('; ');
     return res;
@@ -55,7 +65,7 @@ async function withServer(users, roles, run) {
   const post = (path, fields, init = {}) => get(path, {
     ...init,
     method: 'POST',
-    headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: jar, ...init.headers },
+    headers: { 'content-type': 'application/x-www-form-urlencoded', ...(init.headers ?? {}) },
     body: new URLSearchParams(fields),
   });
   /**
@@ -422,10 +432,47 @@ test('выход отзывает сессию на сервере', async () =>
   await withServer({ 'a@b.c': user }, {}, async ({ get, post, csrfOf }) => {
     const html = await (await get('/ru/login')).text();
     await post('/ru/login', { email: 'a@b.c', password: PASSWORD, csrf: csrfOf(html) });
-    const out = await post('/ru/logout', {});
+    const page = await (await get('/ru/')).text();
+    const out = await post('/ru/logout', { csrf: csrfOf(page) });
     assert.equal(out.status, 303);
     const cookies = out.headers.getSetCookie?.() ?? [];
     assert.ok(cookies.some((c) => c.startsWith('sid=;')), 'cookie очищается');
+  });
+});
+
+test('выход без токена не разрушает сессию', async () => {
+  // R-SEC-23: токен на всех изменяющих запросах. Выход меняет состояние на
+  // сервере, поэтому запрос без токена обязан быть отвергнут, а не выполнен.
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, {}, async ({ get, post, csrfOf, sessions }) => {
+    const html = await (await get('/ru/login')).text();
+    await post('/ru/login', { email: 'a@b.c', password: PASSWORD, csrf: csrfOf(html) });
+    const before = (await sessions()).filter((s) => s.user).length;
+
+    const out = await post('/ru/logout', {});
+
+    assert.equal(out.status, 403, 'запрос без токена отвергнут');
+    const after = (await sessions()).filter((s) => s.user).length;
+    assert.equal(after, before, 'сессия осталась: чужой страницей выйти нельзя');
+  });
+});
+
+test('кнопка выхода есть в меню аккаунта и работает', async () => {
+  // Пункт «Выйти» в меню строится как форма с токеном, а не ссылка: выход
+  // меняет состояние, а `GET`-ссылку может вызвать чужой страницей.
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, {}, async ({ get, post, csrfOf }) => {
+    const html = await (await get('/ru/login')).text();
+    await post('/ru/login', { email: 'a@b.c', password: PASSWORD, csrf: csrfOf(html) });
+
+    const page = await (await get('/ru/')).text();
+    assert.match(page, /method="post"[^>]*action="\/ru\/logout"/, 'в меню форма выхода');
+    const token = page.match(/action="\/ru\/logout"[\s\S]*?name="csrf" value="([^"]+)"/)?.[1];
+    assert.ok(token, 'в форме выхода есть токен');
+
+    const out = await post('/ru/logout', { csrf: token });
+    assert.equal(out.status, 303);
+    assert.ok(out.headers.getSetCookie?.().some((c) => c.startsWith('sid=;')));
   });
 });
 

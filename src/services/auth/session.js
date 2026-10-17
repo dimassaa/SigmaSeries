@@ -55,6 +55,11 @@ export function createSessionMiddleware(pool, providedStore, { account = null } 
       try {
         const user = req.session?.user ?? null;
         const data = user ? await account(user) : null;
+        // Токен CSRF кладётся в данные меню: пункт «Выйти» нарисован в шапке
+        // на каждой странице, и передавать его через каждую функцию отрисовки
+        // значило бы вспомнить про него в сорока местах. У гостя меню нет, и
+        // сессия без нужды не заводится.
+        if (data) data.csrf = csrfToken(req.session);
         req.account = res.locals.account = data;
         next();
       } catch (error) {
