@@ -183,22 +183,29 @@ test('при равенстве совпадений первым идёт бо�
 });
 
 test('запрос в чужой раскладке помечается, а не выдаётся за прямой (EC-K10)', { skip }, async () => {
-  const { rows } = await pool.query(
-    `SELECT title_ru FROM e_series
-      WHERE publication_state = 'published' AND archived_at IS NULL
-        AND title_ru ~ '^[А-Яа-яЁё ]{5,}$'
-      LIMIT 1`,
+  // Своя фикстура, а не любой сериал из каталога: переведённая в чужую раскладку
+  // строка настоящего названия может совпасть с другим сериалом напрямую, и
+  // тогда пометки не будет — верно по коду, но проверяет не то.
+  const { rows: [fixture] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Заполнитель поиска', 'Fixture', $2, 'published', 'airing', 2024)
+     RETURNING id`,
+    [`test-search-layout-${crypto.randomUUID().slice(0, 8)}`, 983_000_000],
   );
-  assert.ok(rows.length, 'есть кириллическое название');
-  const title = rows[0].title_ru.trim();
-  const wrong = toEnglishLayout(title);
 
-  const result = await search.find({ query: wrong });
-  assert.equal(result.layoutFixed?.toLowerCase(), title.toLowerCase(),
-    'подсказка называет, что имелось в виду');
-  assert.equal(result.query, wrong, 'исходный запрос сохраняется для ссылки обратно');
-  assert.ok(result.series.some((item) => item.title.toLowerCase() === title.toLowerCase()),
-    'и сам сериал по исправленному запросу найден');
+  try {
+    const title = 'Заполнитель поиска';
+    const wrong = toEnglishLayout(title);
+
+    const result = await search.find({ query: wrong });
+    assert.equal(result.layoutFixed?.toLowerCase(), title.toLowerCase(),
+      'подсказка называет, что имелось в виду');
+    assert.equal(result.query, wrong, 'исходный запрос сохраняется для ссылки обратно');
+    assert.ok(result.series.some((item) => item.id === fixture.id),
+      'и сам сериал по исправленному запросу найден');
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [fixture.id]);
+  }
 });
 
 test('пометка о раскладке не появляется там, где человек не ошибался', { skip }, async () => {

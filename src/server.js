@@ -20,6 +20,7 @@ import { pgProgress } from './services/tracking/progress.js';
 import { pgNotifications } from './services/notify/notification.js';
 import { pgNotificationFeed, POLL_SECONDS } from './services/notify/feed.js';
 import { pgNotificationPreferences } from './services/notify/preferences.js';
+import { pgUpcomingPanel } from './services/catalogue/panel.js';
 import { createNotificationSweep } from './services/notify/sweep.js';
 import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
@@ -114,11 +115,15 @@ const { ratePerIp: searchRatePerIp } = await searchSettings(pool);
 const notifications = pgNotifications(pool);
 const feed = pgNotificationFeed(pool);
 const preferences = pgNotificationPreferences(pool);
+// Панель «Предстоящие» живёт вместе с приложением: её кэш держит последние
+// три календарные даты, и пересоздавать его на каждый запрос незачем.
+const panel = pgUpcomingPanel(pool, {
+  onError: (error) => console.error(`[панель] ${error.message}`),
+});
 const notificationSweep = createNotificationSweep({
   pool,
   notifications,
   feed,
-  preferences,
   log: (line) => console.log(line),
 });
 
@@ -145,6 +150,7 @@ const app = createApp({
   progress: pgProgress(pool),
   subscriptions: pgSubscriptions(pool),
   feed,
+  panel,
   library: pgLibrary(pool),
   pool,
   auth,

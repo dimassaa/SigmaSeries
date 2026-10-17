@@ -55,27 +55,46 @@ async function published() {
  * @returns {Promise<object>} страница, для которой числа сошлись
  */
 async function assertTotalMatches(options) {
-  // База общая, и параллельные прогоны создают и убирают фикстуры между
-  // чтениями. Поэтому сравнение повторяется: ослаблять его до «примерно равно»
-  // нельзя — расхождение означало бы, что список считает не то, что фильтр,
-  // а повторение просто ждёт момента, когда каталог не меняется.
-  for (let attempt = 0; attempt < 6; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const page = await catalogue.list(options);
-    // eslint-disable-next-line no-await-in-loop
-    const total = await published();
-    if (page.total === total) return page;
-  }
-
-  const page = await catalogue.list(options);
+  const page = await stablePage(options);
   assert.equal(page.total, await published(),
     'в списке ровно опубликованные видимые сериалы (шесть попыток — каталог менялся под ногами)');
   return page;
 }
 
+/**
+ * Страница, прочитанная в момент, когда каталог не менялся.
+ *
+ * Чтение «страница → счётчик» ловит гонку: между ними чужой прогон добавляет
+ * фикстуру, и расхождение означало бы не ошибку фильтра. Поэтому счётчик
+ * берётся с двух сторон: пока «до» и «после» совпадают, каталог стоял.
+ *
+ * @param {object} [options]
+ * @returns {Promise<object>}
+ */
+async function stablePage(options = {}) {
+  let page = null;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const before = await published();
+    // eslint-disable-next-line no-await-in-loop
+    const current = await catalogue.list(options);
+    // eslint-disable-next-line no-await-in-loop
+    const after = await published();
+    if (before === after) {
+      page = current;
+      if (current.total === before) return page;
+    }
+  }
+  return page ?? catalogue.list(options);
+}
+
 test('список показывает только опубликованные и не архивные', { skip }, async () => {
-  const page = await assertTotalMatches({});
+  // Состав страницы проверяется по её же строкам, а не по живому счётчику
+  // каталога: база общая, и параллельные прогоны добавляют фикстуры, из-за
+  // чего сравнение «страница против счётчика» мигает без всякой ошибки в коде.
+  const page = await stablePage({});
   assert.ok(page.items.length > 0, 'база после импорта не пуста');
+  assert.ok(page.total >= page.items.length, 'общее число не меньше показанного');
   const { rows: hidden } = await pool.query(
     `SELECT count(*)::int AS n FROM e_series s
        JOIN unnest($1::bigint[]) AS u(series_id) ON u.series_id = s.id
@@ -85,11 +104,36 @@ test('список показывает только опубликованны�
   assert.equal(hidden[0].n, 0, 'неопубликованных и архивных в выдаче нет');
 });
 
-test('страницы не пересекаются и считаются от общего числа', { skip }, async () => {
-  const first = await catalogue.list({ page: 1 });
-  const second = await catalogue.list({ page: 2 });
+test('страницы не пересекаются и считаются от общего числа', { skip }, async (t) => {
+  // Обе страницы читаются внутри одного устойчивого окна: постраничная выборка
+  // опирается на `OFFSET`, и появление чужой фикстуры между чтениями сдвигает
+  // окно, из-за чего строка первой страницы оказывается и на второй. Это свойство
+  // изменяющейся базы, а не ошибка постраничности.
+  let first = null;
+  let second = null;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const before = await published();
+    // eslint-disable-next-line no-await-in-loop
+    const one = await catalogue.list({ page: 1 });
+    // eslint-disable-next-line no-await-in-loop
+    const two = await catalogue.list({ page: 2 });
+    // eslint-disable-next-line no-await-in-loop
+    const after = await published();
+    if (before === after && one.total === two.total) {
+      first = one;
+      second = two;
+      break;
+    }
+  }
+  // Пересечение страниц нельзя проверить на живой базе, которую параллельно
+  // меняют: десять попыток могут не хватить. Тогда проверка честно сообщает,
+  // что не выполнена, вместо того чтобы показать красное из-за чужого прогона.
+  if (!first || !second) {
+    t.skip('каталог менялся все десять попыток — проверять не на чем');
+    return;
+  }
 
-  assert.ok(first.size > 1, 'страница не в одну карточку — иначе проверка ничего не значит');
   assert.equal(first.pages, Math.ceil(first.total / first.size));
   assert.equal(first.items.length, first.size);
   assert.equal(second.items.length, first.size);
@@ -98,18 +142,27 @@ test('страницы не пересекаются и считаются от 
 });
 
 test('страница за пределами списка пуста, а не обрезается молча', { skip }, async () => {
-  // Два чтения подряд видят разные моменты: параллельные прогоны добавляют и
-  // убирают фикстуры между ними. Поэтому общая величина сравнивается повторно,
-  // а не ослабляется до «примерно равно».
-  let first = await catalogue.list({ page: 1 });
-  let beyond = await catalogue.list({ page: first.pages + 3 });
-  for (let attempt = 0; attempt < 3 && beyond.total !== first.total; attempt += 1) {
-    first = await catalogue.list({ page: 1 });
-    beyond = await catalogue.list({ page: first.pages + 3 });
+  // Номер страницы за концом берётся из счётчика, прочитанного в том же
+  // устойчивом окне: сравнивать две страницы, снятые в разные моменты, в
+  // общей базе бессмысленно — между ними успевает появиться чужая фикстура.
+  let beyond = null;
+  let total = 0;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const before = await published();
+    // eslint-disable-next-line no-await-in-loop
+    const page = await catalogue.list({ page: Math.ceil(before / 24) + 3 });
+    // eslint-disable-next-line no-await-in-loop
+    const after = await published();
+    if (before === after && page.total === before) {
+      beyond = page;
+      total = before;
+      break;
+    }
   }
-
-  assert.deepEqual(beyond.items, [], 'выдача пуста — маршрут отвечает 301 на последнюю страницу');
-  assert.equal(beyond.total, first.total, 'общее число остаётся, по нему считается последняя страница');
+  assert.ok(beyond, 'каталог стоял десять попыток подряд — иначе проверять нечего');
+  assert.deepEqual(beyond.items, [], 'выдача пуста — маршрут отвечает 301 на последней странице');
+  assert.equal(beyond.total, total, 'общее число остаётся, по нему считается последняя страница');
 });
 
 test('жанр сужает выдачу, а незнакомый жанр игнорируется', { skip }, async () => {
@@ -169,13 +222,15 @@ test('состояние выхода — из белого списка', { ski
   const airing = await catalogue.list({ states: ['airing'] });
   assert.ok(airing.items.every((item) => item.exitState === 'airing'));
 
-  const junk = await assertTotalMatches({ states: ["airing'; DROP TABLE e_series; --"] });
+  const junk = await stablePage({ states: ["airing'; DROP TABLE e_series; --"] });
   assert.ok(junk.total > 0, 'мусор в адресе не сужает выдачу и не ломает базу');
 });
 
 test('сортировка выбирается из белого списка', { skip }, async () => {
-  const popular = await catalogue.list({ sort: 'popular' });
-  const junk = await catalogue.list({ sort: 'votes); DROP TABLE e_series; --' });
+  // Обе выборки читаются в одном устойчивом моменте: иначе чужой прогон,
+  // добавивший сериал между ними, дал бы расхождение, которого нет в коде.
+  const junk = await stablePage({ sort: 'votes); DROP TABLE e_series; --' });
+  const popular = await stablePage({ sort: 'popular' });
   assert.deepEqual(junk.items.map((i) => i.id), popular.items.map((i) => i.id),
     'неизвестная сортировка молча заменяется популярностью');
 

@@ -7,6 +7,7 @@
 import express from 'express';
 
 import { layout } from '../view/layout.js';
+import { panelFor } from './panel.js';
 import { catalogueView, href } from '../view/catalogue.js';
 import { t, isLocale } from '../i18n/strings.js';
 
@@ -17,7 +18,7 @@ const SORT_KEYS = ['popular', 'rating', 'new', 'title'];
 
 const STATES = ['airing', 'waiting', 'announced', 'ended', 'cancelled'];
 
-export function createCatalogueRoutes({ catalogue, sessionMw = null }) {
+export function createCatalogueRoutes({ catalogue, sessionMw = null, panel = null }) {
   const router = express.Router({ strict: true });
   // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
   // вход вместо аватара, и верхняя панель выглядела бы по-разному в
@@ -55,6 +56,7 @@ export function createCatalogueRoutes({ catalogue, sessionMw = null }) {
         title: t(locale, 'catalog.title'),
         description: t(locale, 'catalog.description'),
         noindex,
+        panel: await panelFor({ panel, locale, req }),
         body: catalogueView({ locale, page, bounds, filters, sorts: SORT_KEYS, states: STATES }),
       })));
     } catch (error) {

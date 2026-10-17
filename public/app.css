@@ -222,6 +222,96 @@ a:hover { color: var(--accent-hover); }
   .content { padding: var(--space-5) var(--space-4) var(--space-8); }
 }
 
+/* Правая панель «Предстоящие» (UI-04, F-03-06).
+   Плоская поверхность без стекла: панель стоит рядом с фоном страницы, и
+   размывать под ней нечего (R-DES-20, MATERIALS-GLASS §1). */
+.page__body--panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.panel {
+  position: sticky;
+  top: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.panel__title {
+  font-size: 15px;
+  margin-block-end: var(--space-3);
+  color: var(--text-secondary);
+}
+
+.panel__list { list-style: none; margin: 0; padding: 0; }
+
+.panel__row + .panel__row { border-top: 1px solid var(--border-subtle); }
+
+.panel__link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  min-height: 44px;
+  justify-content: center;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.panel__link:hover .panel__series { text-decoration: underline; }
+.panel__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.panel__series {
+  font-size: 14px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Сериалы «Смотрю» и «В планах» помечены точкой: человек узнаёт свои закладки
+   в общем списке (H-71). Точка не единственный признак — рядом стоит подпись
+   даты и название (R-A11Y-19). */
+.panel__row--mine .panel__series::before {
+  content: '●';
+  margin-inline-end: var(--space-1);
+  color: var(--accent);
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.panel__meta {
+  display: flex;
+  gap: var(--space-2);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.panel__label { color: var(--text-primary); }
+
+.panel__empty { font-size: 14px; color: var(--text-secondary); }
+
+.panel__all {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block-start: var(--space-2);
+  color: var(--accent);
+  font-size: 14px;
+  text-decoration: none;
+}
+.panel__all:hover { text-decoration: underline; }
+
+/* Ниже 1280 px панели нет (H-30): на такой ширине она съедала бы место
+   содержимого, ради которого человек пришёл. */
+@media (max-width: 1279px) {
+  .page__body--panel { grid-template-columns: minmax(0, 1fr); }
+  .panel { display: none; }
+}
+
 /* ─── 30-home.css ─── */
 /* Блоки главной. Порядок в разметке задан спецификацией, не здесь. */
 

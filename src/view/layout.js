@@ -19,6 +19,7 @@ import { SEARCH_SETTINGS } from '../config/settings.js';
  * @param {object} [page.body] фрагмент содержимого
  * @param {boolean} [page.noindex] служебная страница
  * @param {string} [page.theme] системная тема пользователя, известная заранее
+ * @param {string} [page.panel] готовая разметка правой панели; без неё панели нет
  * @param {{nickname: string, unread: number, pollSeconds?: number}|null} [page.account]
  *   меню аккаунта; `null` — гость, и вместо меню показывается вход
  */
@@ -83,7 +84,10 @@ ${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))
   </div>
 </header>
 
-<main id="main" class="content">${raw(body)}</main>
+<div class="page__body${page.panel ? ' page__body--panel' : ''}">
+  <main id="main" class="content">${raw(body)}</main>
+  ${page.panel ? raw(page.panel) : ''}
+</div>
 </body>`;
 
   return html`<!DOCTYPE html>

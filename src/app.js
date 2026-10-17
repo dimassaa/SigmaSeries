@@ -61,6 +61,7 @@ export function createApp({
   subscribeLimiter = null,
   feed = null,
   preferences = null,
+  panel = null,
   markLimiter = null,
   library = null,
   pool = null,
@@ -115,15 +116,17 @@ export function createApp({
     },
   }));
 
-  app.use(createHomeRoutes({ data, sessionMw }));
+  app.use(createHomeRoutes({ data, sessionMw, panel }));
 
   // Каталог и карточка сериала подключаются, когда есть источник: без него
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
-  if (catalogue) app.use(createCatalogueRoutes({ catalogue, sessionMw }));
-  if (search) app.use(createSearchRoutes({ search, sessionMw, ratePerIp: searchRatePerIp ?? undefined }));
+  if (catalogue) app.use(createCatalogueRoutes({ catalogue, sessionMw, panel }));
+  if (search) app.use(createSearchRoutes({
+    search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined,
+  }));
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series }));
   if (series) app.use(createSeriesRoutes({ series, watchStatus, sessionMw, progress, subscriptions }));
-  if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw }));
+  if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
   if (calendar) app.use(createCalendarRoutes({ calendar, sessionMw }));
   // Статус меняется по POST с CSRF и проверкой сессии: без них кнопка
