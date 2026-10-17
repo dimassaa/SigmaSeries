@@ -36,10 +36,14 @@ for (const name of names) {
 // Проверка: цвет вне файла токенов — ошибка, тема не переключится (TOKENS §8).
 // Ловится здесь, а не на ревью: к моменту, когда это всплывёт на защите,
 // переключатель темы уже будет выглядеть как «работает, но криво».
+// Комментарии пропускаются: в них пишутся номера находок (`#121`, `#133`),
+// а они состоят из цифр и выглядят как цвет. Проверять надо правила, а не
+// пояснения к ним.
 const offToken = [];
 for (const [name, body] of parts) {
   if (name === TOKENS_FILE) continue;
-  body.split('\n').forEach((line, i) => {
+  const rules = body.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ' '));
+  rules.split('\n').forEach((line, i) => {
     if (/#[0-9a-f]{3,8}\b/i.test(line)) offToken.push(`${name}:${i + 1}`);
   });
 }

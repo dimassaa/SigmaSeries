@@ -129,3 +129,65 @@ test('лимит частоты поиска отвечает 429, а не кл�
   }
   assert.ok(limited, `после ${limit} запросов должен появиться 429`);
 });
+// ─── Найденное, показанное и продолжение (#120, #121) ─────────────────────────
+
+test('счётчик обещает больше, чем показано, и группа листается', { skip }, async () => {
+  // Свой сервер: общий уже исчерпан проверкой лимита частоты, и листание
+  // упало бы не на «показать ещё», а на 429.
+  const app = createApp({
+    data: stubData(),
+    search: pgSearch(pool),
+    searchRatePerIp: 1000,
+  });
+  const own = await new Promise((resolve) => {
+    const s = app.listen(0, '127.0.0.1', () => resolve(s));
+  });
+  const ownBase = `http://127.0.0.1:${own.address().port}`;
+  const ownGet = (path) => fetch(`${ownBase}${path}`);
+
+  // Фикстур больше, чем страница поиска (24): иначе ссылка «показать ещё» не
+  // появилась бы и проверка прошла бы на пустом месте.
+  const word = `проверкапоиска${crypto.randomUUID().slice(0, 8)}`;
+  const { rows } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+     SELECT 'sr-' || i || '-' || substr(md5(random()::text), 1, 8),
+            $1 || ' ' || i, 'Shared ' || i, $2 + i, 'published', 'airing', 2023
+       FROM generate_series(1, 26) AS i
+     RETURNING id`,
+    [word, 988_000_000],
+  );
+  const ids = rows.map((row) => row.id);
+
+  try {
+    const first = await (await ownGet(`/ru/search?q=${encodeURIComponent(word)}`)).text();
+
+    assert.match(first, /Найдено: 26/, 'счётчик считает найденное, а не показанное');
+    assert.equal((first.match(/class="posters__item"/g) ?? []).length, 24,
+      'показана ровно страница, а не всё найденное');
+
+    const more = /href="([^"]+)"\s+data-more="series"/.exec(first);
+    assert.ok(more, 'у группы сериалов есть ссылка «показать ещё»');
+    // Ссылка приходит HTML-экранированной (`&amp;`), поэтому сперва приводится
+    // к тому виду, в котором её увидит адресная строка.
+    const href = more[1].replaceAll('&amp;', '&');
+    // Двоеточие в ссылке экранируется — браузер и человек видят одно и то же,
+    // поэтому проверка принимает обе записи.
+    assert.match(href, /from=series(?::|%3A)24/, 'смещение в адресе: страницу можно переслать');
+
+    const second = await (await ownGet(`/ru/search?q=${encodeURIComponent(word)}&from=series:24`)).text();
+    assert.match(second, /Найдено: 26/, 'счётчик остаётся тем же — он про найденное');
+    assert.equal((second.match(/class="posters__item"/g) ?? []).length, 2,
+      'на второй странице осталось две записи');
+
+    const last = await (await ownGet(`/ru/search?q=${encodeURIComponent(word)}&from=series:25`)).text();
+    assert.equal((last.match(/class="posters__item"/g) ?? []).length, 1, 'последняя запись показана');
+    assert.ok(!/data-more="series"/.test(last),
+      'на последней записи ссылки «показать ещё» нет — она вела бы в пустоту');
+
+    const junk = await (await ownGet(`/ru/search?q=${encodeURIComponent(word)}&from=series:abc&from=people:-5`)).text();
+    assert.match(junk, /Найдено: 26/, 'мусор в смещении не ломает выдачу и не обнуляет её');
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = ANY($1::bigint[])', [ids]);
+    await new Promise((resolve) => own.close(resolve));
+  }
+});

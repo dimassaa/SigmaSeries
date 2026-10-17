@@ -118,18 +118,32 @@ test('в ячейке месяца не больше трёх записей, о
 
   // День, где выходов больше трёх, обязан быть виден как ссылка на его
   // список, иначе часть календаря просто пропала бы с экрана.
+  // Самый полный день ищется в том же месяце, который открыт на странице:
+  // месяц берётся как самый наполненный из будущих, и он не обязательно
+  // текущий. Раньше день искался в текущем месяце, и проверка сравнивала
+  // страницу одного месяца с днём другого — проходила, только когда они
+  // совпадали.
   const { rows: [busy] } = await pool.query(
     `SELECT release_date::text AS date FROM e_release
-      WHERE release_date >= date_trunc('month', CURRENT_DATE)
-        AND release_date < date_trunc('month', CURRENT_DATE) + interval '1 month'
+      WHERE release_date >= $1::date
+        AND release_date < ($1::date + interval '1 month')::date
       GROUP BY release_date HAVING count(*) > 3 ORDER BY count(*) DESC LIMIT 1`,
+    [`${month}-01`],
   );
 
   if (!busy) return;
-  const more = body.match(/class="calendar__more" href="([^"]+)"\s*>\+(\d+)</);
-  assert.ok(more, 'в месяце есть день с числом выходов больше трёх — он обязан быть ссылкой «+N»');
+  // Ссылка ищется именно для самого заполненного дня: месяц идёт по датам, и
+  // первая попавшаяся «+N» — это ранний день, а не самый полный. Раньше проверка
+  // брала первую ссылку и сравнивала её с самым полным днём, что проходило
+  // только пока такой день совпадал с первым.
+  const links = [...body.matchAll(/class="calendar__more" href="([^"]+)"\s*>\+(\d+)</g)];
+  assert.ok(links.length, 'в месяце есть дни с числом выходов больше трёх — они обязаны быть ссылками «+N»');
 
-  const dayPage = await (await get(more[1].replace('&amp;', '&'))).text();
+  const more = links.find(([, href]) => href.includes(`day=${busy.date}`));
+  assert.ok(more, `у самого полного дня (${busy.date}) есть ссылка «+N»`);
+  assert.ok(Number(more[2]) > 0, 'рядом с ячейкой написано, сколько записей спрятано');
+
+  const dayPage = await (await get(more[1].replaceAll('&amp;', '&'))).text();
   const listed = (dayPage.match(/class="calendar__entry"/g) ?? []).length;
   assert.ok(listed > 3, `по ссылке «+N» открывается список дня: там ${listed} записей`);
   assert.ok(dayPage.includes(busy.date), 'открыт именно тот день, где записей больше трёх');

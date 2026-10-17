@@ -1414,6 +1414,21 @@ a:hover { color: var(--accent-hover); }
 .episode__link:hover .episode__title { color: var(--accent); }
 .episode__date { font-variant-numeric: tabular-nums; color: var(--text-secondary); font-size: 13px; }
 
+/* Продолжение группы. Ссылка, а не кнопка: она ведёт в адрес, который можно
+   переслать, и работает без скрипта (#121). */
+.search__more { margin-top: var(--space-3); }
+.search__more a {
+  display: inline-flex; align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 600;
+}
+.search__more a:hover { border-color: var(--border-strong); text-decoration: underline; }
+
 /* ─── 48-collection.css ─── */
 /* S-05 — подборка и S-15 — персона (F-02-05, F-02-09).
    Правила оформления: docs/02-design/PRINCIPLES.md, TOKENS.md.

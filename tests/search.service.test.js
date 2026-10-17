@@ -18,9 +18,38 @@ const skip = available
 let pool;
 let search;
 
+/**
+ * Слово, по которому находятся три фикстурных сериала.
+ *
+ * В каталоге названия уникальны, общего слова с тремя совпадениями там нет, и
+ * поиск по нему проверял бы на пустом месте. Фикстуры создаются на время
+ * прогона и убираются в `after`.
+ */
+// Слово уникально на каждый прогон: оставшиеся от упавшего прогона сериалы
+// иначе попадали бы в тот же запрос и ломали бы счётчик.
+const SHARED = `проверкапоиска${crypto.randomUUID().slice(0, 8)}`;
+
+async function sharedWordFixtures() {
+  const made = [];
+  for (let i = 0; i < 3; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const { rows } = await pool.query(
+      `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+       VALUES ($1, $2, $3, $4, 'published', 'airing', 2023)
+       RETURNING id`,
+      [`test-search-${i}-${crypto.randomUUID().slice(0, 8)}`, `${SHARED} ${i}`, `Shared word ${i}`, 991_000_000 + i],
+    );
+    made.push(rows[0].id);
+  }
+  return made;
+}
+
+let sharedIds = [];
+
 test.before(async () => {
   if (!available) return;
   pool = createPool();
+  sharedIds = await sharedWordFixtures();
   search = pgSearch(pool);
   // Следы прошлого прогона: без чистки повторный запуск упирается в уникальный
   // индекс и падает не из-за кода.
@@ -30,6 +59,7 @@ test.before(async () => {
 test.after(async () => {
   if (!pool) return;
   await dropFixturePerson(pool);
+  await dropSharedWordFixtures(sharedIds);
   await pool.end();
 });
 
@@ -315,4 +345,44 @@ test('короткое слово запроса не подставляет ч�
     assert.deepEqual(falsePositives, [],
       `люди найдены только по слову «${word}» из запроса «${title}»`);
   }
+});
+// ─── Найденное и показанное (#120, #121) ─────────────────────────────────────
+
+async function dropSharedWordFixtures(ids) {
+  if (!ids.length) return;
+  await pool.query('DELETE FROM e_series WHERE id = ANY($1::bigint[])', [ids]);
+}
+
+test('счётчик считает найденное, а не показанное (#120)', { skip }, async () => {
+  const result = await search.find({ query: SHARED, limit: 1 });
+
+  assert.equal(result.series.length, 1, 'показана ровно одна строка');
+  assert.equal(result.counts.series, 3, 'а найдено три — столько обещает счётчик');
+  assert.equal(result.total, result.counts.series + result.counts.people + result.counts.collections,
+    'общее число — сумма найденного по группам, а не показанного');
+});
+
+test('«показать ещё» листает внутри группы, не сбивая другие (#121)', { skip }, async () => {
+  const first = await search.find({ query: SHARED, limit: 1 });
+  const second = await search.find({ query: SHARED, limit: 1, offsets: { series: 1 } });
+
+  assert.notEqual(second.series[0]?.id, first.series[0]?.id,
+    'вторая страница группы показывает другую запись');
+  assert.equal(second.groups.series.offset, 1, 'смещение сохраняется в ответе — по нему строится ссылка');
+  assert.equal(second.groups.series.more, true, 'пока есть ещё, ссылка показывается');
+
+  const last = await search.find({ query: SHARED, limit: 1, offsets: { series: 2 } });
+  assert.equal(last.series.length, 1, 'на последней записи строка ещё есть');
+  assert.equal(last.groups.series.more, false, 'а показывать дальше нечего');
+
+  // Чужие группы не сдвигаются от смещения сериалов.
+  assert.deepEqual(last.people, first.people,
+    'смещение одной группы не трогает остальные');
+});
+
+test('смещение за пределами группы даёт пусто, а не ошибку', { skip }, async () => {
+  const result = await search.find({ query: SHARED, limit: 5, offsets: { series: 1000 } });
+
+  assert.deepEqual(result.series, [], 'за концом группы пусто');
+  assert.equal(result.groups.series.more, false, 'и показывать дальше нечего');
 });

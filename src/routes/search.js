@@ -81,7 +81,7 @@ export function createSearchRoutes({ search, ratePerIp = DEFAULT_RATE_PER_MINUTE
     }
 
     try {
-      const result = await search.find({ query });
+      const result = await search.find({ query, offsets: offsetsFrom(req.query.from) });
       return res.status(200).type('html').send(rawHtml(layout({
         account: req.account,
         locale,
@@ -128,6 +128,34 @@ export function createSearchRoutes({ search, ratePerIp = DEFAULT_RATE_PER_MINUTE
   });
 
   return router;
+}
+
+/**
+ * Смещения групп из адреса.
+ *
+ * Формат — `from=группа:сколько`, по одному параметру на группу: точка в
+ * имени параметра не годится, Express 5 разбирает адрес простым парсером и
+ * оставил бы `from.series=24` именем с точкой, а не объектом.
+ *
+ * Только целые неотрицательные: строка из адреса не должна превращаться в
+ * `NaN` и обнулять группу, а отрицательное смещение показывало бы вторую
+ * страницу вместо первой.
+ *
+ * @param {unknown} raw значение параметра `from`
+ * @returns {{series: number, people: number, collections: number}}
+ */
+function offsetsFrom(raw) {
+  const groups = { series: 0, people: 0, collections: 0 };
+  const values = Array.isArray(raw) ? raw : [raw];
+
+  for (const value of values) {
+    const [name, count] = String(value ?? '').split(':');
+    if (!(name in groups)) continue;
+    const offset = Number(count);
+    if (Number.isInteger(offset) && offset >= 0) groups[name] = offset;
+  }
+
+  return groups;
 }
 
 /**

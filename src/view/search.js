@@ -51,11 +51,11 @@ ${when(result?.layoutFixed, () => html`
 </p>`)}
 
 ${when(empty, () => emptyView({ locale, result, genres }))}
-${when(result && !empty, () => results({ locale, result }))}`;
+${when(result && !empty, () => results({ locale, query, result }))}`;
 }
 
 /** Три группы по порядку из спецификации. */
-function results({ locale, result }) {
+function results({ locale, query, result }) {
   return html`
 <p class="search__count" role="status">${t(locale, 'search.found', { count: result.total })}</p>
 
@@ -78,6 +78,7 @@ ${when(result.series.length > 0, () => html`
       </a>
     </li>`)}
   </ol>
+  ${more({ locale, query, group: 'series', result })}
 </section>`)}
 
 ${when(result.people.length > 0, () => html`
@@ -92,6 +93,7 @@ ${when(result.people.length > 0, () => html`
       </a>
     </li>`)}
   </ul>
+  ${more({ locale, query, group: 'people', result })}
 </section>`)}
 
 ${when(result.collections.length > 0, () => html`
@@ -105,7 +107,38 @@ ${when(result.collections.length > 0, () => html`
       </a>
     </li>`)}
   </ul>
+  ${more({ locale, query, group: 'collections', result })}
 </section>`)}`;
+}
+
+/**
+ * Ссылка «показать ещё» под группой (#121).
+ *
+ * Смещение едет в адресе, а не накапливается скриптом: страницу можно
+ * переслать, работает она без JavaScript, и по адресу видно, какая группа
+ * долистана. Смещения остальных групп сохраняются — человек, листающий
+ * сериалы, не теряет подборки, которые уже видел.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {string} args.query
+ * @param {'series'|'people'|'collections'} args.group
+ * @param {object} args.result
+ * @returns {object|string}
+ */
+function more({ locale, query, group, result }) {
+  const state = result.groups?.[group];
+  if (!state?.more) return '';
+
+  const params = [`q=${encodeURIComponent(query)}`];
+  for (const [name, value] of Object.entries(result.groups ?? {})) {
+    const next = value.offset + (name === group ? value.shown : 0);
+    if (next > 0) params.push(`from=${encodeURIComponent(`${name}:${next}`)}`);
+  }
+
+  return html`
+<p class="search__more"><a href="/${locale}/search?${params.join('&')}"
+   data-more="${group}">${t(locale, 'search.showMore')}</a></p>`;
 }
 
 /**

@@ -116,35 +116,30 @@ export function pgSearch(pool) {
      * @param {object} options
      * @param {string} options.query
      * @param {number} [options.limit]
-     * @returns {Promise<{query: string, truncated: boolean, layoutFixed: string|null,
-     *   series: object[], people: object[], collections: object[], total: number}>}
+     * @param {{series?: number, people?: number, collections?: number}} [options.offsets]
+     *   сколько строк группы человек уже пролистал (#121)
+     * @returns {Promise<object>}
      */
-    async find({ query, limit = 24 }) {
+    async find({ query, limit = 24, offsets = {} }) {
       const trimmed = trimQuery(query);
       const original = trimmed.query;
-      const empty = {
-        query: original,
-        truncated: trimmed.truncated,
-        layoutFixed: null,
-        series: [],
-        people: [],
-        collections: [],
-        total: 0,
-      };
+      const empty = { query: original, truncated: trimmed.truncated, layoutFixed: null, ...emptyGroups(0) };
 
       if (isEmptyQuery(original)) return empty;
 
       // Сначала ищем как введено. Только если ничего не нашлось — пробуем другую
       // раскладку и говорим об этом (F-02-06 §3): пометка появляется там, где
       // человек действительно ошибся, а не перед каждым запросом.
-      const direct = await run(pool, original, limit);
+      const direct = await run(pool, original, limit, offsets);
       if (direct.total > 0) {
         return { ...empty, ...direct };
       }
 
       const translated = otherLayout(original);
       if (translated) {
-        const fixed = await run(pool, translated, limit);
+        // Смещения при смене раскладки не переносятся: они относятся к другой
+        // выдаче, и перенос показал бы человеку строки, которых он не видел.
+        const fixed = await run(pool, translated, limit, {});
         if (fixed.total > 0) {
           return { ...empty, layoutFixed: translated, ...fixed };
         }
@@ -194,12 +189,10 @@ export function pgSearch(pool) {
         return { series: [], people: [], collections: [] };
       }
 
+      // Подсказки не листаются: смещения у них нет, и лишние строки только
+      // замедляли бы ввод.
       const found = await run(pool, trimmed.query, limit);
-      return {
-        series: found.series.slice(0, limit),
-        people: found.people.slice(0, limit),
-        collections: found.collections.slice(0, limit),
-      };
+      return { series: found.series, people: found.people, collections: found.collections };
     },
 
     /** Выражение поиска по сериалу — проверяется тестом против `DATABASE.md`. */
@@ -210,14 +203,18 @@ export function pgSearch(pool) {
 /**
  * Поиск по всем трём видам с ранжированием.
  *
+ * Смещение своё у каждой группы: человек листает сериалы и не должен при этом
+ * терять подборки, которые уже видел (#121).
+ *
  * @param {object} pool
  * @param {string} query
  * @param {number} limit
- * @returns {Promise<{series: object[], people: object[], collections: object[], total: number}>}
+ * @param {{series?: number, people?: number, collections?: number}} [offsets]
+ * @returns {Promise<object>}
  */
-async function run(pool, query, limit) {
+async function run(pool, query, limit, offsets = {}) {
   const needles = queryStems(query);
-  if (!needles.length) return { series: [], people: [], collections: [], total: 0 };
+  if (!needles.length) return emptyGroups(0);
 
   // Слова запроса как есть: в базе лежит исходный текст, и сравнение основы с
   // ним не совпало бы никогда («полосат» ≠ «полосатый»). Основы нужны позже, для
@@ -225,16 +222,48 @@ async function run(pool, query, limit) {
   const words = normalize(query).split(' ').filter(Boolean);
 
   const [series, people, collections] = await Promise.all([
-    searchTarget(pool, TARGETS.series, words, needles, limit),
-    searchTarget(pool, TARGETS.people, words, needles, limit),
-    searchTarget(pool, TARGETS.collections, words, needles, limit),
+    searchTarget(pool, TARGETS.series, words, needles),
+    searchTarget(pool, TARGETS.people, words, needles),
+    searchTarget(pool, TARGETS.collections, words, needles),
   ]);
 
+  const found = { series, people, collections };
+  const cut = { series: [], people: [], collections: [] };
+  const groups = {};
+  const counts = {};
+
+  for (const [name, group] of Object.entries(found)) {
+    const offset = Math.max(0, Number(offsets[name]) || 0);
+    const items = group.items.slice(offset, offset + limit);
+    cut[name] = items;
+    counts[name] = group.found;
+    groups[name] = {
+      found: group.found,
+      offset,
+      shown: items.length,
+      // «Показать ещё» только если за показанным что-то есть. Считается по
+      // найденному, а не по показанному: иначе на последней странице ссылка
+      // вела бы в пустоту, а при смещении за концом — обещала бы несуществующее.
+      more: offset + items.length < group.found,
+    };
+  }
+
   return {
-    series,
-    people,
-    collections,
-    total: series.length + people.length + collections.length,
+    ...cut,
+    counts,
+    groups,
+    total: counts.series + counts.people + counts.collections,
+  };
+}
+
+/** Пустой ответ: те же поля, что и непустой, чтобы вид не проверял их наличие. */
+function emptyGroups(total) {
+  const group = () => ({ found: 0, offset: 0, shown: 0, more: false });
+  return {
+    series: [], people: [], collections: [],
+    counts: { series: 0, people: 0, collections: 0 },
+    groups: { series: group(), people: group(), collections: group() },
+    total,
   };
 }
 
@@ -245,10 +274,9 @@ async function run(pool, query, limit) {
  * @param {object} target описание из `TARGETS`
  * @param {string[]} words слова запроса как есть
  * @param {string[]} needles основы слов запроса
- * @param {number} limit
- * @returns {Promise<object[]>}
+ * @returns {Promise<{items: object[], found: number}>}
  */
-async function searchTarget(pool, target, words, needles, limit) {
+async function searchTarget(pool, target, words, needles) {
   const vector = `to_tsvector('russian', ${target.text})`;
   const byText = await pool.query(
     `SELECT ${target.columns},
@@ -262,7 +290,7 @@ async function searchTarget(pool, target, words, needles, limit) {
   );
 
   // Найденное базой не выбрасывается: об этом сказано в шапке файла.
-  if (byText.rows.length) return rank(byText.rows, needles, limit, target.titleOf);
+  if (byText.rows.length) return rank(byText.rows, needles, target.titleOf);
 
   const parts = words.filter((word) => word.length >= MIN_PARTIAL_WORD);
   if (!parts.length) return [];
@@ -276,7 +304,7 @@ async function searchTarget(pool, target, words, needles, limit) {
     [...parts.map((word) => `%${word}%`), CANDIDATES],
   );
 
-  return rank(byLike.rows, needles, limit, target.titleOf);
+  return rank(byLike.rows, needles, target.titleOf);
 }
 
 /**
@@ -307,11 +335,10 @@ function anyWord(text, words, offset) {
  *
  * @param {object[]} rows
  * @param {string[]} needles
- * @param {number} limit
  * @param {((row: object) => string)|null} [titleOf]
- * @returns {object[]}
+ * @returns {{items: object[], found: number}} отсортированные целиком и их число
  */
-function rank(rows, needles, limit, titleOf = null) {
+function rank(rows, needles, titleOf = null) {
   const scored = [];
   for (const row of rows) {
     const haystacks = titleOf ? [titleOf(row)] : [row.title_ru, row.title_original, row.title_en].filter(Boolean);
@@ -334,7 +361,10 @@ function rank(rows, needles, limit, titleOf = null) {
     || ((b.text_rank ?? 0) - (a.text_rank ?? 0))
     || String(a.title ?? a.name ?? '').localeCompare(String(b.title ?? b.name ?? '')));
 
-  return scored.slice(0, limit);
+  // Возвращаются все строки целиком, а не первые `limit`: счётчик «Найдено»
+  // и ссылка «показать ещё» считаются по этому же списку, и обрезка до
+  // показа сделала бы их бессмысленными (#120, #121).
+  return { items: scored, found: scored.length };
 }
 
 /** Число из настроек модуля, а не из кода. */
