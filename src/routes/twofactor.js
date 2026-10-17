@@ -19,7 +19,7 @@ import { twoFactorView } from '../view/twofactor.js';
 import { setupView } from '../view/twofactor-setup.js';
 import { backupCodesView } from '../view/twofactor-backup.js';
 import { isLocale, t } from '../i18n/strings.js';
-import { csrfToken, csrfValid } from '../services/auth/session.js';
+import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
 import {
   generateSecret,
   generateBackupCodes,
@@ -239,6 +239,9 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
     req.session.twoFactorPassed = true;
     req.session.createdAt = Date.now();
     delete req.session.pendingTwoFactor;
+
+    // Полноценная сессия — устройство пишется в список (F-01-03 §4).
+    await noteSession(auth, req, pending.user.id);
 
     return res.redirect(303, `/${locale}/`);
   }

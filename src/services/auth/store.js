@@ -1074,6 +1074,49 @@ export function pgAuthStore(pool) {
     },
 
     /**
+     * Записывает устройство входа (F-01-03 §4, список S-32).
+     *
+     * Строка появляется на каждом полноценном входе, поэтому список со временем
+     * накапливает старые входы: закрытые убирает человек («Выйти на этом») или
+     * лимит `auth.sessions_max`, который снимает и строку, и саму сессию.
+     */
+    async noteDevice(userId, label) {
+      await pool.query(
+        'INSERT INTO e_session (user_id, device_label) VALUES ($1, $2)',
+        [userId, label],
+      );
+    },
+
+    /**
+     * Закрывает сессии сверх лимита: самая старая уходит первой (F-01-03 §5).
+     *
+     * Сессии лежат в таблице connect-pg-simple, а не в `e_session`, поэтому
+     * отбор идёт по владельцу внутри JSON, а порядок — по `expire`: у скользящей
+     * сессии это время последней активности, то есть «самая старая» здесь и
+     * означает самый давно не открытый вход.
+     *
+     * Идентификатор текущей сессии исключён: человек только что вошёл, и
+     * закрывать ему тот вход, ради которого он вошёл, нельзя.
+     *
+     * @param {number|string} userId
+     * @param {string} keepSid идентификатор текущей сессии
+     * @param {number} max сколько сессий аккаунта держим
+     * @returns {Promise<number>} сколько сессий закрыто
+     */
+    async pruneSessions(userId, keepSid, max = AUTH.sessionsMax) {
+      const { rowCount } = await pool.query(
+        `DELETE FROM session
+          WHERE sid IN (
+            SELECT sid FROM session
+             WHERE (sess -> 'user' ->> 'id') = $1::text AND sid <> $2
+             ORDER BY expire DESC
+             OFFSET $3)`,
+        [userId, keepSid, Math.max(0, max - 1)],
+      );
+      return rowCount ?? 0;
+    },
+
+    /**
      * Отзывает все сессии пользователя (R-SEC-02, EC-A9).
      *
      * Сессии лежат в таблице connect-pg-simple, а не в `e_session`: там
@@ -1135,7 +1178,7 @@ export function stubAuthStore(users = {}, roles = {}) {
    * Собирается здесь, а не в обёртках теста: обёртка проверяла бы, что
    * позвали функцию, а не что отозвали именно то устройство.
    */
-  const calls = { revokeSessions: [], revokeDevice: [] };
+  const calls = { revokeSessions: [], revokeDevice: [], noteDevice: [], pruneSessions: [] };
 
   return {
     async byEmail(email) {
@@ -1428,6 +1471,21 @@ export function stubAuthStore(users = {}, roles = {}) {
       return devices.get(userId) ?? [];
     },
 
+    /** Запись устройства при входе: в базе — INSERT в `e_session`. */
+    async noteDevice(userId, label) {
+      calls.noteDevice.push([userId, label]);
+      const mine = devices.get(userId) ?? [];
+      const at = new Date();
+      devices.set(userId, [...mine, {
+        id: at.getTime(), device_label: label, created_at: at, last_seen_at: at,
+      }]);
+    },
+
+    /** Подрезка сессий сверх лимита: в базе — DELETE по `expire`. */
+    async pruneSessions(userId, keepSid, max = AUTH.sessionsMax) {
+      calls.pruneSessions.push([userId, keepSid, max]);
+    },
+
     /**
      * Отзыв одного устройства.
      *
@@ -1551,8 +1609,8 @@ export function stubAuthStore(users = {}, roles = {}) {
         ratings: ratings.get(userId) ?? [],
         materials: materials.get(userId) ?? [],
         notifications: notifications.get(userId) ?? [],
-        devices: (devices.get(userId) ?? []).map(({ label, created_at, last_seen_at }) => ({
-          label: label ?? device_label_of(created_at), createdAt: created_at, lastSeenAt: last_seen_at,
+        devices: (devices.get(userId) ?? []).map(({ label, device_label, created_at, last_seen_at }) => ({
+          label: label ?? device_label ?? null, createdAt: created_at, lastSeenAt: last_seen_at,
         })),
       };
     },

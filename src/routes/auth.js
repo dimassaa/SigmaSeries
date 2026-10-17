@@ -9,7 +9,7 @@ import express from 'express';
 import { layout } from '../view/layout.js';
 import { signinView } from '../view/signin.js';
 import { authenticate, decideAfterCredentials, safeReturnTo, sessionKind, sessionDurations } from '../services/auth/login.js';
-import { csrfToken, csrfValid } from '../services/auth/session.js';
+import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
 import * as limits from '../services/auth/limits.js';
 import { t } from '../i18n/strings.js';
 import { AUTH } from '../config/settings.js';
@@ -177,6 +177,10 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
 
     limitsApi.recordSuccess(email);
     await auth.recordLogin(user.id, new Date());
+    // Сессия началась: устройство попадает в список S-32, а лишние сессии
+    // аккаунта закрываются (F-01-03 §4, §5). Именно здесь, а не при отзыве:
+    // у человека должно быть видно, откуда он вошёл.
+    await noteSession(auth, req, user.id);
 
     const target = decision.action === 'confirm_email'
       ? `/${locale}/verify`

@@ -19,7 +19,7 @@ import {
   verifyToken,
   resendAllowed,
 } from '../services/auth/register.js';
-import { csrfToken, csrfValid } from '../services/auth/session.js';
+import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
 import { hashToken } from '../services/auth/password.js';
 import * as limits from '../services/auth/limits.js';
 import { t } from '../i18n/strings.js';
@@ -383,6 +383,10 @@ export function createRegisterRoutes({
     };
     req.session.createdAt = Date.now();
     if (pending) req.session.pendingUser = pending;
+
+    // Подтверждение адреса доводит аккаунт до состояния, которым можно
+    // пользоваться, — это полноценный вход, и в списке устройств он виден.
+    await noteSession(auth, req, userId);
 
     return res.redirect(303, `/${locale}/`);
   });

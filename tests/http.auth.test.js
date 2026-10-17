@@ -24,21 +24,22 @@ const PASSWORD = 'правильный-пароль-из-десяти';
  */
 const LOCAL_IP = '127.0.0.1';
 
+/** Заголовок настоящего браузера: подпись устройства читается из него. */
+const CHROME_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
+  + '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
+
 /** Приложение с сессиями в памяти: развёрнутая база здесь не проверяется. */
 function makeApp(users = {}, roles = {}) {
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
   const store = createMemorySessionStore();
   const sessionMw = createSessionMiddleware(pool, store);
-  const app = createApp({
-    data: stubData(),
-    auth: stubAuthStore(users, roles),
-    sessionMw,
-  });
-  return { app, sessionMw, store };
+  const auth = stubAuthStore(users, roles);
+  const app = createApp({ data: stubData(), auth, sessionMw });
+  return { app, sessionMw, store, auth };
 }
 
 async function withServer(users, roles, run) {
-  const { app, store } = makeApp(users, roles);
+  const { app, store, auth } = makeApp(users, roles);
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   let jar = '';
@@ -48,11 +49,14 @@ async function withServer(users, roles, run) {
     if (set.length) jar = set.map((c) => c.split(';')[0]).join('; ');
     return res;
   };
+  // `...init` идёт последним и раньше затирал собранные заголовки целиком:
+  // достаточно было передать один заголовок, чтобы потерять cookie и тип
+  // содержимого, и проверка падала бы на CSRF вместо своего предмета.
   const post = (path, fields, init = {}) => get(path, {
+    ...init,
     method: 'POST',
     headers: { 'content-type': 'application/x-www-form-urlencoded', cookie: jar, ...init.headers },
     body: new URLSearchParams(fields),
-    ...init,
   });
   /**
    * Достаёт CSRF из формы — так его видит и человек, и робот.
@@ -67,7 +71,7 @@ async function withServer(users, roles, run) {
    */
   const sessions = () => new Promise((r) => store.all((e, s) => r(s ?? [])));
   try {
-    await run({ get, post, csrfOf, sessions });
+    await run({ get, post, csrfOf, sessions, auth });
   } finally {
     await new Promise((r) => server.close(r));
   }
@@ -352,6 +356,44 @@ test('под лимитом по адресу вход проходит', async 
       email: 'a@b.c', password: PASSWORD, csrf: csrfOf(form),
     });
     assert.equal(res.status, 303, 'под лимитом вход не блокируется');
+  });
+});
+
+test('вход записывает устройство и подрезает лишние сессии', async () => {
+  // Обе вещи описаны в F-01-03 и обе были сделаны наполовину: устройство не
+  // записывалось нигде (список S-32 был всегда пуст, «Выйти на этом» —
+  // недостижимая кнопка), а `auth.sessions_max` был числом без применения.
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, {}, async ({ get, post, csrfOf, auth }) => {
+    const form = await (await get('/ru/login')).text();
+    const res = await post('/ru/login', {
+      email: 'a@b.c', password: PASSWORD, csrf: csrfOf(form),
+    }, { headers: { 'user-agent': CHROME_WIN } });
+    assert.equal(res.status, 303);
+
+    assert.equal(auth.calls.noteDevice.length, 1, 'устройство записывается один раз');
+    const [userId, label] = auth.calls.noteDevice[0];
+    assert.equal(userId, user.id);
+    assert.equal(label, 'Chrome · Windows');
+
+    const [prunedFor, keepSid, max] = auth.calls.pruneSessions[0];
+    assert.equal(prunedFor, user.id);
+    assert.ok(keepSid, 'идентификатор текущей сессии передаётся: её закрывать нельзя');
+    assert.equal(max, AUTH.sessionsMax);
+  });
+});
+
+test('выход не стирает устройство из списка', async () => {
+  // Граница между двумя действиями: «выйти» закрывает сессию, а «Выйти на
+  // этом» в списке устройств снимает само устройство. Если бы обычный выход
+  // стирал строку, список после выхода был бы пуст — и кнопка в нём тоже.
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, {}, async ({ get, post, csrfOf, auth }) => {
+    const form = await (await get('/ru/login')).text();
+    await post('/ru/login', { email: 'a@b.c', password: PASSWORD, csrf: csrfOf(form) });
+    const before = await auth.devices(user.id);
+    await post('/ru/logout', { csrf: csrfOf(await (await get('/ru/')).text()) });
+    assert.equal((await auth.devices(user.id)).length, before.length);
   });
 });
 

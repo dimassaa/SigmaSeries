@@ -10,6 +10,7 @@ import crypto from 'node:crypto';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 
+import { deviceLabel } from './device.js';
 import { AUTH } from '../../config/settings.js';
 
 export function createSessionMiddleware(pool, providedStore, { account = null } = {}) {
@@ -84,6 +85,28 @@ export function csrfValid(session, token) {
   const b = Buffer.from(token);
   if (a.length !== b.length) return false;
   return crypto.timingSafeEqual(a, b);
+}
+
+/**
+ * Записывает устройство и подрезает сессии аккаунта (F-01-03 §4, §5).
+ *
+ * Вызывается везде, где начинается полноценная сессия: вход, вход после 2FA и
+ * подтверждение адреса при регистрации. Единая точка — потому что правило одно
+ * («у аккаунта не больше `auth.sessions_max` сессий, а каждая из них видна в
+ * списке устройств»), а мест появления сессии три, и правило, написанное три
+ * раза, разъезжается с кодом при первом же изменении одного из них.
+ *
+ * Регистрационный экран подтверждения сюда не относится: там сессия
+ * ограниченная и аккаунта ещё нет.
+ *
+ * @param {object} auth хранилище: `noteDevice`, `pruneSessions`
+ * @param {import('express').Request} req
+ * @param {number} userId
+ * @returns {Promise<void>}
+ */
+export async function noteSession(auth, req, userId) {
+  await auth.noteDevice(userId, deviceLabel(req.headers?.['user-agent']));
+  await auth.pruneSessions(userId, req.sessionID, AUTH.sessionsMax);
 }
 
 function cryptoRandom() {

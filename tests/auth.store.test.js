@@ -392,6 +392,49 @@ test('смена пароля не трогает токены подтверж�
   await pool.query('DELETE FROM e_auth_token WHERE token_hash = $1', [hash]);
 });
 
+test('лишние сессии закрываются, текущая остаётся (F-01-03 §5)', { skip }, async () => {
+  const mine = await confirmedUser();
+  const other = await confirmedUser();
+  const sids = [];
+  // Пять сессий пользователя с разным временем истечения: у скользящей
+  // сессии это последняя активность, поэтому порядок по `expire` и есть
+  // «от самой давно не открытой к самой свежей».
+  for (let i = 0; i < 5; i++) {
+    const id = `test-${uniq()}-session-${i}`;
+    sids.push(id);
+    // eslint-disable-next-line no-await-in-loop
+    await pool.query(
+      `INSERT INTO session (sid, sess, expire)
+       VALUES ($1, json_build_object('cookie', json_build_object('path','/'),
+                                     'user', json_build_object('id', $2::text))::json,
+               now() + ($3 || ' minutes')::interval)`,
+      [id, mine.user.id, String(i)],
+    );
+  }
+  const strangerId = `test-${uniq()}-stranger`;
+  await pool.query(
+    `INSERT INTO session (sid, sess, expire)
+     VALUES ($1, json_build_object('cookie', json_build_object('path','/'),
+                                   'user', json_build_object('id', $2::text))::json, now() + interval '1 hour')`,
+    [strangerId, other.user.id],
+  );
+  sids.push(strangerId);
+
+  const current = sids[4];
+  const closed = await store.pruneSessions(mine.user.id, current, 3);
+
+  assert.equal(closed, 2, 'из пяти сессий остаются три: лимит минус текущая');
+  const { rows } = await pool.query(
+    `SELECT sid FROM session WHERE sid = ANY($1::text[]) ORDER BY expire DESC`,
+    [sids],
+  );
+  const left = rows.map((row) => row.sid);
+  assert.equal(left.length, 4, 'чужая сессия не тронута');
+  assert.ok(left.includes(current), 'текущий вход остался: закрывать его нельзя');
+  assert.ok(!left.includes(sids[0]), 'самая давно не открытая сессия закрыта первой');
+  await pool.query('DELETE FROM session WHERE sid = ANY($1::text[])', [sids]);
+});
+
 test('отзыв сессий удаляет сессии только одного пользователя (EC-A9)', { skip }, async () => {
   const mine = await confirmedUser();
   const other = await confirmedUser();
