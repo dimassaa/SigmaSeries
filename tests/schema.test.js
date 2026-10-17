@@ -170,6 +170,31 @@ test('удаление пользователя не удаляет строку
   }
 });
 
+test('ник уникален без учёта регистра (EC-A5)', { skip }, async () => {
+  // Приложение сравнивает ники через `lower()`, но гарантию даёт индекс: две
+  // одновременные регистрации обе успевают пройти проверку занятости, и без
+  // индекса в базе появятся и `Anna`, и `anna`.
+  //
+  // ROLLBACK: удалить строку из e_user нельзя (R-SQL-02), поэтому проверка
+  // обязана быть транзакцией.
+  const client = await pool.connect();
+  try {
+    await client.query('begin');
+    const tag = `${process.pid}_${Date.now()}`;
+    await client.query(
+      `insert into e_user (email_hash, email_blind_idx, password_hash, nickname)
+       values ($1,$1,'p',$2), ($3,$3,'p',$4)`,
+      [tag, `__Ник_${tag}__`, `${tag}x`, `__ник_${tag}__`],
+    );
+    assert.fail('вставка двух ников, различающихся регистром, обязана быть отвергнута');
+  } catch (error) {
+    assert.equal(error.code, '23505', `ожидалось нарушение уникальности, а пришло: ${error.code}`);
+  } finally {
+    await client.query('rollback');
+    client.release();
+  }
+});
+
 // ─── Проверяемые утверждения документа ───────────────────────────────────────
 
 test('документ не обещает того, чего в схеме нет', { skip }, async () => {

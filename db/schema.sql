@@ -67,8 +67,13 @@ CREATE TABLE e_user (
   -- материалы остаются обезличенными.
   delete_materials    BOOLEAN NOT NULL DEFAULT FALSE,
   anonymized_at       TIMESTAMPTZ,
-  CONSTRAINT uq_user_nick UNIQUE (nickname)
+  -- Уникальность ника задаётся индексом ниже, а не ограничением: ник
+  -- уникален БЕЗ учёта регистра (EC-A5, M1 §8(а)), а `UNIQUE (nickname)`
+  -- сравнивал бы строки как есть и пропустил пару `Anna` / `anna`.
+  -- Проверка занятости в приложении остаётся — чтобы сообщение о занятости
+  -- было понятным человеку; гарантию даёт индекс.
 );
+CREATE UNIQUE INDEX uq_user_nick ON e_user (lower(nickname));
 -- После обезличивания адреса в e_user не остаётся: ни шифра, ни слепого
 -- индекса. Поиск идёт по непустым значениям, а `uq_user_email_blind` и не
 -- смотрит на удалённые записи, поэтому NULL ни с чем не конфликтует.
