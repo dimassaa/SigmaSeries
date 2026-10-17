@@ -197,15 +197,24 @@ async function ratingsOf(pool, seriesId) {
     [seriesId, ratingFloor],
   );
   const map = new Map(rows.map((row) => [row.platform, { value: Number(row.value), votes: row.votes }]));
+  // Агрегат сайта — сглаженное среднее, а не деление на голоса (OP-03, H-24):
+  // «10» от одного человека не должно стоять рядом с «8,5» от тысячи.
   const site = await pool.query(
-    `SELECT sum_value::float / NULLIF(votes, 0) AS value, votes FROM e_series_rating_stat WHERE series_id = $1`,
+    `SELECT (sum_value + prior_mean * prior_weight)::float
+              / NULLIF(votes + prior_weight, 0) AS value,
+            votes, prior_mean, prior_weight
+       FROM e_series_rating_stat WHERE series_id = $1`,
     [seriesId],
   );
   const siteRow = site.rows[0];
   return {
     imdb: map.get('imdb') ?? null,
     tmdb: map.get('tmdb') ?? null,
-    site: siteRow && siteRow.value ? { value: Number(siteRow.value), votes: siteRow.votes } : null,
+    // Порог голосов тот же, что и у внешних: без него в шапке появилось бы
+    // «7,2 · 1» после единственной оценки — число, у которого нет смысла.
+    site: siteRow && siteRow.value && siteRow.votes >= ratingFloor
+      ? { value: Number(siteRow.value), votes: siteRow.votes }
+      : null,
   };
 }
 

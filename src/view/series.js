@@ -5,12 +5,13 @@
 // Отзывы, обсуждения, руководства и «похожие» не выводятся: их модули (M5,
 // M11) не написаны, а блок без данных — это пустое место на странице.
 
-import { html, when } from './render.js';
+import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { fullDate as formatDate } from './dates.js';
 import { statusControl } from './status.js';
 import { progressView } from './progress.js';
 import { subscribeBell } from './subscribe.js';
+import { RATING } from '../config/settings.js';
 
 /** Подписи состояний выхода (`exit_state` → ключ интерфейса). */
 const STATE_KEY = {
@@ -38,7 +39,9 @@ function yearRange(series) {
  *   публикации сериал до вида не доходит: выше стоит 410 (EC-C1)
  * @param {string|null} [page.notice] отказ после действия: `limit`
  */
-export function seriesView({ locale, series, status = null, progress = null, subscribe = null, notice = null }) {
+export function seriesView({
+  locale, series, status = null, progress = null, subscribe = null, ratingBlock = null, notice = null,
+}) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
   return html`
@@ -100,6 +103,8 @@ export function seriesView({ locale, series, status = null, progress = null, sub
         ${rating(locale, 'TMDB', series.ratings.tmdb)}
         ${rating(locale, t(locale, 'series.rating.site'), series.ratings.site)}
       </ul>`)}
+
+      ${when(ratingBlock, () => ratingBlockView({ locale, slug: series.slug, rating: ratingBlock }))}
     </div>
   </header>
 
@@ -173,6 +178,91 @@ function rating(locale, label, value) {
   return when(Boolean(value), () => html`
   <li class="series__rating"><span class="series__rating-label">${label}</span>
     <span class="series__rating-value">${value.value.toFixed(1).replace('.', locale === 'en' ? '.' : ',')}</span></li>`);
+}
+
+/**
+ * Блок оценки сериала (F-04-01, OP-03).
+ *
+ * Ряд из десяти чисел — группа радиокнопок, а не ссылок и не кнопок: выбор
+ * виден сразу, работает без скрипта и объявляется как «Оценка 7 из 10»
+ * (R-A11Y-19: выбранное отмечено рамкой и текстом, не только цветом).
+ *
+ * Право и состояние приходят с сервера: недоступность оценить без отметки
+ * (EC-V1) объясняется словами, а не молчаливым отсутствием блока.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {string} args.slug
+ * @param {object} args.rating
+ */
+function ratingBlockView({ locale, slug, rating: block }) {
+  const { summary, own, canRate, signedIn, csrf } = block;
+  const scale = Array.from({ length: 10 }, (_, i) => i + 1);
+  const maxVotes = Math.max(1, ...scale.map((value) => summary.histogram.get(value) ?? 0));
+
+  return html`
+<section class="rating" aria-labelledby="h-rating">
+  <h2 class="series__section-title" id="h-rating">${t(locale, 'rating.title')}</h2>
+
+  ${when(summary.shown && summary.votes > 0, () => html`
+  <p class="rating__average">
+    <span class="rating__value">${number(locale, summary.average)}</span>
+    <span class="rating__votes">${t(locale, 'rating.votes', { count: summary.votes })}</span>
+  </p>`)}
+
+  ${when(summary.votes > 0 && !summary.shown, () => html`
+  <p class="rating__hint">${t(locale, 'rating.fewVotes', { count: RATING.minVotesDisplay })}</p>`)}
+
+  ${when(signedIn && canRate, () => html`
+  <form class="rating__form" method="post" action="/${locale}/series/${slug}/rating">
+    <input type="hidden" name="csrf" value="${csrf}">
+    <fieldset class="rating__scale">
+      <legend class="visually-hidden">${t(locale, 'rating.legend')}</legend>
+      ${scale.map((value) => html`
+      <label class="rating__value${own === value ? ' rating__value--on' : ''}">
+        <input class="rating__input" type="radio" name="value" value="${value}"
+               ${own === value ? raw('checked') : raw('')}>
+        <span class="rating__number" aria-hidden="true">${value}</span>
+        <span class="visually-hidden">${t(locale, 'rating.value', { value })}</span>
+      </label>`)}
+    </fieldset>
+    <button class="button button--primary" type="submit">${t(locale, 'rating.submit')}</button>
+    ${when(own !== null, () => html`
+    <button class="button button--quiet" type="submit" name="value" value="0"
+      >${t(locale, 'rating.clear')}</button>`)}
+  </form>`)}
+
+  ${when(signedIn && !canRate, () => html`
+  <p class="rating__hint">${t(locale, `rating.hint.${block.reason ?? 'no-mark'}`)}</p>`)}
+
+  ${when(!signedIn, () => html`
+  <p class="rating__hint">
+    <a href="/${locale}/login?next=${encodeURIComponent(`/${locale}/series/${slug}`)}"
+      >${t(locale, 'rating.signIn')}</a>
+  </p>`)}
+
+  ${when(own !== null, () => html`
+  <p class="rating__own">${t(locale, 'rating.own', { value: own })}</p>`)}
+
+  ${when(summary.votes > 0, () => html`
+  <div class="rating__bars">
+    ${scale.map((value) => html`
+    <div class="rating__bar">
+      <span class="rating__bar-label">${value}</span>
+      <!-- Нативная полоса, а не блок с шириной в процентах: у неё есть
+           доступное значение для программ чтения с экрана, и стилизуется
+           она через accent-color, как полоса прогресса просмотра. -->
+      <progress class="rating__bar-fill" value="${summary.histogram.get(value) ?? 0}"
+                max="${maxVotes}"></progress>
+      <span class="rating__bar-count">${summary.histogram.get(value) ?? 0}</span>
+    </div>`)}
+  </div>`)}
+</section>`;
+}
+
+/** Число с разделителем языка интерфейса: RU «8,7», EN «8.7» (R-I18N-04). */
+function number(locale, value) {
+  return value.toFixed(1).replace('.', locale === 'en' ? '.' : ',');
 }
 
 /** Страница снятого с публикации сериала: 410 (EC-C1). */

@@ -63,6 +63,8 @@ export function createApp({
   preferences = null,
   panel = null,
   markLimiter = null,
+  ratings = null,
+  ratingLimiter = null,
   library = null,
   pool = null,
   auth,
@@ -125,7 +127,9 @@ export function createApp({
     search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined,
   }));
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series }));
-  if (series) app.use(createSeriesRoutes({ series, watchStatus, sessionMw, progress, subscriptions }));
+  if (series) app.use(createSeriesRoutes({
+    series, watchStatus, sessionMw, progress, subscriptions, ratings, ratingLimiter,
+  }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
   if (calendar) app.use(createCalendarRoutes({ calendar, sessionMw }));

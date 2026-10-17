@@ -183,6 +183,28 @@ export const searchLimits = {
 /** Настройки поиска для представления и клиентского скрипта. */
 export const SEARCH_SETTINGS = searchLimits;
 
+/**
+ * Оценки и рейтинг сайта (M4 §0).
+ *
+ * Числа взяты из таблицы настроек модуля, а не придуманы здесь: сглаживание
+ * (`priorWeight`, `priorMean`) — это то, ради которого рейтинг вообще честный,
+ * и подменять его средним арифметическим нельзя.
+ */
+export const RATING = {
+  /** `rating.prior_weight_m` — вес априора: «среднего мнение, пока голосов мало». */
+  priorWeight: 10,
+  /** `rating.prior_mean_default` — оценка, которую сайт считает до первых голосов. */
+  priorMeanDefault: 7.0,
+  /** `rating.min_votes_display` для сериала: ниже порога число не показывается. */
+  minVotesDisplay: 5,
+  /** `rating.min_votes_display` для серии. */
+  minVotesEpisode: 3,
+  /** `rating.min_account_age_h` — EC-V4: оценка моложе суток в агрегат не входит. */
+  minAccountAgeH: 24,
+  /** `rating.rate_per_hour` — сколько изменений оценки в час на аккаунт. */
+  ratePerHour: 30,
+};
+
 export const MAIL_SETTINGS = {
   /** Пять попыток отправки, дальше письмо помечается неудачным. */
   maxAttempts: 5,

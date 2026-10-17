@@ -8,9 +8,10 @@ import express from 'express';
 import { layout } from '../view/layout.js';
 import { notFound } from './home.js';
 import { seriesView, goneView } from '../view/series.js';
-import { csrfToken } from '../services/auth/session.js';
+import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
+import { HOUR } from '../config/settings.js';
 
 /** Ответ отправляется разобранной строкой: `send()` объекта ушёл бы в JSON. */
 const rawHtml = (page) => page.__raw;
@@ -21,6 +22,8 @@ export function createSeriesRoutes({
   sessionMw = null,
   progress = null,
   subscriptions = null,
+  ratings = null,
+  ratingLimiter = null,
 }) {
   const router = express.Router({ strict: true });
   // Сессия нужна ради одного — статуса зрителя на этой карточке.
@@ -85,6 +88,12 @@ export function createSeriesRoutes({
         }
         : null;
 
+      // Оценка (F-04-01). Право «оценить» спрашивается у того же сервиса,
+      // что и принимает оценку, — иначе интерфейс и правило разойдутся.
+      const rating = ratings
+        ? await ratingBlock({ ratings, user, seriesId: found.id, session })
+        : null;
+
       return res.status(200).type('html').send(rawHtml(layout({
         account: req.account,
         locale,
@@ -99,6 +108,7 @@ export function createSeriesRoutes({
           status: watch ? { value: watch.status, csrf: watch.csrf, signedIn: watch.signedIn, archived: watch.archived } : null,
           progress: watchProgress,
           subscribe: bell,
+          ratingBlock: rating,
           notice: String(req.query.subs ?? '') || null,
         }),
       })));
@@ -107,7 +117,83 @@ export function createSeriesRoutes({
     }
   });
 
+  /**
+   * Оценка сериала (F-04-01, OP-03).
+   *
+   * Отдельный POST рядом со страницей, а не действие в общем списке: у
+   * отметок свой адрес и свой сценарий отказа (EC-T2), у оценки — свой.
+   */
+  if (ratings) {
+    router.post('/:locale/series/:slug/rating', async (req, res, next) => {
+      const { locale, slug } = req.params;
+      if (!isLocale(locale)) return next('route');
+
+      const back = `/${locale}/series/${slug}`;
+      const user = req.session?.user ?? null;
+      if (!user) {
+        // R-SEC-08: возврат только на эту же страницу и только внутренний.
+        return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(back)}`);
+      }
+      if (!csrfValid(req.session, req.body?.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'rating.error.csrf'));
+      }
+      if (ratingLimiter && !ratingLimiter.allow(String(user.id))) {
+        return res.status(429)
+          .set('Retry-After', String(Math.ceil((ratingLimiter.windowMs ?? HOUR) / 1000)))
+          .type('text/plain; charset=utf-8')
+          .send(t(locale, 'rating.error.rate'));
+      }
+
+      try {
+        const found = await series.bySlug(slug);
+        if (!found) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'rating.error.missing'));
+
+        const raw = String(req.body?.value ?? '').trim();
+        // Пустое значение — это «убрать оценку», а не «ноль»: ноль вне
+        // диапазона и должен быть отвергнут, а человек хочет снять своё.
+        const result = raw === '' || raw === '0'
+          ? await ratings.removeSeriesRating({ userId: user.id, seriesId: found.id })
+          : await ratings.setSeriesRating({
+            userId: user.id, seriesId: found.id, value: Number(raw),
+          });
+
+        if (!result.ok) return res.redirect(303, `${back}?rating=${result.reason}`);
+        return res.redirect(303, `${back}?rating=ok${result.counted === false ? '&young=1' : ''}`);
+      } catch (error) {
+        return next(error);
+      }
+    });
+  }
+
   return router;
+}
+
+/**
+ * Данные блока оценки для страницы сериала.
+ *
+ * @param {object} deps
+ * @param {object} deps.ratings сервис оценок
+ * @param {object|null} deps.user
+ * @param {number} deps.seriesId
+ * @param {object|null} deps.session
+ */
+async function ratingBlock({ ratings, user, seriesId, session }) {
+  const summary = await ratings.summary(seriesId);
+  if (!user) {
+    // Гость видит то же место с приглашением войти: пустое место на странице
+    // сериала выглядит как ошибка вёрстки (F-04-01 §2).
+    return { summary, own: null, canRate: false, signedIn: false, csrf: session ? csrfToken(session) : '', slug: null };
+  }
+
+  const allowed = await ratings.canRate({ userId: user.id, seriesId });
+  return {
+    summary,
+    own: await ratings.ownRating(user.id, seriesId),
+    canRate: allowed.ok,
+    reason: allowed.reason ?? null,
+    signedIn: true,
+    csrf: csrfToken(session),
+  };
 }
 
 /**

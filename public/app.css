@@ -1099,6 +1099,121 @@ a:hover { color: var(--accent-hover); }
   font-variant-numeric: tabular-nums;
 }
 
+/* ─── Оценка сериала (F-04-01) ─────────────────────────────────────────────
+   Ряд из десяти чисел — на узком экране он не помещается в строку, поэтому
+   сетка `auto-fit` переносит его сам: человек не должен прокручивать шкалу
+   в сторону, чтобы поставить единицу. */
+
+.rating {
+  margin-block-start: var(--space-4);
+  padding-block-start: var(--space-3);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.rating__average {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.rating__value {
+  font-size: 24px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.rating__votes,
+.rating__hint,
+.rating__own {
+  color: var(--text-secondary);
+  font-size: 14px;
+  margin: 0;
+}
+
+.rating__own { margin-block-start: var(--space-1); }
+
+.rating__form { display: flex; align-items: center; gap: var(--space-2); flex-wrap: wrap; }
+
+.rating__scale {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(40px, 1fr));
+  gap: var(--space-1);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  border: 0;
+}
+
+/* Радиокнопка скрыта, а не `display: none`: иначе она выпадает из порядка
+   обхода и с клавиатуры до неё не дойти (R-A11Y-19). Поле остаётся
+   доступным и получает фокус, рамку рисует метка. */
+.rating__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.rating__value {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.rating__value:hover { background: var(--surface-hover); }
+
+/* Выбранное значение отмечено рамкой и весом, а не только цветом: иначе
+   человеку, который не различает цвета, выбор не виден (R-A11Y-19). */
+.rating__value--on {
+  border-color: var(--accent);
+  border-width: 2px;
+  font-weight: 600;
+}
+
+.rating__input:focus-visible + .rating__number {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.rating__number { font-variant-numeric: tabular-nums; }
+
+/* Гистограмма: полоса нативная, число рядом с ней, поэтому распределение
+   читается и без различения цвета (R-A11Y-22). */
+.rating__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-block-start: var(--space-3);
+}
+
+.rating__bar {
+  display: grid;
+  grid-template-columns: 24px 1fr 40px;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.rating__bar-count,
+.rating__bar-label {
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-variant-numeric: tabular-nums;
+}
+
+.rating__bar-fill {
+  inline-size: 100%;
+  block-size: 10px;
+  accent-color: var(--accent);
+}
+
 /* Якорное меню. */
 .series__menu {
   position: sticky;

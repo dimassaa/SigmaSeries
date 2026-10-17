@@ -480,14 +480,19 @@ CREATE TABLE e_rating (
   user_id     BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,
   object_type TEXT   NOT NULL CHECK (object_type IN ('series','episode')),
   series_id   BIGINT NOT NULL REFERENCES e_series(id) ON DELETE RESTRICT,
+  -- У оценки сериала серии нет, поэтому столбец пуст. Из-за этого первичным
+  -- ключом он быть не может: NULL в ключе означает, что одинаковые строки
+  -- считаются различными, и «один человек — одна оценка» перестало бы быть
+  -- гарантией. Уникальность задают два индекса ниже, по одному на вид.
   episode_id  BIGINT REFERENCES e_episode(id) ON DELETE RESTRICT,
   value       SMALLINT NOT NULL CHECK (value BETWEEN 1 AND 10),
   created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   counted     BOOLEAN NOT NULL DEFAULT TRUE,   -- исключённые не удаляются, а помечаются
-  is_demo     BOOLEAN NOT NULL DEFAULT FALSE,
-  PRIMARY KEY (user_id, object_type, episode_id, series_id)
+  is_demo     BOOLEAN NOT NULL DEFAULT FALSE
 );
+CREATE UNIQUE INDEX uq_rating_series  ON e_rating (user_id, series_id)  WHERE object_type = 'series';
+CREATE UNIQUE INDEX uq_rating_episode ON e_rating (user_id, episode_id) WHERE object_type = 'episode';
 CREATE INDEX ix_rating_series ON e_rating (series_id) WHERE counted;
 CREATE TABLE e_series_rating_stat (
   series_id BIGINT PRIMARY KEY REFERENCES e_series(id) ON DELETE CASCADE,

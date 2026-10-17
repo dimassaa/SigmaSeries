@@ -25,6 +25,8 @@ import { createNotificationSweep } from './services/notify/sweep.js';
 import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
+import { pgRatings } from './services/rating/store.js';
+import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
@@ -37,7 +39,7 @@ import { createImportStore } from './services/import/store.js';
 import { createScheduler } from './services/import/scheduler.js';
 import { createImportTasks } from './services/import/tasks.js';
 import { createTmdbClient } from './services/import/tmdb.js';
-import { MAIL_SETTINGS } from './config/settings.js';
+import { MAIL_SETTINGS, RATING, HOUR } from './config/settings.js';
 import cron from 'node-cron';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -135,6 +137,22 @@ notificationWorker.unref();
 
 sweepNotifications();
 
+// Оценки аккаунтов, дожидающих возраста, вводятся в агрегат (EC-V4). Тот же
+// ежечасный проход, а не свой таймер: голос входит один раз, и место, где
+// об этом забывают, должно быть одно.
+const ratings = pgRatings(pool);
+
+const countMatured = () => ratings.countMaturedRatings(new Date())
+  .then((count) => {
+    if (count) console.log(`[оценки] в рейтинг вошли голоса: ${count}`);
+  })
+  .catch((error) => console.error(`[оценки] ${error.message}`));
+
+const maturedWorker = setInterval(countMatured, NOTIFY_SWEEP_MS);
+maturedWorker.unref();
+
+countMatured();
+
 const app = createApp({
   data: pgData(pool),
   series: pgSeries(pool),
@@ -147,6 +165,11 @@ const app = createApp({
   calendar: pgCalendar(pool),
   watchStatus: pgWatchStatus(pool),
   marks: pgMarks(pool),
+  // Оценки (F-04-01, OP-03). Лимит частоты — `rating.rate_per_hour` (M4 §0):
+  // счёт по пользователю, потому что у оценки есть владелец, в отличие от
+  // поиска, где ключом служит адрес.
+  ratings,
+  ratingLimiter: createRateLimiter({ limit: RATING.ratePerHour, windowMs: HOUR }),
   progress: pgProgress(pool),
   subscriptions: pgSubscriptions(pool),
   feed,
