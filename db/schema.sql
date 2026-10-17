@@ -88,6 +88,16 @@ CREATE TABLE e_session (
   id            BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   user_id       BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
   device_label  TEXT   NOT NULL,
+  -- Хеш идентификатора сессии (F-01-03 §4). Сам идентификатор входить
+  -- позволяет, поэтому он в таблице не лежит: по хешу находится живая
+  -- сессия для отзыва и определяется «это устройство». Для строк, созданных
+  -- до появления столбца, значение NULL — отозвать их нельзя, и это честнее,
+  -- чем пустой хеш, который совпал бы с чем-то не тем.
+  sid_hash      TEXT,
+  -- Усечённый адрес сети (F-01-03 §4): /24 для IPv4 и /48 для IPv6 — самый
+  -- мелкий блок, который выдают операторы, поэтому восстановить адрес из
+  -- показанного нельзя. NULL, если адрес неизвестен.
+  ip_prefix     TEXT,
   created_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_seen_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
   revoked_at    TIMESTAMPTZ,
@@ -96,6 +106,8 @@ CREATE TABLE e_session (
   CONSTRAINT ck_session_alive CHECK (revoked_at IS NULL OR revoked_at >= created_at)
 );
 CREATE INDEX ix_session_user ON e_session (user_id) WHERE revoked_at IS NULL;
+-- Поиск «моя ли это сессия» идёт по хешу идентификатора, а не по идентификатору.
+CREATE UNIQUE INDEX uq_session_sid_hash ON e_session (sid_hash) WHERE sid_hash IS NOT NULL;
 
 CREATE TABLE e_role_assignment (
   id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,

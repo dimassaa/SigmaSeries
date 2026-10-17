@@ -7,6 +7,7 @@ import pg from 'pg';
 
 import { makeToken, hashToken, verifyPassword } from './password.js';
 import { blindIndex, encryptValue, decryptValue } from './crypto.js';
+import { sessionHash } from './device.js';
 import { sealSecret } from './totp.js';
 import { AUTH, STAFF_ROLES } from '../../config/settings.js';
 
@@ -132,16 +133,27 @@ export function pgAuthStore(pool) {
      *
      * Берётся `e_session` — список устройств, а не таблица `session`
      * (хранилище сессий connect-pg-simple). Секретов в списке нет: наружу
-     * уходят только подпись устройства и даты.
+     * уходят подпись устройства, усечённый адрес и даты.
+     *
+     * Текущее устройство отмечается сравнением хешей: сам идентификатор
+     * сессии в списке не хранится, поэтому сравнивать больше нечего.
+     *
+     * @param {number} userId
+     * @param {string|null} [currentHash] хеш идентификатора текущей сессии
+     * @returns {Promise<object[]>}
      */
-    async devices(userId) {
+    async devices(userId, currentHash = null) {
       const { rows } = await pool.query(
-        `SELECT id, device_label, created_at, last_seen_at FROM e_session
+        `SELECT id, device_label, sid_hash, ip_prefix, created_at, last_seen_at
+           FROM e_session
           WHERE user_id = $1 AND revoked_at IS NULL
           ORDER BY last_seen_at DESC`,
         [userId],
       );
-      return rows;
+      return rows.map((row) => ({
+        ...row,
+        current: row.sid_hash !== null && row.sid_hash === currentHash,
+      }));
     },
 
     /**
@@ -150,6 +162,12 @@ export function pgAuthStore(pool) {
      * Только то, что принадлежит владельцу: идентификатор из тела запроса
      * проверяется условием `user_id`, иначе один запрос выбил бы чужую
      * сессию (R-SEC-10).
+     *
+     * Отзыв должен закончить саму сессию, а не только убрать строку из
+     * списка: иначе «Выйти на этом» оставлял бы человека залогиненным на
+     * устройстве, которое он только что закрыл. Связь строится по хешу
+     * идентификатора: живая сессия находится перебором сессий аккаунта и
+     * сравнением хешей, а сам идентификатор в базе не хранится.
      */
     async revokeDevice(userId, sessionId) {
       // Идентификатор приходит из формы, а столбец — bigint. Без проверки
@@ -157,11 +175,24 @@ export function pgAuthStore(pool) {
       // должен увидеть «устройство не найдено».
       if (!/^\d+$/.test(String(sessionId ?? ''))) return false;
 
-      const { rowCount } = await pool.query(
-        'UPDATE e_session SET revoked_at = now() WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL',
+      const { rows } = await pool.query(
+        `UPDATE e_session SET revoked_at = now()
+          WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+          RETURNING sid_hash`,
         [sessionId, userId],
       );
-      return (rowCount ?? 0) > 0;
+      if (!rows.length) return false;
+
+      const hash = rows[0].sid_hash;
+      if (!hash) return true;
+
+      const { rows: live } = await pool.query(
+        "SELECT sid FROM session WHERE (sess -> 'user' ->> 'id') = $1::text",
+        [userId],
+      );
+      const doomed = live.map((row) => row.sid).find((sid) => sessionHash(sid) === hash);
+      if (doomed) await pool.query('DELETE FROM session WHERE sid = $1', [doomed]);
+      return true;
     },
 
     /**
@@ -1079,11 +1110,15 @@ export function pgAuthStore(pool) {
      * Строка появляется на каждом полноценном входе, поэтому список со временем
      * накапливает старые входы: закрытые убирает человек («Выйти на этом») или
      * лимит `auth.sessions_max`, который снимает и строку, и саму сессию.
+     *
+     * @param {number} userId
+     * @param {{label: string, sidHash: string|null, ipPrefix: string|null}} device
      */
-    async noteDevice(userId, label) {
+    async noteDevice(userId, device) {
       await pool.query(
-        'INSERT INTO e_session (user_id, device_label) VALUES ($1, $2)',
-        [userId, label],
+        `INSERT INTO e_session (user_id, device_label, sid_hash, ip_prefix)
+         VALUES ($1, $2, $3, $4)`,
+        [userId, device.label, device.sidHash, device.ipPrefix],
       );
     },
 
@@ -1467,17 +1502,25 @@ export function stubAuthStore(users = {}, roles = {}) {
     },
 
     /** Устройства аккаунта для раздела «Безопасность». */
-    async devices(userId) {
-      return devices.get(userId) ?? [];
+    async devices(userId, currentHash = null) {
+      return (devices.get(userId) ?? []).map((row) => ({
+        ...row,
+        current: row.sid_hash !== null && row.sid_hash === currentHash,
+      }));
     },
 
     /** Запись устройства при входе: в базе — INSERT в `e_session`. */
-    async noteDevice(userId, label) {
-      calls.noteDevice.push([userId, label]);
+    async noteDevice(userId, device) {
+      calls.noteDevice.push([userId, device]);
       const mine = devices.get(userId) ?? [];
       const at = new Date();
       devices.set(userId, [...mine, {
-        id: at.getTime(), device_label: label, created_at: at, last_seen_at: at,
+        id: at.getTime(),
+        device_label: device.label,
+        sid_hash: device.sidHash,
+        ip_prefix: device.ipPrefix,
+        created_at: at,
+        last_seen_at: at,
       }]);
     },
 

@@ -52,6 +52,26 @@ export function fullDate(locale, date) {
 }
 
 /**
+ * Дата со временем: «12 октября 2026, 14:32».
+ *
+ * Для мест, где важен не день, а момент: вход на устройстве, последняя
+ * активность. Без времени два события в один день выглядели бы как одно.
+ *
+ * @param {string} locale
+ * @param {string|Date} value момент
+ * @returns {string}
+ */
+export function dateTime(locale, value) {
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date(value));
+}
+
+/**
  * Название месяца с годом: «Октябрь 2026».
  *
  * @param {string} locale

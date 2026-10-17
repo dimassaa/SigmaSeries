@@ -372,9 +372,11 @@ test('вход записывает устройство и подрезает �
     assert.equal(res.status, 303);
 
     assert.equal(auth.calls.noteDevice.length, 1, 'устройство записывается один раз');
-    const [userId, label] = auth.calls.noteDevice[0];
+    const [userId, device] = auth.calls.noteDevice[0];
     assert.equal(userId, user.id);
-    assert.equal(label, 'Chrome · Windows');
+    assert.equal(device.label, 'Chrome · Windows');
+    assert.ok(device.sidHash, 'без хеша идентификатора отзыв устройства не найдёт сессию');
+    assert.equal(device.ipPrefix, '127.0.0.0/24');
 
     const [prunedFor, keepSid, max] = auth.calls.pruneSessions[0];
     assert.equal(prunedFor, user.id);

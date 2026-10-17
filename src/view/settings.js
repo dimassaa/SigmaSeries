@@ -10,6 +10,7 @@
 
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { dateTime } from './dates.js';
 
 /**
  * @param {object} ctx
@@ -337,7 +338,6 @@ ${when(backupCodes, () => html`
 
 <form class="form settings__form" method="post" action="/${locale}/settings/security" novalidate>
   <input type="hidden" name="csrf" value="${csrf}">
-  <input type="hidden" name="action" value="revoke_device">
 
   <h2 class="settings__subhead">${t(locale, 'settings.security.devices')}</h2>
 
@@ -345,14 +345,29 @@ ${when(backupCodes, () => html`
   <ul class="settings__devices">
     ${devices.map((device) => html`
     <li class="settings__device">
-      <span class="settings__device-label">${device.device_label ?? t(locale, 'settings.security.device')}</span>
+      <div class="settings__device-main">
+        <span class="settings__device-label">${device.device_label ?? t(locale, 'settings.security.device')}</span>
+        ${when(device.current, () => html`<span class="settings__device-here"
+          >${t(locale, 'settings.security.thisDevice')}</span>`)}
+        <span class="settings__device-meta"
+          >${t(locale, 'settings.security.signedIn', { date: dateTime(locale, device.created_at) })}</span>
+        ${when(device.ip_prefix, () => html`<span class="settings__device-meta"
+          >${t(locale, 'settings.security.from', { ip: device.ip_prefix })}</span>`)}
+      </div>
       <button class="button button--quiet" type="submit" name="session" value="${device.id}"
         >${t(locale, 'settings.security.revoke')}</button>
     </li>`)}
-  </ul>`)}
+  </ul>
+
+  ${when(devices.filter((device) => !device.current).length, () => html`
+  <button class="button button--quiet" type="submit" name="action" value="revoke_others"
+    >${t(locale, 'settings.security.revokeOthers')}</button>`)}
+`)}
 
   ${when(!devices.length, () => html`
   <p class="field__hint">${t(locale, 'settings.security.devicesEmpty')}</p>`)}
+${when(devices.length && !devices.some((device) => device.current), () => html`
+  <p class="field__hint">${t(locale, 'settings.security.devicesOnlyCurrent')}</p>`)}
 </form>
 
 <form class="form settings__form" method="post" action="/${locale}/settings/security" novalidate>

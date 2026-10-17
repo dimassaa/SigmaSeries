@@ -10,7 +10,7 @@ import crypto from 'node:crypto';
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
 
-import { deviceLabel } from './device.js';
+import { deviceLabel, ipPrefix, sessionHash } from './device.js';
 import { AUTH } from '../../config/settings.js';
 
 export function createSessionMiddleware(pool, providedStore, { account = null } = {}) {
@@ -105,7 +105,11 @@ export function csrfValid(session, token) {
  * @returns {Promise<void>}
  */
 export async function noteSession(auth, req, userId) {
-  await auth.noteDevice(userId, deviceLabel(req.headers?.['user-agent']));
+  await auth.noteDevice(userId, {
+    label: deviceLabel(req.headers?.['user-agent']),
+    sidHash: sessionHash(req.sessionID),
+    ipPrefix: ipPrefix(req.ip ?? req.socket?.remoteAddress),
+  });
   await auth.pruneSessions(userId, req.sessionID, AUTH.sessionsMax);
 }
 

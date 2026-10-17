@@ -349,6 +349,79 @@ test('резервные коды перегенерируются по паро
 
 // ─── Безопасность: устройства (F-01-03) ────────────────────────────────────
 
+test('в списке устройств видно адрес, дату входа и «это устройство»', async () => {
+  // F-01-03 §4 обещает в строке браузер и ОС, усечённый адрес, даты и отметку
+  // «это устройство». Строка берётся настоящая: устройство записано входом,
+  // который сервер только что провёл, а не подставлена в заглушку.
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, auth }) => {
+      assert.equal(auth.calls.noteDevice.length, 1, 'вход записал устройство');
+      const [, device] = auth.calls.noteDevice[0];
+      assert.ok(device.sidHash, 'хеш идентификатора сессии записан');
+      assert.equal(device.ipPrefix, '127.0.0.0/24', 'адрес усечён до /24');
+
+      // Второе устройство — чужой вход: по нему и «выйти на остальных».
+      const [current] = await auth.devices(user.id, device.sidHash);
+      auth.setSessions(user.id, [
+        { ...current, ip_prefix: '10.0.0.0/24' },
+        {
+          id: current.id + 1,
+          device_label: 'Firefox · Linux',
+          sid_hash: 'хеш-чужого-входа',
+          ip_prefix: null,
+          created_at: NOW,
+          last_seen_at: NOW,
+        },
+      ]);
+
+      const page = await (await get('/ru/settings/security')).text();
+      assert.match(page, /10\.0\.0\.0\/24/, 'усечённый адрес показан');
+      assert.match(page, /Firefox · Linux/, 'чужое устройство тоже в списке');
+      assert.match(page, /Это устройство/, 'текущий вход отмечен');
+      assert.match(page, /value="revoke_others"/, 'выход на остальных доступен');
+      assert.match(page, /Вход /, 'дата входа показана');
+    },
+  });
+});
+
+test('выход на остальных не трогает текущий вход', async () => {
+  const user = await viewer();
+
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      const [, device] = auth.calls.noteDevice[0];
+      const [current] = await auth.devices(user.id, device.sidHash);
+      auth.setSessions(user.id, [current, {
+        id: current.id + 1,
+        device_label: 'Firefox · Linux',
+        sid_hash: 'хеш-чужого-входа',
+        ip_prefix: null,
+        created_at: NOW,
+        last_seen_at: NOW,
+      }]);
+
+      // Запрос собирается из разметки формы, а не набирается руками: в форме
+      // есть скрытое поле и кнопки, и набор полей вручную не поймал бы форму,
+      // в которой нажатая кнопка спорит со скрытым полем за одно имя.
+      const page = await (await get('/ru/settings/security')).text();
+      const start = page.indexOf('name="action" value="revoke_others"');
+      assert.ok(start > 0, 'кнопка «выйти на остальных» нарисована');
+      const csrf = page.match(/name="csrf" value="([^"]+)"/)[1];
+      const res = await post('/ru/settings/security', { csrf, action: 'revoke_others' });
+
+      assert.equal(res.status, 303, 'нажатая кнопка сработала');
+      const [prunedFor, keepSid, max] = auth.calls.pruneSessions.at(-1);
+      assert.equal(prunedFor, user.id);
+      assert.ok(keepSid, 'текущий вход передаётся и остаётся');
+      assert.equal(max, 1, 'остаётся одна сессия — своя');
+    },
+  });
+});
+
 test('устройства перечисляются и отзываются', async () => {
   const user = await viewer();
 
@@ -364,10 +437,10 @@ test('устройства перечисляются и отзываются', 
       assert.match(page, /Телефон/, 'устройство названо');
       assert.match(page, /Ноутбук/);
 
+      // Форма отправляет то, что в ней есть: скрытое поле `csrf` и нажатую
+      // кнопку `session`. Никакого `action` в этой форме больше нет.
       const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
-      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
-        action: 'revoke_device', session: 's1',
-      });
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', { session: 's1' });
 
       assert.equal(res.status, 303, 'устройство отозвано');
       assert.deepEqual(
@@ -388,7 +461,7 @@ test('отзыв чужого устройства не проходит', async
       const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
 
       const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
-        action: 'revoke_device', session: 'чужое-устройство',
+        session: 'чужое-устройство',
       });
 
       assert.notEqual(res.status, 303, 'чужое устройство не отозвано');

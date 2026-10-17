@@ -18,6 +18,7 @@ import { layout } from '../view/layout.js';
 import { settingsView } from '../view/settings.js';
 import { isLocale, t } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
+import { sessionHash } from '../services/auth/device.js';
 import { checkTimezone, checkNickname, checkEmail, normalizeEmail } from '../services/auth/validate.js';
 import { checkPasswordStrength, hashPassword, hashToken, makeToken } from '../services/auth/password.js';
 import { generateBackupCodes, hashBackupCode } from '../services/auth/totp.js';
@@ -104,7 +105,7 @@ export function createSettingsRoutes({
       const twoFactor = await auth.twoFactor(user.id);
       extra.twoFactor = twoFactor;
       extra.backupLeft = twoFactor ? twoFactor.backup.length : 0;
-      extra.devices = await auth.devices(user.id);
+      extra.devices = await auth.devices(user.id, sessionHash(req.sessionID));
     }
     if (section === 'profile' && user) {
       extra.history = await auth.nicknameHistory(user.id);
@@ -280,7 +281,12 @@ export function createSettingsRoutes({
     if (action === 'password') return changePassword(req, res, body, ctx);
     if (action === 'two_factor') return changeTwoFactor(req, res, body, ctx);
     if (action === 'email') return changeEmail(req, res, body, ctx);
-    if (action === 'revoke_device') return revokeDevice(req, res, body, ctx);
+    // Отзыв устройства различается по самому запросу, а не по `action`:
+    // в одной форме живут и кнопка устройства (`session`), и «выйти на
+    // остальных» (`action`), и скрытое поле с одним значением отправлялось бы
+    // вместе с нажатой кнопкой — браузер послал бы два `action` сразу.
+    if (body.session !== undefined) return revokeDevice(req, res, body, ctx);
+    if (action === 'revoke_others') return revokeOtherDevices(req, res, ctx);
 
     return respond(res, 400, await render(req, { ...ctx, error: t(locale, 'settings.security.error.action') }));
   }
@@ -289,8 +295,10 @@ export function createSettingsRoutes({
    * Смена пароля (F-01-06 §8(в), §18).
    *
    * Требуется текущий пароль: без него ссылка из письма меняла бы пароль
-   * человеку, оставив его без входа. Остальные сессии отзываются — пароль на
-   * одном устройстве не должен оставлять вход на остальных.
+   * человеку, оставив его без входа. Отзываются **все** сессии, включая
+   * текущую (M1 §8(д), F-01-06 §17): пароль на одном устройстве не должен
+   * оставлять вход ни на этом, ни на остальных, поэтому после смены человек
+   * входит заново.
    */
   async function changePassword(req, res, body, ctx) {
     const { locale, user } = ctx;
@@ -395,6 +403,19 @@ export function createSettingsRoutes({
         ...ctx, error: t(locale, 'settings.security.error.device'),
       }));
     }
+    return res.redirect(303, `/${locale}${BASE}/security?saved=1`);
+  }
+
+  /**
+   * Выход на всех остальных устройствах (F-01-03 §4).
+   *
+   * Текущая сессия остаётся: человек нажал «на остальных», а не «выйти», и
+   * выкидывать его из аккаунта на устройстве, с которого он нажал, было бы
+   * ровно тем самым неудобством, ради которого кнопка и нужна.
+   */
+  async function revokeOtherDevices(req, res, ctx) {
+    const { locale, user } = ctx;
+    await auth.pruneSessions(user.id, req.sessionID, 1);
     return res.redirect(303, `/${locale}${BASE}/security?saved=1`);
   }
 

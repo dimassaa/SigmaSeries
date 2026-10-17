@@ -13,7 +13,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { deviceLabel } from '../src/services/auth/device.js';
+import { deviceLabel, ipPrefix, sessionHash } from '../src/services/auth/device.js';
 
 const CHROME_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 '
   + '(KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36';
@@ -53,4 +53,19 @@ test('без заголовка подпись всё равно есть', () =
   assert.equal(typeof deviceLabel(undefined), 'string');
   assert.equal(typeof deviceLabel(''), 'string');
   assert.ok(deviceLabel('').length > 0);
+});
+
+test('хеш идентификатора не обратим', () => {
+  const hash = sessionHash('s%3A8sT0JrKc9F1Q2AbCdEfGh');
+  assert.ok(!hash.includes('s%3A8sT0JrKc9F1Q2AbCdEfGh'), 'исходника в хеше нет');
+  assert.equal(hash, sessionHash('s%3A8sT0JrKc9F1Q2AbCdEfGh'), 'один и тот же вход даёт один хеш');
+  assert.notEqual(hash, sessionHash('другой'));
+});
+
+test('адрес усекается до границы выдачи', () => {
+  assert.equal(ipPrefix('192.168.1.57'), '192.168.1.0/24');
+  assert.equal(ipPrefix('::ffff:10.0.0.9'), '10.0.0.0/24', 'IPv4 в оболочке IPv6 — тот же адрес');
+  assert.equal(ipPrefix('2001:db8:85a3:1234:5678:8a2e:370:7334'), '2001:db8:85a3::/48');
+  assert.equal(ipPrefix('не адрес'), null);
+  assert.equal(ipPrefix(undefined), null);
 });

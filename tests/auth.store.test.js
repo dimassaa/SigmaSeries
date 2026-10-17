@@ -17,6 +17,7 @@ import crypto from 'node:crypto';
 import { createPool } from '../src/db/pool.js';
 import { pgAuthStore } from '../src/services/auth/store.js';
 import { makeToken, hashToken, hashPassword } from '../src/services/auth/password.js';
+import { sessionHash } from '../src/services/auth/device.js';
 import { decryptValue, blindIndex } from '../src/services/auth/crypto.js';
 
 // Слепой индекс и шифротекст считаются секретами приложения, а не базы: без
@@ -390,6 +391,58 @@ test('смена пароля не трогает токены подтверж�
   const row = await store.tokenByHash(hash);
   assert.equal(row.used_at, null, 'токен другого назначения сброс не гасит');
   await pool.query('DELETE FROM e_auth_token WHERE token_hash = $1', [hash]);
+});
+
+test('отзыв устройства закрывает его живую сессию (F-01-03 §4)', { skip }, async () => {
+  // «Выйти на этом» должен закончить вход, а не только убрать строку из
+  // списка. Связь строится по хешу идентификатора, поэтому проверка заодно
+  // доказывает, что хеш кладётся при входе и что чужая строка не отзывается.
+  const mine = await confirmedUser();
+  const other = await confirmedUser();
+  const mineSid = `test-${uniq()}-mine`;
+  const otherSid = `test-${uniq()}-other`;
+  await pool.query(
+    `INSERT INTO session (sid, sess, expire)
+     VALUES ($1, json_build_object('cookie', json_build_object('path','/'),
+                                   'user', json_build_object('id', $2::text))::json, now() + interval '1 day')`,
+    [mineSid, mine.user.id],
+  );
+  await pool.query(
+    `INSERT INTO session (sid, sess, expire)
+     VALUES ($1, json_build_object('cookie', json_build_object('path','/'),
+                                   'user', json_build_object('id', $2::text))::json, now() + interval '1 day')`,
+    [otherSid, other.user.id],
+  );
+
+  await store.noteDevice(mine.user.id, {
+    label: 'Chrome · Windows', sidHash: sessionHash(mineSid), ipPrefix: '192.168.1.0/24',
+  });
+  const [device] = await store.devices(mine.user.id, sessionHash(mineSid));
+  assert.ok(device, 'устройство записано и видно в списке');
+  assert.equal(device.current, true, 'вход с этой сессии отмечен как текущий');
+  assert.equal(device.ip_prefix, '192.168.1.0/24');
+
+  assert.equal(await store.revokeDevice(mine.user.id, device.id), true);
+  const { rows: left } = await pool.query(
+    `SELECT count(*)::int AS n FROM session WHERE sid = ANY($1::text[])`,
+    [[mineSid, otherSid]],
+  );
+  assert.equal(left[0].n, 1, 'сессия отозванного устройства закрыта');
+  assert.deepEqual(await store.devices(mine.user.id), [], 'строка исчезла из списка');
+  assert.equal(await store.revokeDevice(mine.user.id, device.id), false, 'повторный отзыв не проходит');
+
+  await pool.query('DELETE FROM session WHERE sid = ANY($1::text[])', [[otherSid]]);
+});
+
+test('отзыв чужого устройства не проходит (R-SEC-10)', { skip }, async () => {
+  const owner = await confirmedUser();
+  const stranger = await confirmedUser();
+  await store.noteDevice(owner.user.id, {
+    label: 'Firefox · Linux', sidHash: null, ipPrefix: null,
+  });
+  const [device] = await store.devices(owner.user.id);
+  assert.equal(await store.revokeDevice(stranger.user.id, device.id), false);
+  assert.equal((await store.devices(owner.user.id)).length, 1, 'устройство осталось у владельца');
 });
 
 test('лишние сессии закрываются, текущая остаётся (F-01-03 §5)', { skip }, async () => {
