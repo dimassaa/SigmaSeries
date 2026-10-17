@@ -22,7 +22,8 @@ import { stubAuthStore } from '../src/services/auth/store.js';
 import { createSessionMiddleware, createMemorySessionStore } from '../src/services/auth/session.js';
 import { hashPassword } from '../src/services/auth/password.js';
 import { generateSecret, totpAt } from '../src/services/auth/totp.js';
-import { runDeletionSweep } from '../src/services/auth/deletion.js';
+import { runDeletionSweep, runUnverifiedSweep } from '../src/services/auth/deletion.js';
+import { AUTH } from '../src/config/settings.js';
 
 const PASSWORD = 'правильный-пароль-из-десяти';
 
@@ -466,6 +467,60 @@ test('до истечения срока обезличивания не про�
   assert.equal(swept.done, 0, 'на 13-й день задача ничего не трогает');
   assert.equal(found.status, 'deleting', 'аккаунт ещё цел');
   assert.ok(await auth.byEmail('anna@example.com'), 'адрес работает');
+});
+
+// ─── Срок неподтверждённого аккаунта (F-01-01 §8(г), STATES §2) ────────────────
+//
+// `STATES` ведёт `Unverified → Anonymized: не подтверждён за 7 дней`. Срок был
+// описан и в настройках, и в состояниях, но не применялся: неподтверждённый
+// аккаунт держал адрес и ник вечно.
+
+/**
+ * Аккаунт, созданный `days` дней назад и так и не подтверждённый.
+ *
+ * Идентификатор задаётся явно: у `viewer()` он у всех один, и два аккаунта с
+ * одинаковым `id` обезличились бы по первому найденному — тест прошёл бы,
+ * обезличив не того.
+ */
+const pendingUser = async (days, email, id) => viewer({
+  id, email, nickname: email.split('@')[0], email_confirmed: false,
+  registered_at: new Date(Date.now() - days * 86_400_000),
+});
+
+test('неподтверждённый аккаунт обезличивается по истечении срока', async () => {
+  const old = await pendingUser(AUTH.unverifiedTtlDays + 1, 'old@example.com', 21);
+  const fresh = await pendingUser(1, 'fresh@example.com', 22);
+
+  await withServer({
+    user: await viewer(),
+    extra: [old, fresh],
+    run: async ({ auth }) => {
+      const swept = await runUnverifiedSweep({ auth, now: () => Date.now() });
+
+      assert.equal(swept.done, 1, 'обезличен ровно просроченный аккаунт');
+      assert.equal(await auth.byEmail('old@example.com'), null,
+        'адрес освобождён: под ним снова можно зарегистрироваться');
+      assert.ok(await auth.byEmail('fresh@example.com'), 'свежий аккаунт цел');
+    },
+  });
+});
+
+test('подтверждённый аккаунт сроком не берётся', async () => {
+  const confirmed = await viewer({
+    id: 23,
+    email: 'anna2@example.com', nickname: 'anna2',
+    registered_at: new Date(Date.now() - (AUTH.unverifiedTtlDays + 30) * 86_400_000),
+  });
+
+  await withServer({
+    user: await viewer(),
+    extra: [confirmed],
+    run: async ({ auth }) => {
+      const swept = await runUnverifiedSweep({ auth, now: () => Date.now() });
+      assert.equal(swept.done, 0, 'подтверждённый аккаунт не обезличивается никогда');
+      assert.ok(await auth.byEmail('anna2@example.com'));
+    },
+  });
 });
 
 test('оценки остаются после обезличивания', async () => {

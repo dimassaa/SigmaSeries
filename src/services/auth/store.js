@@ -20,6 +20,15 @@ const { Pool } = pg;
 /** Время в виде `ЧЧ:ММ` — единственное, что принимают тихие часы (F-03-10 §9). */
 const TIME_OF_DAY = /^([01]\d|2[0-3]):[0-5]\d$/;
 
+/**
+ * Сколько аккаунтов обезличивает один проход по неподтверждённым.
+ *
+ * Обезличивание идёт транзакцией на аккаунт и трогает около десятка таблиц,
+ * поэтому порция ограничена: без неё всплеск давно неподтверждённых
+ * аккаунтов превратил бы ежечасный проход в очередь на полчаса.
+ */
+const UNVERIFIED_BATCH = 100;
+
 export function pgAuthStore(pool) {
   return {
     /** @returns {object|null} строка пользователя или null */
@@ -500,7 +509,7 @@ export function pgAuthStore(pool) {
     },
 
     /**
-     * Кому пора обезличивать (EC-A17).
+     * Кому пора обезличивать по истечении срока (EC-A17).
      *
      * Задача спрашивает, а не ведёт своё расписание: сервер мог быть выключен,
      * и пропущенное догоняется при ближайшем проходе.
@@ -516,6 +525,31 @@ export function pgAuthStore(pool) {
         [at],
       );
       return rows.map((row) => ({ id: row.id, delete_materials: row.delete_materials }));
+    },
+
+    /**
+     * Кому пора обезличивать по сроку неподтверждённого (F-01-01 §8(г)).
+     *
+     * Подтверждённые и уже обезличенные не попадают в список: первый живёт
+     * настоящим аккаунтом, второй не имеет ни адреса, ни ника. Порция
+     * ограничена так же, как у удалений: обезличивание идёт транзакцией на
+     * аккаунт, и тысяча таких за один проход — это тысяча транзакций подряд.
+     *
+     * @param {Date} cutoff момент, до которого аккаунт считается старым
+     * @returns {Promise<number[]>}
+     */
+    async dueUnverified(cutoff) {
+      const { rows } = await pool.query(
+        `SELECT id FROM e_user
+          WHERE NOT email_confirmed
+            AND status <> 'deleted'
+            AND deleted_at IS NULL
+            AND registered_at <= $1
+          ORDER BY registered_at
+          LIMIT $2`,
+        [cutoff, UNVERIFIED_BATCH],
+      );
+      return rows.map((row) => row.id);
     },
 
     /**
@@ -1285,6 +1319,10 @@ export function stubAuthStore(users = {}, roles = {}) {
         nickname: fields.nickname,
         status: 'active',
         email_confirmed: fields.confirmed ?? false,
+        // Дата регистрации: по ней задача решает, что неподтверждённый
+        // аккаунт досидел свой срок (F-01-01 §8(г)). В базе это `registered_at`
+        // со значением по умолчанию, в заглушке — то же самое.
+        registered_at: fields.registeredAt ?? new Date(),
         locale: fields.locale,
         theme: fields.theme,
       };
@@ -1726,6 +1764,26 @@ export function stubAuthStore(users = {}, roles = {}) {
       return Object.values(users)
         .filter((u) => u.status === 'deleting' && u.anonymize_after && u.anonymize_after <= at)
         .map((u) => ({ id: u.id, delete_materials: u.delete_materials }));
+    },
+
+    /**
+     * Кому пора обезличивать по сроку неподтверждённого (F-01-01 §8(г)).
+     *
+     * Подтверждённые и уже обезличенные не попадают в список: первый живёт
+     * настоящим аккаунтом, второй не имеет ни адреса, ни ника.
+     *
+     * @param {Date} cutoff момент, до которого аккаунт считается старым
+     * @returns {Promise<number[]>}
+     */
+    async dueUnverified(cutoff) {
+      return Object.values(users)
+        .filter((u) => !u.email_confirmed && u.status !== 'deleted'
+          // Аккаунт без даты регистрации (тестовая заглушка) сроком не
+          // считается: иначе «нет даты» читалось бы как «зарегистрирован
+          // вчера» и такой аккаунт обезличился бы первым же проходом.
+          && u.registered_at && new Date(u.registered_at) <= cutoff)
+        .slice(0, UNVERIFIED_BATCH)
+        .map((u) => u.id);
     },
 
     /**

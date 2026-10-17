@@ -19,6 +19,7 @@ import { pgAuthStore } from '../src/services/auth/store.js';
 import { makeToken, hashToken, hashPassword } from '../src/services/auth/password.js';
 import { sessionHash } from '../src/services/auth/device.js';
 import { decryptValue, blindIndex } from '../src/services/auth/crypto.js';
+import { AUTH } from '../src/config/settings.js';
 
 // Слепой индекс и шифротекст считаются секретами приложения, а не базы: без
 // них поиск и запись работать не должны вообще, а не «как-то».
@@ -391,6 +392,35 @@ test('смена пароля не трогает токены подтверж�
   const row = await store.tokenByHash(hash);
   assert.equal(row.used_at, null, 'токен другого назначения сброс не гасит');
   await pool.query('DELETE FROM e_auth_token WHERE token_hash = $1', [hash]);
+});
+
+test('неподтверждённые аккаунты выбираются по сроку (F-01-01 §8(г))', { skip }, async () => {
+  // Отбор питает задача обезличивания, поэтому проверяется на базе: заглушка
+  // не знает, что значит `NOT email_confirmed` в SQL.
+  const pending = async () => {
+    const { fields } = newUser();
+    return (await store.createUser(fields)).id;
+  };
+  const day = 86_400_000;
+  const age = async (id, days) => pool.query(
+    `UPDATE e_user SET registered_at = now() - ($2 || ' days')::interval WHERE id = $1`,
+    [id, String(days)],
+  );
+
+  const old = await pending();
+  const fresh = await pending();
+  const long = await pending();
+  const confirmed = (await confirmedUser()).user.id;
+  await age(old, 10);
+  await age(fresh, 1);
+  await age(long, 400);
+
+  const due = await store.dueUnverified(new Date(Date.now() - AUTH.unverifiedTtlDays * day));
+
+  assert.ok(due.includes(old), 'просроченный попал в список');
+  assert.ok(due.includes(long), 'очень старый тоже: срок не «свежее, чем неделя»');
+  assert.ok(!due.includes(fresh), 'свежий не попал');
+  assert.ok(!due.includes(confirmed), 'подтверждённый не попал');
 });
 
 test('отзыв устройства закрывает его живую сессию (F-01-03 §4)', { skip }, async () => {

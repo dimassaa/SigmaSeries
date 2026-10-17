@@ -31,7 +31,7 @@ import { createJournal } from './services/journal.js';
 import { createMailQueue } from './services/mail/queue.js';
 import { consoleMailer } from './services/mail/console-mailer.js';
 import { effectiveMode, smtpMailer } from './services/mail/mode.js';
-import { runDeletionSweep, DELETE_TICK_MS } from './services/auth/deletion.js';
+import { runDeletionSweep, runUnverifiedSweep, DELETE_TICK_MS } from './services/auth/deletion.js';
 import { runExportSweep, EXPORT_TICK_MS } from './services/data/export-job.js';
 import { createImportStore } from './services/import/store.js';
 import { createScheduler } from './services/import/scheduler.js';
@@ -187,19 +187,25 @@ const worker = setInterval(() => {
 }, MAIL_SETTINGS.tickMs);
 worker.unref();
 
-// Обезличивание по истечении 14 дней (F-01-10 §4). Сразу при старте, а не
-// через первый интервал: сервер мог быть выключен в день срока, и ждать ещё
-// четверти часа значило бы держать чужие данные в рабочем виде (EC-A17).
-const deletionWorker = setInterval(() => {
+// Обезличивание по истечении срока: удаление по заявке человека (F-01-10 §4) и
+// неподтверждённый аккаунт, не дождавшийся письма (F-01-01 §8(г)).
+// Задачи две, таймер один: отдельный таймер на каждую — это ещё одно место,
+// где можно забыть про срок. Сразу при старте, а не через первый интервал:
+// сервер мог быть выключен в день срока, и ждать ещё четверти часа значило бы
+// держать чужие данные в рабочем виде (EC-A17).
+const anonymize = () => {
   runDeletionSweep({ auth, journal }).catch((e) => {
     console.error(`[удаление] ${e.message}`);
   });
-}, DELETE_TICK_MS);
+  runUnverifiedSweep({ auth, journal }).catch((e) => {
+    console.error(`[неподтверждённый] ${e.message}`);
+  });
+};
+
+const deletionWorker = setInterval(anonymize, DELETE_TICK_MS);
 deletionWorker.unref();
 
-runDeletionSweep({ auth, journal }).catch((e) => {
-  console.error(`[удаление] ${e.message}`);
-});
+anonymize();
 
 // Сборка выгрузок (F-01-10 §4). Тоже сразу при старте: заказ, сделанный, пока
 // сервер был выключен, иначе ждал бы минуту после каждого перезапуска.
