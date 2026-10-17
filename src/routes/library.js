@@ -52,6 +52,7 @@ export function createLibraryRoutes({ library, sessionMw, progress = null, subsc
         status: String(req.query.status ?? ''),
         sort: String(req.query.sort ?? ''),
         query: String(req.query.q ?? ''),
+        view: String(req.query.view ?? ''),
         page,
         limit: LIBRARY_PAGE_SIZE,
         today: todayIn(timezone),

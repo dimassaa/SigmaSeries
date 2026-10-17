@@ -17,6 +17,9 @@ import pg from 'pg';
 
 import { STATUSES } from './status.js';
 
+/** Виды списка (F-03-04 §4): карточки по умолчанию и плотный список. */
+export const VIEWS = ['cards', 'list'];
+
 /** `library.page_size` (M3 §0): 24 закладки на страницу. */
 export const LIBRARY_PAGE_SIZE = 24;
 
@@ -59,7 +62,8 @@ export function pgLibrary(pool) {
      * @param {string} [options.query] поиск по списку
      * @param {string} options.today сегодня пояса зрителя `YYYY-MM-DD`
      * @returns {Promise<{items: object[], total: number, counts: Record<string, number>,
-     *   page: number, pages: number, limit: number, status: string|null, sort: string, query: string}>}
+     *   page: number, pages: number, limit: number, status: string|null, sort: string,
+ *   query: string, view: 'cards'|'list'}>}
      */
     async list({
       userId,
@@ -68,6 +72,7 @@ export function pgLibrary(pool) {
       page = 1,
       limit = LIBRARY_PAGE_SIZE,
       query = '',
+      view = 'cards',
       today,
       progressOf = null,
     }) {
@@ -93,6 +98,9 @@ export function pgLibrary(pool) {
         status: wanted,
         sort: SORTS[sort] ? sort : 'recent',
         query: needle,
+        // Чужое значение отбрасывается, а не показывается: вид из адреса не
+        // должен уводить страницу в состояние, которого нет (F-03-04 §9).
+        view: VIEWS.includes(view) ? view : 'cards',
       };
     },
   };

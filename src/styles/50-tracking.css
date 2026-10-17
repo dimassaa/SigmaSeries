@@ -464,3 +464,69 @@
   color: var(--warning);
   font-size: 14px;
 }
+
+/* Плотный список закладок (#127, F-03-04 §4).
+   На телефоне он же и есть вид по умолчанию: карточки в две колонки занимают
+   весь экран одной записью, а список показывает пять. */
+.library__view { display: inline-flex; gap: var(--space-1); }
+.library__view-button {
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.library__view-button:hover { border-color: var(--border-strong); color: var(--text-primary); }
+/* Активный вид помечен и цветом, и рамкой: иначе при плохом зрении переключатель
+   не читается (R-A11Y-19). */
+.library__view-button--on { color: var(--text-primary); border-color: var(--accent); }
+
+.library__rows { list-style: none; margin: 0; padding: 0; }
+
+.library__row {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.library__row--archived { opacity: 0.7; }
+
+.library__row-poster { display: block; }
+.library__row-poster-img {
+  display: block; width: 48px; height: 72px; object-fit: cover;
+  border-radius: var(--radius-sm); background: var(--surface-sunken);
+}
+.library__row-poster-fallback {
+  display: block; width: 48px; height: 72px;
+  border-radius: var(--radius-sm); background: var(--surface-hover);
+}
+
+.library__row-body { min-width: 0; }
+.library__row-name { font-size: 16px; margin: 0; }
+.library__row-progress { margin-block-start: var(--space-1); }
+.library__row-next { margin-block-start: var(--space-1); font-size: 13px; color: var(--text-secondary); }
+
+.library__row-actions { display: flex; align-items: center; gap: var(--space-2); }
+
+/* Телефон: карточки становятся плотным списком (F-03-04 §19).
+   Макет требует на телефоне именно список, а переключателя вида там может не
+   быть под рукой — поэтому вид по умолчанию меняется стилями, без скрипта и
+   без второго набора разметки. */
+@media (max-width: 640px) {
+  .library__card {
+    display: grid;
+    grid-template-columns: 48px 1fr auto;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-2) 0;
+  }
+  .library__poster-img {
+    width: 48px; height: 72px; border-radius: var(--radius-sm);
+  }
+  .library__poster-fallback { width: 48px; height: 72px; }
+  .library__name { font-size: 16px; }
+}

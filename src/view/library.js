@@ -42,15 +42,20 @@ ${tabs({ locale, library })}
     ${Object.keys(SORT_LABEL).map((key) => html`
     <option value="${key}" ${library.sort === key ? 'selected' : ''}>${t(locale, SORT_LABEL[key])}</option>`)}
   </select>
+  ${viewToggle({ locale, view: library.view })}
   <button class="button" type="submit">${t(locale, 'library.apply')}</button>
 </form>
 
 ${when(library.items.length === 0, () => emptyView({ locale, library }))}
 
 ${when(library.items.length > 0, () => html`
+${library.view === 'list' ? html`
+<ol class="library__rows" role="list">
+  ${library.items.map((item) => denseRow({ locale, item, csrf, subs: subs?.get(item.seriesId) ?? null }))}
+</ol>` : html`
 <ol class="library__list" role="list">
   ${library.items.map((item) => card({ locale, item, csrf, subs: subs?.get(item.seriesId) ?? null }))}
-</ol>
+</ol>`}
 
 ${when(library.pages > 1, () => pagination({ locale, library }))}`)}`;
 }
@@ -83,8 +88,81 @@ function tabHref(locale, library, tab) {
   if (tab !== 'all') params.set('status', tab);
   if (library.sort !== 'recent') params.set('sort', library.sort);
   if (library.query) params.set('q', library.query);
+  // Вид — часть состояния страницы: переключение не должно сбрасывать
+  // вкладку, сортировку и поиск, иначе человек терял бы настроенное.
+  if (library.view !== 'cards') params.set('view', library.view);
   const query = params.toString();
   return `/${locale}/library${query ? `?${query}` : ''}`;
+}
+
+/**
+ * Переключатель вида: карточки или плотный список (F-03-04 §4).
+ *
+ * Две кнопки той же формы вместо ссылок со скриптом: выбор уезжает в адрес и
+ * работает без JavaScript, а текущий вид помечен `aria-pressed`.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {'cards'|'list'} args.view
+ * @returns {object}
+ */
+function viewToggle({ locale, view }) {
+  const button = (value, icon, label) => html`
+  <button class="library__view-button${view === value ? ' library__view-button--on' : ''}"
+          type="submit" name="view" value="${value}"
+          aria-pressed="${view === value ? 'true' : 'false'}" title="${t(locale, label)}">
+    <span aria-hidden="true">${icon}</span>
+    <span class="visually-hidden">${t(locale, label)}</span>
+  </button>`;
+
+  return html`
+<div class="library__view" role="group" aria-label="${t(locale, 'library.view')}">
+  ${button('cards', '▦', 'library.viewCards')}
+  ${button('list', '☰', 'library.viewList')}
+</div>`;
+}
+
+/**
+ * Плотная строка закладки (#127, F-03-04 §4).
+ *
+ * Три части в строке: постер, название с прогрессом и датой, действия. Рядом
+ * с постером закладка занимает одну строку, и человек, у которого их сотня,
+ * видит больше за один экран. Название, статус и следующая дата стоят там же,
+ * где у карточек, — переключение вида не переучивает человека.
+ */
+function denseRow({ locale, item, csrf, subs }) {
+  return html`
+<li class="library__row${item.archived ? ' library__row--archived' : ''}">
+  <span class="library__row-poster" aria-hidden="true">
+    ${when(item.posterWidth, () => html`
+    <img class="library__row-poster-img" src="/${locale}/images/${item.slug}/poster-${item.posterWidth}.webp"
+         alt="" width="48" height="72" loading="lazy" decoding="async">`)}
+    ${when(!item.posterWidth, () => html`<span class="library__row-poster-fallback"></span>`)}
+  </span>
+
+  <div class="library__row-body">
+    <h2 class="library__row-name">
+      <a href="/${locale}/series/${item.slug}">${item.title}</a>
+      ${when(item.year, () => html`<span class="library__year">${item.year}</span>`)}
+    </h2>
+
+    ${when(!item.archived && item.progress.total > 0, () => html`
+    <div class="library__row-progress">${progressBlock({ locale, item })}</div>`)}
+
+    ${when(item.nextReleaseDate && !item.archived, () => html`
+    <p class="library__row-next">${t(locale, 'library.nextRelease', {
+    date: fullDate(locale, item.nextReleaseDate),
+  })}</p>`)}
+
+    ${when(item.archived, () => html`
+    <p class="library__archived">${t(locale, 'library.archived')}</p>`)}
+  </div>
+
+  <div class="library__row-actions">
+    ${statusControl({ locale, slug: item.slug, status: item.status, signedIn: true, csrf, archived: item.archived, view: 'library' })}
+    ${subscribeBell({ locale, slug: item.slug, state: subs, csrf, signedIn: true, archived: item.archived, view: 'library' })}
+  </div>
+</li>`;
 }
 
 /** Карточка закладки: постер, название, статус, прогресс, «Продолжить». */
@@ -191,6 +269,7 @@ function pagination({ locale, library }) {
     if (library.status) params.set('status', library.status);
     if (library.sort !== 'recent') params.set('sort', library.sort);
     if (library.query) params.set('q', library.query);
+    if (library.view !== 'cards') params.set('view', library.view);
     if (page > 1) params.set('page', String(page));
     const query = params.toString();
     return `/${locale}/library${query ? `?${query}` : ''}`;

@@ -99,6 +99,24 @@ test.before(async () => {
     series.push(row);
   }
 
+  // Первой закладке — сезон и будущий выход: в плотной строке должны быть
+  // видны дата и прогресс, а без них проверялась бы одна только заголовок.
+  const { rows: [season] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [series[0].id],
+  );
+  const { rows: [episode] } = await pool.query(
+    `INSERT INTO e_episode (season_id, number, title_ru, runtime_min)
+     VALUES ($1, 1, 'Пилот', 45) RETURNING id`, [season.id],
+  );
+  const { rows: [release] } = await pool.query(
+    `INSERT INTO e_release (season_id, release_date, precision, state)
+     VALUES ($1, CURRENT_DATE + 4, 'date', 'scheduled') RETURNING id`, [season.id],
+  );
+  await pool.query(
+    'INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)',
+    [release.id, episode.id],
+  );
+
   // Чужая закладка того же зрителя: в поиске по названию её не должно быть.
   const foreign = await makeSeries(`${other.nickname}-x`, 'Чужая закладка');
   await pool.query(
@@ -113,6 +131,13 @@ test.after(async () => {
     await pool.query('DELETE FROM e_watch_status WHERE user_id = $1', [id]);
     await pool.query('DELETE FROM e_subscription WHERE user_id = $1', [id]);
   }
+  // Сезон и выход удаляются раньше сериала: `e_season.series_id` объявлен
+  // RESTRICT намеренно, и уборка должна идти в порядке внешних ключей.
+  await pool.query(
+    `DELETE FROM e_season WHERE series_id IN
+       (SELECT id FROM e_series WHERE slug LIKE $1 OR slug LIKE $2)`,
+    [`${account.nickname}-%`, `${other.nickname}-%`],
+  );
   await pool.query('DELETE FROM e_series WHERE slug LIKE $1', [`${account.nickname}-%`]);
   await pool.query('DELETE FROM e_series WHERE slug LIKE $1', [`${other.nickname}-%`]);
   await pool.query('DELETE FROM e_user WHERE id IN ($1, $2)', [account.id, other.id]);
@@ -278,6 +303,52 @@ test('смена статуса из закладок возвращает в з
       const library = pgLibrary(pool);
       const list = await library.list({ userId: account.id, today: '2026-10-15' });
       assert.equal(list.counts.watching, 3, 'счётчик вкладки обновился после смены статуса');
+    },
+  });
+});
+// ─── Плотный вид (#127) ──────────────────────────────────────────────────────
+
+test('переключатель вида переключает разметку, а состояние живёт в адресе', { skip }, async () => {
+  await withServer({
+    run: async ({ get }) => {
+      const cards = await (await get('/ru/library')).text();
+      const shown = (cards.match(/class="library__item/g) ?? []).length;
+      assert.ok(shown > 0, 'список закладок непустой');
+      assert.equal((cards.match(/class="library__card"/g) ?? []).length, shown,
+        'по умолчанию карточки — по одной на закладку');
+      assert.ok(!/class="library__row"/.test(cards), 'и никакого плотного списка рядом с ними');
+      assert.match(cards, /aria-current="true"[^>]*>\s*▦|▦/, 'переключатель вида на месте');
+      assert.match(cards, /☰/, 'вторая кнопка переключателя тоже на месте');
+
+      const list = await (await get('/ru/library?view=list')).text();
+      assert.equal((list.match(/class="library__row"/g) ?? []).length, shown,
+        'плотный список показывает те же закладки, что и карточки');
+      assert.ok(!/class="library__card"/.test(list), 'и карточек на странице нет');
+
+      // Выбор вида не теряется при переходе: постраничность и вкладки ведут
+      // на ту же страницу, иначе переключение сбрасывалось бы на первом клике.
+      assert.match(list, /href="[^"]*view=list[^"]*"/,
+        'ссылки страницы сохраняют выбранный вид');
+      assert.match(list, /aria-current="true"/, 'и помечают активный вид для скринридера');
+
+      const junk = await get('/ru/library?view=не-вид');
+      assert.equal(junk.status, 200, 'чужой вид не ломает страницу');
+      assert.match(await junk.text(), /class="library__card"/,
+        'и ведёт к виду по умолчанию — карточкам');
+    },
+  });
+});
+
+test('плотная строка несёт то же, что карточка: статус, прогресс и дату', { skip }, async () => {
+  await withServer({
+    run: async ({ get }) => {
+      const list = await (await get('/ru/library?view=list')).text();
+
+      assert.match(list, /library__row-name/, 'название в строке есть');
+      assert.match(list, /name="status"|library__status/, 'статус переключается прямо в строке');
+      assert.match(list, /library__row-actions/, 'действия в строке есть');
+      assert.match(list, /library__row-next/,
+        'дата следующей серии видна без открытия карточки');
     },
   });
 });
