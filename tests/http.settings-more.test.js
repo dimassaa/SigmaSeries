@@ -319,6 +319,38 @@ test('служебной роли 2FA отключить нельзя', async ()
   });
 });
 
+test('коды предлагают скачать и напечатать, и кнопки связаны с разметкой', async () => {
+  // «Скачать» годами была кнопкой без обработчика: нажатие ничего не делало,
+  // а спецификация требует оба действия (F-01-05 §4, §19). Проверяется связка
+  // целиком — разметка с кодами и именем файла плюс подписка в клиентском
+  // скрипте: без любой из частей кнопка остаётся мёртвой.
+  const user = await viewer();
+  await withServer({
+    user,
+    run: async ({ get, post, auth }) => {
+      auth.setTwoFactor(user.id, {
+        secret: generateSecret(), lastStep: null, backup: [],
+      });
+
+      const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
+      const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
+        action: 'two_factor', op: 'regenerate', password: PASSWORD,
+      });
+      assert.equal(res.status, 303);
+
+      const shown = await (await get(res.headers.get('location'))).text();
+      assert.match(shown, /data-download-codes/, 'кнопка «Скачать» нарисована');
+      assert.match(shown, /data-print-codes/, 'кнопка «Печать» нарисована');
+      assert.match(shown, /data-file="[^"]+\.txt"/, 'имя файла задано в разметке');
+      assert.doesNotMatch(shown, /onclick=/, 'инлайновых обработчиков в видах нет');
+
+      const script = await (await get('/app.js')).text();
+      assert.match(script, /data-download-codes/, 'скрипт подписан на кнопку скачивания');
+      assert.match(script, /data-print-codes/, 'скрипт подписан на кнопку печати');
+    },
+  });
+});
+
 test('резервные коды перегенерируются по паролю, старые становятся недействительными', async () => {
   // F-01-05 §8: перегенерация по паролю и делает старые недействительными.
   const user = await viewer();

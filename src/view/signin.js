@@ -4,8 +4,9 @@
 // восстановление». Требования: R-A11Y-11 (подписи связаны с полями,
 // ошибки названы текстом и объявляются), R-SEC-08 (возврат только внутренний).
 
-import { html, raw, attr } from './render.js';
+import { html, raw, attr, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { revealButton } from './field.js';
 
 /**
  * @param {object} ctx
@@ -19,17 +20,22 @@ import { t } from '../i18n/strings.js';
 export function signinView(ctx) {
   const { locale, csrf, challenge, powZeros, values = {}, error, returnTo = '/' } = ctx;
 
+  // Поле с кнопкой «Показать» и без неё отличаются обёрткой: у первого ввод
+  // лежит в `.field__row` вместе с кнопкой, иначе она съехала бы на строку ниже.
   const field = (id, labelKey, opts) => {
     const value = opts.value ?? '';
     const invalid = opts.invalid;
+    const input = html`<input class="field__input" id="${id}" name="${id}" type="${opts.type}"
+             autocomplete="${opts.autocomplete}"
+             ${invalid ? raw('aria-invalid="true" aria-describedby="' + id + '-error"') : ''}
+             value="${value}" required>`;
     return html`
     <div class="field${invalid ? ' field--invalid' : ''}">
       <label class="field__label" for="${id}">${t(locale, labelKey)}</label>
-      <input class="field__input" id="${id}" name="${id}" type="${opts.type}"
-             autocomplete="${opts.autocomplete}"
-             ${invalid ? raw('aria-invalid="true" aria-describedby="' + id + '-error"') : ''}
-             value="${value}" required>
-      ${when2(invalid, () => html`<p class="field__error" id="${id}-error">${opts.error}</p>`)}
+      ${when(opts.reveal, () => html`
+      <div class="field__row">${input}${revealButton({ locale, id })}</div>`,
+        () => raw(input))}
+      ${when(invalid, () => html`<p class="field__error" id="${id}-error">${opts.error}</p>`)}
     </div>`;
   };
 
@@ -40,13 +46,13 @@ export function signinView(ctx) {
   <!-- Ошибка объявляется, но фокус на неё не переносится: перенос фокуса
        на сообщение мешает тем, кто читает с экрана (R-A11Y-12). -->
   <div class="form__status" role="alert" aria-live="assertive">
-    ${when2(error, () => html`<p class="form__error">${error}</p>`)}
+    ${when(error, () => html`<p class="form__error">${error}</p>`)}
   </div>
 
   <form class="form" method="post" action="/${locale}/login" novalidate>
     <input type="hidden" name="csrf" value="${csrf}">
     <input type="hidden" name="next" value="${returnTo}">
-    ${when2(challenge, () => html`<input type="hidden" name="pow" id="pow"
+    ${when(challenge, () => html`<input type="hidden" name="pow" id="pow"
         data-challenge="${challenge}" data-zeros="${powZeros}">`)}
 
     ${field('email', 'signin.email', {
@@ -56,7 +62,7 @@ export function signinView(ctx) {
     })}
 
     ${field('password', 'signin.password', {
-      type: 'password', autocomplete: 'current-password', value: '',
+      type: 'password', autocomplete: 'current-password', value: '', reveal: true,
       invalid: error === t(locale, 'signin.error.credentials'),
       error: t(locale, 'signin.error.required'),
     })}
@@ -71,13 +77,8 @@ export function signinView(ctx) {
     ${t(locale, 'signin.noAccount')} <a href="/${locale}/register">${t(locale, 'signin.register')}</a>
   </p>
 
-  ${when2(challenge, () => html`<p class="form__pow" aria-hidden="true">${t(locale, 'signin.pow')}</p>`)}
+  ${when(challenge, () => html`<p class="form__pow" aria-hidden="true">${t(locale, 'signin.pow')}</p>`)}
 </section>`;
-}
-
-/** Условный фрагмент внутри шаблона: импорт when здесь лишний цикл. */
-function when2(condition, fn) {
-  return condition ? raw(fn().__raw) : raw('');
 }
 
 export { attr };

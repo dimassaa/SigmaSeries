@@ -10,6 +10,38 @@ import { html } from './render.js';
 import { t } from '../i18n/strings.js';
 
 /**
+ * Список резервных кодов с кнопками «Скачать» и «Печать».
+ *
+ * Блок общий для двух экранов: страницы подтверждения 2FA (S-23) и раздела
+ * «Безопасность», откуда коды перевыпускаются. Настройки хранятся в сессии
+ * или в адресе, а показываются оба раза одним и тем же списком — раздельная
+ * разметка означала бы, что кнопки есть на одном экране и нет на другом,
+ * и человек узнаёт об этом только после нажатия.
+ *
+ * @param {object} ctx
+ * @param {string} ctx.locale
+ * @param {string[]} ctx.codes
+ * @returns {object}
+ */
+export function backupCodesList({ locale, codes }) {
+  return html`
+<ol class="codes" data-title="${t(locale, 'twoFactor.backup.title')}"
+    data-file="sigma-series-${locale}-backup-codes.txt">
+  ${codes.map((code) => html`<li class="codes__item"><code>${code}</code></li>`)}
+</ol>
+
+<div class="codes__actions">
+  <button class="button button--quiet" type="button"
+          data-download-codes>${t(locale, 'twoFactor.backup.download')}</button>
+  <!-- Обработчик в клиентском скрипте, а не в атрибуте: инлайновых
+       обработчиков в видах нет ни одного, и появление первого сделало бы
+       правило исключением. -->
+  <button class="button button--quiet" type="button"
+          data-print-codes>${t(locale, 'twoFactor.backup.print')}</button>
+</div>`;
+}
+
+/**
  * @param {object} ctx
  * @param {string} ctx.locale
  * @param {'backup'} ctx.state
@@ -24,16 +56,7 @@ export function backupCodesView(ctx) {
   <p class="form__text">${t(locale, 'twoFactor.backup.lead')}</p>
   <p class="form__warning">${t(locale, 'twoFactor.backup.once')}</p>
 
-  <ol class="codes">
-    ${codes.map((code) => html`<li class="codes__item"><code>${code}</code></li>`)}
-  </ol>
-
-  <div class="codes__actions">
-    <button class="button button--quiet" type="button"
-            data-download-codes>${t(locale, 'twoFactor.backup.download')}</button>
-    <button class="button button--quiet" type="button"
-            onclick="window.print()">${t(locale, 'twoFactor.backup.print')}</button>
-  </div>
+  ${backupCodesList({ locale, codes })}
 
   <p class="form__links">
     <a href="/${locale}/">${t(locale, 'twoFactor.backup.done')}</a>

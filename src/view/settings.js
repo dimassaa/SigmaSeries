@@ -11,6 +11,7 @@
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { dateTime } from './dates.js';
+import { backupCodesList } from './twofactor-backup.js';
 
 /**
  * @param {object} ctx
@@ -331,9 +332,7 @@ ${when(backupCodes, () => html`
 <div class="settings__backup">
   <h2 class="settings__subhead">${t(locale, 'twoFactor.backup.title')}</h2>
   <p class="form__warning">${t(locale, 'twoFactor.backup.once')}</p>
-  <ol class="codes">
-    ${backupCodes.map((code) => html`<li class="codes__item"><code>${code}</code></li>`)}
-  </ol>
+  ${backupCodesList({ locale, codes: backupCodes })}
 </div>`)}
 
 <form class="form settings__form" method="post" action="/${locale}/settings/security" novalidate>

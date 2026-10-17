@@ -6,6 +6,7 @@
 
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { revealButton } from './field.js';
 import { AUTH } from '../config/settings.js';
 
 /** Поля шага 1: подпись, код подсказки, коды замечаний. */
@@ -139,14 +140,18 @@ function field(locale, f, value, problems) {
   // при правке спецификации меняются числа, а не надписи вручную.
   const params = { min: AUTH.passwordMin, max: AUTH.passwordMax };
 
-  return html`
-  <div class="field${bad ? ' field--invalid' : ''}">
-    <label class="field__label" for="${f.name}">${t(locale, f.label)}</label>
-    <input class="field__input" id="${f.name}" name="${f.name}" type="${f.type}"
+  const input = html`<input class="field__input" id="${f.name}" name="${f.name}" type="${f.type}"
            autocomplete="${f.autocomplete}" value="${value}"
            ${raw(f.hint ? `aria-describedby="${hintId}"` : '')}
            ${raw(bad ? `aria-invalid="true" aria-describedby="${f.name}-error"${f.hint ? ` ${hintId}` : ''}` : '')}
-           required>
+           required>`;
+
+  return html`
+  <div class="field${bad ? ' field--invalid' : ''}">
+    <label class="field__label" for="${f.name}">${t(locale, f.label)}</label>
+    ${f.type === 'password'
+      ? html`<div class="field__row">${input}${revealButton({ locale, id: f.name })}</div>`
+      : raw(input)}
     ${when(f.hint, () => html`<p class="field__hint" id="${hintId}">${t(locale, f.hint, params)}</p>`)}
     ${bad ? html`<p class="field__error" id="${f.name}-error">${t(locale, `register.error.${problems[0]}`, params)}</p>` : ''}
   </div>`;

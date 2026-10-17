@@ -13,6 +13,7 @@
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { AUTH } from '../config/settings.js';
+import { revealButton } from './field.js';
 
 /** Заголовок первого уровня по состоянию экрана. */
 const HEADINGS = {
@@ -109,11 +110,7 @@ function newPasswordForm({ locale, csrf, token = '', problems = [] }) {
       <input class="field__input" id="password" name="password" type="password"
              autocomplete="new-password" aria-describedby="${describedBy}"
              ${when(bad, () => raw('aria-invalid="true"'))} required>
-      <button class="field__reveal" type="button" data-password-toggle="password"
-              aria-controls="password"
-              data-show-text="${t(locale, 'reset.reveal')}"
-              data-hide-text="${t(locale, 'reset.reveal.hide')}"
-      >${t(locale, 'reset.reveal')}</button>
+      ${revealButton({ locale, id: 'password' })}
     </div>
     <p class="field__hint" id="password-hint">${t(locale, 'reset.password.hint', params)}</p>
     ${when(bad, () => html`<p class="field__error" id="password-error">${

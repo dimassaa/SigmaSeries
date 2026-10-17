@@ -500,11 +500,50 @@
     if (document.visibilityState !== 'hidden') start();
   }
 
+  // ─── Резервные коды: «Скачать» и «Печать» (F-01-05 §4, §19) ──────────────
+
+  // Коды читаются из разметки, а не кладутся в обработчик: второй экземпляр
+  // тех же значений в скрипте означал бы, что они лежат в исходнике страницы и
+  // переживают перезагрузку, а в базе их уже нет (в базе только хеши).
+  function initBackupCodes() {
+    var list = document.querySelector('.codes');
+    var print = document.querySelector('[data-print-codes]');
+    if (print) {
+      print.addEventListener('click', function () { window.print(); });
+    }
+
+    var download = document.querySelector('[data-download-codes]');
+    if (!download || !list) return;
+    download.addEventListener('click', function () {
+      var codes = Array.prototype.map.call(
+        list.querySelectorAll('code'),
+        function (node) { return node.textContent.trim(); },
+      ).filter(Boolean);
+      if (!codes.length) return;
+
+      // Файл собирается на клиенте: отправлять коды на сервер второй раз
+      // незачем, а в базе их и нет. `Blob` вместо адреса страницы — длинный
+      // список в адресе осел бы в истории и в журналах браузера.
+      var lines = [list.getAttribute('data-title') || ''].concat(codes).filter(Boolean);
+      var blob = new Blob([lines.join('\n') + '\n'], { type: 'text/plain;charset=utf-8' });
+      var url = URL.createObjectURL(blob);
+      var link = document.createElement('a');
+      link.href = url;
+      link.download = list.getAttribute('data-file') || 'codes.txt';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      // Ссылка снимается сразу: иначе она держит файл в памяти до перезагрузки.
+      URL.revokeObjectURL(url);
+    });
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
     initTheme();
     initPasswordReveal();
+    initBackupCodes();
     initSearch();
     initCalendarDefaultView();
     initUndoWindow();
