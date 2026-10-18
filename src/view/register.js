@@ -7,6 +7,7 @@
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { revealButton } from './field.js';
+import * as TASTE from '../services/recommendations/taste.js';
 import { AUTH } from '../config/settings.js';
 
 /** Поля шага 1: подпись, код подсказки, коды замечаний. */
@@ -86,9 +87,84 @@ ${state === 'error' ? html`<p class="form__error">${t(locale, 'error.generic.tex
 
 // ─── Шаги ────────────────────────────────────────────────────────────────────
 
+/**
+ * S-20 — шаг 3: «Выберите любимые» (F-01-01 §4).
+ *
+ * Сетка карточек с выбором и поиском. «Готово» без скрипта работает только с
+ * тремя–пятью: при меньшем числе сервер всё равно откажет, и человек увидел бы
+ * отказ там, где можно было просто не дать нажать.
+ *
+ * Выбранное отмечается рамкой и подписью, а не только цветом (R-A11Y-19), а
+ * счётчик «выбрано N из 3–5» называет границы словами.
+ *
+ * @param {object} ctx
+ * @param {string} ctx.locale
+ * @param {string} ctx.csrf
+ * @param {object[]} ctx.items сериалы для сетки
+ * @param {string} ctx.query что ищет человек
+ * @param {number[]} ctx.chosen уже сохранённый выбор
+ * @param {string|null} ctx.reason причина последнего отказа
+ */
+export function tasteStepView(ctx) {
+  const { locale, csrf, items = [], query = '', chosen = [], reason = null } = ctx;
+  const picked = new Set(chosen.map(Number));
+
+  return html`
+${steps_(locale, 3, 3)}
+
+<div class="form__status" role="alert" aria-live="assertive">
+  ${when(reason, () => html`<p class="form__error">${t(locale, `register.step3.error.${reason}`)}</p>`)}
+</div>
+
+<p class="form__text">${t(locale, 'register.step3.lead')}</p>
+
+<form class="form" method="get" action="/${locale}/register/taste" role="search">
+  <label class="visually-hidden" for="taste-q">${t(locale, 'register.step3.search')}</label>
+  <input class="field__input" id="taste-q" type="search" name="q" value="${query}"
+         placeholder="${t(locale, 'register.step3.search')}">
+</form>
+
+<form class="form taste" method="post" action="/${locale}/register/taste">
+  <input type="hidden" name="csrf" value="${csrf}">
+  <input type="hidden" name="action" value="save">
+
+  <ul class="taste__grid" role="list">
+    ${items.map((item) => html`
+    <li class="posters__item">
+      <label class="taste__pick${picked.has(Number(item.id)) ? ' taste__pick--on' : ''}">
+        <input class="taste__input" type="checkbox" name="series" value="${item.id}"
+               ${picked.has(Number(item.id)) ? raw('checked') : raw('')}>
+        <span class="poster__frame">
+          ${when(item.posterWidth, () => html`<img class="poster__img"
+             src="/${locale}/images/${item.slug}/poster-${item.posterWidth}.webp"
+             alt="" width="185" height="278" loading="lazy" decoding="async">`)}
+          ${when(!item.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
+        </span>
+        <span class="poster__title">${item.title}</span>
+        ${when(item.genreRu, () => html`<span class="poster__meta"
+          >${locale === 'en' ? (item.genreEn ?? item.genreRu) : item.genreRu}</span>`)}
+        ${when(picked.has(Number(item.id)), () => html`
+        <span class="visually-hidden">${t(locale, 'register.step3.picked')}</span>`)}
+      </label>
+    </li>`)}
+  </ul>
+
+  ${when(!items.length, () => html`
+  <p class="form__note">${t(locale, 'register.step3.empty')}</p>`)}
+
+  <p class="taste__count">${t(locale, 'register.step3.count', {
+    min: TASTE.MIN_CHOICE, max: TASTE.MAX_CHOICE,
+  })}</p>
+
+  <button class="button button--primary" type="submit">${t(locale, 'register.step3.done')}</button>
+  <button class="button button--quiet" type="submit" name="action" value="skip"
+    >${t(locale, 'register.step3.skip')}</button>
+</form>`;
+}
+
 function steps_(locale, step, steps) {
   return html`
-<h1 class="form__title">${t(locale, step === 2 ? 'register.step2.title' : 'register.title')}</h1>
+<h1 class="form__title">${t(locale, step === 2 ? 'register.step2.title' : step === 3 ? 'register.step3.title' : 'register.title')}</h1>
 
 <ol class="steps" aria-label="${t(locale, 'register.progress')}">
   ${[1, 2, 3].map((n) => html`<li class="steps__item${n === step ? ' steps__item--current' : ''}"

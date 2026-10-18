@@ -13,6 +13,7 @@ import express from 'express';
 import { createHomeRoutes, createNotFoundRoutes, errorHandler, robots } from './routes/home.js';
 import { createAuthRoutes } from './routes/auth.js';
 import { createRegisterRoutes } from './routes/register.js';
+import { createTasteRoutes } from './routes/register-taste.js';
 import { createResetRoutes } from './routes/reset.js';
 import { createTwoFactorRoutes } from './routes/twofactor.js';
 import { createSettingsRoutes } from './routes/settings.js';
@@ -64,6 +65,7 @@ export function createApp({
   panel = null,
   markLimiter = null,
   ratings = null,
+  taste = null,
   ratingLimiter = null,
   library = null,
   pool = null,
@@ -166,7 +168,17 @@ export function createApp({
     // Маршруты входа подключаются только если есть и хранилище, и middleware:
     // страница без работающей сессии опаснее, чем её отсутствие.
     app.use(createAuthRoutes({ auth, sessionMw }));
-    app.use(createRegisterRoutes({ auth, sessionMw, mailQueue, mailMode, baseUrl }));
+    app.use(createRegisterRoutes({
+      auth, sessionMw, mailQueue, mailMode, baseUrl,
+      // Шаг 3 включается вместе со своим маршрутом: иначе после подтверждения
+      // адреса человек попадал бы на страницу, которой нет.
+      tasteStep: Boolean(taste && search),
+    }));
+    // Шаг 3 регистрации (F-01-01 §4). Живёт отдельным маршрутом, а не внутри
+    // регистрации: у него свой источник (зёрна вкуса) и своя сессионная проверка.
+    if (taste && search) {
+      app.use(createTasteRoutes({ taste, search, auth, sessionMw }));
+    }
     app.use(createResetRoutes({ auth, sessionMw, mailQueue, mailMode, journal, baseUrl }));
     app.use(createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, now }));
   }

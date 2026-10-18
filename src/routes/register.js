@@ -35,7 +35,7 @@ import { demoMailFor, linkFromBody } from '../services/mail/devbox.js';
  * @param {string} [deps.baseUrl] адрес приложения для ссылки в письме
  */
 export function createRegisterRoutes({
-  auth, sessionMw, mailQueue, mailMode = null, limitsApi = limits, baseUrl = '',
+  auth, sessionMw, mailQueue, mailMode = null, limitsApi = limits, baseUrl = '', tasteStep = false,
 }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
@@ -388,7 +388,10 @@ export function createRegisterRoutes({
     // пользоваться, — это полноценный вход, и в списке устройств он виден.
     await noteSession(auth, req, userId);
 
-    return res.redirect(303, `/${locale}/`);
+    // Дальше — шаг 3 «Выберите любимые» (F-01-01 §4): индикатор обещал его с
+    // самого начала регистрации, а человек попадал на главную. Шаг можно
+    // пропустить, поэтому он не запирает человека в себе.
+    return res.redirect(303, tasteStep ? `/${locale}/register/taste` : `/${locale}/`);
   });
 
   return router;

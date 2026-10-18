@@ -44,6 +44,23 @@ async function published() {
 }
 
 /**
+ * Отпечаток каталога для сторожа устойчивости.
+ *
+ * Одного числа мало: чужой прогон может за это время удалить одну фикстуру и
+ * создать другую — число вернётся прежним, а порядок по популярности сдвинется,
+ * и страницы начнут пересекаться. Последний идентификатор такое пропускает.
+ *
+ * @returns {Promise<string>}
+ */
+async function fingerprint() {
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS n, coalesce(max(id), 0) AS newest
+       FROM e_series WHERE publication_state = 'published' AND archived_at IS NULL`,
+  );
+  return `${rows[0].n}:${rows[0].newest}`;
+}
+
+/**
  * Общее число страницы равно числу опубликованных сериалов.
  *
  * Два чтения подряд не могут увидеть одно и то же: база общая, и параллельные
@@ -75,11 +92,11 @@ async function stablePage(options = {}) {
   let page = null;
   for (let attempt = 0; attempt < 10; attempt += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const before = await published();
+    const before = await fingerprint();
     // eslint-disable-next-line no-await-in-loop
     const current = await catalogue.list(options);
     // eslint-disable-next-line no-await-in-loop
-    const after = await published();
+    const after = await fingerprint();
     if (before === after) {
       page = current;
       if (current.total === before) return page;
@@ -113,13 +130,13 @@ test('страницы не пересекаются и считаются от 
   let second = null;
   for (let attempt = 0; attempt < 10; attempt += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const before = await published();
+    const before = await fingerprint();
     // eslint-disable-next-line no-await-in-loop
     const one = await catalogue.list({ page: 1 });
     // eslint-disable-next-line no-await-in-loop
     const two = await catalogue.list({ page: 2 });
     // eslint-disable-next-line no-await-in-loop
-    const after = await published();
+    const after = await fingerprint();
     if (before === after && one.total === two.total) {
       first = one;
       second = two;
@@ -149,14 +166,17 @@ test('страница за пределами списка пуста, а не 
   let total = 0;
   for (let attempt = 0; attempt < 10; attempt += 1) {
     // eslint-disable-next-line no-await-in-loop
-    const before = await published();
+    const before = await fingerprint();
+    // Счётчик для номера страницы берётся из отпечатка: он прочитан в том же
+    // окне, что и выдача, и потому относится к тому же состоянию каталога.
+    const seen = Number(before.split(':')[0]);
     // eslint-disable-next-line no-await-in-loop
-    const page = await catalogue.list({ page: Math.ceil(before / 24) + 3 });
+    const page = await catalogue.list({ page: Math.ceil(seen / 24) + 3 });
     // eslint-disable-next-line no-await-in-loop
-    const after = await published();
-    if (before === after && page.total === before) {
+    const after = await fingerprint();
+    if (before === after && page.total === seen) {
       beyond = page;
-      total = before;
+      total = seen;
       break;
     }
   }

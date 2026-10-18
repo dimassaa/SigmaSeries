@@ -978,6 +978,25 @@ CREATE TABLE e_splash_frame (
 -- в PostgreSQL — это индекс, а не ограничение (UNIQUE ... WHERE не парсится).
 CREATE UNIQUE INDEX uq_splash_ordinal ON e_splash_frame (ordinal) WHERE active;
 
+-- ---------- Зёрна вкуса (шаг 3 регистрации, F-01-01 §4) ----------
+
+-- Холодный старт для рекомендаций (M11): человек назвал любимые, и это знание
+-- нужно до первых отметок. Зёрна — не статусы и не отметки: они не должны
+-- попадать в статистику просмотра (H-55).
+--
+-- `source` различает выбор при регистрации и осознанный выбор позже: без него
+-- по таблице нельзя отличить «назвал при регистрации» от «добавил в вкус».
+CREATE TABLE e_taste_seed (
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  source     TEXT NOT NULL CHECK (source IN ('signup','explicit')),
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Один сериал — одна строка на человека: повторный выбор обновляет источник,
+  -- а не добавляет вторую запись о том же сериале.
+  PRIMARY KEY (user_id, series_id)
+);
+CREATE INDEX ix_taste_seed_series ON e_taste_seed (series_id);
+
 -- ---------- Согласие на cookies ----------
 
 CREATE TABLE e_consent (

@@ -27,6 +27,7 @@ import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
 import { pgBackupJobs } from './services/backup/store.js';
+import { pgTaste } from './services/recommendations/taste.js';
 import { createBackupTask, TICK_MS as BACKUP_TICK_MS } from './services/backup/schedule.js';
 import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
@@ -172,6 +173,8 @@ const app = createApp({
   // поиска, где ключом служит адрес.
   ratings,
   ratingLimiter: createRateLimiter({ limit: RATING.ratePerHour, windowMs: HOUR }),
+  // Шаг 3 регистрации: зёрна вкуса (F-01-01 §4).
+  taste: pgTaste(pool),
   progress: pgProgress(pool),
   subscriptions: pgSubscriptions(pool),
   feed,
