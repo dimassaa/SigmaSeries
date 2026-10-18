@@ -7,6 +7,7 @@
 
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { tPlural } from '../i18n/plural.js';
 
 /**
  * Адрес картинки.
@@ -74,7 +75,7 @@ export function homeView({ locale, data }) {
     ${data.collections.map((c) => html`
     <li class="marquee__item">
       <a class="collection" href="/${locale}/collections/${c.slug}"
-         aria-label="${t(locale, 'home.collections.itemLabel', { title: c.title, count: c.count })}">
+         aria-label="${tPlural(locale, 'home.collections.itemLabel', c.count, { title: c.title })}">
         <span class="collection__title">${c.title}</span>
         <span class="collection__count">${c.count}</span>
       </a>

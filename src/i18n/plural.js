@@ -19,9 +19,11 @@ const language = (locale) => (locale === 'en' ? 'en-GB' : 'ru-RU');
  * @param {string} locale
  * @param {string} key основа ключа без формы: `rating.votes`
  * @param {number} count
+ * @param {object} [params] остальные подстановки строки, кроме `count`:
+ *   «Подборка «{title}», {count} сериалов» без названия не собрать
  * @returns {string}
  */
-export function tPlural(locale, key, count) {
+export function tPlural(locale, key, count, params = {}) {
   const form = new Intl.PluralRules(language(locale)).select(count);
-  return t(locale, `${key}.${form}`, { count });
+  return t(locale, `${key}.${form}`, { count, ...params });
 }

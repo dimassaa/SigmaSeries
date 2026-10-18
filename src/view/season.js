@@ -6,6 +6,7 @@
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { tPlural } from '../i18n/plural.js';
 import { releaseLabel } from './dates.js';
 import { goneView } from './series.js';
 import { markCheckbox, markUpTo, markSeason, markNotice } from './mark.js';
@@ -57,8 +58,7 @@ export function seasonView({
 ${when(season.title, () => html`<p class="season__subtitle">${season.title}</p>`)}
 
 ${when(season.allOutOn, () => html`
-<p class="season__banner" role="status">${t(locale, 'season.allOut', {
-  count: season.episodes.length,
+<p class="season__banner" role="status">${tPlural(locale, 'season.allOut', season.episodes.length, {
   date: releaseLabel(locale, season.allOutOn),
 })}</p>`)}
 

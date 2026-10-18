@@ -18,6 +18,7 @@
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { tPlural } from '../i18n/plural.js';
 import { fullDate, monthTitle, weekdayShort } from './dates.js';
 
 /** Записей в ячейке месяца до «+N» (EC-T15). */
@@ -245,7 +246,7 @@ function entryLabel(locale, entry) {
     });
   }
   if (entry.kind === 'season') return t(locale, 'calendar.entry.season');
-  return t(locale, 'calendar.entry.group', { count: entry.episodeCount });
+  return tPlural(locale, 'calendar.entry.group', entry.episodeCount);
 }
 
 /**

@@ -12,6 +12,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { t, missingKeys, LOCALES, DEFAULT_LOCALE } from '../src/i18n/strings.js';
+import { tPlural } from '../src/i18n/plural.js';
 
 test('у каждого ключа есть все языки', () => {
   assert.deepEqual(missingKeys(), [], 'каталог расходится между языками');
@@ -35,4 +36,31 @@ test('подстановка подставляет параметр и не т�
   // стирать их нельзя — подпись изменилась бы без ведома переводчика.
   assert.ok(!/\{seconds\}/.test(t('ru', 'signin.error.tooMany', { seconds: 7 })));
   assert.match(t('ru', 'signin.error.tooMany'), /\{seconds\}/);
+});
+
+test('у счётчиков с числом есть форма для одного (R-I18N-03)', () => {
+  // «Все 1 серий вышли» — та же ошибка, что была у «1 оценок»: у русского три
+  // формы, и одна строка их не выражает. Стандарт требует проверять 1, 2, 5
+  // и 21 — двадцать один снова требует формы одного, и на больших сезонах
+  // именно он и всплывает.
+  const cases = [
+    ['calendar.entry.group', {}, ['1 серия', '2 серии', '5 серий', '21 серия']],
+    ['home.collections.itemLabel', { title: 'Ночные показы' }, [
+      'Подборка «Ночные показы», 1 сериал',
+      'Подборка «Ночные показы», 2 сериала',
+      'Подборка «Ночные показы», 5 сериалов',
+      'Подборка «Ночные показы», 21 сериал',
+    ]],
+    ['season.allOut', { date: '5 октября' }, [
+      '1 серия вышла 5 октября',
+      'Все 2 серии вышли 5 октября',
+      'Все 5 серий вышли 5 октября',
+      '21 серия вышла 5 октября',
+    ]],
+  ];
+
+  for (const [key, params, expected] of cases) {
+    const got = [1, 2, 5, 21].map((count) => tPlural('ru', key, count, params));
+    assert.deepEqual(got, expected, `формы счётчика «${key}»`);
+  }
 });
