@@ -22,7 +22,7 @@ import {
 import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
 import { hashToken } from '../services/auth/password.js';
 import * as limits from '../services/auth/limits.js';
-import { t } from '../i18n/strings.js';
+import { t, isLocale } from '../i18n/strings.js';
 import { ensureBrowserId } from '../services/mail/browser.js';
 import { demoMailFor, linkFromBody } from '../services/mail/devbox.js';
 
@@ -86,7 +86,11 @@ export function createRegisterRoutes({
 
   // ─── Шаг 1: данные ─────────────────────────────────────────────────────────
 
-  router.get('/:locale/register', (req, res) => {
+  router.get('/:locale/register', (req, res, next) => {
+    // Языка «xx» не существует: адрес обещал бы один язык, а экран показал
+    // другой — `t()` на незнакомом языке молча берёт словарь по умолчанию
+    // (ADR-003). Для поисковика это два документа с одним содержанием.
+    if (!isLocale(req.params.locale)) return next('route');
     return respond(res, 200, renderStep1(req));
   });
 
@@ -98,6 +102,7 @@ export function createRegisterRoutes({
    */
   router.get('/:locale/register/nick', async (req, res, next) => {
     const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
     if (limitsApi.nicknameCheckLimited(clientIp(req))) {
       res.set('Retry-After', '60');
       return res.status(429).json({ error: 'rate_limited' });
@@ -113,6 +118,7 @@ export function createRegisterRoutes({
 
   router.post('/:locale/register', async (req, res, next) => {
     const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
     const body = req.body ?? {};
     const ip = clientIp(req);
 
@@ -224,8 +230,9 @@ export function createRegisterRoutes({
 
   // ─── Шаг 2: проверьте почту ────────────────────────────────────────────────
 
-  router.get('/:locale/register/confirm', async (req, res) => {
+  router.get('/:locale/register/confirm', async (req, res, next) => {
     const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
     const pending = req.session.pendingUser;
     if (!pending) {
       // Человек закрыл вкладку и вернулся позже: показываем начало
@@ -246,6 +253,7 @@ export function createRegisterRoutes({
    * не раскрывает.
    */
   router.get('/:locale/register/status', async (req, res, next) => {
+    if (!isLocale(req.params.locale)) return next('route');
     const pending = req.session.pendingUser;
     if (!pending) return res.json({ confirmed: false });
     try {
@@ -258,6 +266,7 @@ export function createRegisterRoutes({
 
   router.post('/:locale/register/resend', async (req, res, next) => {
     const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
     const pending = req.session.pendingUser;
     if (!csrfValid(req.session, req.body?.csrf)) {
       return respond(res, 403, renderConfirm(req, pending ?? {}, {
@@ -317,7 +326,8 @@ export function createRegisterRoutes({
    * ссылки автоматически, и подтверждение по GET сожгло бы токен раньше
    * времени (EC-A4, F-01-02 правило (а)). Действие — только POST.
    */
-  router.get('/:locale/verify', (req, res) => {
+  router.get('/:locale/verify', (req, res, next) => {
+    if (!isLocale(req.params.locale)) return next('route');
     const token = typeof req.query.token === 'string' ? req.query.token : '';
     // Без токена кнопки нет: нажатие всё равно кончилось бы «ссылка
     // устарела», а кнопка, которая не может сработать, вводит в заблуждение.
@@ -327,6 +337,7 @@ export function createRegisterRoutes({
 
   router.post('/:locale/verify', async (req, res, next) => {
     const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
     const body = req.body ?? {};
 
     if (!csrfValid(req.session, body.csrf)) {

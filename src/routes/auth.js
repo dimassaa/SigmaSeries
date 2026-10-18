@@ -11,15 +11,19 @@ import { signinView } from '../view/signin.js';
 import { authenticate, decideAfterCredentials, safeReturnTo, sessionKind, sessionDurations } from '../services/auth/login.js';
 import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
 import * as limits from '../services/auth/limits.js';
-import { t } from '../i18n/strings.js';
+import { t, isLocale } from '../i18n/strings.js';
 import { AUTH } from '../config/settings.js';
 
 export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
-  router.get('/:locale/login', (req, res) => {
+  router.get('/:locale/login', (req, res, next) => {
     const locale = req.params.locale;
+    // Языка «xx» не существует: адрес обещал бы один язык, а экран показал
+    // другой — `t()` на незнакомом языке молча берёт словарь по умолчанию
+    // (ADR-003). Для поисковика это два документа с одним содержанием.
+    if (!isLocale(locale)) return next('route');
     return respond(res, 200, renderForm({
         account: req.account,
       locale,
@@ -38,6 +42,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
 
   router.post('/:locale/login', async (req, res, next) => {
     const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
     const body = req.body ?? {};
     const email = String(body.email ?? '').trim();
     const password = String(body.password ?? '');
@@ -188,8 +193,9 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
     res.redirect(303, target);
   });
 
-  router.post('/:locale/logout', (req, res) => {
+  router.post('/:locale/logout', (req, res, next) => {
     const locale = req.params.locale;
+    if (!isLocale(locale)) return next('route');
     // R-SEC-23: выход меняет состояние на сервере, поэтому токен обязателен.
     // Без проверки любую страницу со ссылкой на `/logout` могли бы выбить
     // человека из аккаунта — это тот же отказ в обслуживании, что и раньше,
