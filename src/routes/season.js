@@ -1,16 +1,19 @@
-// Адреса сезона и серии (F-02-02, S-07 и S-08).
+// Адреса сезона и серии (F-02-02, S-07 и S-08) и оценка серии (F-04-02).
 //
 // Маршрут тонкий: разбор адреса, проверка видимости, отдача вида. Правила
 // тонких страниц (H-35) и 410 у снятых — здесь, данные — в
-// `src/services/catalogue/season.js`.
+// `src/services/catalogue/season.js`, правила оценок — в
+// `src/services/rating/store.js`.
 
 import express from 'express';
 
 import { layout } from '../view/layout.js';
 import { notFound } from './home.js';
 import { seasonView, episodeView } from '../view/season.js';
-import { csrfToken } from '../services/auth/session.js';
+import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
+import { rateReason } from '../services/rating/store.js';
+import { HOUR } from '../config/settings.js';
 import { UNDO_WINDOW_SECONDS } from '../services/tracking/marks.js';
 import { goneView } from '../view/series.js';
 import { t, isLocale } from '../i18n/strings.js';
@@ -23,7 +26,9 @@ const number = (value, min) => {
   return Number.isInteger(parsed) && parsed >= min ? parsed : null;
 };
 
-export function createSeasonRoutes({ seasons, sessionMw = null, series = null }) {
+export function createSeasonRoutes({
+  seasons, sessionMw = null, series = null, ratings = null, ratingLimiter = null,
+}) {
   const router = express.Router({ strict: true });
   // Сессия нужна ради отметок: гость видит такую же строку серии, но без
   // флажка, а вошедший — с отметкой.
@@ -34,7 +39,7 @@ export function createSeasonRoutes({ seasons, sessionMw = null, series = null })
     if (!isLocale(locale)) return next('route');
 
     const seasonNumber = number(req.params.season, 0);
-    if (seasonNumber === null) return res.status(404).type('html').send(notFound(locale, account).__raw);
+    if (seasonNumber === null) return res.status(404).type('html').send(notFound(locale, req.account).__raw);
 
     try {
       const marks = marksOf(req);
@@ -65,6 +70,17 @@ export function createSeasonRoutes({ seasons, sessionMw = null, series = null })
           page: found,
           slug,
           marks,
+          // Оценки серий (F-04-02): готовые блоки по строкам, собранные тремя
+          // выборками на весь сезон, — см. `ratingsOfSeason`.
+          ratings: ratings
+            ? await ratingsOfSeason({
+              ratings,
+              user: marks.user,
+              csrf: marks.csrf,
+              episodes: found.season.episodes,
+              today: marks.options.today,
+            })
+            : null,
           notice: String(req.query.mark ?? '') || null,
           noticeMarked: Number(req.query.marked ?? 0) || 0,
           noticeBatch: req.query.batch ? Number(req.query.batch) : null,
@@ -82,7 +98,7 @@ export function createSeasonRoutes({ seasons, sessionMw = null, series = null })
     const seasonNumber = number(req.params.season, 0);
     const episodeNumber = number(req.params.episode, 1);
     if (seasonNumber === null || episodeNumber === null) {
-      return res.status(404).type('html').send(notFound(locale, account).__raw);
+      return res.status(404).type('html').send(notFound(locale, req.account).__raw);
     }
 
     try {
@@ -103,14 +119,179 @@ export function createSeasonRoutes({ seasons, sessionMw = null, series = null })
         // позже сегодняшней. Тонкие страницы — это тысячи почти пустых адресов.
         noindex: found.episode.thin || (locale === 'en' && !found.episode.descriptionRu),
         jsonLd: episodeJsonLd({ locale, page: found, seasonNumber, episodeNumber }),
-        body: episodeView({ locale, page: found, slug, marks }),
+        body: episodeView({
+          locale,
+          page: found,
+          slug,
+          marks,
+          // Право спрашивается у того же сервиса, что принимает оценку: иначе
+          // интерфейс и правило разойдутся.
+          rating: ratings
+            ? await ratingOfEpisode({
+              ratings,
+              user: marks.user,
+              csrf: marks.csrf,
+              episodeId: found.episode.id,
+              today: marks.options.today,
+            })
+            : null,
+          timezone: timezoneOf(req),
+        }),
       })));
     } catch (error) {
       return next(error);
     }
   });
 
+  /**
+   * Оценка серии (F-04-02).
+   *
+   * Форма стоит и в строке списка серий, и на странице серии, а правило у неё
+   * одно. Куда вернуть человека, решает скрытое поле `from`: это не адрес из
+   * запроса, а выбор одной из двух известных страниц этого же сериала, поэтому
+   * чужой адрес сюда попасть не может (R-SEC-08).
+   */
+  if (ratings) {
+    router.post('/:locale/series/:slug/seasons/:season/episodes/:episode/rating',
+      async (req, res, next) => {
+        const { locale, slug } = req.params;
+        if (!isLocale(locale)) return next('route');
+
+        const seasonNumber = number(req.params.season, 0);
+        const episodeNumber = number(req.params.episode, 1);
+        if (seasonNumber === null || episodeNumber === null) return next('route');
+
+        const episodePath =
+          `/${locale}/series/${slug}/seasons/${seasonNumber}/episodes/${episodeNumber}`;
+        const seasonPath = `/${locale}/series/${slug}/seasons/${seasonNumber}`;
+        const back = req.body?.from === 'season' ? seasonPath : episodePath;
+
+        const user = req.session?.user ?? null;
+        if (!user) {
+          // R-SEC-08: возврат только на эту же страницу и только внутренний.
+          return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(back)}`);
+        }
+        if (!csrfValid(req.session, req.body?.csrf)) {
+          return res.status(403).type('text/plain; charset=utf-8')
+            .send(t(locale, 'rating.error.csrf'));
+        }
+        if (ratingLimiter && !ratingLimiter.allow(String(user.id))) {
+          return res.status(429)
+            .set('Retry-After', String(Math.ceil((ratingLimiter.windowMs ?? HOUR) / 1000)))
+            .type('text/plain; charset=utf-8')
+            .send(t(locale, 'rating.error.rate'));
+        }
+
+        try {
+          const today = todayIn(timezoneOf(req));
+          const ref = await seasons.episodeRef(slug, seasonNumber, episodeNumber, { today });
+          if (!ref) {
+            return res.status(404).type('text/plain; charset=utf-8')
+              .send(t(locale, 'rating.error.missing'));
+          }
+
+          const raw = String(req.body?.value ?? '').trim();
+          // Пустое значение — это «убрать оценку», а не «ноль»: ноль вне
+          // диапазона и должен быть отвергнут, а человек хочет снять своё.
+          const result = raw === '' || raw === '0'
+            ? await ratings.removeEpisodeRating({ userId: user.id, episodeId: ref.episodeId })
+            : await ratings.setEpisodeRating({
+              userId: user.id,
+              seriesId: ref.seriesId,
+              episodeId: ref.episodeId,
+              value: Number(raw),
+              today,
+            });
+
+          // Якорь возвращает к строке списка: после оценки сезона из двадцати
+          // четырёх серий страница длинная, и оказаться в её начале — значит
+          // потерять место, на котором стоял. Причина отказа в адрес не
+          // кладётся: она и так видна на странице словами (`rateReason` — та же
+          // функция, что проверяла запись), а параметр, которого никто не
+          // читает, выглядел бы работающим поведением, которого нет.
+          return res.redirect(303, `${back}#ep-${episodeNumber}`);
+        } catch (error) {
+          return next(error);
+        }
+      });
+  }
+
   return router;
+}
+
+/**
+ * Оценки серий для списка сезона (F-04-02).
+ *
+ * Три выборки на весь список: средние, свои оценки, подтверждение адреса.
+ * Запрос на строку дал бы двадцать запросов там, где нужен один (M4 §0,
+ * измерение 14).
+ *
+ * @param {object} args
+ * @param {object} args.ratings сервис оценок
+ * @param {object|null} args.user вошедший или `null`
+ * @param {string} args.csrf
+ * @param {object[]} args.episodes строки сезона с отметкой и датой
+ * @param {string|null} args.today сегодня в поясе посетителя
+ * @returns {Promise<Map<number, object>>} блок оценки по идентификатору серии
+ */
+async function ratingsOfSeason({ ratings, user, csrf, episodes, today }) {
+  const ids = episodes.map((episode) => episode.id);
+  const summaries = await ratings.episodeSummaries(ids);
+  const own = user ? await ratings.ownEpisodeRatings(user.id, ids) : new Map();
+  const confirmed = user ? await ratings.emailConfirmed(user.id) : false;
+
+  const rows = new Map();
+  for (const episode of episodes) {
+    // Отметка и дата — свои у каждой строки, подтверждение адреса — одно на
+    // человека. Правило собирается той же функцией, что проверяет запись,
+    // поэтому «кнопка есть, а запрос отклонён» разойтись не могут (EC-V1).
+    const reason = user
+      ? rateReason({
+        confirmed,
+        marked: episode.precision === 'exact',
+        aired: episode.aired,
+      })
+      : null;
+    rows.set(episode.id, {
+      summary: summaries.get(episode.id),
+      own: own.get(episode.id) ?? null,
+      canRate: reason === null,
+      reason,
+      signedIn: Boolean(user),
+      csrf,
+    });
+  }
+  return rows;
+}
+
+/**
+ * Блок оценки одной серии для страницы серии.
+ *
+ * Гостю тот же блок, но без шкалы и с приглашением войти: пустое место на
+ * странице выглядит как ошибка вёрстки, а приглашение объясняет, что делать.
+ *
+ * @param {object} args
+ * @param {object} args.ratings сервис оценок
+ * @param {object|null} args.user
+ * @param {string} args.csrf
+ * @param {number} args.episodeId
+ * @param {string|null} args.today
+ */
+async function ratingOfEpisode({ ratings, user, csrf, episodeId, today }) {
+  const summary = await ratings.episodeSummary(episodeId);
+  if (!user) {
+    return { summary, own: null, canRate: false, reason: null, signedIn: false, csrf };
+  }
+
+  const allowed = await ratings.canRateEpisode({ userId: user.id, episodeId, today });
+  return {
+    summary,
+    own: await ratings.ownEpisodeRating(user.id, episodeId),
+    canRate: allowed.ok,
+    reason: allowed.reason ?? null,
+    signedIn: true,
+    csrf,
+  };
 }
 
 /**
@@ -163,7 +344,8 @@ function episodeJsonLd({ locale, page, seasonNumber, episodeNumber }) {
  * приглашение нажать кнопку, которая ничего не сделает.
  *
  * @param {import('express').Request} req
- * @returns {{csrf: string, signedIn: boolean, undoWindow: number, options: object}}
+ * @returns {{csrf: string, signedIn: boolean, user: object|null,
+ *   undoWindow: number, options: object}}
  */
 function marksOf(req) {
   const user = req.session?.user ?? null;
@@ -173,6 +355,7 @@ function marksOf(req) {
   return {
     csrf: req.session ? csrfToken(req.session) : '',
     signedIn: Boolean(user),
+    user,
     undoWindow: UNDO_WINDOW_SECONDS,
     options: { userId: user?.id ?? null, today },
   };

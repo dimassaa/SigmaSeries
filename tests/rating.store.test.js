@@ -43,19 +43,17 @@ test.after(async () => {
   // сериал, а удалить сериал раньше них нельзя (ON DELETE RESTRICT). Без
   // уборки они остались бы в общей базе и мешали чужим проверкам — например,
   // поиску по названию.
-  for (const prefix of ['rating-', 'rating-http-%']) {
-    if (prefix.endsWith('-%')) continue;
-    // eslint-disable-next-line no-await-in-loop
-    await pool.query(
-      `DELETE FROM e_rating WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE $1)`, [`${prefix}%`],
-    );
-    // eslint-disable-next-line no-await-in-loop
-    await pool.query(
-      `DELETE FROM e_season WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE $1)`, [`${prefix}%`],
-    );
-    // eslint-disable-next-line no-await-in-loop
-    await pool.query(`DELETE FROM e_series WHERE slug LIKE $1`, [`${prefix}%`]);
-  }
+  //
+  // Префикс только свой: файлы идут параллельно, и уборка по общему `rating-`
+  // сносила бы фикстуры соседа — тот падал на внешнем ключе посреди проверки.
+  const prefix = 'rating-store-%';
+  await pool.query(
+    `DELETE FROM e_rating WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE $1)`, [prefix],
+  );
+  await pool.query(
+    `DELETE FROM e_season WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE $1)`, [prefix],
+  );
+  await pool.query(`DELETE FROM e_series WHERE slug LIKE $1`, [prefix]);
   await pool.end();
 });
 
@@ -227,7 +225,10 @@ test('аккаунт младше суток сохраняет оценку, н
   assert.equal(result.ok, true, 'оценка сохранена — человек поставил её законно');
   assert.equal(result.counted, false, 'в рейтинг сайта она не входит');
   assert.equal(result.stat.votes, 0);
-  assert.equal(await ratings.ownRating(userId, seriesId), 10, 'оценка видна своему автору');
+  const own = await ratings.ownRating(userId, seriesId);
+  assert.equal(own.value, 10, 'оценка видна своему автору');
+  assert.equal(own.counted, false, 'и видно, что в рейтинг она пока не вошла');
+  assert.ok(own.maturesAt instanceof Date, 'автору показано, когда голос учтут (EC-V4)');
 });
 
 test('дозревший голос входит в агрегат (EC-V4)', { skip }, async () => {

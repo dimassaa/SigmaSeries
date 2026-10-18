@@ -501,6 +501,9 @@ CREATE TABLE e_rating (
 CREATE UNIQUE INDEX uq_rating_series  ON e_rating (user_id, series_id)  WHERE object_type = 'series';
 CREATE UNIQUE INDEX uq_rating_episode ON e_rating (user_id, episode_id) WHERE object_type = 'episode';
 CREATE INDEX ix_rating_series ON e_rating (series_id) WHERE counted;
+-- Среднее серии читается из строк, а не из кэша (F-04-02): агрегат серии
+-- собирается одним запросом на список серий, по этому индексу.
+CREATE INDEX ix_rating_episode ON e_rating (episode_id) WHERE counted;
 CREATE TABLE e_series_rating_stat (
   series_id BIGINT PRIMARY KEY REFERENCES e_series(id) ON DELETE CASCADE,
   sum_value NUMERIC(12,2) NOT NULL DEFAULT 0,

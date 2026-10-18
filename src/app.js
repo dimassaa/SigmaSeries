@@ -128,7 +128,7 @@ export function createApp({
   if (search) app.use(createSearchRoutes({
     search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined,
   }));
-  if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series }));
+  if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series, ratings, ratingLimiter }));
   if (series) app.use(createSeriesRoutes({
     series, watchStatus, sessionMw, progress, subscriptions, ratings, ratingLimiter,
   }));

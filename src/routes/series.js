@@ -110,6 +110,7 @@ export function createSeriesRoutes({
           subscribe: bell,
           ratingBlock: rating,
           notice: String(req.query.subs ?? '') || null,
+          timezone: timezoneOf(req),
         }),
       })));
     } catch (error) {

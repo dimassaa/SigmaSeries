@@ -1,20 +1,27 @@
-// Оценка сериала (F-04-01, OP-03).
+// Оценка сериала (F-04-01, OP-03) и оценка серии (F-04-02).
 //
-// Три правила, из-за которых сервис и существует:
+// Четыре правила, из-за которых сервис и существует:
 //
 //  1. Право проверяется на сервере, а не тем, что кнопка нарисована (EC-V1,
 //     H-07): оценить сериал можно, только отметив хотя бы одну его серию,
-//     и только подтверждённым адресом. Скрытая кнопка обходится прямым
-//     запросом, и правило, объявленное только в интерфейсе, правилом не
-//     является.
-//  2. Агрегат живёт в `e_series_rating_stat` и меняется приращением, а не
-//     пересчётом: рейтинг читается на каждой странице сериала (M4 §0,
+//     серию — только отметив её саму, и только подтверждённым адресом.
+//     Скрытая кнопка обходится прямым запросом, и правило, объявленное только
+//     в интерфейсе, правилом не является.
+//  2. Агрегат сериала живёт в `e_series_rating_stat` и меняется приращением, а
+//     не пересчётом: рейтинг читается на каждой странице сериала (M4 §0,
 //     измерение 14 — «пересчёт агрегатов приращением»). Пересчёт по всем
 //     строкам при каждой оценке означал бы запрос по всей истории голосов.
-//  3. Голос аккаунта младше `rating.min_account_age_h` сохраняется, но в
-//     агрегат не входит (EC-V4, H-74): оценка человека, созданного час на
-//     назад, не должна сдвигать число, которое увидят другие. Войдёт, когда
-//     возраст будет достигнут — это делает ежечасный проход.
+//  3. У серии агрегата нет: его считает та же выборка, что показывает список
+//     серий, — один запрос на сезон. Кэш оценок в модели описан сущностью
+//     `E-SeriesRatingStat` и ключуется сериалом (DOMAIN-MODEL §5); вторая
+//     таблица ради суммы по трём голосам добавила бы второе место, где
+//     значение может разойтись с голосами. Отсюда же простое среднее без
+//     априора: у серии голосов мало, и априор показывал бы у всех серий одно
+//     и то же число (H-79).
+//  4. Голос аккаунта младше `rating.min_account_age_h` сохраняется, но в
+//     рейтинг не входит (EC-V4, H-74): оценка человека, созданного час назад,
+//     не должна сдвигать число, которое увидят другие. Войдёт, когда возраст
+//     будет достигнут — это делает ежечасный проход.
 
 import pg from 'pg';
 
@@ -25,9 +32,61 @@ import { HOUR } from '../../config/settings.js';
 export const REASONS = {
   NO_MARK: 'no-mark',
   NOT_CONFIRMED: 'not-confirmed',
+  NOT_AIRED: 'not-aired',
   RANGE: 'range',
   MISSING: 'missing',
 };
+
+/** Сегодняшняя дата по часам сервера — запасной вариант, когда пояс не передан. */
+const serverToday = () => new Date().toISOString().slice(0, 10);
+
+/**
+ * Причина, по которой оценить нельзя, или `null`, если можно.
+ *
+ * Одна формулировка правила на два места: запись (проверяет базу) и показ
+ * (берёт отметку и дату из страницы). Разойтись они не могут, пока считают
+ * одним кодом, — а разойтись значило бы, что кнопка нарисована там, где
+ * сервер откажет (EC-V1).
+ *
+ * @param {{confirmed: boolean, marked: boolean, aired: boolean}} state
+ * @returns {string|null}
+ */
+export function rateReason({ confirmed, marked, aired }) {
+  if (!confirmed) return REASONS.NOT_CONFIRMED;
+  if (!marked) return REASONS.NO_MARK;
+  if (!aired) return REASONS.NOT_AIRED;
+  return null;
+}
+
+/**
+ * Голос человека: значение, попадает ли в рейтинг и когда попадёт.
+ *
+ * @param {{value: number|string, counted: boolean, matures_at: Date}} row
+ * @returns {{value: number, counted: boolean, maturesAt: Date}}
+ */
+function voiceOf(row) {
+  return { value: Number(row.value), counted: row.counted, maturesAt: row.matures_at };
+}
+
+/**
+ * Среднее по серии из суммы и числа голосов.
+ *
+ * `shown` — порог показа числа `< rating.min_votes_display` для серии: при
+ * двух голосах среднее есть, но показывать его нельзя (F-04-02 §состояния).
+ *
+ * @param {{votes: number|string, sum: number|string}} row
+ * @returns {{votes: number, sum: number, average: number|null, shown: boolean}}
+ */
+function episodeSummaryOf(row) {
+  const votes = Number(row.votes);
+  const sum = Number(row.sum);
+  return {
+    votes,
+    sum,
+    average: votes ? sum / votes : null,
+    shown: votes >= RATING.minVotesEpisode,
+  };
+}
 
 /**
  * Источник данных оценок.
@@ -96,16 +155,22 @@ export function pgRatings(pool) {
     /**
      * Оценка человека по сериалу — для блока «Ваша оценка».
      *
-     * @returns {Promise<number|null>}
+     * Возвращается не одно число, а состояние голоса: человеку нужно знать не
+     * только свою оценку, но и то, что она пока не входит в рейтинг (EC-V4 —
+     * «автору показано, когда будет учтена»).
+     *
+     * @returns {Promise<{value: number, counted: boolean, maturesAt: Date}|null>}
      */
     async ownRating(userId, seriesId) {
       const { rows } = await pool.query(
-        `SELECT value FROM e_rating
-          WHERE user_id = $1 AND series_id = $2
-            AND object_type = 'series' AND episode_id IS NULL`,
-        [userId, seriesId],
+        `SELECT r.value, r.counted,
+                u.registered_at + ($3 || ' hours')::interval AS matures_at
+           FROM e_rating r JOIN e_user u ON u.id = r.user_id
+          WHERE r.user_id = $1 AND r.series_id = $2
+            AND r.object_type = 'series' AND r.episode_id IS NULL`,
+        [userId, seriesId, String(RATING.minAccountAgeH)],
       );
-      return rows[0]?.value ?? null;
+      return rows[0] ? voiceOf(rows[0]) : null;
     },
 
     /**
@@ -149,6 +214,173 @@ export function pgRatings(pool) {
         shown: votes >= RATING.minVotesDisplay,
         histogram,
       };
+    },
+
+    /**
+     * Подтверждён ли адрес человека.
+     *
+     * Нужно списку серий: отметка и дата выхода у каждой строки свои, а
+     * подтверждение адреса одно на человека, и спрашивать его на каждую
+     * строку значило бы двадцать запросов вместо одного (EC-V1).
+     *
+     * @param {number} userId
+     * @returns {Promise<boolean>}
+     */
+    async emailConfirmed(userId) {
+      const { rows } = await pool.query(
+        'SELECT email_confirmed FROM e_user WHERE id = $1',
+        [userId],
+      );
+      return Boolean(rows[0]?.email_confirmed);
+    },
+
+    /**
+     * Может ли человек оценить серию (F-04-02, EC-V1).
+     *
+     * Та же проверка, что у сериала, плюс третье условие: серия должна выйти.
+     * Отметить будущую серию нельзя (M3), но прямой запрос отметку не
+     * спрашивает — поэтому «вышла» проверяется здесь, а не только тем, что
+     * флажок нарисован неактивным.
+     *
+     * @param {{userId: number, episodeId: number, today?: string}} input дата
+     *   `today` — в поясе посетителя, как и на странице сезона: серия,
+     *   вышедшая «сегодня» в одном поясе, в другом ещё впереди
+     * @returns {Promise<{ok: boolean, reason?: string}>}
+     */
+    async canRateEpisode({ userId, episodeId, today = null }) {
+      const { rows } = await pool.query(
+        `SELECT u.email_confirmed,
+                EXISTS (SELECT 1 FROM e_watch_mark m
+                         WHERE m.user_id = $1 AND m.episode_id = $2
+                           AND m.precision = 'exact') AS marked,
+                (SELECT min(rl.release_date)
+                   FROM e_release rl
+                   JOIN e_release_episode rle ON rle.release_id = rl.id
+                  WHERE rle.episode_id = $2) <= $3::date AS aired
+           FROM e_user u
+          WHERE u.id = $1`,
+        [userId, episodeId, today ?? serverToday()],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, reason: REASONS.MISSING };
+
+      const reason = rateReason({
+        confirmed: row.email_confirmed,
+        marked: row.marked,
+        aired: Boolean(row.aired),
+      });
+      return reason ? { ok: false, reason } : { ok: true };
+    },
+
+    /**
+     * Ставит оценку серии (F-04-02).
+     *
+     * Повтор той же оценки идемпотентен, снятие — отдельный вызов (EC-V20).
+     * Агрегат не двигается: среднее серии читается из голосов, и двигать
+     * нечего — поэтому же дозревание голоса (EC-V4) для серии не требует
+     * отдельного прохода.
+     *
+     * @param {{userId: number, seriesId: number, episodeId: number,
+     *   value: number, today?: string, at?: Date}} input
+     * @returns {Promise<{ok: boolean, reason?: string, counted?: boolean,
+     *   own?: number, summary?: object}>}
+     */
+    async setEpisodeRating({ userId, seriesId, episodeId, value, today = null, at = new Date() }) {
+      if (!Number.isInteger(value) || value < 1 || value > 10) {
+        return { ok: false, reason: REASONS.RANGE };
+      }
+
+      const allowed = await this.canRateEpisode({ userId, episodeId, today });
+      if (!allowed.ok) return allowed;
+
+      const counted = await this.ageReached(userId, at);
+      await this.writeEpisode({ userId, seriesId, episodeId, value, counted, at });
+
+      return { ok: true, counted, own: value, summary: await this.episodeSummary(episodeId) };
+    },
+
+    /** Снимает оценку серии. Голосов, как и у «поставить», нет — он один. */
+    async removeEpisodeRating({ userId, episodeId, at = new Date() }) {
+      const counted = await this.ageReached(userId, at);
+      await this.writeEpisode({ userId, episodeId, value: null, counted, at });
+      return { ok: true, counted, own: null, summary: await this.episodeSummary(episodeId) };
+    },
+
+    /**
+     * Среднее по серии — простое, без сглаживания (H-79).
+     *
+     * @param {number} episodeId
+     * @returns {Promise<{votes: number, sum: number, average: number|null,
+     *   shown: boolean}>}
+     */
+    async episodeSummary(episodeId) {
+      const { rows } = await pool.query(
+        `SELECT count(*)::int AS votes, coalesce(sum(value), 0)::float AS sum
+           FROM e_rating
+          WHERE episode_id = $1 AND object_type = 'episode' AND counted`,
+        [episodeId],
+      );
+      return episodeSummaryOf(rows[0]);
+    },
+
+    /**
+     * Средние по нескольким сериям одной выборкой.
+     *
+     * Список серий — это страница сезона: отдельный запрос на каждую серию
+     * означал бы двадцать запросов там, где нужен один (M4 §0, измерение 14).
+     * Серия без голосов тоже попадает в ответ: страница не должна отличать
+     * «нет оценок» от «серия не найдена».
+     *
+     * @param {Array<number|string>} episodeIds
+     * @returns {Promise<Map<number, object>>}
+     */
+    async episodeSummaries(episodeIds) {
+      const wanted = [...new Set(episodeIds.map(Number).filter(Number.isInteger))];
+      const summaries = new Map(wanted.map((id) => [id, episodeSummaryOf({ votes: 0, sum: 0 })]));
+      if (!wanted.length) return summaries;
+
+      const { rows } = await pool.query(
+        `SELECT episode_id, count(*)::int AS votes, coalesce(sum(value), 0)::float AS sum
+           FROM e_rating
+          WHERE episode_id = ANY($1::bigint[]) AND object_type = 'episode' AND counted
+          GROUP BY episode_id`,
+        [wanted],
+      );
+      for (const row of rows) summaries.set(Number(row.episode_id), episodeSummaryOf(row));
+      return summaries;
+    },
+
+    /**
+     * Оценка человека по серии — для блока «Ваша оценка».
+     *
+     * @returns {Promise<{value: number, counted: boolean, maturesAt: Date}|null>}
+     */
+    async ownEpisodeRating(userId, episodeId) {
+      const found = await this.ownEpisodeRatings(userId, [episodeId]);
+      return found.get(Number(episodeId)) ?? null;
+    },
+
+    /**
+     * Оценки человека по нескольким сериям одной выборкой.
+     *
+     * @param {number} userId
+     * @param {Array<number|string>} episodeIds
+     * @returns {Promise<Map<number, {value: number, counted: boolean,
+     *   maturesAt: Date}>>}
+     */
+    async ownEpisodeRatings(userId, episodeIds) {
+      const wanted = [...new Set(episodeIds.map(Number).filter(Number.isInteger))];
+      if (!wanted.length) return new Map();
+
+      const { rows } = await pool.query(
+        `SELECT r.episode_id, r.value, r.counted,
+                u.registered_at + ($3 || ' hours')::interval AS matures_at
+           FROM e_rating r JOIN e_user u ON u.id = r.user_id
+          WHERE r.user_id = $1 AND r.episode_id = ANY($2::bigint[])
+            AND r.object_type = 'episode'`,
+        [userId, wanted, String(RATING.minAccountAgeH)],
+      );
+      return new Map(rows.map((row) => [Number(row.episode_id), voiceOf(row)]));
     },
 
     /**
@@ -245,6 +477,40 @@ export function pgRatings(pool) {
       return { ok: true, counted, own: value, stat };
     },
 
+    /**
+     * Запись оценки серии.
+     *
+     * Одной командой: агрегата у серии нет, двигать нечего, а строку держит
+     * уникальный индекс `uq_rating_episode` — повторный запрос обновляет её же,
+     * а не заводит вторую (EC-V20).
+     *
+     * @param {{userId: number, episodeId: number, seriesId?: number,
+     *   value: number|null, counted: boolean, at: Date}} input
+     */
+    async writeEpisode({ userId, episodeId, seriesId = null, value, counted, at }) {
+      if (value === null) {
+        await pool.query(
+          `DELETE FROM e_rating
+            WHERE user_id = $1 AND episode_id = $2 AND object_type = 'episode'`,
+          [userId, episodeId],
+        );
+        return;
+      }
+
+      // Индекс уникальности частичный — по виду оценки, — поэтому в
+      // `ON CONFLICT` повторяется и условие: без него PostgreSQL не поймёт,
+      // о каком индексе речь. Здесь он `uq_rating_episode`.
+      await pool.query(
+        `INSERT INTO e_rating
+           (user_id, object_type, episode_id, series_id, value, created_at, updated_at, counted)
+         VALUES ($1, 'episode', $2, $3, $4, $5, $5, $6)
+         ON CONFLICT (user_id, episode_id) WHERE object_type = 'episode'
+         DO UPDATE SET value = EXCLUDED.value, counted = EXCLUDED.counted,
+                       updated_at = EXCLUDED.updated_at`,
+        [userId, episodeId, seriesId, value, at, counted],
+      );
+    },
+
     /** Сырые голос и сумма — для проверок и пересчёта. */
     async statOf(seriesId) {
       const { rows } = await pool.query(
@@ -280,7 +546,7 @@ export function pgRatings(pool) {
              FROM e_user u
             WHERE u.id = r.user_id AND NOT r.counted
               AND $2::timestamptz - u.registered_at >= ($3 || ' hours')::interval
-            RETURNING r.series_id, r.value`,
+            RETURNING r.series_id, r.value, r.object_type`,
           [at, at, String(RATING.minAccountAgeH)],
         );
         if (!promoted.rowCount) {
@@ -290,9 +556,12 @@ export function pgRatings(pool) {
 
         // Агрегат двигается суммой по сериалам: голоса могли дозреть сразу у
         // нескольких человек по разным сериалам, и поход по каждому отдельно
-        // означал бы запрос на каждую строку.
+        // означал бы запрос на каждую строку. Оценки серий (F-04-02) в него не
+        // идут: `e_series_rating_stat` считает голоса за сериал, а у серии
+        // агрегата нет вовсе — её среднее читается из строк.
         const delta = new Map();
         for (const row of promoted.rows) {
+          if (row.object_type !== 'series') continue;
           const seen = delta.get(row.series_id) ?? { sum: 0, votes: 0 };
           seen.sum += Number(row.value);
           seen.votes += 1;

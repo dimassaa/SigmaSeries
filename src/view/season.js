@@ -9,6 +9,7 @@ import { t } from '../i18n/strings.js';
 import { releaseLabel } from './dates.js';
 import { goneView } from './series.js';
 import { markCheckbox, markUpTo, markSeason, markNotice } from './mark.js';
+import { episodeRatingBlock, episodeRatingCell, hasEpisodeRating } from './rating.js';
 
 function runtime(locale, minutes) {
   if (!minutes) return '';
@@ -32,8 +33,13 @@ const episodeHref = (locale, slug, season, episode) =>
  * @param {string|null} [page.notice] что сообщить после действия
  * @param {number} [page.noticeMarked]
  * @param {number|null} [page.noticeBatch]
+ * @param {Map<number, object>|null} [page.ratings] блоки оценки по
+ *   идентификатору серии; `null` — источник оценок не подключён
  */
-export function seasonView({ locale, page, slug, marks = null, notice = null, noticeMarked = 0, noticeBatch = null }) {
+export function seasonView({
+  locale, page, slug, marks = null, notice = null, noticeMarked = 0, noticeBatch = null,
+  ratings = null,
+}) {
   const { series, season } = page;
 
   return html`
@@ -85,8 +91,17 @@ ${when(season.episodes.length > 0, () => html`
 </div>
 
 <ol class="season__episode-list" role="list">
-  ${season.episodes.map((episode) => html`
-  <li class="season__episode">
+  ${season.episodes.map((episode) => {
+    const rate = ratings?.get(episode.id) ?? null;
+    // Формы стоят рядом со ссылкой, а не внутри неё: кнопка внутри ссылки —
+    // это вложенное действие, и нажатие уводило бы на страницу серии вместо
+    // отметки или оценки. `id` — тот же якорь `ep-{номер}`, на который
+    // возвращает запись оценки: он указывает на строку той серии, которую
+    // человек только что оценил.
+    const withUpto = Boolean(marks?.signedIn) && episode.aired;
+    const withRating = hasEpisodeRating(rate);
+    return html`
+  <li class="season__episode" id="ep-${episode.number}">
     ${markCheckbox({
       locale,
       slug,
@@ -109,18 +124,28 @@ ${when(season.episodes.length > 0, () => html`
       <span class="season__episode-meta">
         ${when(episode.runtime, () => html`<span class="season__episode-runtime">${runtime(locale, episode.runtime)}</span>`)}
         <span class="season__episode-date">${releaseLabel(locale, episode.date)}</span>
-        ${when(episode.aired, () => html`
-        ${markUpTo({
-          locale,
-          slug,
-          season: season.number,
-          episode: episode.number,
-          csrf: marks?.csrf ?? '',
-          signedIn: marks?.signedIn ?? false,
-        })}`)}
       </span>
     </a>
-  </li>`)}
+    ${when(withUpto || withRating, () => html`
+    <div class="season__episode-controls">
+      ${when(withUpto, () => markUpTo({
+        locale,
+        slug,
+        season: season.number,
+        episode: episode.number,
+        csrf: marks?.csrf ?? '',
+        signedIn: true,
+      }))}
+      ${when(withRating, () => episodeRatingCell({
+        locale,
+        slug,
+        season: season.number,
+        episode: episode.number,
+        rating: rate,
+      }))}
+    </div>`)}
+  </li>`;
+  })}
 </ol>`)}`;
 }
 
@@ -132,8 +157,10 @@ ${when(season.episodes.length > 0, () => html`
  * @param {object} page.page данные источника
  * @param {string} page.slug
  * @param {{csrf: string, signedIn: boolean}|null} [page.marks]
+ * @param {object|null} [page.rating] данные блока оценки серии (F-04-02)
+ * @param {string|null} [page.timezone] пояс посетителя для подписи дозревания
  */
-export function episodeView({ locale, page, slug, marks = null }) {
+export function episodeView({ locale, page, slug, marks = null, rating = null, timezone = null }) {
   const { series, season, episode } = page;
 
   return html`
@@ -171,6 +198,15 @@ export function episodeView({ locale, page, slug, marks = null }) {
 ${when(episode.description, () => html`
 <p class="episode__description">${episode.description}</p>`)}
 
+${when(rating, () => episodeRatingBlock({
+  locale,
+  slug,
+  season: season.number,
+  episode: episode.number,
+  rating,
+  timezone,
+}))}
+
 <nav class="episode__nav" aria-label="${t(locale, 'episode.menu')}">
   ${when(page.prevEpisode !== null, () => html`
   <a class="episode__nav-link" rel="prev"
@@ -178,9 +214,7 @@ ${when(episode.description, () => html`
   ${when(page.nextEpisode !== null, () => html`
   <a class="episode__nav-link" rel="next"
      href="${episodeHref(locale, slug, season.number, page.nextEpisode)}">${t(locale, 'episode.next')}</a>`)}
-</nav>
-
-<p class="episode__note">${t(locale, 'episode.marksNote')}</p>`;
+</nav>`;
 }
 
 /** 410 у снятого сериала: тот же текст, что на странице сериала. */

@@ -85,6 +85,47 @@ export function pgSeasons(pool) {
         nextEpisode: numbers.includes(episodeNumber + 1) ? episodeNumber + 1 : null,
       };
     },
+
+    /**
+     * Серия по адресу — идентификаторы и дата выхода, без страницы.
+     *
+     * Нужна записи оценки серии (F-04-02): страница целиком строится ради
+     * показа, а записи нужен только адрес строки и правило «сериал невиден —
+     * оценивать нечего». Читать ради этого весь сезон с соседями значило бы
+     * делать работу, которую никто не увидит.
+     *
+     * @param {string} slug
+     * @param {number} seasonNumber
+     * @param {number} episodeNumber
+     * @param {{today?: string|null}} [options] сегодняшняя дата посетителя
+     * @returns {Promise<{seriesId: number, episodeId: number, aired: boolean}|null>}
+     */
+    async episodeRef(slug, seasonNumber, episodeNumber, { today = null } = {}) {
+      const series = await visibleSeries(pool, slug);
+      if (!series) return null;
+
+      const { rows } = await pool.query(
+        `SELECT e.id AS episode_id,
+                (SELECT rl.release_date::text
+                   FROM e_release rl
+                   JOIN e_release_episode rle ON rle.release_id = rl.id
+                  WHERE rle.episode_id = e.id
+                  ORDER BY rl.release_date
+                  LIMIT 1) AS date
+           FROM e_episode e
+           JOIN e_season s ON s.id = e.season_id
+          WHERE s.series_id = $1 AND s.number = $2 AND e.number = $3`,
+        [series.id, seasonNumber, episodeNumber],
+      );
+      const row = rows[0];
+      if (!row) return null;
+
+      return {
+        seriesId: series.id,
+        episodeId: row.episode_id,
+        aired: row.date !== null && (today === null || row.date <= today),
+      };
+    },
   };
 }
 

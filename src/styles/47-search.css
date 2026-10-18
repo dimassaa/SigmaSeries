@@ -197,7 +197,6 @@
 .episode__date { color: var(--text-secondary); }
 .episode__description { margin-block: var(--space-4); max-inline-size: 70ch; }
 .episode__nav { display: flex; gap: var(--space-4); margin-block: var(--space-5); }
-.episode__note { color: var(--text-secondary); font-size: 13px; }
 
 .episode__link { display: grid; grid-template-columns: 32px 1fr auto; gap: var(--space-3); color: inherit; text-decoration: none; }
 .episode__link:hover .episode__title { color: var(--accent); }

@@ -136,6 +136,14 @@ test('несуществующие номер сезона и серии — 404
 
   const noEpisode = await get(`/ru/series/${found.slug}/seasons/${found.number}/episodes/999`);
   assert.equal(noEpisode.status, 404);
+
+  // Не число — это тоже 404, а не 500: адрес разбирается до похода в базу, и
+  // ошибка в этом разборе видна только на таких значениях.
+  const badSeason = await get(`/ru/series/${found.slug}/seasons/abc`);
+  assert.equal(badSeason.status, 404, 'номер сезона не числом');
+
+  const badEpisode = await get(`/ru/series/${found.slug}/seasons/${found.number}/episodes/abc`);
+  assert.equal(badEpisode.status, 404, 'номер серии не числом');
 });
 
 test('на странице серии есть соседи, когда они есть', { skip }, async () => {

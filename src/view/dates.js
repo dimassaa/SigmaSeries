@@ -72,6 +72,27 @@ export function dateTime(locale, value) {
 }
 
 /**
+ * День момента в поясе посетителя: «19 октября 2026».
+ *
+ * Для мест, где момент известен точно, а показывается днём: «в рейтинг войдёт
+ * 19 октября» (EC-V4). Пояс — пояс посетителя, как и у слова «сегодня»
+ * (R-I18N-04): у него ещё вчера.
+ *
+ * @param {string} locale
+ * @param {string|Date} value момент
+ * @param {string} [timezone] пояс посетителя
+ * @returns {string}
+ */
+export function dayLabel(locale, value, timezone = DEFAULT_TIMEZONE) {
+  return new Intl.DateTimeFormat(locale === 'en' ? 'en-GB' : 'ru-RU', {
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+    timeZone: timezone,
+  }).format(new Date(value));
+}
+
+/**
  * Название месяца с годом: «Октябрь 2026».
  *
  * @param {string} locale

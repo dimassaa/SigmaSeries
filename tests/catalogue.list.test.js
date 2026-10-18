@@ -63,19 +63,30 @@ async function fingerprint() {
 /**
  * Общее число страницы равно числу опубликованных сериалов.
  *
- * Два чтения подряд не могут увидеть одно и то же: база общая, и параллельные
- * прогоны создают и убирают свои фикстуры между ними. Поэтому сравнение
- * повторяется — а не ослабляется: расхождение означало бы, что список считает
- * не то, что фильтр.
+ * Счётчик берётся в том же окне, что и страница: отпечаток каталога снят до и
+ * после чтения и не изменился. Сравнивать со свежим `count(*)` после чтения
+ * нельзя — параллельный прогон успевает добавить или убрать фикстуру между
+ * двумя запросами, и проверка краснеет на общей базе без всякой ошибки в коде
+ * (так и случилось 18.10 при прогоне F-04-02: 1067 против 1068).
  *
  * @param {object} options параметры каталога
  * @returns {Promise<object>} страница, для которой числа сошлись
  */
 async function assertTotalMatches(options) {
-  const page = await stablePage(options);
-  assert.equal(page.total, await published(),
-    'в списке ровно опубликованные видимые сериалы (шесть попыток — каталог менялся под ногами)');
-  return page;
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const before = await fingerprint();
+    // eslint-disable-next-line no-await-in-loop
+    const page = await catalogue.list(options);
+    // eslint-disable-next-line no-await-in-loop
+    const after = await fingerprint();
+    if (before === after) {
+      assert.equal(page.total, Number(before.split(':')[0]),
+        'в списке ровно опубликованные видимые сериалы');
+      return page;
+    }
+  }
+  return assert.fail('каталог менялся все десять попыток — сравнить не с чем');
 }
 
 /**
@@ -97,10 +108,8 @@ async function stablePage(options = {}) {
     const current = await catalogue.list(options);
     // eslint-disable-next-line no-await-in-loop
     const after = await fingerprint();
-    if (before === after) {
-      page = current;
-      if (current.total === before) return page;
-    }
+    if (before === after) return current;
+    page = current;
   }
   return page ?? catalogue.list(options);
 }

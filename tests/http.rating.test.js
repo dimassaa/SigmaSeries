@@ -161,19 +161,17 @@ test.after(async () => {
   // сериал, а удалить сериал раньше них нельзя (ON DELETE RESTRICT). Без
   // уборки они остались бы в общей базе и мешали чужим проверкам — например,
   // поиску по названию.
-  for (const prefix of ['rating-', 'rating-http-%']) {
-    if (prefix.endsWith('-%')) continue;
-    // eslint-disable-next-line no-await-in-loop
-    await pool.query(
-      `DELETE FROM e_rating WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE $1)`, [`${prefix}%`],
-    );
-    // eslint-disable-next-line no-await-in-loop
-    await pool.query(
-      `DELETE FROM e_season WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE $1)`, [`${prefix}%`],
-    );
-    // eslint-disable-next-line no-await-in-loop
-    await pool.query(`DELETE FROM e_series WHERE slug LIKE $1`, [`${prefix}%`]);
-  }
+  //
+  // Префикс только свой: файлы идут параллельно, и уборка по общему `rating-`
+  // сносила бы фикстуры соседа — тот падал на внешнем ключе посреди проверки.
+  const prefix = 'rating-http-%';
+  await pool.query(
+    `DELETE FROM e_rating WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE $1)`, [prefix],
+  );
+  await pool.query(
+    `DELETE FROM e_season WHERE series_id IN (SELECT id FROM e_series WHERE slug LIKE $1)`, [prefix],
+  );
+  await pool.query(`DELETE FROM e_series WHERE slug LIKE $1`, [prefix]);
   await pool.end();
 });
 
