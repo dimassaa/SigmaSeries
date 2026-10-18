@@ -188,7 +188,13 @@ test('оценка без отметки просмотра отклоняетс
       });
 
       assert.equal(res.status, 303);
-      assert.match(res.headers.get('location'), /rating=no-mark/, 'причина отказа названа прямо');
+      // Причину отказа называет сама страница: она считает её из тех же данных,
+      // а `?rating=…` в адресе не читал никто — параметр выглядел работающим,
+      // которого нет (#149).
+      assert.equal(
+        res.headers.get('location'), `/ru/series/${seriesRow.slug}#h-rating`,
+        'возврат к блоку оценки, без параметров',
+      );
       const row = await pool.query(
         `SELECT count(*)::int AS n FROM e_rating WHERE user_id = $1 AND series_id = $2`,
         [user.id, seriesRow.id],

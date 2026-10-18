@@ -152,14 +152,18 @@ export function createSeriesRoutes({
         const raw = String(req.body?.value ?? '').trim();
         // Пустое значение — это «убрать оценку», а не «ноль»: ноль вне
         // диапазона и должен быть отвергнут, а человек хочет снять своё.
-        const result = raw === '' || raw === '0'
-          ? await ratings.removeSeriesRating({ userId: user.id, seriesId: found.id })
-          : await ratings.setSeriesRating({
-            userId: user.id, seriesId: found.id, value: Number(raw),
-          });
+        if (raw === '' || raw === '0') {
+          await ratings.removeSeriesRating({ userId: user.id, seriesId: found.id });
+        } else {
+          await ratings.setSeriesRating({ userId: user.id, seriesId: found.id, value: Number(raw) });
+        }
 
-        if (!result.ok) return res.redirect(303, `${back}?rating=${result.reason}`);
-        return res.redirect(303, `${back}?rating=ok${result.counted === false ? '&young=1' : ''}`);
+        // Один и тот же возврат и на успех, и на отказ: причина отказа приходит
+        // из данных страницы (та же `rateReason`, что проверяла запись), а
+        // `?rating=…` и `?young=1` в адресе не читал никто — параметры выглядели
+        // работающим поведением, которого нет (#149). Молодой голос виден на
+        // странице полями `own.counted` и `own.maturesAt` (EC-V4).
+        return res.redirect(303, `${back}#h-rating`);
       } catch (error) {
         return next(error);
       }
