@@ -504,6 +504,10 @@ CREATE INDEX ix_rating_series ON e_rating (series_id) WHERE counted;
 -- Среднее серии читается из строк, а не из кэша (F-04-02): агрегат серии
 -- собирается одним запросом на список серий, по этому индексу.
 CREATE INDEX ix_rating_episode ON e_rating (episode_id) WHERE counted;
+-- Априор `prior_mean` — это среднее по сайту C из формулы (v·R + m·C) / (v + m)
+-- (F-04-03): в модели кэш сайта — эта же таблица, поэтому C лежит в каждой
+-- строке одним числом, а не отдельной записью. Пересчитывает его ежечасный
+-- проход; DEFAULT стоит на случай, когда прохода ещё не было.
 CREATE TABLE e_series_rating_stat (
   series_id BIGINT PRIMARY KEY REFERENCES e_series(id) ON DELETE CASCADE,
   sum_value NUMERIC(12,2) NOT NULL DEFAULT 0,

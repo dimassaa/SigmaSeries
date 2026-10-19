@@ -274,8 +274,10 @@ test('среднее сглаживается априором: один гол�
   await ratings.setSeriesRating({ userId, seriesId, value: 10 });
 
   const summary = await ratings.summary(seriesId);
-  const expected = (10 + RATING.priorMeanDefault * RATING.priorWeight)
-    / (1 + RATING.priorWeight);
+  // Априор читается из строки, а не берётся из настроек: с F-04-03 в нём лежит
+  // среднее по сайту, и пересчёт соседнего файла не должен ронять проверку.
+  const stat = await ratings.statOf(seriesId);
+  const expected = (10 + stat.priorMean * stat.priorWeight) / (1 + stat.priorWeight);
 
   assert.equal(summary.votes, 1, 'голос один');
   assert.equal(summary.average, expected, 'среднее считается с априором, а не делением на голоса');
@@ -294,4 +296,125 @@ test('при пороге голосов среднее не показывае�
   // Само число остаётся: им пользуются порядок и пересчёт, а за то, чтобы
   // человек его не увидел, отвечает представление, а не сервис.
   assert.ok(typeof summary.average === 'number', 'среднее посчитано и доступно');
+});
+
+// ─── Среднее по сайту и гистограмма (F-04-03) ───────────────────────────────
+
+test('формула рейтинга: R = 8,0, v = 10, C = 7,0, m = 10 → 7,5 (F-04-03 §18)', { skip }, async () => {
+  const { seriesId, episodeId } = await seriesWith();
+  // Десять голосов «8» и априор из приёмки: (80 + 7·10) / 20 = 7,5.
+  for (let i = 0; i < 10; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const userId = await viewer();
+    // eslint-disable-next-line no-await-in-loop
+    await mark(userId, episodeId);
+    // eslint-disable-next-line no-await-in-loop
+    const result = await ratings.setSeriesRating({ userId, seriesId, value: 8 });
+    assert.equal(result.ok, true, `голос ${i + 1} принят`);
+  }
+  await pool.query(
+    'UPDATE e_series_rating_stat SET prior_mean = 7.0 WHERE series_id = $1', [seriesId],
+  );
+
+  const summary = await ratings.summary(seriesId);
+
+  assert.equal(summary.votes, 10);
+  assert.equal(summary.average, 7.5, 'сглаженное среднее совпадает с приёмкой OP-03');
+  assert.equal(summary.shown, true, 'десяти голосов хватает на показ');
+  const bars = [...summary.histogram.values()].reduce((sum, count) => sum + count, 0);
+  assert.equal(bars, summary.votes, 'сумма гистограммы равна числу голосов (F-04-03 §9)');
+});
+
+test('среднее по сайту — по учитываемым сериальным голосам, в априоре каждой строки (F-04-03 §7–§8)', { skip }, async () => {
+  const first = await seriesWith();
+  const second = await seriesWith();
+  const adult = await viewer();
+  const young = await viewer({ ageHours: 1 });
+  await mark(adult, first.episodeId);
+  await mark(adult, second.episodeId);
+  await mark(young, first.episodeId);
+  await ratings.setSeriesRating({ userId: adult, seriesId: first.seriesId, value: 9 });
+  await ratings.setSeriesRating({ userId: adult, seriesId: second.seriesId, value: 8 });
+  // Недозревший голос: сохраняется, но в C не входит (EC-V4).
+  await ratings.setSeriesRating({ userId: young, seriesId: first.seriesId, value: 1 });
+  // Голос серии — строкой, а не маршрутом: маршрут требует вышедшую серию, а
+  // здесь проверяется ровно то, что сериальные и серийные голоса не путаются.
+  await pool.query(
+    `INSERT INTO e_rating (user_id, object_type, episode_id, series_id, value, counted)
+     VALUES ($1, 'episode', $2, $3, 9, TRUE)`,
+    [adult, first.episodeId, first.seriesId],
+  );
+
+  // Пересчёт трогает априор у всех сериалов, включая фикстуры параллельных
+  // файлов: их прежние значения возвращаются на место после проверки.
+  const { rows: saved } = await pool.query(
+    'SELECT series_id, prior_mean::float AS prior FROM e_series_rating_stat',
+  );
+  let result;
+  let means;
+  let afterDelete;
+  try {
+    result = await ratings.refreshSiteAverage();
+    ({ rows: means } = await pool.query(
+      'SELECT DISTINCT prior_mean::float AS prior FROM e_series_rating_stat',
+    ));
+    // EC-V6: голос обезличенного аккаунта остаётся в рейтинге (H-61) — счёт
+    // смотрит на строку оценки, а не на состояние человека.
+    await pool.query(`UPDATE e_user SET status = 'deleted' WHERE id = $1`, [adult]);
+    afterDelete = await ratings.refreshSiteAverage();
+  } finally {
+    for (const row of saved) {
+      // eslint-disable-next-line no-await-in-loop
+      await pool.query(
+        'UPDATE e_series_rating_stat SET prior_mean = $2 WHERE series_id = $1',
+        [row.series_id, row.prior],
+      );
+    }
+  }
+
+  assert.equal(means.length, 1, 'среднее по сайту одно: априор у всех сериалов одинаков');
+  assert.ok(result.votes >= 2, 'наши два учитываемых голоса в C вошли');
+  assert.ok(afterDelete.votes >= result.votes, 'голос обезличенного аккаунта из C не пропал');
+
+  // Точное значение зависит от голосов соседних файлов, идущих в это же время,
+  // поэтому сравнивается с тем же средним по тем же условиям — с допуском в шаг
+  // округления колонки (`prior_mean` хранит десятые).
+  const { rows: [truth] } = await pool.query(
+    `SELECT avg(value)::float AS c FROM e_rating WHERE object_type = 'series' AND counted`,
+  );
+  assert.ok(Math.abs(means[0].prior - truth.c) <= 0.1, `C ≈ ${truth.c}, а в строках ${means[0].prior}`);
+
+  // Верхняя граница ловит лишнее: голос серии и недозревший голос в счёт не
+  // входят, и голосов в C не может быть больше, чем учитываемых сериальных.
+  const { rows: [counted] } = await pool.query(
+    `SELECT count(*)::int AS n FROM e_rating WHERE object_type = 'series' AND counted`,
+  );
+  assert.ok(result.votes <= counted.n, 'в C нет ни голосов серий, ни недозревших');
+});
+
+test('исключённый из рейтинга голос не входит ни в число, ни в гистограмму (F-04-03 §18)', { skip }, async () => {
+  const { seriesId, episodeId } = await seriesWith();
+  const counted = await viewer();
+  const banned = await viewer();
+  await mark(counted, episodeId);
+  await mark(banned, episodeId);
+  await ratings.setSeriesRating({ userId: counted, seriesId, value: 9 });
+  await ratings.setSeriesRating({ userId: banned, seriesId, value: 1 });
+
+  // Бан — действие M9 (EC-V5): оно снимает флаг, а пересчёт агрегата делает
+  // та же команда. Здесь проверяется чтение после пересчёта: единицы
+  // забаненного нет ни в числе голосов, ни в распределении.
+  await pool.query(
+    `UPDATE e_rating SET counted = FALSE WHERE user_id = $1 AND series_id = $2`,
+    [banned, seriesId],
+  );
+  await pool.query(
+    'UPDATE e_series_rating_stat SET votes = 1, sum_value = 9 WHERE series_id = $1', [seriesId],
+  );
+
+  const summary = await ratings.summary(seriesId);
+
+  assert.equal(summary.votes, 1);
+  assert.equal(summary.histogram.get(1) ?? 0, 0, 'единицы забаненного в гистограмме нет');
+  assert.equal(summary.histogram.get(9), 1);
 });

@@ -6,6 +6,7 @@
 // отдельно — как и положено источнику, который не знает про разметку.
 
 import { importSettings } from './settings.js';
+import { RATING } from '../../config/settings.js';
 
 /** Сколько сериалов в списке одного сезона показываем сразу. */
 const EPISODES_LIMIT = 50;
@@ -210,9 +211,11 @@ async function ratingsOf(pool, seriesId) {
   return {
     imdb: map.get('imdb') ?? null,
     tmdb: map.get('tmdb') ?? null,
-    // Порог голосов тот же, что и у внешних: без него в шапке появилось бы
-    // «7,2 · 1» после единственной оценки — число, у которого нет смысла.
-    site: siteRow && siteRow.value && siteRow.votes >= ratingFloor
+    // Порог показа у рейтинга сайта свой (M4 §0: 5 голосов — `rating.min_votes_display`),
+    // а не порог внешних рейтингов: с F-04-03 то же число и с тем же порогом
+    // показывается в блоке оценки, и разойтись им неоткуда. Порог внешних тут
+    // не годится — на 5–9 голосах шапка молчала бы, а блок показывал число.
+    site: siteRow && siteRow.value && siteRow.votes >= RATING.minVotesDisplay
       ? { value: Number(siteRow.value), votes: siteRow.votes }
       : null,
   };

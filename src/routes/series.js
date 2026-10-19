@@ -101,7 +101,7 @@ export function createSeriesRoutes({
         title: found.title,
         description: found.description.slice(0, 160),
         noindex,
-        jsonLd: seriesJsonLd({ locale, series: found }),
+        jsonLd: seriesJsonLd({ locale, series: found, rating }),
         body: seriesView({
           locale,
           series: found,
@@ -202,12 +202,19 @@ async function ratingBlock({ ratings, user, seriesId, session }) {
 }
 
 /**
- * Разметка schema.org для карточки (F-02-01 §18).
+ * Разметка schema.org для карточки (F-02-01 §18, F-04-03 §17).
  *
  * Без неё поисковики показывают сериал без описания и дат, а проверка
- * приёмки требует `TVSeries` в HTML.
+ * приёмки требует `TVSeries` в HTML. `aggregateRating` появляется только
+ * вместе с видимым числом: разметка, заявляющая оценку, которой человек на
+ * странице не видит, — это обещание, которого мы не выполняем (R-SEO-18).
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {object} args.series данные сериала
+ * @param {object|null} [args.rating] блок оценки: берётся `summary`
  */
-function seriesJsonLd({ locale, series: found }) {
+function seriesJsonLd({ locale, series: found, rating = null }) {
   const episodes = found.seasons.flatMap((season) => season.episodes);
   const data = {
     '@context': 'https://schema.org',
@@ -221,6 +228,19 @@ function seriesJsonLd({ locale, series: found }) {
   if (found.genres.length) data.genre = found.genres.map((genre) => genre.name_ru);
   if (episodes.length) data.numberOfEpisodes = episodes.length;
   if (found.seasons.length) data.numberOfSeasons = found.seasons.length;
+
+  const summary = rating?.summary;
+  if (summary?.shown) {
+    data.aggregateRating = {
+      '@type': 'AggregateRating',
+      // Точка, а не запятая: JSON — не текст страницы, и русская запятая в нём
+      // сделала бы значение строкой, которую поисковик не прочитает.
+      ratingValue: Number(summary.average.toFixed(1)),
+      ratingCount: summary.votes,
+      bestRating: 10,
+      worstRating: 1,
+    };
+  }
 
   return data;
 }

@@ -22,6 +22,10 @@
 //     рейтинг не входит (EC-V4, H-74): оценка человека, созданного час назад,
 //     не должна сдвигать число, которое увидят другие. Войдёт, когда возраст
 //     будет достигнут — это делает ежечасный проход.
+//  5. Среднее по сайту C (F-04-03) — тоже априор, и живёт он в `prior_mean`
+//     каждой строки: тем же ежечасным проходом, что вводит дозревшие голоса.
+//     При каждой оценке его не пересчитать — это запрос по всей истории
+//     голосов сайта; страница же читает C вместе со своей строкой статистики.
 
 import pg from 'pg';
 
@@ -511,16 +515,56 @@ export function pgRatings(pool) {
       );
     },
 
-    /** Сырые голос и сумма — для проверок и пересчёта. */
+    /** Сырые голос, сумма и априор — для проверок и пересчёта. */
     async statOf(seriesId) {
       const { rows } = await pool.query(
-        'SELECT votes, sum_value::float AS sum FROM e_series_rating_stat WHERE series_id = $1',
+        `SELECT votes, sum_value::float AS sum, prior_mean::float AS prior_mean,
+                prior_weight::float AS prior_weight
+           FROM e_series_rating_stat WHERE series_id = $1`,
         [seriesId],
       );
       return {
         votes: Number(rows[0]?.votes ?? 0),
         sum: Number(rows[0]?.sum ?? 0),
+        priorMean: Number(rows[0]?.prior_mean ?? RATING.priorMeanDefault),
+        priorWeight: Number(rows[0]?.prior_weight ?? RATING.priorWeight),
       };
+    },
+
+    /**
+     * Пересчитывает среднее по сайту C (F-04-03 §4, §7–§8).
+     *
+     * C — среднее учитываемых сериальных голосов всего сайта; если голосов нет,
+     * C равен настройке `rating.prior_mean_default`. Хранится он не отдельной
+     * таблицей, а в `prior_mean` каждой строки статистики: в модели кэш сайта —
+     * та же `E-SeriesRatingStat`, а формула `(v·R + m·C) / (v + m)` читается на
+     * каждой странице сериала. Второе место для того же числа означало бы два
+     * значения, которые могут разойтись.
+     *
+     * Проход ежечасный, а не при каждой оценке: при оценке C двигался бы
+     * запросом по всей истории голосов, а рейтинг читается на каждой странице
+     * (M4 §0, измерение 14). Голоса серий в C не входят — у серии своего
+     * агрегата нет (F-04-02).
+     *
+     * @param {Date} at
+     * @returns {Promise<{votes: number, average: number, defaulted: boolean}>}
+     */
+    async refreshSiteAverage(at = new Date()) {
+      const { rows } = await pool.query(
+        `SELECT count(*)::int AS votes, coalesce(sum(value), 0)::float AS sum
+           FROM e_rating
+          WHERE object_type = 'series' AND counted`,
+      );
+      const votes = Number(rows[0].votes);
+      const sum = Number(rows[0].sum);
+      const average = votes ? sum / votes : RATING.priorMeanDefault;
+
+      await pool.query(
+        'UPDATE e_series_rating_stat SET prior_mean = $1, recalculated_at = $2',
+        [average, at],
+      );
+
+      return { votes, average, defaulted: votes === 0 };
     },
 
     /**

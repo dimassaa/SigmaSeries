@@ -1,4 +1,5 @@
-// Оценки: сериал (F-04-01, OP-03) и серия (F-04-02).
+// Оценки: сериал (F-04-01, OP-03), серия (F-04-02), рейтинг сайта с
+// гистограммой (F-04-03).
 //
 // Разметка шкалы одна на три места — блок на странице сериала (S-06), блок на
 // странице серии (S-08) и строка в списке серий (S-07). Это одна и та же
@@ -14,11 +15,23 @@
 import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
-import { RATING } from '../config/settings.js';
 import { dayLabel } from './dates.js';
 
 /** Десять значений шкалы — одна последовательность на все экраны. */
 const SCALE = Array.from({ length: 10 }, (_, index) => index + 1);
+
+/** Столбцы гистограммы и строки её таблицы — от десятки к единице (F-04-03 §19). */
+const SCALE_DESC = [...SCALE].reverse();
+
+/**
+ * Доля голосов в процентах.
+ *
+ * До целых: «24,3 %» рядом со столбцом читалось бы как измерение, которого у
+ * нас нет, — доля нужна для формы распределения, а не для отчёта.
+ */
+function share(count, total) {
+  return total > 0 ? `${Math.round((count / total) * 100)}%` : '0%';
+}
 
 /**
  * Пояснения, почему серию оценить нельзя.
@@ -83,23 +96,85 @@ function scaleForm({
 }
 
 /**
- * Среднее и число голосов; ниже порога — «мало оценок».
+ * Крупное число рейтинга, число голосов и состояния без числа (F-04-03 §4–§5).
+ *
+ * Число показывается только когда голосов набралось на порог показа
+ * (`rating.min_votes_display`); ниже порога и при полном отсутствии голосов
+ * место числа занимает текст. Пустое место читается как «сломалось», а ноль
+ * рядом с нулём голосов — как настоящий ноль, которого нет.
  *
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.summary
- * @param {number} args.threshold порог показа числа: сериал 5, серия 3
+ * @param {string} args.low текст состояния «мало оценок»: у сериала с числом
+ *   голосов, у серии краткий — её строка в списке и так коротка
+ * @param {string|null} args.none текст состояния «нет оценок» или `null`
+ * @param {string|null} [args.label] подпись числа: «Сайт» у рейтинга сайта
  */
-function averageLine({ locale, summary, threshold }) {
+function averageLine({ locale, summary, low, none = null, label = null }) {
   return html`
   ${when(summary.shown && summary.votes > 0, () => html`
   <p class="rating__average">
-    <span class="rating__value">${number(locale, summary.average)}</span>
+    ${when(label, () => html`<span class="rating__label">${label}</span>`)}
+    <span class="rating__value rating__value--average">${number(locale, summary.average)}</span>
     <span class="rating__votes">${tPlural(locale, 'rating.votes', summary.votes)}</span>
   </p>`)}
 
   ${when(summary.votes > 0 && !summary.shown, () => html`
-  <p class="rating__hint">${t(locale, 'rating.fewVotes', { count: threshold })}</p>`)}`;
+  <p class="rating__average"><span class="rating__low">${low}</span></p>`)}
+
+  ${when(none !== null && summary.votes === 0, () => html`
+  <p class="rating__average"><span class="rating__low">${none}</span></p>`)}`;
+}
+
+/**
+ * Гистограмма оценок и её таблица-альтернатива (F-04-03 §4, R-A11Y-22).
+ *
+ * Столбцы — нативные `progress`: у них есть доступное значение, и они не тянут
+ * ни библиотеку, ни пиксельные ширины. Число и доля написаны рядом, поэтому
+ * распределение читается и без полосы, и без различения цвета (R-A11Y-19).
+ * Программам чтения с экрана столбцы не нужны: полоса говорит «сколько из
+ * максимума», а «сколько здесь десяток, сколько девяток» отвечает таблица.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {object} args.summary
+ */
+function histogram({ locale, summary }) {
+  const maxVotes = Math.max(1, ...SCALE.map((value) => summary.histogram.get(value) ?? 0));
+  const bars = SCALE_DESC.map((value) => ({ value, count: summary.histogram.get(value) ?? 0 }));
+
+  return html`
+  <h3 class="rating__bars-title">${t(locale, 'rating.histogram.title', { count: summary.votes })}</h3>
+
+  <div class="rating__bars" aria-hidden="true">
+    ${bars.map((bar) => html`
+    <div class="rating__bar">
+      <span class="rating__bar-label">${bar.value}</span>
+      <progress class="rating__bar-fill" value="${bar.count}" max="${maxVotes}"></progress>
+      <span class="rating__bar-count">${bar.count}</span>
+      <span class="rating__bar-share">${share(bar.count, summary.votes)}</span>
+    </div>`)}
+  </div>
+
+  <table class="visually-hidden">
+    <caption>${t(locale, 'rating.histogram.caption')}</caption>
+    <thead>
+      <tr>
+        <th scope="col">${t(locale, 'rating.histogram.score')}</th>
+        <th scope="col">${t(locale, 'rating.histogram.count')}</th>
+        <th scope="col">${t(locale, 'rating.histogram.share')}</th>
+      </tr>
+    </thead>
+    <tbody>
+      ${bars.map((bar) => html`
+      <tr>
+        <th scope="row">${bar.value}</th>
+        <td>${bar.count}</td>
+        <td>${share(bar.count, summary.votes)}</td>
+      </tr>`)}
+    </tbody>
+  </table>`;
 }
 
 /**
@@ -128,13 +203,18 @@ function ownLine({ locale, own, timezone }) {
  */
 export function seriesRatingBlock({ locale, slug, rating: block, timezone = null }) {
   const { summary, own, canRate, reason, signedIn, csrf } = block;
-  const maxVotes = Math.max(1, ...SCALE.map((value) => summary.histogram.get(value) ?? 0));
 
   return html`
 <section class="rating" aria-labelledby="h-rating">
   <h2 class="series__section-title" id="h-rating">${t(locale, 'rating.title')}</h2>
 
-  ${averageLine({ locale, summary, threshold: RATING.minVotesDisplay })}
+  ${averageLine({
+    locale,
+    summary,
+    label: t(locale, 'series.rating.site'),
+    low: t(locale, 'rating.lowVotes', { count: summary.votes }),
+    none: t(locale, 'rating.noVotes'),
+  })}
 
   ${when(signedIn && canRate, () => scaleForm({
     locale,
@@ -157,19 +237,7 @@ export function seriesRatingBlock({ locale, slug, rating: block, timezone = null
 
   ${ownLine({ locale, own, timezone })}
 
-  ${when(summary.votes > 0, () => html`
-  <div class="rating__bars">
-    ${SCALE.map((value) => html`
-    <div class="rating__bar">
-      <span class="rating__bar-label">${value}</span>
-      <!-- Нативная полоса, а не блок с шириной в процентах: у неё есть
-           доступное значение для программ чтения с экрана, и стилизуется
-           она через accent-color, как полоса прогресса просмотра. -->
-      <progress class="rating__bar-fill" value="${summary.histogram.get(value) ?? 0}"
-                max="${maxVotes}"></progress>
-      <span class="rating__bar-count">${summary.histogram.get(value) ?? 0}</span>
-    </div>`)}
-  </div>`)}
+  ${when(summary.votes > 0, () => histogram({ locale, summary }))}
 </section>`;
 }
 
@@ -196,7 +264,7 @@ export function episodeRatingBlock({ locale, slug, season, episode, rating: bloc
 <section class="rating rating--episode" id="ep-${episode}" aria-labelledby="h-episode-rating">
   <h2 class="series__section-title" id="h-episode-rating">${t(locale, 'rating.episode.title')}</h2>
 
-  ${averageLine({ locale, summary, threshold: RATING.minVotesEpisode })}
+  ${averageLine({ locale, summary, low: t(locale, 'rating.episode.few') })}
 
   ${when(signedIn && canRate, () => scaleForm({
     locale,

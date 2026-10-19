@@ -140,21 +140,32 @@ notificationWorker.unref();
 
 sweepNotifications();
 
-// Оценки аккаунтов, дожидающих возраста, вводятся в агрегат (EC-V4). Тот же
-// ежечасный проход, а не свой таймер: голос входит один раз, и место, где
-// об этом забывают, должно быть одно.
+// Оценки аккаунтов, дожидающих возраста, вводятся в агрегат (EC-V4), и тем же
+// ежечасным проходом пересчитывается среднее по сайту C (F-04-03): C — среднее
+// учитываемых голосов, и голос, вошедший сейчас, обязан войти в него в этом же
+// проходе, а не в следующем. Таймер один, а не два: место, где об этом
+// забывают, должно быть одно.
 const ratings = pgRatings(pool);
 
 const countMatured = () => ratings.countMaturedRatings(new Date())
   .then((count) => {
     if (count) console.log(`[оценки] в рейтинг вошли голоса: ${count}`);
-  })
+  });
+
+const refreshSite = () => ratings.refreshSiteAverage(new Date())
+  .then(({ votes, average }) => {
+    if (votes) console.log(`[оценки] среднее по сайту: ${average.toFixed(1)} по ${votes} голосам`);
+  });
+
+/** Ежечасная работа с оценками: сначала дозревают голоса, потом считается C. */
+const hourlyRatings = () => countMatured()
+  .then(refreshSite)
   .catch((error) => console.error(`[оценки] ${error.message}`));
 
-const maturedWorker = setInterval(countMatured, NOTIFY_SWEEP_MS);
+const maturedWorker = setInterval(hourlyRatings, NOTIFY_SWEEP_MS);
 maturedWorker.unref();
 
-countMatured();
+hourlyRatings();
 
 const app = createApp({
   data: pgData(pool),

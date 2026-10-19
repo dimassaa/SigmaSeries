@@ -121,6 +121,19 @@
   margin: 0 0 var(--space-2);
 }
 
+/* Подпись числа — «Сайт»: имя рейтинга видно и в шапке, и в блоке (F-04-03 §4). */
+.rating__label {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+/* Состояния без числа — «Мало оценок (3)» и «Нет оценок»: место числа занято
+   текстом, а не пустотой, которую читают как «сломалось» (F-04-03 §5). */
+.rating__low {
+  color: var(--text-secondary);
+  font-size: 16px;
+}
+
 .rating__value {
   font-size: 24px;
   font-weight: 600;
@@ -162,7 +175,10 @@
   white-space: nowrap;
 }
 
-.rating__value {
+/* Рамка и цель в 44 px — клетке шкалы. Класс `rating__value` делят с ней
+   крупное число среднего: без этого уточнения среднее получало бы рамку и
+   курсор, которых у числа нет. */
+.rating__scale .rating__value {
   display: flex;
   align-items: center;
   justify-content: center;
@@ -172,11 +188,11 @@
   cursor: pointer;
 }
 
-.rating__value:hover { background: var(--surface-hover); }
+.rating__scale .rating__value:hover { background: var(--surface-hover); }
 
 /* Выбранное значение отмечено рамкой и весом, а не только цветом: иначе
    человеку, который не различает цвета, выбор не виден (R-A11Y-19). */
-.rating__value--on {
+.rating__scale .rating__value--on {
   border-color: var(--accent);
   border-width: 2px;
   font-weight: 600;
@@ -189,28 +205,50 @@
 
 .rating__number { font-variant-numeric: tabular-nums; }
 
-/* Гистограмма: полоса нативная, число рядом с ней, поэтому распределение
-   читается и без различения цвета (R-A11Y-22). */
+/* Гистограмма: полоса нативная, число и доля рядом с ней, поэтому
+   распределение читается и без полосы, и без различения цвета (R-A11Y-22).
+   На широком экране столбцы стоят двумя колонками парами (10 и 5, 9 и 4), как
+   на эскизе раздела отзывов: одной колонкой картина заняла бы вдвое больше
+   высоты. Разметка при этом в порядке 10 → 1 — его читает таблица под
+   столбцами, а столбцы для программ чтения с экрана скрыты. */
+.rating__bars-title {
+  margin: var(--space-3) 0 0;
+  color: var(--text-secondary);
+  font-size: 14px;
+  font-weight: 400;
+}
+
 .rating__bars {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  margin-block-start: var(--space-3);
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2px var(--space-4);
+  margin-block-start: var(--space-1);
+}
+
+@media (min-width: 640px) {
+  .rating__bars {
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: repeat(5, auto);
+    grid-auto-flow: column;
+  }
 }
 
 .rating__bar {
   display: grid;
-  grid-template-columns: 24px 1fr 40px;
+  grid-template-columns: 24px 1fr 32px 44px;
   align-items: center;
-  gap: var(--space-2);
+  gap: var(--space-1);
 }
 
 .rating__bar-count,
-.rating__bar-label {
+.rating__bar-label,
+.rating__bar-share {
   color: var(--text-secondary);
   font-size: 14px;
   font-variant-numeric: tabular-nums;
 }
+
+.rating__bar-share { text-align: right; }
 
 .rating__bar-fill {
   inline-size: 100%;
@@ -231,7 +269,7 @@
   gap: 4px;
   margin: 0;
 }
-.rating__form--compact .rating__value { min-height: 32px; font-size: 13px; }
+.rating__form--compact .rating__scale .rating__value { min-height: 32px; font-size: 13px; }
 .rating__form--compact .button {
   min-height: 32px;
   padding: var(--space-1) var(--space-2);
@@ -243,7 +281,7 @@
    (R-A11Y-08). */
 @media (max-width: 639px) {
   .rating__form--compact .rating__scale { grid-template-columns: repeat(5, 44px); }
-  .rating__form--compact .rating__value { min-height: 44px; }
+  .rating__form--compact .rating__scale .rating__value { min-height: 44px; }
 }
 
 .season__episode-controls {

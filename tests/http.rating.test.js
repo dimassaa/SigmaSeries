@@ -289,3 +289,118 @@ test('оценка сохраняется и видна на странице с
   assert.equal(stored.rows.length, 1, 'оценка записана в базу');
   assert.equal(stored.rows[0].value, 8);
 });
+
+// ─── Рейтинг сайта и гистограмма (F-04-03) ──────────────────────────────────
+
+/**
+ * Голосующий аккаунт без формы: вход этим зрителям не нужен, а настоящий
+ * argon2 на каждого — лишние секунды и лишний шум полного прогона (находка
+ * №35: под нагрузкой отказы сети на регистрациях). Право оценить держится на
+ * подтверждённом адресе, отметке и возрасте — пароль в нём не участвует.
+ *
+ * @returns {Promise<number>} идентификатор зрителя, дозревшего для рейтинга
+ */
+async function voter() {
+  const { hash } = makeToken();
+  const created = await pgAuthStore(pool).createUser({
+    email: `rate-http-v-${crypto.randomUUID().slice(0, 8)}@example.com`,
+    nickname: `rate-http-v-${crypto.randomUUID().slice(0, 4)}`,
+    passwordHash: '$argon2id$заглушка',
+    tokenHash: hash,
+    timezone: 'Europe/Minsk',
+    locale: 'ru',
+    theme: 'dark',
+    confirmed: true,
+  });
+  await pool.query(
+    `UPDATE e_user SET email_confirmed = TRUE,
+            registered_at = now() - ($2 || ' hours')::interval
+      WHERE id = $1`,
+    [created.id, String(RATING.minAccountAgeH + 1)],
+  );
+  return created.id;
+}
+
+/**
+ * Голоса, которые войдут в рейтинг сразу: аккаунт старше
+ * `rating.min_account_age_h` (EC-V4), отметка серии, оценка через сервис.
+ */
+async function votesFor(seriesRow, values) {
+  const store = pgRatings(pool);
+  for (const value of values) {
+    // eslint-disable-next-line no-await-in-loop
+    const userId = await voter();
+    // eslint-disable-next-line no-await-in-loop
+    await mark(userId, seriesRow.episodeId);
+    // eslint-disable-next-line no-await-in-loop
+    await store.setSeriesRating({ userId, seriesId: seriesRow.id, value });
+  }
+}
+
+test('при трёх голосах — «Мало оценок (3)», а не число (F-04-03 §18)', { skip }, async () => {
+  const seriesRow = await seriesWith(30);
+  // EC-V13: «все оценки одинаковы или их мало» — случай с одинаковыми оценками,
+  // у которого числа нет именно потому, что голосов меньше порога показа.
+  await votesFor(seriesRow, [9, 9, 9]);
+
+  await withServer({
+    run: async ({ get }) => {
+      const page = await (await get(`/ru/series/${seriesRow.slug}`)).text();
+      assert.match(page, /Мало оценок \(3\)/, 'видно, сколько голосов уже есть');
+      assert.ok(!/rating__value--average/.test(page), 'числа нет: голосов меньше порога показа');
+      assert.match(page, /rating__bars/, 'а картина распределения остаётся: число — не гистограмма');
+      assert.ok(!/aggregateRating/.test(page), 'и в разметке для поисковика числа нет (R-SEO-18)');
+    },
+  });
+});
+
+test('без оценок — «Нет оценок» и никакой пустой гистограммы (F-04-03 §5)', { skip }, async () => {
+  const seriesRow = await seriesWith(31);
+
+  await withServer({
+    run: async ({ get }) => {
+      const page = await (await get(`/ru/series/${seriesRow.slug}`)).text();
+      assert.match(page, /Нет оценок/);
+      assert.ok(!/rating__bars/.test(page), 'гистограммы без голосов нет');
+      assert.ok(!/aggregateRating/.test(page), 'и разметка для поисковика молчит');
+    },
+  });
+});
+
+test('от пяти голосов — число, гистограмма с долями и её таблица (F-04-03 §4, §17)', { skip }, async () => {
+  const seriesRow = await seriesWith(32);
+  // 10, 9, 8, 8, 7 — среднее 8,4: число и распределение проверяются вместе.
+  await votesFor(seriesRow, [10, 9, 8, 8, 7]);
+  // Априор выключен: формула с C проверена в сервисе, а здесь проверяется показ.
+  // С ним число зависело бы от голосов других сериалов, идущих параллельно.
+  await pool.query(
+    'UPDATE e_series_rating_stat SET prior_weight = 0 WHERE series_id = $1', [seriesRow.id],
+  );
+
+  await withServer({
+    run: async ({ get }) => {
+      const page = await (await get(`/ru/series/${seriesRow.slug}`)).text();
+
+      assert.match(page, /rating__value--average">8,4</, 'число показано в блоке оценки');
+      assert.match(page, /5 оценок/, 'и сколько за ним голосов');
+      assert.match(
+        page,
+        /series__rating-label">Сайт<\/span>\s*<span class="series__rating-value">8,4</,
+        'в шапке — та же подпись и то же число, что в блоке',
+      );
+      assert.match(page, /Гистограмма \(оценок: 5\)/);
+      assert.match(page, /rating__bar-share">20%</, 'доля видна у столбца');
+      assert.match(
+        page,
+        /<th scope="row">8<\/th>\s*<td>2<\/td>\s*<td>40%<\/td>/,
+        'в таблице — сколько восьмёрок и их доля',
+      );
+
+      const data = JSON.parse(page.match(/<script type="application\/ld\+json">(.*?)<\/script>/)[1]);
+      assert.equal(data.aggregateRating.ratingValue, 8.4, 'в JSON точка, а не запятая');
+      assert.equal(data.aggregateRating.ratingCount, 5);
+      assert.equal(data.aggregateRating.bestRating, 10);
+      assert.equal(data.aggregateRating.worstRating, 1);
+    },
+  });
+});
