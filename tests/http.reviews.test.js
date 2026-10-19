@@ -418,6 +418,31 @@ test('отзыв виден в блоке «Ваш отзыв» и после п
   });
 });
 
+test('у своего отзыва «Изменить» ведёт к форме: диалог есть в разметке', { skip }, async () => {
+  // Регрессия: диалог рисовался только с `editing` (после отказа 422), а
+  // ссылка «Изменить» оставалась при пустом якоре `#review-dialog`: и скрипт,
+  // и переход по якорю упирались в отсутствующий элемент, и правку с чистой
+  // страницы нельзя было начать — только ошибочной отправкой.
+  const user = await viewer();
+  const series = await seriesWith(21);
+  await mark(user.id, series.id);
+
+  await withServer({
+    user,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/series/${series.slug}`)).text();
+      await post(`/ru/series/${series.slug}/reviews`, { value: '8', body: BODY, csrf: csrfOf(page) });
+
+      const html = await (await get(`/ru/series/${series.slug}`)).text();
+      assert.match(html, /href="#review-dialog"/, 'ссылка правки на месте');
+      assert.match(html, /id="review-dialog"/, 'диалог правки есть в разметке — иначе ссылка мертва');
+      assert.match(html, /data-review-form/, 'в диалоге лежит форма');
+      assert.match(html, /data-review-body>Хороший сериал, пересматриваю/,
+        'форма заполнена текущим текстом отзыва');
+    },
+  });
+});
+
 test('английская страница показывает блок по-английски', { skip }, async () => {
   const user = await viewer();
   const series = await seriesWith(13);

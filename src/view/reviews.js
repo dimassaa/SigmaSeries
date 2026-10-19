@@ -188,9 +188,12 @@ export function reviewSection({
 </section>`;
   }
 
-  // Форма открывается в диалоге. После ошибки диалог уже открыт атрибутом
-  // `open` — так причина видна сразу, и введённое не потеряно.
-  const formOpen = gate.canWrite && (!own || editing);
+  // Диалог живёт в разметке всегда, когда человек вправе писать: к нему ведут
+  // ссылки «Изменить» и «Написать отзыв». Без элемента обе ветки — модальная
+  // (скрипт) и якорная (без скрипта) — упираются в пустоту: правку нельзя
+  // начать. `editing` открывает диалог сразу (после отказа 422), но не решает,
+  // быть ли ему в DOM.
+  const formOpen = gate.canWrite;
   const pending = own && (own.state === 'flagged' || own.state === 'checking');
   const spans = review?.matched ?? [];
   const cats = categoriesOf(spans);
