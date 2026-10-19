@@ -9,6 +9,9 @@
 //  2. Переключатель темы. Ранний скрипт в <head> только читает тему,
 //     записать её должен этот.
 //  3. Проверка занятости ника и опрос подтверждения на шаге 2 (EC-A2).
+//  4. Форма отзыва (F-04-04): счётчик знаков, черновик при потере сети и
+//     модальное открытие. Без скрипта форма открывается якорем и работает
+//     целиком — скрипт добавляет только то, чего сервер не может.
 //
 // Зависимостей нет: файл отдаётся как есть и не собирается.
 
@@ -538,6 +541,113 @@
     });
   }
 
+  // ─── Отзыв (F-04-04) ───────────────────────────────────────────────────────
+  //
+  // Сервер решает всё: права, длину, проверку текста. Скрипт добавляет то,
+  // чего сервер не может, — счётчик знаков, черновик при потере сети и
+  // модальное открытие формы. Без скрипта страница работает: форма
+  // открывается якорем `#review-dialog` (стиль `:target`).
+
+  /** Письменность текста: кириллицы не меньше латиницы — русский (R-I18N-08). */
+  function scriptLang(text) {
+    var cyrillic = 0;
+    var latin = 0;
+    for (var i = 0; i < text.length; i++) {
+      var c = text.charCodeAt(i);
+      if ((c >= 0x0400 && c <= 0x04ff) || (c >= 0x0500 && c <= 0x052f)) cyrillic++;
+      else if ((c >= 0x41 && c <= 0x5a) || (c >= 0x61 && c <= 0x7a)) latin++;
+    }
+    return cyrillic >= latin ? 'ru' : 'en';
+  }
+
+  function initReviews() {
+    var dialog = document.getElementById('review-dialog');
+    if (!dialog) return;
+    var form = dialog.querySelector('[data-review-form]');
+    if (!form) return;
+
+    // Открытие и закрытие. Ссылки остаются рабочими без скрипта: переход по
+    // якорю отменяется только тогда, когда диалог умеет показаться сам.
+    var canModal = typeof dialog.showModal === 'function';
+    document.querySelectorAll('[data-review-open]').forEach(function (link) {
+      link.addEventListener('click', function (event) {
+        if (!canModal) return;
+        event.preventDefault();
+        if (!dialog.open) dialog.showModal();
+      });
+    });
+    form.querySelectorAll('[data-review-close]').forEach(function (link) {
+      link.addEventListener('click', function (event) {
+        if (!canModal || !dialog.open) return;
+        event.preventDefault();
+        dialog.close();
+      });
+    });
+
+    var area = form.querySelector('[data-review-body]');
+    var count = form.querySelector('[data-review-count-text]');
+    var template = form.querySelector('[data-review-counter-template]');
+    var lang = form.querySelector('[data-review-lang]');
+    if (!area) return;
+
+    // Черновик живёт под ключом страницы и переживает потерю сети. Серверный
+    // текст — точка отсчёта: совпал с ней — черновик уже отправлен и не
+    // нужен; разошёлся — в нём неотправленное, и его надо вернуть в поле.
+    var key = 'review:' + (dialog.getAttribute('data-review-key') || location.pathname);
+    var baseline = area.value;
+    var langTouched = false;
+    var timer = null;
+
+    function store(value) {
+      try {
+        if (value) localStorage.setItem(key, value);
+        else localStorage.removeItem(key);
+      } catch (e) { /* приватный режим: черновика не будет, форма работает */ }
+    }
+
+    try {
+      var draft = localStorage.getItem(key);
+      if (draft === baseline) store(null);
+      else if (draft !== null) area.value = draft;
+    } catch (e) { /* см. store */ }
+
+    function recount() {
+      if (!count) return;
+      var text = template ? template.textContent : '{count}';
+      count.textContent = text.replace('{count}', String(area.value.length));
+    }
+
+    recount();
+    area.addEventListener('input', function () {
+      recount();
+      // Язык — по письменности, пока человек не поправил его сам (R-I18N-08).
+      if (lang && !langTouched) lang.value = scriptLang(area.value);
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function () {
+        timer = null;
+        store(area.value === baseline ? null : area.value);
+      }, 500);
+    });
+    if (lang) lang.addEventListener('change', function () { langTouched = true; });
+  }
+
+  /**
+   * Подтверждение необратимого действия.
+   *
+   * Текст и решение о подтверждении задаёт серверная разметка (`data-confirm`),
+   * а `preventDefault` до отправки формы оставляет данные в целости, пока
+   * человек не согласился.
+   */
+  function initConfirmations() {
+    document.addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target || !target.closest) return;
+      var node = target.closest('[data-confirm]');
+      if (!node) return;
+      if (!window.confirm(node.getAttribute('data-confirm'))) event.preventDefault();
+    }, true);
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -548,6 +658,8 @@
     initCalendarDefaultView();
     initUndoWindow();
     initUnreadPoll();
+    initReviews();
+    initConfirmations();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();

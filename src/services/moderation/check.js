@@ -27,11 +27,13 @@ const LINK_DOMAIN = /\b[a-z0-9][a-z0-9-]{0,62}\.(?:ru|com|net|org|io|by|me|tv|in
 
 // «п.р.и.в.е.т», «п р и в е т», «п-р-и-в-е-т».
 //
-// Два условия, оба обязательны. Первое: цепочка должна начинаться на границе
+// Три условия, все обязательны. Первое: цепочка должна начинаться на границе
 // слова — иначе «привет и прощай» схлопнется в «приветпрощай», и ни одно
 // слово словаря не найдётся. Второе: минимум три буквы, иначе «и я» (два
-// слова) станет «ия».
-const SEPARATORS = /(?<=^| )(?:\p{L}[.\-_'\s]\s*){2,}\p{L}/gu;
+// слова) станет «ия». Третье: сразу за последней буквой цепочки не должно
+// стоять ещё буквы — иначе жадная цепочка захватывает пробел и первую букву
+// следующего слова: «п р и в е т всем» превращалось в «приветвсем» (F-04-04).
+const SEPARATORS = /(?<=^| )(?:\p{L}[.\-_'\s]\s*){2,}\p{L}(?!\p{L})/gu;
 
 /**
  * Общая часть нормализации: регистр, невидимое, пробелы, разделители.
@@ -71,21 +73,51 @@ function normalizeAlt(text) {
   return fold(basic(text), LEET_ALT);
 }
 
-/** Схлопывает повторы: «прииивет» → «привет». Допускаем 1 и 2 подряд. */
-function collapse(s, keep) {
-  return s
-    .split(' ')
-    .map((word) => word.replace(new RegExp(`(.)\\1{${keep},}`, 'gu'), '$1'))
-    .join(' ');
+/** Схлопывает повторы букв внутри слова: keep=1 — повторы от двух, keep=2 — от трёх. */
+function collapseWord(word, keep) {
+  return word.replace(new RegExp(`(.)\\1{${keep},}`, 'gu'), '$1');
 }
 
-/** Множество слов текста — чтобы не гонять словарь по всему тексту. */
+// Слово — буквы и цифры подряд. Знак препинания, приклеенный к слову, — это
+// граница, а не часть слова: «привет!» — то же слово, что «привет». Поиск по
+// кускам до пробела обходился одним восклицательным знаком (F-04-04).
+const WORD = /[\p{L}\p{N}]+/gu;
+
+/**
+ * Множество слов текста и их схлопнутых форм — чтобы не гонять словарь
+ * по всему тексту.
+ *
+ * Повторы схлопываются у каждого слова отдельно: схлопывание целой строки
+ * работало только в однословном тексте и обходилось в многословном (F-04-04).
+ */
 function wordSet(normalized) {
   const set = new Set();
-  for (const w of normalized.split(' ')) if (w) set.add(w);
-  set.add(collapse(normalized, 1));
-  set.add(collapse(normalized, 2));
+  for (const m of normalized.matchAll(WORD)) {
+    const w = m[0];
+    set.add(w);
+    set.add(collapseWord(w, 1));
+    set.add(collapseWord(w, 2));
+  }
   return set;
+}
+
+/**
+ * Приводит список словаря к единому виду.
+ *
+ * Слова приходят строками (простой список) или записями с категорией
+ * (R-MOD-07 хранит категорию у слова) — наружу это различие не выходит.
+ *
+ * @param {Array<string|{word:string, category?:string|null}>} list
+ * @returns {{word:string, category:string|null}[]}
+ */
+function asEntries(list) {
+  if (!Array.isArray(list)) return [];
+  const out = [];
+  for (const item of list) {
+    if (typeof item === 'string') out.push({ word: item, category: null });
+    else if (item && typeof item.word === 'string') out.push({ word: item.word, category: item.category ?? null });
+  }
+  return out;
 }
 
 /**
@@ -95,21 +127,139 @@ function wordSet(normalized) {
  * при словаре в 10 000 слов и бюджете 50 мс вложенный перебор не уложился бы.
  *
  * @param {Set<string>[]} sets формы текста
- * @param {string[]} list словарь в исходной форме
- * @returns {string[]} найденные слова в исходной форме словаря
+ * @param {{word:string, category:string|null}[]} entries словарь в исходной форме
+ * @returns {{word:string, category:string|null}[]} найденные слова с категориями
  */
-function matchBody(sets, list) {
-  if (!Array.isArray(list) || list.length === 0) return [];
+function matchBody(sets, entries) {
+  if (entries.length === 0) return [];
   const found = [];
-  for (const raw of list) {
+  for (const { word: raw, category } of entries) {
     const w = normalize(raw);
     if (!w) continue;
-    const c1 = collapse(w, 1);
-    const c2 = collapse(w, 2);
+    const c1 = collapseWord(w, 1);
+    const c2 = collapseWord(w, 2);
     const hit = sets.some((set) => set.has(w) || set.has(c1) || set.has(c2));
-    if (hit) found.push(raw);
+    if (hit) found.push({ word: raw, category });
   }
   return found;
+}
+
+// Символ, из которых собираются слова карты смещений, — тот же набор, что
+// в WORD: буквы и цифры.
+const WORD_CHAR = /[\p{L}\p{N}]/u;
+
+/**
+ * Нормализация с картой смещений: каждый символ результата помнит индекс
+ * своего символа в исходном тексте. На карте строятся позиции находок —
+ * «позиции в исходном тексте через карту смещений нормализации» (R-MOD-06).
+ *
+ * NFKC применяется к каждому символу отдельно: склейки из нескольких
+ * символов (комбинирующие знаки) в карту не попадают — для подсветки это
+ * допустимо, а единственную форму нормализации портить нельзя.
+ *
+ * @param {string} text
+ * @param {Record<string,string>} leet таблица цифровых замен
+ * @returns {{ch:string, at:number}[]}
+ */
+function mapped(text, leet) {
+  const src = String(text ?? '');
+  const out = [];
+  for (let i = 0; i < src.length; i++) {
+    const piece = fold(src[i].normalize('NFKC').replace(INVISIBLE, '').toLowerCase(), leet);
+    for (const ch of piece) out.push({ ch, at: i });
+  }
+  return out;
+}
+
+/**
+ * Нормализованный текст с картой: пробелы сведены, разделители внутри
+ * цепочек удалены — порядок шагов как в basic().
+ *
+ * @param {string} text
+ * @param {Record<string,string>} leet таблица цифровых замен
+ * @returns {{ch:string, at:number}[]}
+ */
+function mappedText(text, leet) {
+  const squeezed = [];
+  for (const c of mapped(text, leet)) {
+    if (/\s/u.test(c.ch)) {
+      if (squeezed.length > 0 && squeezed[squeezed.length - 1].ch !== ' ') squeezed.push({ ch: ' ', at: c.at });
+      continue;
+    }
+    squeezed.push(c);
+  }
+  while (squeezed.length > 0 && squeezed[squeezed.length - 1].ch === ' ') squeezed.pop();
+
+  const s = squeezed.map((c) => c.ch).join('');
+  const kill = new Set();
+  for (const m of s.matchAll(SEPARATORS)) {
+    for (let k = 0; k < m[0].length; k++) {
+      if (/[.\-_'\s]/u.test(m[0][k])) kill.add(m.index + k);
+    }
+  }
+  return squeezed.filter((_, idx) => !kill.has(idx));
+}
+
+/** Слова нормализованного текста с их позициями в исходном тексте. */
+function tokenize(chars) {
+  const tokens = [];
+  let acc = null;
+  for (const c of chars) {
+    if (WORD_CHAR.test(c.ch)) {
+      if (!acc) acc = { text: '', start: c.at, end: c.at + 1 };
+      acc.text += c.ch;
+      acc.end = c.at + 1;
+    } else if (acc) {
+      tokens.push(acc);
+      acc = null;
+    }
+  }
+  if (acc) tokens.push(acc);
+  return tokens;
+}
+
+/** Формы слова: как есть и со схлопнутыми повторами — тот же набор, что в wordSet. */
+function formsOf(word) {
+  return [word, collapseWord(word, 1), collapseWord(word, 2)];
+}
+
+/**
+ * Ищет позиции найденных слов в исходном тексте (R-MOD-06).
+ *
+ * Для каждого слова берётся первое подходящее слово нормализованного текста.
+ * Слово, найденное только второй цифровой формой («бо3д» → «бозд»), ищется
+ * и по карте второй формы.
+ *
+ * @param {string} text исходный текст автора
+ * @param {string[]} words найденные слова в форме словаря
+ * @returns {Map<string, {start:number, end:number}>}
+ */
+function locateSpans(text, words) {
+  const spans = new Map();
+  let pending = [];
+  for (const raw of words) {
+    const w = normalize(raw);
+    if (w && !spans.has(raw)) pending.push({ raw, w });
+  }
+  for (const leet of [LEET, LEET_ALT]) {
+    if (pending.length === 0) break;
+    const index = new Map();
+    for (const t of tokenize(mappedText(text, leet))) {
+      for (const f of formsOf(t.text)) if (!index.has(f)) index.set(f, t);
+    }
+    const next = [];
+    for (const item of pending) {
+      let best = null;
+      for (const f of formsOf(item.w)) {
+        const t = index.get(f);
+        if (t && (!best || t.start < best.start)) best = t;
+      }
+      if (best) spans.set(item.raw, { start: best.start, end: best.end });
+      else next.push(item);
+    }
+    pending = next;
+  }
+  return spans;
 }
 
 /**
@@ -117,8 +267,11 @@ function matchBody(sets, list) {
  *
  * @param {object} input
  * @param {string} input.body исходный текст автора
- * @param {{block:string[], allow:string[], available:boolean}} input.dictionary
- * @returns {{decision:'publish'|'queue'|'reject'|'unavailable', reason:string, matched:{word:string,list:string}[], hasLink:boolean}}
+ * @param {object} input.dictionary
+ * @param {Array<string|{word:string, category?:string|null}>} input.dictionary.block
+ * @param {Array<string|{word:string, category?:string|null}>} input.dictionary.allow
+ * @param {boolean} input.dictionary.available
+ * @returns {{decision:'publish'|'queue'|'reject'|'unavailable', reason:string, matched:{word:string,list:string,category:string|null,start?:number,end?:number}[], hasLink:boolean}}
  */
 export function checkMaterial({ body, dictionary }) {
   const dict = dictionary ?? { block: [], allow: [], available: false };
@@ -145,22 +298,25 @@ export function checkMaterial({ body, dictionary }) {
 
   // Белый список раньше чёрного: обратный порядок даёт ложные срабатывания,
   // которые автор лечит заменой слова, а редактор — руками.
-  const allowHits = matchBody(sets, dict.allow);
+  const allowHits = matchBody(sets, asEntries(dict.allow));
   if (allowHits.length > 0) {
+    // Позиции здесь не считаются: белый список публикует материал,
+    // и подсвечивать автору нечего.
     return {
       decision: 'publish',
       reason: 'allowlisted',
-      matched: allowHits.map((word) => ({ word, list: 'allow' })),
+      matched: allowHits.map((h) => ({ word: h.word, list: 'allow', category: h.category })),
       hasLink: false,
     };
   }
 
-  const blockHits = matchBody(sets, dict.block);
+  const blockHits = matchBody(sets, asEntries(dict.block));
   if (blockHits.length > 0) {
+    const spans = locateSpans(body, blockHits.map((h) => h.word));
     return {
       decision: 'queue',
       reason: 'blocklist',
-      matched: blockHits.map((word) => ({ word, list: 'block' })),
+      matched: blockHits.map((h) => ({ word: h.word, list: 'block', category: h.category, ...(spans.get(h.word) ?? {}) })),
       hasLink: false,
     };
   }

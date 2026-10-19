@@ -66,12 +66,15 @@ export function number(locale, value) {
  * @param {string} [args.submitFor] уточнение для слуха: «серию 3»
  * @param {string} args.clear подпись кнопки снятия
  * @param {string} [args.clearFor] уточнение для слуха: «у серии 3»
+ * @param {string|null} [args.clearConfirm] текст подтверждения снятия;
+ *   `null` — подтверждать нечего. Снятие оценки при живом отзыве удаляет и
+ *   отзыв, поэтому действие спрашивает согласия (F-04-04 §8в, H-75)
  * @param {object|null} [args.hidden] скрытые поля формы готовой разметкой
  * @param {boolean} [args.compact] мелкий ряд для списка серий (S-07)
  */
 function scaleForm({
   locale, action, csrf, own, legend, submit, submitFor = '', clear, clearFor = '',
-  hidden = null, compact = false,
+  clearConfirm = null, hidden = null, compact = false,
 }) {
   return html`
 <form class="rating__form${compact ? ' rating__form--compact' : ''}" method="post" action="${action}">
@@ -91,6 +94,7 @@ function scaleForm({
     >${submit}${when(submitFor, () => html`<span class="visually-hidden"> ${submitFor}</span>`)}</button>
   ${when(own !== null, () => html`
   <button class="button button--quiet" type="submit" name="value" value="0"
+    ${clearConfirm ? html`data-confirm="${clearConfirm}"` : ''}
     >${clear}${when(clearFor, () => html`<span class="visually-hidden"> ${clearFor}</span>`)}</button>`)}
 </form>`;
 }
@@ -224,6 +228,8 @@ export function seriesRatingBlock({ locale, slug, rating: block, timezone = null
     legend: t(locale, 'rating.legend'),
     submit: t(locale, 'rating.submit'),
     clear: t(locale, 'rating.clear'),
+    // Прежний отзыв удалится вместе с оценкой — только после согласия (H-75).
+    clearConfirm: block.hasReview ? t(locale, 'rating.clear.confirm') : null,
   }))}
 
   ${when(signedIn && !canRate, () => html`

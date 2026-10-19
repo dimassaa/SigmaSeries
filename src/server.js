@@ -26,6 +26,8 @@ import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
+import { pgReviews } from './services/reviews/store.js';
+import { pgDictionary } from './services/moderation/dictionary.js';
 import { pgBackupJobs } from './services/backup/store.js';
 import { pgTaste } from './services/recommendations/taste.js';
 import { createBackupTask, TICK_MS as BACKUP_TICK_MS } from './services/backup/schedule.js';
@@ -42,7 +44,7 @@ import { createImportStore } from './services/import/store.js';
 import { createScheduler } from './services/import/scheduler.js';
 import { createImportTasks } from './services/import/tasks.js';
 import { createTmdbClient } from './services/import/tmdb.js';
-import { MAIL_SETTINGS, RATING, HOUR } from './config/settings.js';
+import { MAIL_SETTINGS, RATING, MODERATION, HOUR } from './config/settings.js';
 import cron from 'node-cron';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -184,6 +186,13 @@ const app = createApp({
   // поиска, где ключом служит адрес.
   ratings,
   ratingLimiter: createRateLimiter({ limit: RATING.ratePerHour, windowMs: HOUR }),
+  // Отзывы (F-04-04). Часовой лимит автора ведёт сам сервис: он считается по
+  // базе, иначе перезапуск процесса обнулял бы право писать. Потолки сети и
+  // устройства (R-MOD-10) — счётчики в памяти, как у прочих лимитов частоты.
+  reviews: pgReviews(pool),
+  dictionary: pgDictionary(pool),
+  reviewIpLimiter: createRateLimiter({ limit: MODERATION.materialsPerHourIp, windowMs: HOUR }),
+  reviewDeviceLimiter: createRateLimiter({ limit: MODERATION.materialsPerHourDevice, windowMs: HOUR }),
   // Шаг 3 регистрации: зёрна вкуса (F-01-01 §4).
   taste: pgTaste(pool),
   progress: pgProgress(pool),

@@ -1,8 +1,8 @@
 // S-06 — страница сериала.
 // Спецификация: docs/01-product/features/M2-catalog.md, F-02-01.
 //
-// Порядок блоков задан якорем: шапка → меню → обзор → серии → в ролях.
-// Отзывы, обсуждения, руководства и «похожие» не выводятся: их модули (M5,
+// Порядок блоков задан якорем: шапка → меню → обзор → серии → в ролях →
+// отзывы. Обсуждения, руководства и «похожие» не выводятся: их модули (M5,
 // M11) не написаны, а блок без данных — это пустое место на странице.
 
 import { html, when, raw } from './render.js';
@@ -12,6 +12,7 @@ import { statusControl } from './status.js';
 import { progressView } from './progress.js';
 import { subscribeBell } from './subscribe.js';
 import { seriesRatingBlock, number } from './rating.js';
+import { reviewSection } from './reviews.js';
 
 /** Подписи состояний выхода (`exit_state` → ключ интерфейса). */
 const STATE_KEY = {
@@ -38,12 +39,14 @@ function yearRange(series) {
  *   колокольчик подписки; `null` — источник подписок не подключён. Снятый с
  *   публикации сериал до вида не доходит: выше стоит 410 (EC-C1)
  * @param {string|null} [page.notice] отказ после действия: `limit`
+ * @param {object|null} [page.reviewBlock] данные блока «Ваш отзыв» (F-04-04):
+ *   `own`, `gate`, `review`, `rating`, `values`, `error`, `editing`
  * @param {string|null} [page.timezone] пояс посетителя: по нему подписывается
  *   день, с которого голос войдёт в рейтинг (EC-V4)
  */
 export function seriesView({
   locale, series, status = null, progress = null, subscribe = null, ratingBlock = null,
-  notice = null, timezone = null,
+  reviewBlock = null, notice = null, timezone = null,
 }) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
@@ -118,6 +121,8 @@ export function seriesView({
       <li><a href="#episodes">${t(locale, 'series.menu.episodes', { count: episodesCount })}</a></li>`)}
       ${when(series.people.cast.length > 0, () => html`
       <li><a href="#cast">${t(locale, 'series.menu.cast')}</a></li>`)}
+      ${when(reviewBlock, () => html`
+      <li><a href="#reviews">${t(locale, 'series.menu.reviews')}</a></li>`)}
     </ul>
   </nav>
 
@@ -165,6 +170,8 @@ export function seriesView({
       </li>`)}
     </ul>
   </section>`)}
+
+  ${when(reviewBlock, () => reviewSection({ locale, slug: series.slug, timezone, ...reviewBlock }))}
 </article>`;
 }
 

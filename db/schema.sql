@@ -519,12 +519,25 @@ CREATE TABLE e_material (
   body         TEXT   NOT NULL,
   sections     JSONB,                -- разделы руководства; текст, не HTML (R-SEC-11)
   spoiler      BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Язык текста по письменности, а не по интерфейсу (R-I18N-08): автор
+  -- с русским интерфейсом может писать по-английски, и наоборот.
+  lang         TEXT   NOT NULL DEFAULT 'ru' CHECK (lang IN ('ru','en')),
   state        TEXT   NOT NULL DEFAULT 'draft'
                CHECK (state IN ('draft','checking','published','flagged','approved',
                                 'rejected','hidden','deleted')),
   version      INTEGER NOT NULL DEFAULT 1,
+  -- Прежняя версия, видимая читателям: пока правка опубликованного проходит
+  -- проверку, текст не исчезает, а остаётся прежним (R-MOD-21, EC-V9).
+  -- Колонки заполняются перед заменой тела и очищаются, когда новая
+  -- версия прошла проверку и снова видна.
+  visible_body    TEXT,
+  visible_spoiler BOOLEAN NOT NULL DEFAULT FALSE,
   decided_at   TIMESTAMPTZ,
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Подача: от неё считаются интервал повторной проверки и лимиты частоты,
+  -- поэтому правка обновляет её, а created_at остаётся датой создания
+  -- (R-MOD-09, R-MOD-10).
+  submitted_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   -- Отзыв — единственный вид, где нужна оценка; тема — тоже сериальная
   CONSTRAINT ck_material_target CHECK (
     (kind IN ('review','guide','topic')  AND series_id IS NOT NULL AND episode_id IS NULL) OR
@@ -534,12 +547,21 @@ CREATE TABLE e_material (
 CREATE INDEX ix_material_author ON e_material (author_id, created_at DESC);
 CREATE INDEX ix_material_queue ON e_material (state, created_at) WHERE state IN ('flagged','checking');
 CREATE INDEX ix_material_pub   ON e_material (series_id, created_at DESC) WHERE state = 'published';
+-- Один отзыв на пару «автор и сериал» (F-04-04 §8а): правка идёт той же
+-- строкой (R-MOD-21), удаление возвращает право написать заново.
+CREATE UNIQUE INDEX uq_material_review ON e_material (author_id, series_id)
+  WHERE kind = 'review' AND state <> 'deleted';
 -- Поиск по телу материала для модерации и для поиска
 CREATE INDEX ix_material_search ON e_material USING gin (to_tsvector('russian', body));
 CREATE TABLE e_dictionary_word (
   word     TEXT NOT NULL,
   language TEXT NOT NULL CHECK (language IN ('ru','en')),
   list     TEXT NOT NULL CHECK (list IN ('block','allow')),
+  -- Категория показывается автору вместе с фрагментом, а не только списком
+  -- (R-MOD-07, R-MOD-12): 'profanity' — недопустимая лексика, 'hate' —
+  -- оскорбления и ненависть, 'threats' — угрозы, 'adult' — 18+, 'ads' —
+  -- реклама и ссылки, 'contacts' — контакты. NULL — категория не задана.
+  category TEXT CHECK (category IN ('profanity','hate','threats','adult','ads','contacts')),
   added_by BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
   added_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   active   BOOLEAN NOT NULL DEFAULT TRUE,

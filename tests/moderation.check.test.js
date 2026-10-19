@@ -136,6 +136,105 @@ test('слово в белом списке ловится до блок-сло�
   assert.equal(r.reason, 'allowlisted');
 });
 
+test('повторы не обходят словарь в многословном тексте (регрессия F-04-04)', () => {
+  // Схлопывание повторов применялось к целой строке, поэтому работало только
+  // в однословном тексте: в «это очень приииивет всем» обход проходил.
+  const d = dict({ block: ['привет'] });
+  for (const body of ['это очень приииивет всем', 'скажу привееет ему']) {
+    const r = checkMaterial({ body, dictionary: d });
+    assert.equal(r.decision, 'queue', `обошли: ${JSON.stringify(body)}`);
+  }
+});
+
+test('цепочка разделителей не съедает первую букву соседнего слова (регрессия F-04-04)', () => {
+  // Жадная цепочка захватывала пробел и первую букву следующего слова:
+  // «п р и в е т всем» превращалось в «приветвсем», и словарь промахивался.
+  assert.equal(normalize('это очень п р и в е т всем'), 'это очень привет всем');
+  const r = checkMaterial({ body: 'это очень п р и в е т всем', dictionary: dict({ block: ['привет'] }) });
+  assert.equal(r.decision, 'queue');
+});
+
+test('короткие цепочки разделителей не склеивают соседние слова', () => {
+  // «и я тут» — три слова, а не цепочка букв со вставками. Склейка давала
+  // «иятут»: обычный текст ловил бы слова, которых в нём нет.
+  assert.equal(normalize('и я тут'), 'и я тут');
+  assert.equal(normalize('привет и я тут'), 'привет и я тут');
+});
+
+test('знак препинания, приклеенный к слову, не является обходом (регрессия F-04-04)', () => {
+  // Слово сравнивалось с куском текста до пробела, поэтому «привет!»,
+  // «(привет)» и «привет.» не находились: одного знака хватало для обхода.
+  const d = dict({ block: ['привет'] });
+  for (const body of ['это привет.', 'привет!', '(привет) тут', 'это привет, друг', 'привет?']) {
+    const r = checkMaterial({ body, dictionary: d });
+    assert.equal(r.decision, 'queue', `обошли: ${JSON.stringify(body)}`);
+  }
+});
+
+// ─── Категории и позиции (R-MOD-06, R-MOD-12) ────────────────────────────────
+
+test('находка несёт категорию слова из словаря', () => {
+  const d = dict({ block: [{ word: 'привет', category: 'profanity' }] });
+  const r = checkMaterial({ body: 'это привет', dictionary: d });
+  assert.equal(r.decision, 'queue');
+  assert.equal(r.matched[0].category, 'profanity');
+});
+
+test('слово без категории не получает её само', () => {
+  const r = checkMaterial({ body: 'это привет', dictionary: LINKS_ONLY });
+  assert.equal(r.matched[0].category, null);
+});
+
+test('позиции находки указывают на исходный текст', () => {
+  // R-MOD-06: позиции считаются через карту смещений нормализации, поэтому
+  // подсветка показывает фрагмент автора, а не нормализованную форму.
+  const d = dict({ block: ['привет'] });
+  const cases = [
+    ['смотри пpивет!', 'пpивет'], // латинская p и знак препинания
+    ['это прив3т друг', 'прив3т'], // цифра 3
+    ['это приииивет всем', 'приииивет'], // повторы
+    ['это п.р.и.в.е.т тут', 'п.р.и.в.е.т'], // разделители
+    ['это очень п р и в е т всем', 'п р и в е т'], // цепочка с пробелами
+    ['это п\u200bр\u200bивет тут', 'п\u200bр\u200bивет'], // невидимые
+  ];
+  for (const [body, word] of cases) {
+    const r = checkMaterial({ body, dictionary: d });
+    assert.equal(r.decision, 'queue', `не найдено: ${JSON.stringify(body)}`);
+    const item = r.matched[0];
+    assert.equal(typeof item.start, 'number', `нет позиции: ${JSON.stringify(body)}`);
+    assert.equal(body.slice(item.start, item.end), word, `смещение мимо: ${JSON.stringify(body)}`);
+  }
+});
+
+test('у каждой находки своя позиция', () => {
+  const d = dict({ block: ['привет', 'прощай'] });
+  const body = 'тут привет и прощай';
+  const r = checkMaterial({ body, dictionary: d });
+  assert.equal(r.matched.length, 2);
+  for (const item of r.matched) {
+    assert.equal(body.slice(item.start, item.end), item.word);
+  }
+});
+
+test('соседние короткие слова не сдвигают позицию находки', () => {
+  const d = dict({ block: ['привет'] });
+  const body = 'и я тут привет снова';
+  const r = checkMaterial({ body, dictionary: d });
+  assert.equal(r.decision, 'queue');
+  const item = r.matched[0];
+  assert.equal(body.slice(item.start, item.end), 'привет');
+});
+
+test('позиция находится и по второй форме цифровой замены', () => {
+  // «3» читается и как «з»: слово найдено второй формой нормализации,
+  // и позиция должна строиться по её карте, а не по первой.
+  const d = dict({ block: ['бозд'] });
+  const body = 'ты бо3д совсем';
+  const r = checkMaterial({ body, dictionary: d });
+  assert.equal(r.decision, 'queue');
+  assert.equal(body.slice(r.matched[0].start, r.matched[0].end), 'бо3д');
+});
+
 // ─── То, что видит автор ──────────────────────────────────────────────────────
 
 test('автору не показывается совпавшее слово', () => {

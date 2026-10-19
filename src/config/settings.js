@@ -205,6 +205,31 @@ export const RATING = {
   ratePerHour: 30,
 };
 
+export const REVIEW = {
+  /** `review.len_min` — короче не отправляется; ошибка, оценка не теряется. */
+  lenMin: 20,
+  /** `review.len_max` — счётчик в форме показывает предел. */
+  lenMax: 5000,
+  /** `review.recheck_min` — правка после пометки не чаще раза в 5 минут (R-MOD-09). */
+  recheckMin: 5,
+};
+
+export const MODERATION = {
+  /** R-MOD-10: зритель — 10 материалов в час. */
+  materialsPerHour: 10,
+  /** R-MOD-10: аккаунт младше суток — 3 в час. */
+  materialsPerHourYoung: 3,
+  youngAccountH: 24,
+  /**
+   * R-MOD-10: отдельные потолки по IP и устройству. В документах чисел нет —
+   * это стартовые значения, согласованные с автором (H-24, находка #151).
+   * Устройство — пара «сеть и браузер»: перелогин с того же браузера
+   * счётчик не обнуляет, иначе потолок обходился бы выходом и входом.
+   */
+  materialsPerHourIp: 30,
+  materialsPerHourDevice: 20,
+};
+
 export const MAIL_SETTINGS = {
   /** Пять попыток отправки, дальше письмо помечается неудачным. */
   maxAttempts: 5,
