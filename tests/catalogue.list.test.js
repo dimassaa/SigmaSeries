@@ -36,162 +36,124 @@ test.after(async () => {
 });
 
 /** Сколько опубликованных сериалов в базе — эталон для «всех». */
-async function published() {
-  const { rows } = await pool.query(
+async function published(runner = pool) {
+  const { rows } = await runner.query(
     "SELECT count(*)::int AS n FROM e_series WHERE publication_state = 'published' AND archived_at IS NULL",
   );
   return rows[0].n;
 }
 
 /**
- * Отпечаток каталога для сторожа устойчивости.
+ * Читает каталог в одном снимке базы (`REPEATABLE READ`).
  *
- * Одного числа мало: чужой прогон может за это время удалить одну фикстуру и
- * создать другую — число вернётся прежним, а порядок по популярности сдвинется,
- * и страницы начнут пересекаться. Последний идентификатор такое пропускает.
+ * Отпечаток «до и после» видел только число и последний id: мгновенный
+ * переворот видимости или правка ключа сортировки сдвигает окно `OFFSET`,
+ * оставляя отпечаток прежним, и честные страницы выглядели пересекающимися —
+ * ложное красное (№156). В снимке все чтения видят одно состояние каталога,
+ * поэтому сравнения стали строгими, а сторожить больше нечего.
  *
- * @returns {Promise<string>}
+ * @param {(runner: object, frozen: object) => Promise<*>} read
+ * @returns {Promise<*>}
  */
-async function fingerprint() {
-  const { rows } = await pool.query(
-    `SELECT count(*)::int AS n, coalesce(max(id), 0) AS newest
-       FROM e_series WHERE publication_state = 'published' AND archived_at IS NULL`,
-  );
-  return `${rows[0].n}:${rows[0].newest}`;
+async function inSnapshot(read) {
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    const runner = { query: (text, values) => client.query(text, values) };
+    return await read(runner, pgCatalogueList(runner));
+  } finally {
+    await client.query('ROLLBACK').catch(() => {});
+    client.release();
+  }
 }
 
 /**
  * Общее число страницы равно числу опубликованных сериалов.
  *
- * Счётчик берётся в том же окне, что и страница: отпечаток каталога снят до и
- * после чтения и не изменился. Сравнивать со свежим `count(*)` после чтения
- * нельзя — параллельный прогон успевает добавить или убрать фикстуру между
- * двумя запросами, и проверка краснеет на общей базе без всякой ошибки в коде
+ * Число и страница читаются в одном снимке: сравнение со свежим `count(*)`
+ * после чтения расходилось бы из-за параллельного прогона, добавившего или
+ * убравшего фикстуру, — ложное красное на общей базе без ошибки в коде
  * (так и случилось 18.10 при прогоне F-04-02: 1067 против 1068).
  *
  * @param {object} options параметры каталога
  * @returns {Promise<object>} страница, для которой числа сошлись
  */
 async function assertTotalMatches(options) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const before = await fingerprint();
-    // eslint-disable-next-line no-await-in-loop
-    const page = await catalogue.list(options);
-    // eslint-disable-next-line no-await-in-loop
-    const after = await fingerprint();
-    if (before === after) {
-      assert.equal(page.total, Number(before.split(':')[0]),
-        'в списке ровно опубликованные видимые сериалы');
-      return page;
-    }
-  }
-  return assert.fail('каталог менялся все десять попыток — сравнить не с чем');
+  return inSnapshot(async (runner, frozen) => {
+    const seen = await published(runner);
+    const page = await frozen.list(options);
+    assert.equal(page.total, seen, 'в списке ровно опубликованные видимые сериалы');
+    return page;
+  });
 }
 
 /**
- * Страница, прочитанная в момент, когда каталог не менялся.
+ * Страницы каталога, прочитанные в одном снимке.
  *
- * Чтение «страница → счётчик» ловит гонку: между ними чужой прогон добавляет
- * фикстуру, и расхождение означало бы не ошибку фильтра. Поэтому счётчик
- * берётся с двух сторон: пока «до» и «после» совпадают, каталог стоял.
+ * @param {object[]} optionsList параметры каждой страницы
+ * @returns {Promise<object[]>} страницы в том же порядке
+ */
+async function snapshotPages(optionsList) {
+  return inSnapshot(
+    (runner, frozen) => Promise.all(optionsList.map((options) => frozen.list(options))),
+  );
+}
+
+/**
+ * Страница, прочитанная в снимке, — для проверок без пар.
  *
  * @param {object} [options]
  * @returns {Promise<object>}
  */
 async function stablePage(options = {}) {
-  let page = null;
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const before = await fingerprint();
-    // eslint-disable-next-line no-await-in-loop
-    const current = await catalogue.list(options);
-    // eslint-disable-next-line no-await-in-loop
-    const after = await fingerprint();
-    if (before === after) return current;
-    page = current;
-  }
-  return page ?? catalogue.list(options);
+  return inSnapshot((runner, frozen) => frozen.list(options));
 }
 
 test('список показывает только опубликованные и не архивные', { skip }, async () => {
-  // Состав страницы проверяется по её же строкам, а не по живому счётчику
-  // каталога: база общая, и параллельные прогоны добавляют фикстуры, из-за
-  // чего сравнение «страница против счётчика» мигает без всякой ошибки в коде.
-  const page = await stablePage({});
-  assert.ok(page.items.length > 0, 'база после импорта не пуста');
-  assert.ok(page.total >= page.items.length, 'общее число не меньше показанного');
-  const { rows: hidden } = await pool.query(
-    `SELECT count(*)::int AS n FROM e_series s
-       JOIN unnest($1::bigint[]) AS u(series_id) ON u.series_id = s.id
-      WHERE s.publication_state <> 'published' OR s.archived_at IS NOT NULL`,
-    [page.items.map((item) => item.id)],
-  );
-  assert.equal(hidden[0].n, 0, 'неопубликованных и архивных в выдаче нет');
+  // Страница и проверка её строк — в одном снимке: иначе параллельный прогон
+  // скрывает сериал из выдачи между чтениями, и проверка краснеет на верном
+  // коде. Состав страницы проверяется по её же строкам, а не по живому
+  // счётчику каталога: база общая.
+  await inSnapshot(async (runner, frozen) => {
+    const page = await frozen.list({});
+    assert.ok(page.items.length > 0, 'база после импорта не пуста');
+    assert.ok(page.total >= page.items.length, 'общее число не меньше показанного');
+    const { rows: hidden } = await runner.query(
+      `SELECT count(*)::int AS n FROM e_series s
+         JOIN unnest($1::bigint[]) AS u(series_id) ON u.series_id = s.id
+        WHERE s.publication_state <> 'published' OR s.archived_at IS NOT NULL`,
+      [page.items.map((item) => item.id)],
+    );
+    assert.equal(hidden[0].n, 0, 'неопубликованных и архивных в выдаче нет');
+  });
 });
 
-test('страницы не пересекаются и считаются от общего числа', { skip }, async (t) => {
-  // Обе страницы читаются внутри одного устойчивого окна: постраничная выборка
-  // опирается на `OFFSET`, и появление чужой фикстуры между чтениями сдвигает
-  // окно, из-за чего строка первой страницы оказывается и на второй. Это свойство
-  // изменяющейся базы, а не ошибка постраничности.
-  let first = null;
-  let second = null;
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const before = await fingerprint();
-    // eslint-disable-next-line no-await-in-loop
-    const one = await catalogue.list({ page: 1 });
-    // eslint-disable-next-line no-await-in-loop
-    const two = await catalogue.list({ page: 2 });
-    // eslint-disable-next-line no-await-in-loop
-    const after = await fingerprint();
-    if (before === after && one.total === two.total) {
-      first = one;
-      second = two;
-      break;
-    }
-  }
-  // Пересечение страниц нельзя проверить на живой базе, которую параллельно
-  // меняют: десять попыток могут не хватить. Тогда проверка честно сообщает,
-  // что не выполнена, вместо того чтобы показать красное из-за чужого прогона.
-  if (!first || !second) {
-    t.skip('каталог менялся все десять попыток — проверять не на чем');
-    return;
-  }
+test('страницы не пересекаются и считаются от общего числа', { skip }, async () => {
+  // Обе страницы — из одного снимка: постраничная выборка опирается на
+  // `OFFSET`, и чужое изменение между чтениями сдвигало окно так, что строка
+  // первой страницы оказывалась и на второй (№156); в снимке пересечение —
+  // уже настоящий дефект, и проверка сравнивает строго.
+  const [first, second] = await snapshotPages([{ page: 1 }, { page: 2 }]);
 
   assert.equal(first.pages, Math.ceil(first.total / first.size));
   assert.equal(first.items.length, first.size);
   assert.equal(second.items.length, first.size);
+  assert.equal(second.total, first.total, 'обе страницы считают от одного каталога');
   const overlap = first.items.filter((a) => second.items.some((b) => b.id === a.id));
   assert.deepEqual(overlap, [], 'страница 2 не повторяет страницу 1');
 });
 
 test('страница за пределами списка пуста, а не обрезается молча', { skip }, async () => {
-  // Номер страницы за концом берётся из счётчика, прочитанного в том же
-  // устойчивом окне: сравнивать две страницы, снятые в разные моменты, в
-  // общей базе бессмысленно — между ними успевает появиться чужая фикстура.
-  let beyond = null;
-  let total = 0;
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    // eslint-disable-next-line no-await-in-loop
-    const before = await fingerprint();
-    // Счётчик для номера страницы берётся из отпечатка: он прочитан в том же
-    // окне, что и выдача, и потому относится к тому же состоянию каталога.
-    const seen = Number(before.split(':')[0]);
-    // eslint-disable-next-line no-await-in-loop
-    const page = await catalogue.list({ page: Math.ceil(seen / 24) + 3 });
-    // eslint-disable-next-line no-await-in-loop
-    const after = await fingerprint();
-    if (before === after && page.total === seen) {
-      beyond = page;
-      total = seen;
-      break;
-    }
-  }
-  assert.ok(beyond, 'каталог стоял десять попыток подряд — иначе проверять нечего');
-  assert.deepEqual(beyond.items, [], 'выдача пуста — маршрут отвечает 301 на последней странице');
-  assert.equal(beyond.total, total, 'общее число остаётся, по нему считается последняя страница');
+  // Номер «за концом» берётся из счётчика того же снимка: сравнивать числа,
+  // снятые в разные моменты, на общей базе бессмысленно — между ними
+  // успевает появиться чужая фикстура.
+  await inSnapshot(async (runner, frozen) => {
+    const seen = await published(runner);
+    const beyond = await frozen.list({ page: Math.ceil(seen / 24) + 3 });
+
+    assert.deepEqual(beyond.items, [], 'выдача пуста — маршрут отвечает 301 на последней странице');
+    assert.equal(beyond.total, seen, 'общее число остаётся, по нему считается последняя страница');
+  });
 });
 
 test('жанр сужает выдачу, а незнакомый жанр игнорируется', { skip }, async () => {
@@ -205,28 +167,28 @@ test('жанр сужает выдачу, а незнакомый жанр иг�
   const genre = rows[0];
   assert.ok(genre, 'в базе есть опубликованные сериалы хотя бы одного жанра');
 
-  const filtered = await catalogue.list({ genres: [genre.code] });
-  assert.ok(filtered.total > 0);
-  // Порог сравнивается с числом опубликованных «на сейчас»: параллельные
-  // прогоны добавляют и убирают фикстуры, поэтому и верхняя граница, и сам
-  // фильтр берутся одним повторяющимся чтением.
-  let all = await published();
-  for (let attempt = 0; attempt < 3 && filtered.total >= all; attempt += 1) {
-    all = await published();
-  }
-  assert.ok(filtered.total < all, 'фильтр действительно сужает');
-  // У сериала жанров несколько, а в подписи под постером показан один, поэтому
-  // принадлежность жанру проверяется запросом, а не полем карточки.
-  const { rows: withGenre } = await pool.query(
-    `SELECT count(*)::int AS n FROM e_series s
-       JOIN unnest($1::bigint[]) AS u(series_id) ON u.series_id = s.id
-       JOIN e_series_genre sg ON sg.series_id = s.id AND sg.genre_code = $2`,
-    [filtered.items.map((item) => item.id), genre.code],
-  );
-  assert.equal(withGenre[0].n, filtered.items.length, 'в выдаче только сериалы выбранного жанра');
+  // Выдача, счётчик и сверка строк — в одном снимке: между чтениями чужой
+  // прогон успевает добавить или убрать фикстуру, и проверка краснеет на
+  // верном коде (№156).
+  const { page, withGenre } = await inSnapshot(async (runner, frozen) => {
+    const filtered = await frozen.list({ genres: [genre.code] });
+    // У сериала жанров несколько, а в подписи под постером показан один,
+    // поэтому принадлежность жанру проверяется запросом, а не полем карточки.
+    const { rows: counted } = await runner.query(
+      `SELECT count(*)::int AS n FROM e_series s
+         JOIN unnest($1::bigint[]) AS u(series_id) ON u.series_id = s.id
+         JOIN e_series_genre sg ON sg.series_id = s.id AND sg.genre_code = $2`,
+      [filtered.items.map((item) => item.id), genre.code],
+    );
+    return { page: filtered, withGenre: counted[0].n };
+  });
+  assert.ok(page.total > 0);
+  const all = await published();
+  assert.ok(page.total < all, 'фильтр действительно сужает');
+  assert.equal(withGenre, page.items.length, 'в выдаче только сериалы выбранного жанра');
 
-  // То же повторяющееся чтение: один живой счёт и выдача, снятая в другой
-  // момент, расходятся из-за параллельных прогонов, а не из-за фильтра.
+  // То же в снимке: живой счёт и выдача, снятая в другой момент, расходятся
+  // из-за параллельных прогонов, а не из-за фильтра.
   await assertTotalMatches({ genres: ['такого-жанра-нет'] });
 });
 
@@ -256,26 +218,31 @@ test('состояние выхода — из белого списка', { ski
 });
 
 test('сортировка выбирается из белого списка', { skip }, async () => {
-  // Обе выборки читаются в одном устойчивом моменте: иначе чужой прогон,
-  // добавивший сериал между ними, дал бы расхождение, которого нет в коде.
-  const junk = await stablePage({ sort: 'votes); DROP TABLE e_series; --' });
-  const popular = await stablePage({ sort: 'popular' });
+  // Выборки и сверка с базой — в одном снимке: иначе чужой прогон, изменивший
+  // сериал между чтениями, дал бы расхождение, которого нет в коде (№156).
+  const [junk, popular] = await snapshotPages([
+    { sort: 'votes); DROP TABLE e_series; --' },
+    { sort: 'popular' },
+  ]);
   assert.deepEqual(junk.items.map((i) => i.id), popular.items.map((i) => i.id),
     'неизвестная сортировка молча заменяется популярностью');
 
-  // Порядок сравнивается с тем же запросом в базе, а не с `Array.sort()`:
-  // сортировка PostgreSQL по правилам локали не совпадает с порядком строк в
-  // JavaScript, и сравнение с ним ловило бы чужую ошибку.
-  const byTitle = await catalogue.list({ sort: 'title' });
-  const { rows: expected } = await pool.query(`
-    SELECT s.id FROM e_series s
-     WHERE s.publication_state = 'published' AND s.archived_at IS NULL
-     ORDER BY coalesce(s.title_ru, s.title_en, s.title_original) ASC
-     LIMIT $1`, [byTitle.size]);
+  const { page: byTitle, expected } = await inSnapshot(async (runner, frozen) => {
+    const page = await frozen.list({ sort: 'title' });
+    // Порядок сравнивается с тем же запросом в базе, а не с `Array.sort()`:
+    // сортировка PostgreSQL по правилам локали не совпадает с порядком строк в
+    // JavaScript, и сравнение с ним ловило бы чужую ошибку.
+    const { rows } = await runner.query(`
+      SELECT s.id FROM e_series s
+       WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+       ORDER BY coalesce(s.title_ru, s.title_en, s.title_original) ASC
+       LIMIT $1`, [page.size]);
+    return { page, expected: rows };
+  });
   assert.deepEqual(byTitle.items.map((item) => item.id), expected.map((row) => row.id),
     'по названию — по алфавиту, так же, как считает база');
 
-  const byRating = await catalogue.list({ sort: 'rating' });
+  const byRating = await stablePage({ sort: 'rating' });
   const values = byRating.items.map((item) => item.rating ?? -1);
   assert.deepEqual(values, [...values].sort((a, b) => b - a), 'по рейтингу — по убыванию');
 });
@@ -303,12 +270,14 @@ test('страна сужает выдачу, а серия — по канал�
       GROUP BY sc.country_code ORDER BY n DESC LIMIT 1`,
   );
   assert.ok(country.length, 'страны залиты хотя бы для одного сериала');
-  const byCountry = await catalogue.list({ countries: [country[0].code] });
-  let all = await published();
-  for (let attempt = 0; attempt < 3 && byCountry.total >= all; attempt += 1) {
-    all = await published();
-  }
-  assert.ok(byCountry.total > 0 && byCountry.total < all, 'страна действительно сужает выдачу');
+  // Выдача и счётчик — в одном снимке: между чтениями чужой прогон добавляет
+  // и убирает фикстуры, и сравнение врёт на верном коде (№156).
+  const byCountry = await inSnapshot(async (runner, frozen) => {
+    const page = await frozen.list({ countries: [country[0].code] });
+    return { page, all: await published(runner) };
+  });
+  assert.ok(byCountry.page.total > 0 && byCountry.page.total < byCountry.all,
+    'страна действительно сужает выдачу');
 
   const { rows: foreign } = await pool.query(
     `SELECT sn.network_id::text AS id, count(*)::int AS n
@@ -318,19 +287,26 @@ test('страна сужает выдачу, а серия — по канал�
       GROUP BY sn.network_id ORDER BY n DESC LIMIT 1`,
   );
   assert.ok(foreign.length, 'сети залиты хотя бы для одного сериала');
-  const byNetwork = await catalogue.list({ networks: [foreign[0].id] });
-  assert.ok(byNetwork.total > 0);
-  const { rows: members } = await pool.query(
-    `SELECT count(*)::int AS n FROM e_series_network WHERE network_id = $1`, [foreign[0].id],
-  );
-  assert.ok(byNetwork.total <= members[0].n, 'фильтр по сети не может дать больше, чем есть связей');
+  const byNetwork = await inSnapshot(async (runner, frozen) => {
+    const page = await frozen.list({ networks: [foreign[0].id] });
+    const { rows } = await runner.query(
+      'SELECT count(*)::int AS n FROM e_series_network WHERE network_id = $1', [foreign[0].id],
+    );
+    return { page, members: rows[0].n };
+  });
+  assert.ok(byNetwork.page.total > 0);
+  assert.ok(byNetwork.page.total <= byNetwork.members, 'фильтр по сети не может дать больше, чем есть связей');
 
   await assertTotalMatches({ countries: ['ZZ'], networks: ['нет такого'] });
 });
 
 test('поиск по справочнику сужает список вариантов, а не выдачу', { skip }, async () => {
-  const all = await catalogue.filters();
-  const search = await catalogue.filters({ networkSearch: 'hbo' });
+  // Оба среза справочника — из одного снимка: сравнение двух живых чтений
+  // расходится от чужого прогона, а не от поиска.
+  const [all, search] = await inSnapshot((runner, frozen) => Promise.all([
+    frozen.filters(),
+    frozen.filters({ networkSearch: 'hbo' }),
+  ]));
 
   assert.ok(search.networks.length < all.networks.length, 'список сетей сузился');
   assert.ok(search.networks.every((row) => row.name.toLowerCase().includes('hbo')),
@@ -340,9 +316,14 @@ test('поиск по справочнику сужает список вари�
 });
 
 test('размер страницы берётся из настроек, а не из адреса', { skip }, async () => {
-  const page = await catalogue.list({});
-  const { rows } = await pool.query("SELECT value FROM e_system_setting WHERE key = 'catalog.page_size'");
-
-  assert.equal(page.size, rows[0] ? Number(rows[0].value) : 24,
-    'число страницы — из catalog.page_size, а не из того, что прислал клиент');
+  // Страница и настройка — в одном снимке: иначе чужая правка настройки между
+  // чтениями выглядела бы ошибкой сервиса.
+  const { size, configured } = await inSnapshot(async (runner, frozen) => {
+    const page = await frozen.list({});
+    const { rows } = await runner.query(
+      "SELECT value FROM e_system_setting WHERE key = 'catalog.page_size'",
+    );
+    return { size: page.size, configured: rows[0] ? Number(rows[0].value) : 24 };
+  });
+  assert.equal(size, configured, 'число страницы — из catalog.page_size, а не из того, что прислал клиент');
 });

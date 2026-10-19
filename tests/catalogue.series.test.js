@@ -9,6 +9,8 @@ import assert from 'node:assert/strict';
 
 import { createPool } from '../src/db/pool.js';
 import { pgSeries } from '../src/services/catalogue/series.js';
+import { DEFAULT_RATING_FLOOR } from '../src/services/catalogue/settings.js';
+import { acquireImportLock } from './helpers/import-lock.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -17,15 +19,22 @@ const skip = available
 
 let pool;
 let series;
+let unlockImport;
 
 test.before(async () => {
   if (!available) return;
   pool = createPool();
+  // Замок импорта: соседняя проверка порога (`catalogue.rating-floor`) на своём
+  // прогоне поднимает `external_rating.min_votes_display` до миллиона и заводит
+  // опубликованные фикстуры — без замка этот файл видит и то, и другое (№167).
+  unlockImport = await acquireImportLock(pool);
   series = pgSeries(pool);
 });
 
 test.after(async () => {
-  if (pool) await pool.end();
+  if (!pool) return;
+  await unlockImport?.();
+  await pool.end();
 });
 
 /** Первый опубликованный сериал каталога. */
@@ -59,10 +68,23 @@ test('жанры приходят с русскими названиями', { s
 });
 
 test('рейтинги площадок приходят числами', { skip }, async () => {
-  const { rows } = await pool.query(
-    "SELECT slug FROM e_series WHERE publication_state = 'published' AND id IN (SELECT series_id FROM e_external_rating) LIMIT 1",
+  // Сериал выбирается по показываемому рейтингу, а не по «есть строка в
+  // e_external_rating»: карточка скрывает рейтинг с голосами ниже порога, и
+  // выборка обязана спрашивать то же условие, что и показ (№167) — иначе
+  // проверка краснеет на горстке голосов у чужой фикстуры.
+  const { rows: setting } = await pool.query(
+    "SELECT value FROM e_system_setting WHERE key = 'external_rating.min_votes_display'",
   );
-  if (!rows.length) return; // каталог без рейтингов — не дефект источника
+  const floor = setting[0] ? Number(setting[0].value) : DEFAULT_RATING_FLOOR;
+  const { rows } = await pool.query(
+    `SELECT s.slug FROM e_series s
+      WHERE s.publication_state = 'published'
+        AND EXISTS (SELECT 1 FROM e_external_rating r
+                     WHERE r.series_id = s.id AND (r.votes IS NULL OR r.votes >= $1))
+      LIMIT 1`,
+    [floor],
+  );
+  if (!rows.length) return; // каталог без показываемых рейтингов — не дефект источника
   const found = await series.bySlug(rows[0].slug);
   assert.ok(found.ratings.imdb || found.ratings.tmdb);
   const value = (found.ratings.imdb ?? found.ratings.tmdb).value;
