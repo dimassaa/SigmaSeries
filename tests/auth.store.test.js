@@ -397,6 +397,13 @@ test('смена пароля не трогает токены подтверж�
 test('неподтверждённые аккаунты выбираются по сроку (F-01-01 §8(г))', { skip }, async () => {
   // Отбор питает задача обезличивания, поэтому проверяется на базе: заглушка
   // не знает, что значит `NOT email_confirmed` в SQL.
+  //
+  // Включение проверяется на самом старом аккаунте прогона, а не на «чуть
+  // просроченном»: выборка отдаёт первые `UNVERIFIED_BATCH` самых старых, а в
+  // общей базе за месяцы прогонов накопились сотни чужих фикстур — аккаунт в
+  // десять дней давно вытесняется ими из пакета (находка №157). Границу срока
+  // держит исключение свежего: оно и проверяет, что сравнение идёт с отсечкой,
+  // а не «всё, что неподтверждено».
   const pending = async () => {
     const { fields } = newUser();
     return (await store.createUser(fields)).id;
@@ -407,20 +414,28 @@ test('неподтверждённые аккаунты выбираются п�
     [id, String(days)],
   );
 
-  const old = await pending();
+  const oldest = await pending();
   const fresh = await pending();
-  const long = await pending();
   const confirmed = (await confirmedUser()).user.id;
-  await age(old, 10);
+  // Три тысячи дней — заведомо старше всего, что лежит в базе: прогоны идут с
+  // октября, а самые старые фикстуры соседей поднимаются до четырёхсот дней.
+  await age(oldest, 3000);
   await age(fresh, 1);
-  await age(long, 400);
 
   const due = await store.dueUnverified(new Date(Date.now() - AUTH.unverifiedTtlDays * day));
 
-  assert.ok(due.includes(old), 'просроченный попал в список');
-  assert.ok(due.includes(long), 'очень старый тоже: срок не «свежее, чем неделя»');
-  assert.ok(!due.includes(fresh), 'свежий не попал');
+  assert.ok(due.includes(oldest), 'самый старый из неподтверждённых попал в список');
+  assert.ok(!due.includes(fresh), 'свежий не попал: срок сравнивается с отсечкой');
   assert.ok(!due.includes(confirmed), 'подтверждённый не попал');
+
+  // Свои неподтверждённые фикстуры гасятся: без этого каждый прогон добавлял
+  // в базу ещё два подходящих аккаунта, и куча росла вместе с ними (№157).
+  // Удалить их нельзя — `DELETE` из `e_user` запрещён (R-SQL-02), поэтому
+  // подтверждение: для выборки это тот же выход из очереди.
+  await pool.query(
+    'UPDATE e_user SET email_confirmed = TRUE WHERE id = ANY($1::bigint[])',
+    [[oldest, fresh]],
+  );
 });
 
 test('отзыв устройства закрывает его живую сессию (F-01-03 §4)', { skip }, async () => {
