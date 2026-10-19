@@ -78,7 +78,7 @@ async function viewer() {
   const { hash } = makeToken();
   const created = await pgAuthStore(pool).createUser({
     email: `taste-${crypto.randomUUID().slice(0, 8)}@example.com`,
-    nickname: `taste-${crypto.randomUUID().slice(0, 4)}`,
+    nickname: `taste-${crypto.randomUUID().slice(0, 8)}`,
     passwordHash: await hashPassword('правильный-пароль-из-десяти'),
     tokenHash: hash,
     timezone: 'Europe/Minsk',

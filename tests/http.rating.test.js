@@ -49,7 +49,10 @@ const viewer = async () => {
   const email = `rate-http-${crypto.randomUUID().slice(0, 8)}@example.com`;
   const created = await pgAuthStore(pool).createUser({
     email,
-    nickname: `rate-http-${crypto.randomUUID().slice(0, 4)}`,
+    // Восемь знаков, а не четыре: общая база копит аккаунты прогонов, и
+    // четырёх гексов на ник хватило, чтобы однажды случилось столкновение
+    // (`uq_user_nick`, 19.10).
+    nickname: `rate-http-${crypto.randomUUID().slice(0, 8)}`,
     passwordHash: await hashPassword(PASSWORD),
     tokenHash: hash,
     timezone: 'Europe/Minsk',
@@ -304,7 +307,7 @@ async function voter() {
   const { hash } = makeToken();
   const created = await pgAuthStore(pool).createUser({
     email: `rate-http-v-${crypto.randomUUID().slice(0, 8)}@example.com`,
-    nickname: `rate-http-v-${crypto.randomUUID().slice(0, 4)}`,
+    nickname: `rate-http-v-${crypto.randomUUID().slice(0, 8)}`,
     passwordHash: '$argon2id$заглушка',
     tokenHash: hash,
     timezone: 'Europe/Minsk',
