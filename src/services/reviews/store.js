@@ -23,10 +23,13 @@
 //     датой окончания — чтение и оценка при этом работают.
 
 import { REVIEW, MODERATION, HOUR } from '../../config/settings.js';
+import { pgModerationBudget } from '../moderation/budget.js';
 
 /** Причина отказа — короткая строка, по ней маршрут выбирает текст. */
 export const REASONS = {
   MUTED: 'muted',
+  /** F-05-03: шестой материал автора за минуту — отказ (mod.submission_rate_per_min). */
+  RATE: 'rate',
   NOT_CONFIRMED: 'not-confirmed',
   NO_MARK: 'no-mark',
   LIMIT: 'limit',
@@ -96,7 +99,14 @@ function reviewOf(row) {
  *
  * @param {import('pg').Pool} pool
  */
-export function pgReviews(pool) {
+export function pgReviews(pool, { budget = null } = {}) {
+  // Бюджеты модерации живут здесь же: они считают по той же таблице
+  // материалов, что и отзывы, и спрашивать их должен тот же код, что и
+  // отправляет материал (F-05-03). Бюджет подставляется снаружи: «осторожный»
+  // режим — состояние всего сервиса, и проверять его поведение можно, не
+  // включая его для всех подряд.
+  const limits = budget ?? pgModerationBudget(pool);
+
   return {
     /**
      * Действующий мьют или `null`.
@@ -166,6 +176,13 @@ export function pgReviews(pool) {
       const mute = await this.muteOf(userId, at);
       if (mute) return { ok: false, reason: REASONS.MUTED, until: mute.until };
 
+      // F-05-03: один автор не должен завалить очередь частотой. Шестой
+      // материал за минуту — отказ, дальше лимит снова наполняется.
+      const burst = await limits.submissionsInMinute(userId, at);
+      if (burst >= MODERATION.submissionRatePerMin) {
+        return { ok: false, reason: REASONS.RATE, retryAfterSec: 60 };
+      }
+
       const existing = await this.ownReview(userId, seriesId);
       if (!existing) {
         const right = await this.rightToWrite(userId, seriesId);
@@ -181,8 +198,12 @@ export function pgReviews(pool) {
       const result = checkMaterial({ body: text, dictionary });
       if (result.decision === 'reject') return { ok: false, reason: REASONS.EMPTY };
 
+      // «Осторожный» режим (F-05-03): доля помеченных превысила порог —
+      // новый материал не публикуется автоматически, а ждёт решения
+      // редактора. Материалы, которые проверка сама отклонила или
+      // отложила, в очередь попадают как обычно.
       const state = result.decision === 'publish'
-        ? 'published'
+        ? ((await limits.cautiousState()).cautious ? 'checking' : 'published')
         : result.decision === 'queue' ? 'flagged' : 'checking';
       const chosen = lang === 'ru' || lang === 'en' ? lang : detectLang(text);
 

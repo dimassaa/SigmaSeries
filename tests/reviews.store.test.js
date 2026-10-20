@@ -126,6 +126,52 @@ test('чистый текст публикуется сразу', { skip }, asyn
   assert.equal(own.body, body('Хороший сериал, смотрю второй раз'));
 });
 
+test('шестой материал автора за минуту отвергается (F-05-03 §18)', { skip }, async () => {
+  // Один автор не должен завалить очередь частотой: пятый материал в
+  // минуту проходит, шестой — нет. Аккаунт взрослый: у молодого часовой
+  // лимит меньше, и проверялся бы он, а не минутный.
+  const user = await viewer({ registeredAt: new Date(Date.now() - 48 * 3600 * 1000) });
+  for (let i = 0; i < 5; i += 1) {
+    const series = await seriesWith(100 + i);
+    await mark(user, series.id);
+    const r = await reviews.submit({
+      userId: user, seriesId: series.id, body: body(`Материал номер ${i} подряд`), spoiler: false, lang: 'ru', dictionary: clean,
+    });
+    assert.equal(r.ok, true, `материал ${i + 1} проходит: ${r.reason ?? ''}`);
+  }
+
+  const last = await seriesWith(105);
+  await mark(user, last.id);
+  const refused = await reviews.submit({
+    userId: user, seriesId: last.id, body: body('Шестой материал за минуту'), spoiler: false, lang: 'ru', dictionary: clean,
+  });
+  assert.equal(refused.ok, false, 'шестой материал отвергнут');
+  assert.equal(refused.reason, REASONS.RATE);
+  assert.ok(refused.retryAfterSec > 0, 'сказано, сколько ждать');
+});
+
+test('в «осторожном» режиме материал ждёт решения, а не публикуется (F-05-03 §4)', { skip }, async () => {
+  // Режим — состояние всего сервиса, и включать его по-настоящему нельзя:
+  // проверки идут параллельно, и остальные файлы читали бы включённый режим.
+  // Поэтому бюджет подставляется: поведение проверяется, а состояние
+  // системы остаётся нетронутым.
+  const cautiousReviews = pgReviews(pool, {
+    budget: {
+      submissionsInMinute: async () => 0,
+      cautiousState: async () => ({ cautious: true }),
+    },
+  });
+  const user = await viewer();
+  const series = await seriesWith(110);
+  await mark(user, series.id);
+
+  const r = await cautiousReviews.submit({
+    userId: user, seriesId: series.id, body: body('Чистый текст, но система насторожена'), spoiler: false, lang: 'ru', dictionary: clean,
+  });
+  assert.equal(r.ok, true);
+  assert.equal(r.state, 'checking', 'материал ждёт решения редактора');
+});
+
 test('второй отзыв той же пары не создаётся — правка идёт той же строкой', { skip }, async () => {
   const user = await viewer();
   const series = await seriesWith(2);
@@ -324,10 +370,18 @@ test('лимит 10 материалов в час на аккаунт, прав
   await mark(user, target.id);
 
   // Десять новых отзывов в разные сериалы исчерпывают часовой лимит.
+  // Отзывы разнесены на две минуты: иначе их останавливает минутный лимит
+  // (F-05-03) — и проверялся бы он, а не часовой.
   for (let i = 0; i < MODERATION.materialsPerHour; i++) {
     const other = await seriesWith(1500 + i);
     await mark(user, other.id);
-    const r = await reviews.submit({ userId: user, seriesId: other.id, body: body(`Отзыв номер ${i}`), dictionary: clean });
+    const r = await reviews.submit({
+      userId: user,
+      seriesId: other.id,
+      body: body(`Отзыв номер ${i}`),
+      dictionary: clean,
+      at: new Date(Date.now() - (MODERATION.materialsPerHour - i) * 2 * 60 * 1000),
+    });
     assert.equal(r.ok, true, `отзыв ${i} должен пройти`);
   }
 

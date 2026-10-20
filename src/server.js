@@ -27,6 +27,7 @@ import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
 import { pgAnomalySensor } from './services/rating/anomalies.js';
+import { pgModerationBudget } from './services/moderation/budget.js';
 import { pgAuditLog } from './services/audit/log.js';
 import { pgReviews } from './services/reviews/store.js';
 import { pgReviewList } from './services/reviews/list.js';
@@ -282,6 +283,22 @@ const server = app.listen(PORT, HOST, async () => {
     journal.security({ event: 'mail_mode_devbox', requestId: 'старт' });
   }
 });
+
+// «Осторожный» режим модерации (F-05-03): доля помеченных пересчитывается
+// по расписанию. Решение о режиме принимает система, а не сама отправка
+// материала: иначе решение зависело бы от того, кто отправил последним.
+const moderationBudget = pgModerationBudget(pool);
+const moderationWorker = setInterval(() => {
+  moderationBudget.refresh()
+    .then((state) => {
+      if (state.cautious) {
+        console.log(`[модерация] осторожный режим: помечено ${state.flagged} из ${state.total}`);
+      }
+    })
+    .catch((e) => console.error(`[модерация] ${e.message}`));
+}, 60_000);
+moderationWorker.unref();
+moderationBudget.refresh().catch((e) => console.error(`[модерация] ${e.message}`));
 
 // Работник очереди писем. Запускается вместе с сервером, а не по требованию:
 // письмо, поставленное в очередь, должно уйти и тогда, когда никто не
