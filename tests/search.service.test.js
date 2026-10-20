@@ -176,10 +176,43 @@ test('результаты идут от лучшего совпадения к 
 });
 
 test('при равенстве совпадений первым идёт более популярный', { skip }, async () => {
-  const result = await search.find({ query: 'сериал' });
-  const votes = result.series.map((item) => item.votes ?? 0);
-  assert.deepEqual(votes, [...votes].sort((a, b) => b - a),
-    'среди равных по совпадению первым идёт тот, у кого больше голосов IMDb');
+  // Своя фикстура вместо поиска по всему каталогу: запрос по живому
+  // каталогу предполагал, что все совпадения равны по релевантности, а это
+  // неправда — сериал с тем же словом в названии может совпасть лучше, и
+  // проверка падала без связи с кодом (так и случилось, когда в каталоге
+  // появились сериалы пробы).
+  const title = 'Фикстура порядка поиска';
+  const slugs = [];
+  const ids = [];
+  try {
+    for (const [index, votes] of [[1, 40], [2, 900]]) {
+      const slug = `test-search-order-${index}-${crypto.randomUUID().slice(0, 8)}`;
+      const { rows: [row] } = await pool.query(
+        `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+         VALUES ($1, $2, 'Order fixture', $3, 'published', 'airing', 2024)
+         RETURNING id`,
+        [slug, title, 984_000_000 + index],
+      );
+      await pool.query(
+        `INSERT INTO e_external_rating (series_id, platform, value, votes, measured_on)
+         VALUES ($1, 'imdb', 7.5, $2, current_date)`,
+        [row.id, votes],
+      );
+      slugs.push(slug);
+      ids.push(row.id);
+    }
+
+    const result = await search.find({ query: title });
+    const ours = result.series.filter((item) => slugs.includes(item.slug));
+    assert.equal(ours.length, 2, 'обе фикстуры найдены');
+    const first = result.series.findIndex((item) => item.slug === slugs[1]);
+    const second = result.series.findIndex((item) => item.slug === slugs[0]);
+    assert.ok(first >= 0 && second >= 0, 'фикстуры в выдаче');
+    assert.ok(first < second, 'при равном совпадении первым идёт тот, у кого больше голосов IMDb');
+  } finally {
+    await pool.query('DELETE FROM e_external_rating WHERE series_id = ANY($1::bigint[])', [ids]);
+    await pool.query('DELETE FROM e_series WHERE id = ANY($1::bigint[])', [ids]);
+  }
 });
 
 test('запрос в чужой раскладке помечается, а не выдаётся за прямой (EC-K10)', { skip }, async () => {
