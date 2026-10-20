@@ -695,6 +695,8 @@ const MESSAGES = {
     'home.banners.reason.editorial': 'Выбор редакции',
     'home.banners.rating': 'IMDb {rating}',
     'home.banners.empty': 'Каталог пока пуст: баннеры появятся после первой загрузки.',
+    'home.banners.withdrawn': 'Снят с публикации',
+    'home.banners.placeholder': 'Кадр не загружен',
 
     'home.fresh.heading': 'Новинки',
     'home.fresh.empty': 'Пока пусто: недавно вышедших сериалов нет.',
@@ -1759,6 +1761,8 @@ const MESSAGES = {
     'home.banners.reason.editorial': 'Editor’s pick',
     'home.banners.rating': 'IMDb {rating}',
     'home.banners.empty': 'The catalogue is empty: banners appear after the first import.',
+    'home.banners.withdrawn': 'Withdrawn from publication',
+    'home.banners.placeholder': 'No frame loaded',
 
     'home.fresh.heading': 'Fresh releases',
     'home.fresh.empty': 'Nothing here yet: no series aired recently.',

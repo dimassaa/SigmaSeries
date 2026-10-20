@@ -30,6 +30,8 @@ import { pgAnomalySensor } from './services/rating/anomalies.js';
 import { pgModerationBudget } from './services/moderation/budget.js';
 import { loadSettings } from './services/settings.js';
 import { pgSystemHealth } from './services/admin/health.js';
+import { pgBannerSelection, localDate } from './services/home/banners.js';
+import { homeSettings } from './services/home/settings.js';
 import { pgModerationDecisions } from './services/moderation/decision.js';
 import { pgModerationClusters } from './services/moderation/cluster.js';
 import { pgModerationRestrictions } from './services/moderation/restriction.js';
@@ -136,6 +138,49 @@ const settingsReload = setInterval(() => {
 }, 60_000);
 settingsReload.unref();
 loadSettings(pool).catch((e) => console.error(`[настройки] ${e.message}`));
+
+// Три баннера дня: расчёт раз в сутки, в час смены локальной даты
+// (F-06-02). При запуске, если на сегодня баннеров нет, они считаются сразу:
+// пустая главная хуже расчёта вне расписания.
+const bannerSelection = pgBannerSelection(pool);
+let bannerDay = null;
+
+/**
+ * Пересчитать баннеры, если на сегодня их ещё нет.
+ *
+ * @returns {Promise<void>}
+ */
+async function refreshBanners() {
+  const date = localDate();
+  if (bannerDay === date) return;
+  const settings = await homeSettings(pool);
+  if (await bannerSelection.countFor(date) > 0) {
+    bannerDay = date;
+    return;
+  }
+  const picked = await bannerSelection.recompute({ date, settings });
+  bannerDay = date;
+  console.log(`[баннеры] ${date}: ${picked.length} мест занято`);
+}
+
+// Проверка раз в минуту: час смены даты наступает один раз в сутки, и
+// сравнение дешевле, чем пересчёт по расписанию.
+const bannerWorker = setInterval(() => {
+  const date = localDate();
+  const hour = new Date().getHours();
+  const settings = homeSettings(pool).then((values) => {
+    if (hour !== values.reloadHour) return null;
+    if (bannerDay === date) return null;
+    return bannerSelection.recompute({ date, settings: values })
+      .then((picked) => {
+        bannerDay = date;
+        console.log(`[баннеры] ${date}: ${picked.length} мест занято`);
+      });
+  });
+  settings.catch((e) => console.error(`[баннеры] ${e.message}`));
+}, 60_000);
+bannerWorker.unref();
+refreshBanners().catch((e) => console.error(`[баннеры] ${e.message}`));
 
 // Число людей в сети: раз в час считается и пишется в базу (F-09-05).
 // Пропущенный час — разрыв, а не ноль.

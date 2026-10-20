@@ -33,11 +33,14 @@ export function homeView({ locale, data }) {
     ${data.banners.map((b) => html`
     <li class="banners__item">
       <a class="banner" href="/${locale}/series/${b.seriesSlug}"
-         aria-label="${t(locale, `home.banners.reason.${b.reason}`)}, ${b.title}, ${t(locale, 'home.banners.rating', { rating: b.imdb })}">
-        ${when(imageUrl(locale, b.seriesSlug, 'backdrop', b.backdropWidth),
+         aria-label="${t(locale, `home.banners.reason.${b.reason}`)}, ${b.title}, ${t(locale, 'home.banners.rating', { rating: b.imdb })}${when(b.withdrawn, () => `, ${t(locale, 'home.banners.withdrawn')}`)}">
+        ${when(b.backdropWidth && !b.withdrawn,
           () => html`<img class="banner__image" src="${imageUrl(locale, b.seriesSlug, 'backdrop', b.backdropWidth)}"
                     alt="" width="1280" height="720" loading="lazy" decoding="async">`)}
+        ${when(!b.backdropWidth || b.withdrawn,
+          () => html`<span class="banner__placeholder" aria-hidden="true"></span>`)}
         <span class="banner__scrim"></span>
+        ${when(b.withdrawn, () => html`<span class="banner__notice">${t(locale, 'home.banners.withdrawn')}</span>`)}
         <span class="banner__reason">${t(locale, `home.banners.reason.${b.reason}`)}</span>
         <span class="banner__title">${b.title}</span>
         <span class="banner__meta">${b.yearRange} · ${t(locale, 'home.banners.rating', { rating: b.imdb })}</span>

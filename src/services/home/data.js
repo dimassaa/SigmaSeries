@@ -33,28 +33,41 @@ export function pgData(pool) {
   return {
     async banners() {
       const { bannersPerDay } = await current();
+      // Баннеры показываются за последний день, на который их посчитали, а не
+      // за смесь дней: иначе после пересчёта, давшего два баннера вместо трёх,
+      // на странице остался бы вчерашний третий.
       const { rows } = await pool.query(`
+        WITH latest AS (
+          SELECT max(show_on) AS day FROM e_banner WHERE active AND show_on <= $2
+        )
         SELECT s.slug,
                coalesce(s.title_ru, s.title_original) AS title,
                s.year_start,
                s.year_end,
-               b.kind AS reason,
+               CASE
+                 WHEN b.kind = 'editorial' AND NOT EXISTS (
+                        SELECT 1 FROM e_editorial_pick p
+                         WHERE p.series_id = b.series_id
+                           AND p.active_from <= $2
+                           AND (p.active_until IS NULL OR p.active_until >= $2))
+                   THEN CASE WHEN s.exit_state = 'airing' THEN 'new' ELSE 'classic' END
+                 ELSE b.kind
+               END AS reason,
                r.value::float AS imdb,
-               i.file IS NOT NULL AS has_backdrop,
-               (SELECT iv.width FROM e_image_variant iv WHERE iv.image_id = i.id
+               s.archived_at IS NOT NULL AS withdrawn,
+               (SELECT iv.width FROM e_image_variant iv
+                  JOIN e_image i ON i.id = iv.image_id
+                 WHERE i.series_id = s.id AND i.role = 'backdrop'
+                   AND s.archived_at IS NULL
                  ORDER BY iv.width DESC LIMIT 1) AS backdrop_width
           FROM e_banner b
+          JOIN latest l ON l.day = b.show_on
           JOIN e_series s ON s.id = b.series_id
-          LEFT JOIN e_image i
-                 ON i.id = (SELECT id FROM e_image
-                             WHERE series_id = s.id AND role = 'backdrop'
-                             ORDER BY focal_x LIMIT 1)
           LEFT JOIN e_external_rating r
                  ON r.series_id = s.id AND r.platform = 'imdb'
-         WHERE b.active AND b.show_on <= CURRENT_DATE
-           AND s.archived_at IS NULL
-         ORDER BY b.show_on DESC
-         LIMIT $1`, [bannersPerDay]);
+         WHERE b.active AND b.show_on <= $2
+         ORDER BY CASE b.kind WHEN 'new' THEN 1 WHEN 'classic' THEN 2 ELSE 3 END
+         LIMIT $1`, [bannersPerDay, localDate()]);
       return rows.map(decorateBanner);
     },
 
@@ -132,7 +145,23 @@ function decorateBanner(r) {
     yearRange: yearRange(r.year_start, r.year_end),
     imdb: formatRating(r.imdb),
     backdropWidth: r.backdrop_width,
+    // Сериал, снятый с публикации, остаётся на баннере до ближайшей смены
+    // суток — вместо него заглушка с пометкой (EC-H3).
+    withdrawn: Boolean(r.withdrawn),
   };
+}
+
+/**
+ * Локальная дата в формате `YYYY-MM-DD`.
+ *
+ * @param {Date} [at]
+ * @returns {string}
+ */
+function localDate(at = new Date()) {
+  const year = at.getFullYear();
+  const month = String(at.getMonth() + 1).padStart(2, '0');
+  const day = String(at.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 function decorateSeries(r) {

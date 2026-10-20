@@ -187,6 +187,33 @@ test('у каждой карточки есть осмысленная подп�
   });
 });
 
+test('баннер без кадра показывается с заглушкой, а место не пустует (EC-H2)', async () => {
+  await withApp(stubData({
+    banners: async () => [
+      { seriesSlug: 's1', title: 'Сериал', reason: 'new', yearRange: '2026', imdb: '9,1' },
+    ],
+  }), async (get) => {
+    const html = await (await get('/ru/')).text();
+    assert.match(html, /class="banner__placeholder"/, 'заглушка на месте кадра');
+    assert.match(html, /class="banner"[^>]*>.*Новинка/s, 'баннер показан');
+  });
+});
+
+test('снятый с публикации сериал остаётся в баннере с пометкой (EC-H3)', async () => {
+  await withApp(stubData({
+    banners: async () => [
+      {
+        seriesSlug: 's1', title: 'Сериал', reason: 'new', yearRange: '2026', imdb: '9,1',
+        backdropWidth: 1280, withdrawn: true,
+      },
+    ],
+  }), async (get) => {
+    const html = await (await get('/ru/')).text();
+    assert.match(html, /Снят с публикации/, 'пометка видна');
+    assert.ok(!/banner__image/.test(html), 'кадр снятого сериала не показывается');
+  });
+});
+
 test('подборка из одного сериала читается как «1 сериал» (R-I18N-03)', async () => {
   // Подпись ссылки — единственный текст подборки для скринридера, и форма
   // числительного в ней видна вслух: «Подборка «Одна», 1 сериалов» — ошибка,

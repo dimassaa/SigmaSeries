@@ -533,6 +533,9 @@ a:hover { color: var(--accent-hover); }
   display: grid;
   align-content: end;
   gap: var(--space-1);
+  /* Кадр 16:9. Без этого высоты картинки и заглушки разъезжаются, и
+     страница прыгает при загрузке кадра. */
+  aspect-ratio: 16 / 9;
   min-height: 220px;
   padding: var(--space-5);
   border-radius: var(--radius-md);
@@ -541,6 +544,26 @@ a:hover { color: var(--accent-hover); }
   color: var(--text-primary);
   background: var(--surface-raised);
   border: 1px solid var(--border-subtle);
+}
+
+/* Заглушка вместо кадра: место не пустует (F-06-01 §5, EC-H2). */
+.banner__placeholder {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, var(--surface-sunken), var(--surface-raised));
+}
+
+/* Пометка «снят с публикации»: баннер остаётся до ближайшей смены суток
+   (EC-H3). */
+.banner__notice {
+  position: absolute;
+  inset-block-start: var(--space-4);
+  inset-inline-start: var(--space-4);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-sm);
+  background: var(--surface-overlay);
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
 }
 
 /* Подложка под текстом. Без неё контраст к фотографии не гарантирован
@@ -706,10 +729,11 @@ a:hover { color: var(--accent-hover); }
 
 @media (min-width: 1024px) {
   .posters { grid-template-columns: repeat(4, 1fr); }
+  /* Десктоп: три баннера в ряд (F-06-01 §19). */
+  .banners { grid-template-columns: repeat(3, 1fr); }
+  .banners > :first-child { grid-column: auto; min-height: 260px; }
 }
 
 @media (min-width: 1440px) {
   .posters { grid-template-columns: repeat(6, 1fr); }
-  .banners { grid-template-columns: repeat(3, 1fr); }
-  .banners > :first-child { grid-column: auto; min-height: 260px; }
 }
