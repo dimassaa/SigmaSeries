@@ -325,6 +325,49 @@ test('формула рейтинга: R = 8,0, v = 10, C = 7,0, m = 10 → 7,5 
   assert.equal(bars, summary.votes, 'сумма гистограммы равна числу голосов (F-04-03 §9)');
 });
 
+test('проход повторяет запрос после взаимоблокировки (40P01)', { skip }, async () => {
+  // Массовая правка априоров натыкается на параллельную запись, и PostgreSQL
+  // выбирает жертвой одну из транзакций. Повтор — обычная практика для таких
+  // обновлений: кто повторил, тот и прав.
+  let attempts = 0;
+  const fakePool = {
+    query: async (text) => {
+      if (text.startsWith('SELECT count(*)::int AS votes')) {
+        return { rows: [{ votes: 2, sum: 14 }] };
+      }
+      attempts += 1;
+      if (attempts === 1) {
+        const error = new Error('обнаружена взаимоблокировка');
+        error.code = '40P01';
+        throw error;
+      }
+      return { rows: [] };
+    },
+  };
+
+  const result = await pgRatings(fakePool).refreshSiteAverage(new Date());
+  assert.equal(attempts, 2, 'запрос повторён после взаимоблокировки');
+  assert.equal(result.votes, 2);
+  assert.equal(result.average, 7);
+});
+
+test('проход не повторяет чужую ошибку', { skip }, async () => {
+  let attempts = 0;
+  const fakePool = {
+    query: async (text) => {
+      if (text.startsWith('SELECT count(*)::int AS votes')) {
+        return { rows: [{ votes: 0, sum: 0 }] };
+      }
+      attempts += 1;
+      const error = new Error('нет прав');
+      error.code = '42501';
+      throw error;
+    },
+  };
+  await assert.rejects(() => pgRatings(fakePool).refreshSiteAverage(new Date()), /нет прав/);
+  assert.equal(attempts, 1, 'чужая ошибка не повторяется');
+});
+
 test('среднее по сайту — по учитываемым сериальным голосам, в априоре каждой строки (F-04-03 §7–§8)', { skip }, async () => {
   const first = await seriesWith();
   const second = await seriesWith();

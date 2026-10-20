@@ -97,6 +97,28 @@ function episodeSummaryOf(row) {
  *
  * @param {pg.Pool} pool
  */
+/**
+ * Повтор запроса после взаимоблокировки.
+ *
+ * PostgreSQL выбирает жертвой одну из двух встречных транзакций; тот, кто
+ * повторит, оказывается прав. Ждать недолго: при разборе блокировок жертва
+ * освобождает строки сразу.
+ *
+ * @param {Function} run запрос
+ * @param {number} [attempts] сколько раз пробовать
+ * @returns {Promise<*>}
+ */
+export async function withDeadlockRetry(run, attempts = 3) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await run();
+    } catch (error) {
+      if (error?.code !== '40P01' || attempt >= attempts) throw error;
+      await new Promise((resolve) => setTimeout(resolve, 20 * attempt));
+    }
+  }
+}
+
 export function pgRatings(pool) {
   return {
     /**
@@ -578,10 +600,14 @@ export function pgRatings(pool) {
       const sum = Number(rows[0].sum);
       const average = votes ? sum / votes : RATING.priorMeanDefault;
 
-      await pool.query(
+      // Проход переписывает априор у всех сериалов сразу, а параллельная
+      // запись может держать одну из этих строк: PostgreScript в такой встрече
+      // выбирает жертвой одну из транзакций, и проход падает с 40P01. Повтор
+      // через мгновение — обычная практика для массовых обновлений.
+      await withDeadlockRetry(() => pool.query(
         'UPDATE e_series_rating_stat SET prior_mean = $1, recalculated_at = $2',
         [average, at],
-      );
+      ));
 
       return { votes, average, defaulted: votes === 0 };
     },
