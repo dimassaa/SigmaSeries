@@ -7,7 +7,7 @@
 
 import express from 'express';
 
-import { layout } from '../view/layout.js';
+import { layout, pageTitle } from '../view/layout.js';
 import { notFound } from './home.js';
 import { seasonView, episodeView } from '../view/season.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
@@ -56,10 +56,10 @@ export function createSeasonRoutes({
         account: req.account,
         locale,
         path,
-        title: t(locale, 'season.title', {
+        title: pageTitle(locale, t(locale, 'season.title', {
           series: found.series.title,
           season: seasonNumber,
-        }),
+        })),
         description: t(locale, 'season.description', {
           series: found.series.title,
           season: seasonNumber,
@@ -111,9 +111,9 @@ export function createSeasonRoutes({
         account: req.account,
         locale,
         path,
-        title: found.episode.title
+        title: pageTitle(locale, found.episode.title
           ? t(locale, 'episode.title', { title: found.episode.title, series: found.series.title })
-          : t(locale, 'episode.titleNumber', { number: episodeNumber, series: found.series.title }),
+          : t(locale, 'episode.titleNumber', { number: episodeNumber, series: found.series.title })),
         description: found.episode.description.slice(0, 160),
         // H-35: страница серии индексируется только с описанием и датой не
         // позже сегодняшней. Тонкие страницы — это тысячи почти пустых адресов.

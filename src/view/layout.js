@@ -9,6 +9,23 @@ import { t, LOCALES, LOCALE_NAMES, DEFAULT_LOCALE } from '../i18n/strings.js';
 import { SEARCH_SETTINGS } from '../config/settings.js';
 
 /**
+ * `<title>` контентной страницы по таблице шаблонов (SEO §2).
+ *
+ * Служебные страницы собирают суффикс сами и через «—» — их стиль сложился
+ * на регистрации и в настройках; у индексируемых контентных страниц суффикс
+ * ровно из таблицы: «… · {Бренд}». Единая точка сборки нужна затем, что
+ * бренд — одно слово для всего сайта, и разъехаться он может только через
+ * независимые конкатенации в маршрутах.
+ *
+ * @param {string} locale
+ * @param {string} middle середина заголовка из таблицы шаблонов
+ * @returns {string}
+ */
+export function pageTitle(locale, middle) {
+  return `${middle} · ${t(locale, 'app.title')}`;
+}
+
+/**
  * Собирает полный документ.
  *
  * @param {object} page

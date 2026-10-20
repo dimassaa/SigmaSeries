@@ -6,7 +6,7 @@
 
 import express from 'express';
 
-import { layout } from '../view/layout.js';
+import { layout, pageTitle } from '../view/layout.js';
 import { panelFor } from './panel.js';
 import { catalogueView, href } from '../view/catalogue.js';
 import { t, isLocale } from '../i18n/strings.js';
@@ -53,7 +53,7 @@ export function createCatalogueRoutes({ catalogue, sessionMw = null, panel = nul
         account: req.account,
         locale,
         path: '/series',
-        title: t(locale, 'catalog.title'),
+        title: pageTitle(locale, t(locale, 'catalog.title')),
         description: t(locale, 'catalog.description'),
         noindex,
         panel: await panelFor({ panel, locale, req }),

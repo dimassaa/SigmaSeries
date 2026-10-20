@@ -272,8 +272,10 @@ test('страница открывается: сводка, вкладки с �
     run: async ({ htmlGet }) => {
       const html = await htmlGet(`/ru/series/${series.slug}/reviews`);
 
-      // Заголовок по шаблону (`SEO` §2); умолчания индексируются (M4 §8г).
+      // Заголовок по шаблону (`SEO` §2) и состав страницы.
       assert.match(html, /Отзывы на «Отзыв HTTP»/);
+      assert.match(html, /<title>Отзывы на «Отзыв HTTP» · SigmaSeries<\/title>/,
+        'заголовок — по шаблону SEO §2, с брендом');
       assert.ok(!html.includes('noindex'), 'первая страница с умолчаниями индексируется');
 
       // Сводка (F-04-03) на месте: гистограмма по трём голосам.

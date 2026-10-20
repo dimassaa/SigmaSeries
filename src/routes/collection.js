@@ -7,7 +7,7 @@
 
 import express from 'express';
 
-import { layout } from '../view/layout.js';
+import { layout, pageTitle } from '../view/layout.js';
 import { panelFor } from './panel.js';
 import { collectionView } from '../view/collection.js';
 import { personView } from '../view/person.js';
@@ -37,7 +37,7 @@ export function createCollectionRoutes({ collections, person, sessionMw = null, 
         account: req.account,
         locale,
         path: `/collections/${slug}`,
-        title: found.title,
+        title: pageTitle(locale, found.title),
         description: found.description.slice(0, 160),
         // Описание подборки — текст редакции, перевода на английский у него
         // нет, поэтому английский адрес остаётся открытым, но не индексируется
@@ -69,7 +69,7 @@ export function createCollectionRoutes({ collections, person, sessionMw = null, 
         account: req.account,
         locale,
         path: `/people/${slug}`,
-        title: found.name,
+        title: pageTitle(locale, found.name),
         description: t(locale, 'person.description', { name: found.name }),
         // Человек с одним сериалом в индексе не нужен: странице нечего
         // предложить, кроме имени, которое и так видно в выдаче сериала

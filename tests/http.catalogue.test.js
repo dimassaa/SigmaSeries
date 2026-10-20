@@ -75,6 +75,8 @@ test('каталог открывается и отдаёт карточки', {
 test('канонический адрес не меняется от фильтров', { skip }, async () => {
   const body = await (await get('/ru/series?genre=drama&sort=rating&page=2')).text();
   assert.match(body, /<link rel="canonical" href="\/ru\/series">/);
+  // Заголовок — по шаблону SEO §2: середина страницы и бренд.
+  assert.match(await (await get('/ru/series')).text(), /<title>Каталог сериалов · SigmaSeries<\/title>/);
 });
 
 test('постраничность — настоящие ссылки', { skip }, async () => {

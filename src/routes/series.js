@@ -8,7 +8,7 @@ import crypto from 'node:crypto';
 
 import express from 'express';
 
-import { layout } from '../view/layout.js';
+import { layout, pageTitle } from '../view/layout.js';
 import { notFound } from './home.js';
 import { seriesView, goneView } from '../view/series.js';
 import { reviewListView, topReviews as topReviewsView, reviewsHref } from '../view/reviewList.js';
@@ -145,7 +145,7 @@ export function createSeriesRoutes({
       account: req.account,
       locale,
       path: `/series/${slug}`,
-      title: found.title,
+      title: pageTitle(locale, found.title),
       description: found.description.slice(0, 160),
       noindex: locale === 'en' && !found.descriptionRu,
       jsonLd: seriesJsonLd({ locale, series: found, rating }),
@@ -269,7 +269,7 @@ export function createSeriesRoutes({
           account: req.account,
           locale,
           path: `/series/${slug}/reviews`,
-          title: t(locale, 'review.list.title', { title: found.title }),
+          title: pageTitle(locale, t(locale, 'review.list.title', { title: found.title })),
           description: found.description.slice(0, 160),
           noindex,
           body: reviewListView({
