@@ -108,6 +108,39 @@ export function pgModerationDecisions(pool) {
   }
 
   /**
+   * Материал для разбора: текст, находки, жалобы и история автора.
+   *
+   * @param {{materialId: number}} input
+   * @returns {Promise<object|null>}
+   */
+  async function one({ materialId }) {
+    const { rows: [material] } = await pool.query(
+      `SELECT m.id, m.author_id, m.kind, m.body, m.state, m.created_at, m.submitted_at,
+              m.matches, m.series_id, u.nickname,
+              (SELECT count(*)::int FROM e_report r WHERE r.material_id = m.id) AS complaints
+         FROM e_material m
+         JOIN e_user u ON u.id = m.author_id
+        WHERE m.id = $1`,
+      [materialId],
+    );
+    if (!material) return null;
+    return {
+      id: Number(material.id),
+      authorId: Number(material.author_id),
+      authorNickname: material.nickname,
+      kind: material.kind,
+      body: material.body,
+      state: material.state,
+      seriesId: material.series_id === null ? null : Number(material.series_id),
+      createdAt: material.created_at,
+      submittedAt: material.submitted_at,
+      matches: Array.isArray(material.matches) ? material.matches : [],
+      complaints: Number(material.complaints),
+      history: await authorHistory(material.author_id),
+    };
+  }
+
+  /**
    * История решений по материалам автора — редактору о его материалах
    * (F-05-04 §4: «история автора за последние решения»).
    *
@@ -131,5 +164,5 @@ export function pgModerationDecisions(pool) {
     }));
   }
 
-  return { decide, authorHistory };
+  return { decide, one, authorHistory };
 }

@@ -77,6 +77,8 @@ export function createApp({
   reviews = null,
   reviewList = null,
   decisions = null,
+  moderationClusters = null,
+  moderationBudget = null,
   votes = null,
   helpfulLimiter = null,
   reports = null,
@@ -169,7 +171,9 @@ export function createApp({
   // Переключатель темы в шапке: выбор уходит в профиль (F-01-06 §8).
   if (auth) app.use(createThemeRoutes({ auth, sessionMw }));
   // Решения редактора по материалам (F-05-04): служебный POST, экран — S-50.
-  if (decisions) app.use(createModerationRoutes({ decisions, audit, sessionMw }));
+  if (decisions) app.use(createModerationRoutes({
+    decisions, clustersService: moderationClusters, budget: moderationBudget, audit, sessionMw,
+  }));
   if (anomalies && audit) app.use(createAdminRoutes({ anomalies, audit, sessionMw }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.

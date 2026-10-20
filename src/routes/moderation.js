@@ -7,10 +7,21 @@ import express from 'express';
 
 import { isLocale, t } from '../i18n/strings.js';
 import { csrfValid } from '../services/auth/session.js';
-import { buildEntry } from '../services/audit/log.js';
 import { DECISIONS } from '../services/moderation/decision.js';
+import { moderationView } from '../view/moderation.js';
+import { layout, pageTitle } from '../view/layout.js';
+import { csrfToken } from '../services/auth/session.js';
+import { safeReturnTo } from '../services/auth/login.js';
+import { MODERATION } from '../config/settings.js';
+import { STYLE_GROUPS } from '../config/styles.js';
+
+/** Таблицы стилей экрана: общая плюс его собственная. */
+const STYLES = STYLE_GROUPS.map((group) => group.name).filter((name) => name === 'base' || name === 'moderation');
 
 const BASE = '/mod';
+
+/** Ответ отправляется разобранной строкой: `send()` объекта ушёл бы в JSON. */
+const rawHtml = (page) => page.__raw;
 
 /**
  * Маршруты разбора материалов.
@@ -21,7 +32,9 @@ const BASE = '/mod';
  * @param {object|null} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
-export function createModerationRoutes({ decisions, audit = null, sessionMw = null }) {
+export function createModerationRoutes({
+  decisions, clustersService = null, budget = null, audit = null, sessionMw = null,
+}) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
 
@@ -31,6 +44,52 @@ export function createModerationRoutes({ decisions, audit = null, sessionMw = nu
     if (!roles.includes('editor') && !roles.includes('admin')) return next('router');
     return next();
   };
+
+  router.get(`/:locale${BASE}`, editorOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+
+    try {
+      const [queue, clusters, mode] = await Promise.all([
+        clustersService.ordered({ limit: 100 }),
+        clustersService.groups({
+          windowHours: MODERATION.clusterWindowH,
+          minSize: MODERATION.clusterMinSize,
+        }),
+        budget.cautiousState().then(async (state) => ({
+          ...state,
+          ...(await budget.queuePressure()),
+        })),
+      ]);
+
+      // Разбираемый материал выбирается адресом: одна карточка за раз
+      // (DEC-012), и разбор можно переслать.
+      const wanted = Number(req.query.material);
+      const material = Number.isInteger(wanted) && wanted > 0
+        ? await decisions.one({ materialId: wanted })
+        : null;
+
+      return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
+        locale,
+        path: BASE,
+        title: pageTitle(locale, t(locale, 'mod.title')),
+        description: t(locale, 'mod.description'),
+        noindex: true,
+        styles: STYLES,
+        body: moderationView({
+          locale,
+          queue,
+          clusters,
+          material,
+          csrf: csrfToken(req.session),
+          mode,
+        }),
+      })));
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   router.post(`/:locale${BASE}/:id`, editorOnly, async (req, res, next) => {
     const { locale } = req.params;
@@ -51,14 +110,14 @@ export function createModerationRoutes({ decisions, audit = null, sessionMw = nu
     try {
       if (!csrfValid(req.session, body.csrf)) {
         if (audit) {
-          await audit.write(buildEntry({
+          await audit.write({
             actorId: req.session.user.id,
             action: 'material.decide',
             objectType: 'material',
             objectId: id,
             result: 'denied',
             reason: 'csrf-missing',
-          }));
+          });
         }
         return res.status(403).type('text/plain; charset=utf-8')
           .send(t(locale, 'mod.error.csrf'));
@@ -88,30 +147,35 @@ export function createModerationRoutes({ decisions, audit = null, sessionMw = nu
       // Решение и добавление слова в белый список — две записи в аудите
       // (F-05-04 §18: «оба события в аудите»).
       if (audit) {
-        await audit.write(buildEntry({
+        await audit.write({
           actorId: req.session.user.id,
           action: 'material.decide',
           objectType: 'material',
           objectId: id,
-          result: DECISIONS[decision] ?? decision,
-          reason,
-        }));
+          // В журнале результат — «ok»/«denied»/«error», а само решение
+          // едет в причине: журнал перечисляет допустимые результаты, и
+          // «approved» в них не значится.
+          result: 'ok',
+          reason: `decision=${DECISIONS[decision] ?? decision}; ${reason}`,
+        });
         if (whitelist && matchedWord) {
-          await audit.write(buildEntry({
+          await audit.write({
             actorId: req.session.user.id,
             action: 'dictionary.allow_word',
             objectType: 'dictionary_word',
             objectId: matchedWord,
-            result: 'added',
-            reason,
-          }));
+            result: 'ok',
+            reason: `word=${matchedWord}; ${reason}`,
+          });
         }
       }
 
       if (result.skipped) {
         return res.status(204).end();
       }
-      return res.status(303).set('Location', `/${locale}/mod`).end();
+      // Возврат — на разбираемый материал, а без адреса — в очередь.
+      const back = body.back ? safeReturnTo(body.back) : `/${locale}${BASE}`;
+      return res.status(303).set('Location', back).end();
     } catch (error) {
       return next(error);
     }

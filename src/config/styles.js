@@ -38,6 +38,7 @@ export const STYLE_GROUPS = [
       '56-review-page.css',
     ],
   },
+  { name: 'moderation', files: ['57-moderation.css'] },
 ];
 
 /** Имена групп в порядке следования: `base` — всегда первая. */

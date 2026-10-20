@@ -11,7 +11,6 @@ import express from 'express';
 
 import { isLocale, t } from '../i18n/strings.js';
 import { csrfValid } from '../services/auth/session.js';
-import { buildEntry } from '../services/audit/log.js';
 
 const BASE = '/admin/anomaly';
 // Форма говорит человеческим словом «accept/discard», сервис — состояниями
@@ -58,14 +57,14 @@ export function createAdminRoutes({ anomalies, sessionMw, audit }) {
       }
 
       if (!csrfValid(req.session, req.body?.csrf)) {
-        await audit.write(buildEntry({
+        await audit.write({
           actorId: req.session.user.id,
           action: 'rating_anomaly.resolve',
           objectType: 'rating_anomaly',
           objectId: id,
           result: 'denied',
           reason: 'csrf-missing',
-        }));
+        });
         return res.status(403).type('text/plain; charset=utf-8')
           .send(t(locale, 'anomaly.error.csrf'));
       }
@@ -75,7 +74,7 @@ export function createAdminRoutes({ anomalies, sessionMw, audit }) {
       });
 
       if (result.ok) {
-        await audit.write(buildEntry({
+        await audit.write({
           actorId: req.session.user.id,
           action: 'rating_anomaly.resolve',
           objectType: 'rating_anomaly',
@@ -84,19 +83,19 @@ export function createAdminRoutes({ anomalies, sessionMw, audit }) {
           reason: `decision=${result.decision}; discarded=${result.discarded}`,
           before: { state: 'open' },
           after: { state: result.decision },
-        }));
+        });
         // Экран разбора появится в M9; сейчас разумный выход — на главную.
         return res.redirect(303, `/${locale}`);
       }
 
-      await audit.write(buildEntry({
+      await audit.write({
         actorId: req.session.user.id,
         action: 'rating_anomaly.resolve',
         objectType: 'rating_anomaly',
         objectId: id,
         result: 'denied',
         reason: result.reason ?? 'not-open',
-      }));
+      });
       return res.status(result.reason === 'missing' ? 404 : 409)
         .type('text/plain; charset=utf-8')
         .send(t(locale, `anomaly.error.${result.reason ?? 'not-open'}`));

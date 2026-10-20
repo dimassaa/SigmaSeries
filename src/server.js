@@ -29,6 +29,7 @@ import { pgRatings } from './services/rating/store.js';
 import { pgAnomalySensor } from './services/rating/anomalies.js';
 import { pgModerationBudget } from './services/moderation/budget.js';
 import { pgModerationDecisions } from './services/moderation/decision.js';
+import { pgModerationClusters } from './services/moderation/cluster.js';
 import { pgAuditLog } from './services/audit/log.js';
 import { pgReviews } from './services/reviews/store.js';
 import { pgReviewList } from './services/reviews/list.js';
@@ -117,6 +118,9 @@ const mailQueue = createMailQueue({
 
 // Хранилище одно на приложение: два экземпляра делили бы пул, но выглядели бы
 // как две разные копии учётных записей — и расхождение было бы не видно.
+// Бюджет модерации нужен и сборке приложения (режим читается при отправке),
+// и работнику (он режим пересчитывает) — значит, создаётся раньше обоих.
+const moderationBudget = pgModerationBudget(pool);
 const auth = pgAuthStore(pool);
 
 // Лимит читается один раз при старте: см. services/search/limits.js.
@@ -213,6 +217,8 @@ const app = createApp({
   // Список отзывов (F-04-05): выборка страницы и «лучшие» для S-06.
   reviewList: pgReviewList(pool),
   decisions: pgModerationDecisions(pool),
+  moderationClusters: pgModerationClusters(pool),
+  moderationBudget: moderationBudget,
   // Голоса «Полезно» (F-04-06). Потолок частоты — по пользователю: у голоса
   // есть владелец, сети и устройство не ограничиваются.
   votes: pgReviewVotes(pool),
@@ -289,7 +295,6 @@ const server = app.listen(PORT, HOST, async () => {
 // «Осторожный» режим модерации (F-05-03): доля помеченных пересчитывается
 // по расписанию. Решение о режиме принимает система, а не сама отправка
 // материала: иначе решение зависело бы от того, кто отправил последним.
-const moderationBudget = pgModerationBudget(pool);
 const moderationWorker = setInterval(() => {
   moderationBudget.refresh()
     .then((state) => {

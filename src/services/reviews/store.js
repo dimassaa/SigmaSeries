@@ -207,16 +207,26 @@ export function pgReviews(pool, { budget = null } = {}) {
         : result.decision === 'queue' ? 'flagged' : 'checking';
       const chosen = lang === 'ru' || lang === 'en' ? lang : detectLang(text);
 
+      // Найденные слова: редактор видит, что сработало (R-MOD-12), автор — нет.
+      const matches = JSON.stringify((result.matched ?? []).map((item) => ({
+        word: item.word,
+        list: item.list ?? null,
+        category: item.category ?? null,
+        start: item.start ?? null,
+        end: item.end ?? null,
+      })));
+
       if (existing) {
         const snapshot = VISIBLE.has(existing.state);
         await pool.query(
           `UPDATE e_material
               SET body = $3, spoiler = $4, lang = $5, state = $6,
                   version = version + 1, submitted_at = $7,
+                  matches = $9,
                   visible_body = CASE WHEN $8 THEN body ELSE visible_body END,
                   visible_spoiler = CASE WHEN $8 THEN spoiler ELSE visible_spoiler END
             WHERE id = $1 AND author_id = $2`,
-          [existing.id, userId, text, spoiler, chosen, state, at, snapshot],
+          [existing.id, userId, text, spoiler, chosen, state, at, snapshot, matches],
         );
         // Новая версия прошла проверку и снова видна — снимок больше не нужен.
         if (state === 'published') {
@@ -239,10 +249,10 @@ export function pgReviews(pool, { budget = null } = {}) {
       if (limited) return limited;
 
       const { rows } = await pool.query(
-        `INSERT INTO e_material (author_id, kind, series_id, body, spoiler, lang, state, submitted_at)
-         VALUES ($1, 'review', $2, $3, $4, $5, $6, $7)
+        `INSERT INTO e_material (author_id, kind, series_id, body, spoiler, lang, state, submitted_at, matches)
+         VALUES ($1, 'review', $2, $3, $4, $5, $6, $7, $8)
          RETURNING id, version`,
-        [userId, seriesId, text, spoiler, chosen, state, at],
+        [userId, seriesId, text, spoiler, chosen, state, at, matches],
       );
       return { ok: true, state, matched: result.matched, version: Number(rows[0].version) };
     },

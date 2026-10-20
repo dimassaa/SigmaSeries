@@ -14,6 +14,7 @@ import { createSessionMiddleware, createMemorySessionStore } from '../src/servic
 import { hashPassword, makeToken } from '../src/services/auth/password.js';
 import { pgModerationDecisions } from '../src/services/moderation/decision.js';
 import { generateSecret, totpAt } from '../src/services/auth/totp.js';
+import { pgAuditLog } from '../src/services/audit/log.js';
 
 process.env.BLIND_INDEX_SECRET ??= 'test-blind-index-secret';
 process.env.ADDRESS_SECRET ??= 'test-address-secret';
@@ -27,15 +28,10 @@ let pool;
 let decisions;
 let auth;
 const series = [];
-const auditEntries = [];
 
-/** Заглушка журнала: записи собираются в память. */
-const audit = {
-  write: async (entry) => {
-    auditEntries.push(entry);
-    return entry;
-  },
-};
+// Настоящий писатель журнала: заглушка приняла бы запись, собранную дважды,
+// и ошибка в маршруте осталась бы незамеченной. Создаётся после пула.
+let audit = null;
 
 async function staff({ roles = ['editor'] } = {}) {
   const { hash } = makeToken();
@@ -149,6 +145,7 @@ test.before(async () => {
   pool = createPool();
   decisions = pgModerationDecisions(pool);
   auth = pgAuthStore(pool);
+  audit = pgAuditLog(pool);
 });
 
 test.after(async () => {
@@ -159,6 +156,7 @@ test.after(async () => {
     SELECT id::text FROM e_material WHERE series_id IN (${ids}))`, [series]);
   await pool.query(`DELETE FROM e_material WHERE series_id IN (${ids})`, [series]);
   await pool.query('DELETE FROM e_series WHERE id = ANY($1::bigint[])', [series]);
+  await pool.query("DELETE FROM e_audit_log WHERE action IN ('material.decide', 'dictionary.allow_word')");
   await pool.query("DELETE FROM e_role_assignment WHERE note = 'тест'");
   await pool.query("DELETE FROM e_two_factor WHERE user_id IN (SELECT id FROM e_user WHERE nickname LIKE 'mod-%')");
   await pool.end();
@@ -169,7 +167,6 @@ test('редактор решает: 303 и запись в аудите (F-05-0
   const author = await staff({ roles: [] });
   const editor = await staff({ roles: ['editor'] });
   const id = await material({ authorId: author.id, seriesId });
-  auditEntries.length = 0;
 
   await withServer({
     user: editor,
@@ -188,10 +185,15 @@ test('редактор решает: 303 и запись в аудите (F-05-0
     },
   });
 
-  const entry = auditEntries.find((one) => one.action === 'material.decide');
+  const { rows: [entry] } = await pool.query(
+    `SELECT object_id, reason, result FROM e_audit_log
+      WHERE action = 'material.decide' AND object_id = $1 ORDER BY id DESC LIMIT 1`,
+    [id],
+  );
   assert.ok(entry, 'решение попало в аудит');
-  assert.equal(entry.object_id, id);
-  assert.equal(entry.reason, 'слово употребляется нормально');
+  assert.equal(Number(entry.object_id), id);
+  assert.match(entry.reason, /слово употребляется нормально/, 'причина сохранена в журнале');
+  assert.match(entry.reason, /decision=approved/, 'решение записано в журнал');
 });
 
 test('зритель решать не может (EC-R7)', { skip }, async () => {
@@ -199,7 +201,6 @@ test('зритель решать не может (EC-R7)', { skip }, async () =
   const author = await staff({ roles: [] });
   const reader = await staff({ roles: [] });
   const id = await material({ authorId: author.id, seriesId });
-  auditEntries.length = 0;
 
   await withServer({
     user: reader,
@@ -214,7 +215,12 @@ test('зритель решать не может (EC-R7)', { skip }, async () =
 
   const { rows: [row] } = await pool.query('SELECT state FROM e_material WHERE id = $1', [id]);
   assert.equal(row.state, 'flagged', 'материал остался в очереди');
-  assert.equal(auditEntries.length, 0, 'попытка зрителя не попала в аудит решений');
+  const { rows: denied } = await pool.query(
+    `SELECT count(*)::int AS n FROM e_audit_log
+      WHERE action = 'material.decide' AND object_id = $1`,
+    [id],
+  );
+  assert.equal(denied[0].n, 0, 'попытка зрителя не попала в аудит решений');
 });
 
 test('чужой токен не проходит, и попытка попадает в аудит (R-SEC-23)', { skip }, async () => {
@@ -222,7 +228,6 @@ test('чужой токен не проходит, и попытка попад�
   const author = await staff({ roles: [] });
   const editor = await staff({ roles: ['editor'] });
   const id = await material({ authorId: author.id, seriesId });
-  auditEntries.length = 0;
 
   await withServer({
     user: editor,
@@ -236,7 +241,10 @@ test('чужой токен не проходит, и попытка попад�
 
   const { rows: [row] } = await pool.query('SELECT state FROM e_material WHERE id = $1', [id]);
   assert.equal(row.state, 'flagged', 'материал остался в очереди');
-  const denied = auditEntries.find((one) => one.result === 'denied');
+  const { rows: [denied] } = await pool.query(
+    `SELECT reason FROM e_audit_log
+      WHERE action = 'material.decide' AND result = 'denied' ORDER BY id DESC LIMIT 1`,
+  );
   assert.ok(denied, 'попытка записана в аудит');
   assert.equal(denied.reason, 'csrf-missing');
 });

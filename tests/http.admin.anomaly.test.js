@@ -199,9 +199,9 @@ test('без CSRF решение не принимается и попадает
       assert.equal(calls.length, 0);
       const denied = auditEntries.find((e) => e.result === 'denied');
       assert.ok(denied, 'отказ записан в журнал');
-      assert.equal(denied.actor_id, 20);
-      assert.equal(denied.object_type, 'rating_anomaly');
-      assert.equal(denied.object_id, 5);
+      assert.equal(denied.actorId, 20);
+      assert.equal(denied.objectType, 'rating_anomaly');
+      assert.equal(denied.objectId, 5);
     },
   });
 });
@@ -216,7 +216,7 @@ test('уже решённая аномалия отвечает 409', async () =
       assert.equal(res.status, 409);
       assert.equal(calls.length, 1);
       assert.equal(auditEntries.at(-1).result, 'denied');
-      assert.equal(auditEntries.at(-1).object_id, 42);
+      assert.equal(auditEntries.at(-1).objectId, 42);
     },
   });
 });

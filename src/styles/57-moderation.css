@@ -1,0 +1,102 @@
+/* --- S-50 — очередь модерации (F-05-04) ---
+ *
+ * Раскладка: слева очередь (одна строка на материал, кластеры слипаются),
+ * справа — разбираемый материал крупно. На телефоне очередь становится
+ * списком сверху, материал — под ним.
+ *
+ * Цвета, отступы и радиусы — только токены: тема должна переключаться
+ * (PRINCIPLES §1).
+ */
+
+.mod__title { margin-block-end: var(--space-5); }
+
+/* Предупреждение о росте очереди — фокальная точка экрана: оно требует
+   решения, а не внимания. */
+.mod__warning {
+  padding: var(--space-3) var(--space-4);
+  margin-block-end: var(--space-5);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  color: var(--text-primary);
+}
+
+.mod__warning-cautious { font-weight: 600; }
+
+.mod__layout { display: grid; gap: var(--space-5); grid-template-columns: 1fr; }
+
+@media (min-width: 900px) {
+  .mod__layout { grid-template-columns: minmax(240px, 320px) minmax(0, 1fr); align-items: start; }
+}
+
+.mod__queue { display: flex; flex-direction: column; gap: var(--space-2); }
+
+.mod__item {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+}
+
+.mod__item--current { border-color: var(--accent); }
+
+.mod__item-link {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-3);
+  align-items: baseline;
+  padding: var(--space-3);
+  min-block-size: 44px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.mod__item-title { font-weight: 500; }
+
+.mod__item-cluster,
+.mod__item-complaints,
+.mod__item-waiting { color: var(--text-secondary); font-size: var(--text-xs); }
+
+.mod__item-complaints { color: var(--danger); }
+
+.mod__empty { color: var(--text-secondary); }
+
+.mod__material-title { margin-block-end: var(--space-3); }
+
+.mod__author { color: var(--text-secondary); margin-block-end: var(--space-4); }
+
+.mod__history { margin-inline-start: var(--space-3); }
+
+/* Найденные слова: редактору — с категорией, автору эти строки не видны. */
+.mod__matches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-end: var(--space-4);
+}
+
+.mod__match {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+}
+
+.mod__match-category { color: var(--text-secondary); }
+
+.mod__body { max-width: 70ch; }
+.mod__body p { margin: 0 0 var(--space-3); }
+.mod__body p:last-child { margin: 0; }
+
+.mod__decisions { margin-block: var(--space-4); display: flex; flex-direction: column; gap: var(--space-2); }
+
+.mod__decision { color: var(--text-secondary); font-size: var(--text-sm); }
+.mod__decision-reason { color: var(--text-primary); }
+
+.mod__form { margin-block-start: var(--space-5); display: flex; flex-direction: column; gap: var(--space-3); }
+
+.mod__whitelist { display: flex; gap: var(--space-2); align-items: center; }
+
+.mod__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
