@@ -11,7 +11,7 @@
 // Правая панель «Предстоящие» здесь отсутствует (H-30), и вкладки не
 // превращаются в карусель: список читают целиком, по нему ставят статус.
 
-import { html, when } from './render.js';
+import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { statusControl } from './status.js';
 import { subscribeBell } from './subscribe.js';
@@ -77,7 +77,7 @@ function tabs({ locale, library }) {
   ${TABS.map((tab) => html`
   <a class="library__tab${library.status === tab || (!library.status && tab === 'all') ? ' library__tab--on' : ''}"
      href="${tabHref(locale, library, tab)}"
-     ${library.status === tab || (!library.status && tab === 'all') ? 'aria-current="true"' : ''}>
+     ${library.status === tab || (!library.status && tab === 'all') ? raw('aria-current="true"') : ''}>
     ${t(locale, `library.tab.${tab}`)} <span class="library__tab-count">${count(tab)}</span>
   </a>`)}
 </nav>`;

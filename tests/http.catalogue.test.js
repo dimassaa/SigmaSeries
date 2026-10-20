@@ -84,6 +84,12 @@ test('постраничность — настоящие ссылки', { skip 
   assert.match(body, /href="\/ru\/series"/, 'есть ссылка на первую страницу без фильтров');
   const links = [...body.matchAll(/href="(\/ru\/series\?[^"]*)"/g)].map((match) => match[1]);
   assert.ok(links.length >= 2, `ссылок постраничности мало: ${links.join(', ')}`);
+  // Текущая страница названа значением атрибута, а не экранированной строкой
+  // — иначе слух слышит «"page"» вместе с кавычками (#168).
+  assert.match(body, /class="pagination__item"[^>]*aria-current="page"/,
+    'текущая страница названа для скринридера');
+  assert.match(body, /class="sorts__item"[^>]*aria-current="true"/,
+    'активная сортировка названа для скринридера');
 });
 
 test('страница за концом списка перенаправляется на последнюю', { skip }, async () => {

@@ -6,7 +6,7 @@
 // Скрипт может улучшить (переключать без перезагрузки), но не является
 // условием работы страницы.
 
-import { html, when } from './render.js';
+import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 
 /**
@@ -194,7 +194,7 @@ export function catalogueView({ locale, page, bounds, filters, sorts, states }) 
       <nav class="sorts" aria-label="${t(locale, 'catalog.sort.label')}">
         ${sorts.map((key) => html`
         <a class="sorts__item" href="${href(locale, { ...filters, sort: key, page: 1 })}"
-           ${when(page.sort === key, () => 'aria-current="true"')}>${t(locale, `catalog.sort.${key}`)}</a>`)}
+           ${when(page.sort === key, () => raw('aria-current="true"'))}>${t(locale, `catalog.sort.${key}`)}</a>`)}
       </nav>
     </div>
 
@@ -263,7 +263,7 @@ function pagination({ locale, page, filters }) {
   ${when(from > 1, () => html`<span class="pagination__gap" aria-hidden="true">…</span>`)}
   ${numbers.map((number) => html`
   <a class="pagination__item" href="${href(locale, { ...filters, page: number })}"
-     ${when(number === current, () => 'aria-current="page"')}>${number}</a>`)}
+     ${when(number === current, () => raw('aria-current="page"'))}>${number}</a>`)}
   ${when(to < last, () => html`<span class="pagination__gap" aria-hidden="true">…</span>`)}
 
   ${when(current < last, () => html`

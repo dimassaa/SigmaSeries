@@ -250,7 +250,10 @@ test('состояние живёт в адресе и открывается с
     run: async ({ get }) => {
       const body = await (await get('/ru/library?status=planned&sort=title&q=Закладка+3')).text();
       assert.equal((body.match(/class="library__item/g) ?? []).length, 1, 'поиск и фильтр сузили список');
-      assert.match(body, /aria-current="true"/, 'активная вкладка помечена для скринридера');
+      // Вкладка, а не переключатель языка из шапки: класс привязывает
+      // утверждение к своей разметке (#168).
+      assert.match(body, /class="library__tab library__tab--on"[^>]*aria-current="true"/,
+        'активная вкладка помечена для скринридера');
     },
   });
 });

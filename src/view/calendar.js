@@ -16,7 +16,7 @@
 // Содержимое целиком в начальном HTML (R-SEO-07): календарь индексируется, а
 // пустая страница, дорисованная скриптом, в индекс не попадает.
 
-import { html, when } from './render.js';
+import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
 import { fullDate, monthTitle, weekdayShort } from './dates.js';
@@ -89,7 +89,7 @@ function toolbar({ locale, state }) {
     ${FILTERS.map((name) => html`
     <a class="calendar__filter-item${state.filter === name ? ' calendar__filter-item--on' : ''}"
        href="${href(locale, { ...state, filter: name })}"
-       ${state.filter === name ? 'aria-current="true"' : ''}>${t(locale, `calendar.filter.${name}`)}</a>`)}
+       ${state.filter === name ? raw('aria-current="true"') : ''}>${t(locale, `calendar.filter.${name}`)}</a>`)}
   </div>
 </div>`;
 }
@@ -117,7 +117,7 @@ function viewSwitch({ locale, state }) {
   ${VIEWS.map((name) => html`
   <button class="calendar__view${state.view === name ? ' calendar__view--on' : ''}" type="submit"
           name="view" value="${name}"
-          ${state.view === name ? 'aria-current="true"' : ''}>${t(locale, `calendar.view.${name}`)}</button>`)}
+          ${state.view === name ? raw('aria-current="true"') : ''}>${t(locale, `calendar.view.${name}`)}</button>`)}
 </form>`;
 }
 
@@ -142,7 +142,7 @@ function monthView({ locale, calendar, state }) {
       ${week.map((cell) => html`
       <td class="calendar__cell${cell.outside ? ' calendar__cell--outside' : ''}${cell.isToday ? ' calendar__cell--today' : ''}">
         <time class="calendar__date" datetime="${cell.iso}"
-              ${cell.isToday ? 'aria-current="date"' : ''}>${cell.day}</time>
+              ${cell.isToday ? raw('aria-current="date"') : ''}>${cell.day}</time>
         ${when(cell.isToday, () => html`<span class="calendar__today">${t(locale, 'calendar.todayShort')}</span>`)}
         ${cellEntries({ locale, date: cell.iso, entries: calendar.days.get(cell.iso) ?? [], state })}
       </td>`)}
