@@ -125,8 +125,12 @@ export function createApp({
   app.use(express.json({ limit: '16kb' }));
 
   app.use(express.static(publicDir, {
-    maxAge: '1y',
-    immutable: true,
+    // Кэш на год и `immutable` годятся файлам, в имя которых входит хэш
+    // содержимого. Здесь имена постоянные (`app.css`, `app.js`), и браузер,
+    // однажды получив файл, не запрашивал бы его никогда: после правки
+    // человек продолжал бы видеть старую версию. Час с последующей
+    // сверкой по ETag — компромисс между трафиком и свежестью.
+    maxAge: '1h',
     setHeaders(res) {
       // Встроенный ранний скрипт темы меняет тему до отрисовки.
       res.set('Content-Security-Policy', "script-src 'self' 'unsafe-inline'");
