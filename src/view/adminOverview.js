@@ -80,6 +80,30 @@ export function adminOverviewView({ locale, data, csrf = null }) {
     </dl>
   </section>
 
+  <section class="admin-overview__links">
+    <h2 class="admin-overview__section-title">${t(locale, 'admin.overview.sections')}</h2>
+    <ul class="admin-overview__list" role="list">
+      <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/catalog">${t(locale, 'admin.overview.link.catalogue')}</a>
+      </li>
+      <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/catalog/incomplete">${t(locale, 'admin.overview.link.incomplete')}</a>
+      </li>
+      <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/users">${t(locale, 'admin.overview.link.users')}</a>
+      </li>
+      <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/audit">${t(locale, 'admin.overview.link.audit')}</a>
+      </li>
+      <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/backups">${t(locale, 'admin.overview.link.backups')}</a>
+      </li>
+      <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/settings">${t(locale, 'admin.overview.link.settings')}</a>
+      </li>
+    </ul>
+  </section>
+
   <section class="admin-overview__backups">
     <h2 class="admin-overview__section-title">${t(locale, 'admin.overview.backups')}</h2>
     ${when(backups.length, () => html`

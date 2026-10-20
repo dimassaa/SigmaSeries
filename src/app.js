@@ -28,6 +28,7 @@ import { createAdminUsersRoutes } from './routes/adminUsers.js';
 import { createAuditRoutes } from './routes/auditLog.js';
 import { createOverviewRoutes } from './routes/adminOverview.js';
 import { createBackupRoutes } from './routes/backups.js';
+import { createStudioRoutes } from './routes/studio.js';
 import { createSystemSettingsRoutes } from './routes/systemSettings.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
@@ -90,6 +91,7 @@ export function createApp({
   adminUsers = null,
   adminOverview = null,
   backups = null,
+  studio = null,
   backupRunner = null,
   backupSchedule = null,
   votes = null,
@@ -191,6 +193,8 @@ export function createApp({
   if (backups) app.use(createBackupRoutes({
     backups, readSchedule: backupSchedule, runBackup: backupRunner, audit, sessionMw,
   }));
+  // Студия (S-73, S-74): каталог сериалов и очередь неполных карточек.
+  if (studio) app.use(createStudioRoutes({ pool, studio, sessionMw }));
   // Системный обзор (S-70): онлайн, очереди, аномалии, копии.
   if (adminOverview) app.use(createOverviewRoutes({ overview: adminOverview, sessionMw }));
   // Журнал аудита (S-81): только чтение, фильтры.
