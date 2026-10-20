@@ -24,7 +24,7 @@ const STYLES = ['base', 'admin'];
  * @param {object|null} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
-export function createStudioCardRoutes({ card, audit = null, sessionMw = null }) {
+export function createStudioCardRoutes({ card, schedule = null, audit = null, sessionMw = null }) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
 
@@ -44,7 +44,11 @@ export function createStudioCardRoutes({ card, audit = null, sessionMw = null })
     try {
       const data = await card.read(id);
       if (!data) return next('route');
-      const [history, genres] = await Promise.all([card.history(id), card.genres()]);
+      const [history, genres, seasons] = await Promise.all([
+        card.history(id),
+        card.genres(),
+        schedule ? schedule.forSeries(id) : Promise.resolve([]),
+      ]);
       return res.status(200).type('html').send(layout({
         account: req.account,
         locale,
@@ -58,6 +62,7 @@ export function createStudioCardRoutes({ card, audit = null, sessionMw = null })
           card: data,
           history,
           genres,
+          schedule: seasons,
           tab: String(req.query.tab ?? 'primary'),
           csrf: csrfToken(req.session),
         }),
@@ -118,6 +123,52 @@ export function createStudioCardRoutes({ card, audit = null, sessionMw = null })
       return next(error);
     }
   });
+
+  // Постановка даты выхода (F-10-05): ручная дата закрывается от импорта.
+  if (schedule) {
+    router.post(`/:locale${BASE}/:id/schedule`, adminOnly, async (req, res, next) => {
+      const { locale } = req.params;
+      if (!isLocale(locale)) return next('route');
+      const id = Number(req.params.id);
+      const body = req.body ?? {};
+      try {
+        if (!csrfValid(req.session, body.csrf)) {
+          return res.status(403).type('text/plain; charset=utf-8')
+            .send(t(locale, 'admin.users.csrf'));
+        }
+        const result = await schedule.setDate({
+          seriesId: id,
+          seasonId: Number(body.season_id),
+          episodeId: body.episode_id === undefined || body.episode_id === ''
+            ? null
+            : Number(body.episode_id),
+          date: body.date,
+          time: body.time || null,
+          state: body.state || 'scheduled',
+          byId: req.session.user.id,
+        });
+        if (!result.ok) {
+          return res.status(400).type('text/plain; charset=utf-8')
+            .send(t(locale, `studio.card.scheduleError.${result.reason}`));
+        }
+        if (audit) {
+          await audit.write({
+            actorId: req.session.user.id,
+            action: 'series.schedule',
+            objectType: 'series',
+            objectId: id,
+            result: 'ok',
+            reason: `episode=${body.episode_id ?? ''}; date=${body.date ?? ''}`,
+          });
+        }
+        return res.status(303)
+          .set('Location', `/${locale}${BASE}/${id}?tab=schedule`)
+          .end();
+      } catch (error) {
+        return next(error);
+      }
+    });
+  }
 
   router.post(`/:locale${BASE}/:id/publish`, adminOnly, async (req, res, next) => {
     const { locale } = req.params;

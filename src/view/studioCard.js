@@ -14,8 +14,30 @@ const TABS = [
   { id: 'texts', title: 'studio.card.tab.texts' },
   { id: 'genres', title: 'studio.card.tab.genres' },
   { id: 'ratings', title: 'studio.card.tab.ratings' },
+  { id: 'schedule', title: 'studio.card.tab.schedule' },
   { id: 'service', title: 'studio.card.tab.service' },
 ];
+
+/**
+ * Дата для поля формы.
+ *
+ * @param {Date|string|null} value
+ * @returns {string}
+ */
+function dayOf(value) {
+  if (!value) return '';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  // Дата выхода — местная: база отдаёт её в поясе сервера, а UTC сдвинул бы
+  // её на день назад.
+  const text = [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+  // 1900-01-01 — это «дата снята», а не настоящая дата выхода.
+  return text.startsWith('1900') ? '' : text;
+}
 
 /**
  * Поле формы с происхождением.
@@ -58,7 +80,9 @@ function field({ locale, card, name, label, type = 'text', value = '', rows = nu
  * @param {string} args.csrf
  * @returns {string}
  */
-export function studioCardView({ locale, card, history = [], genres = [], tab = 'primary', csrf = '' }) {
+export function studioCardView({
+  locale, card, history = [], genres = [], schedule = [], tab = 'primary', csrf = '',
+}) {
   const cardWith = { ...card, csrf };
   return html`
 <div class="studio studio--card">
@@ -129,6 +153,49 @@ export function studioCardView({ locale, card, history = [], genres = [], tab = 
           <dd>${card.tmdbId ?? '—'}</dd>
         </dl>
         <p class="studio-card__note">${t(locale, 'studio.card.ratingsNote')}</p>
+      </section>`)}
+
+      ${when(tab === 'schedule', () => html`
+      <section class="studio-card__section">
+        <h2 class="studio__section-title">${t(locale, 'studio.card.tab.schedule')}</h2>
+        ${when(!schedule || schedule.length === 0, () => html`
+        <p class="empty">${t(locale, 'studio.card.scheduleEmpty')}</p>`)}
+        ${when(schedule && schedule.length > 0, () => html`
+        ${schedule.map((season) => html`
+        <div class="studio-season">
+          <h3 class="studio__subsection-title">${t(locale, 'studio.card.season', { number: season.number })}</h3>
+          <table class="studio__table">
+            <thead>
+              <tr>
+                <th scope="col">${t(locale, 'studio.card.episode')}</th>
+                <th scope="col">${t(locale, 'studio.card.date')}</th>
+                <th scope="col">${t(locale, 'studio.card.state')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${season.episodes.map((episode) => html`
+              <tr class="studio__row">
+                <th scope="row" class="studio__title-cell">
+                  ${t(locale, 'studio.card.episodeNumber', { number: episode.number })}
+                  ${when(episode.locked, () => html`
+                  <span class="studio__origin studio-origin--manual">${t(locale, 'studio.card.locked')}</span>`)}
+                </th>
+                <td>
+                  <form class="studio-inline-form" method="post"
+                        action="/${locale}/admin/catalog/${card.id}/schedule">
+                    <input type="hidden" name="csrf" value="${csrf}">
+                    <input type="hidden" name="season_id" value="${season.id}">
+                    <input type="hidden" name="episode_id" value="${episode.id}">
+                    <input class="field__input" type="date" name="date"
+                      value="${dayOf(episode.date)}">
+                    <button class="button button--quiet" type="submit">${t(locale, 'studio.card.saveDate')}</button>
+                  </form>
+                </td>
+                <td>${episode.state ? t(locale, `studio.release.${episode.state}`) : '—'}</td>
+              </tr>`)}
+            </tbody>
+          </table>
+        </div>`)}`)}
       </section>`)}
 
       ${when(tab === 'service', () => html`

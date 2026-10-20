@@ -771,3 +771,11 @@
   font-size: var(--text-sm);
   color: var(--text-secondary);
 }
+
+/* --- График серий (F-10-05) --- */
+
+.studio-season { display: grid; gap: var(--space-2); margin-block-end: var(--space-4); }
+
+.studio-inline-form { display: flex; gap: var(--space-1); align-items: center; }
+
+.studio-inline-form .field__input { min-inline-size: 150px; }

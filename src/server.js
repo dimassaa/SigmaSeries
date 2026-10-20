@@ -33,6 +33,7 @@ import { pgSystemHealth } from './services/admin/health.js';
 import { pgStudioCatalogue } from './services/studio/catalogue.js';
 import { pgEditorialPicks } from './services/studio/picks.js';
 import { pgStudioCard } from './services/studio/card.js';
+import { pgStudioSchedule } from './services/studio/schedule.js';
 import { pgDiscussions } from './services/discussions/topics.js';
 import { pgStudioCollections } from './services/studio/collections.js';
 import { pgStudioDictionaries } from './services/studio/dictionaries.js';
@@ -308,6 +309,7 @@ const app = createApp({
   studioDictionaries: pgStudioDictionaries(pool),
   studio: pgStudioCatalogue(pool),
   studioCard: pgStudioCard(pool),
+  studioSchedule: pgStudioSchedule(pool),
   picks: pgEditorialPicks(pool),
   adminUsers: pgAdminUsers(pool),
   adminOverview: pgAdminOverview(pool, { backups: pgBackupJobs(pool), health: systemHealth }),
