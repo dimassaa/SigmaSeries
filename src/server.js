@@ -28,6 +28,7 @@ import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
 import { pgAnomalySensor } from './services/rating/anomalies.js';
 import { pgModerationBudget } from './services/moderation/budget.js';
+import { pgModerationDecisions } from './services/moderation/decision.js';
 import { pgAuditLog } from './services/audit/log.js';
 import { pgReviews } from './services/reviews/store.js';
 import { pgReviewList } from './services/reviews/list.js';
@@ -211,6 +212,7 @@ const app = createApp({
   reviews: pgReviews(pool),
   // Список отзывов (F-04-05): выборка страницы и «лучшие» для S-06.
   reviewList: pgReviewList(pool),
+  decisions: pgModerationDecisions(pool),
   // Голоса «Полезно» (F-04-06). Потолок частоты — по пользователю: у голоса
   // есть владелец, сети и устройство не ограничиваются.
   votes: pgReviewVotes(pool),
