@@ -264,12 +264,15 @@ async function notifyAdmins({ pool, anomaly, at, row }) {
       ON CONFLICT (user_id, dedup_key) DO NOTHING`,
     [
       JSON.stringify({
-        anomaly_id: anomaly.id,
-        created_at: toTimestamp(anomaly.created),
-        series_title: row.title_ru,
-        series_slug: row.slug,
-        count_window: row.count_window,
-        extreme_share: share,
+        // Имена параметров — как у остальных уведомлений (camelCase): лента
+        // читает их своими же словами, и snake_case приводил к пустому
+        // названию сериала и «0 новых оценок» в тексте письма.
+        anomalyId: anomaly.id,
+        createdAt: toTimestamp(anomaly.created),
+        seriesTitle: row.title_ru,
+        seriesSlug: row.slug,
+        countWindow: row.count_window,
+        extremeShare: share,
       }),
       `rating-anomaly:${anomaly.id}`,
       toTimestamp(at),

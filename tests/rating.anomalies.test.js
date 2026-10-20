@@ -17,6 +17,7 @@ import { pgRatings } from '../src/services/rating/store.js';
 import { pgAnomalySensor } from '../src/services/rating/anomalies.js';
 import { pgAuthStore } from '../src/services/auth/store.js';
 import { makeToken } from '../src/services/auth/password.js';
+import { notificationText } from '../src/view/notification.js';
 
 process.env.BLIND_INDEX_SECRET ??= 'test-blind-index-secret';
 process.env.ADDRESS_SECRET ??= 'test-address-secret';
@@ -164,8 +165,17 @@ test('всплеск от новых аккаунтов детектируетс
     [admin.user_id, `rating-anomaly:${anomaly.id}`],
   );
   assert.equal(notification.kind, 'rating_anomaly');
-  assert.equal(notification.params.anomaly_id, anomaly.id, 'готовит к M9 разбор');
+  assert.equal(notification.params.anomalyId, anomaly.id, 'готовит к M9 разбор');
   assert.equal(notification.user_id, admin.user_id, 'служебное уведомление адресовано админу');
+
+  // Лента читает параметры своими же словами (camelCase). Проверяется не
+  // запись в базе, а готовый текст письма: пока датчик писал snake_case,
+  // уведомление выходило с пустым названием сериала и «0 новых оценок», а
+  // тесты смотрели только на строку в базе.
+  const rendered = notificationText('ru', { kind: notification.kind, params: notification.params });
+  assert.match(rendered.body, /Аномалия фикстуры/, 'письмо называет сериал');
+  assert.match(rendered.body, /25/, 'письмо называет число новых оценок');
+  assert.match(rendered.body, /76%/, 'письмо называет долю экстремумов');
 });
 
 test('пять оценок и ноль экстремумов — датчик молчит', { skip }, async () => {
