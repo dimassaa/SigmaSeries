@@ -446,7 +446,7 @@ test('пустые состояния: нет отзывов, пустая гр�
   });
 });
 
-test('спойлер свёрнут и не попадает в сниппеты, длинный текст — под «Читать далее»', { skip }, async () => {
+test('спойлер свёрнут и не попадает в сниппеты, длинный текст — ссылкой на страницу', { skip }, async () => {
   const series = await seriesWith(36);
   const anna = await viewer();
   const boris = await viewer();
@@ -469,11 +469,28 @@ test('спойлер свёрнут и не попадает в сниппеты
       assert.ok(spoilerCard.html.indexOf('Тайна раскрыта')
         > spoilerCard.html.indexOf('Спойлеры скрыты'), 'текст идёт под свёрткой');
 
-      // Длинный текст: видимая часть и хвост под раскрытием — без скрипта.
+      // Длинный текст: в списке — начало и ссылка на страницу отзыва, хвоста
+      // здесь нет: полный текст живёт на странице (F-04-09 §3).
       const longCard = cardsOf(html).find((one) => one.html.includes(boris.nickname));
       assert.match(longCard.html, /Читать далее/);
-      assert.ok(longCard.html.includes('КОНЕЦ-ХВОСТА'));
-      assert.ok(longCard.html.indexOf('КОНЕЦ-ХВОСТА') > longCard.html.indexOf('Читать далее'));
+      assert.ok(!longCard.html.includes('КОНЕЦ-ХВОСТА'), 'хвост остаётся на странице отзыва');
+      assert.match(longCard.html, /href="\/ru\/reviews\/\d+"/, '«Читать далее» ведёт на страницу');
+    },
+  });
+});
+
+test('дата отзыва ведёт на страницу отзыва (F-04-09 §3)', { skip }, async () => {
+  const series = await seriesWith(37);
+  const anna = await viewer();
+  await write({ user: anna, series, text: 'Короткий отзыв без обрезки', rating: 9 });
+  const id = await materialId(anna, series);
+
+  await withServer({
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}/reviews`);
+      const card = cardsOf(html).find((one) => one.html.includes(anna.nickname));
+      assert.match(card.html, new RegExp(`href="/ru/reviews/${id}"`), 'дата — ссылка на страницу отзыва');
+      assert.ok(!card.html.includes('Читать далее'), 'короткий отзыв не просит читать дальше');
     },
   });
 });

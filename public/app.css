@@ -3317,10 +3317,9 @@ a:hover { color: var(--accent-hover); }
 .reviews__text p { margin: 0 0 var(--space-3); }
 .reviews__text p:last-child { margin: 0; }
 
-/* «Читать далее» и спойлер — две свёртки `<details>`. Их собственные
-   маркеры убраны: состояние названо словами «Показать»/«Скрыть», а стрелка
-   была бы вторым носителем того же смысла. */
-.reviews__more summary,
+/* Спойлер — свёртка `<details>`. Её собственный маркер убран: состояние
+   названо словами «Показать»/«Скрыть», а стрелка была бы вторым носителем
+   того же смысла. */
 .reviews__spoiler summary {
   cursor: pointer;
   color: var(--text-secondary);
@@ -3342,7 +3341,16 @@ a:hover { color: var(--accent-hover); }
 .reviews__spoiler summary { color: var(--text-primary); }
 
 .reviews__more { margin-block-start: var(--space-2); }
-.reviews__more summary:hover { color: var(--text-primary); }
+
+/* «Читать далее» — ссылка на страницу отзыва (F-04-09 §3): полный текст
+   живёт там, и в списке он обрезан. */
+.reviews__more-link { color: var(--text-secondary); }
+.reviews__more-link:hover { color: var(--text-primary); }
+
+/* Дата в списке — тоже ссылка на страницу отзыва, но выглядит датой:
+   подчёркивание появляется при наведении, а при фокусе — рамка. */
+.reviews__date-link { color: inherit; text-decoration: none; }
+.reviews__date-link:hover { color: var(--text-primary); text-decoration: underline; }
 
 /* --- Пустое состояние --- */
 

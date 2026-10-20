@@ -276,22 +276,30 @@ export function reportDialog({ locale, series, report }) {
  * быть не может: оценка и дата в карточке — те же числа, что на странице,
  * а «Пользователь удалён» вместо ника — то же правило (EC-V6).
  *
+ * Дата в списке — ссылка на страницу отзыва: это один из двух путей к отзыву
+ * (F-04-09 §3), и второй — «Читать далее». На самой странице дата никуда не
+ * ведёт, поэтому ссылка включается флагом, а не всегда.
+ *
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.item строка отзыва
  * @param {string|null} [args.timezone] пояс посетителя для подписи даты
+ * @param {boolean} [args.link] дату показать ссылкой на страницу отзыва
  * @returns {string}
  */
-export function reviewMeta({ locale, item, timezone = null }) {
+export function reviewMeta({ locale, item, timezone = null, link = false }) {
   const deleted = item.authorStatus === 'deleted';
+  const date = html`<time class="reviews__date" datetime="${machineDate(item.createdAt)}"
+      >${dayLabel(locale, item.createdAt, timezone ?? undefined)}</time>`;
   return html`
   <p class="reviews__head">
     <span class="reviews__nick${deleted ? ' reviews__nick--deleted' : ''}"
       >${deleted ? t(locale, 'review.deleted') : item.authorNickname}</span>
     <span class="reviews__card-rating" aria-hidden="true">${item.authorRating}</span>
     <span class="visually-hidden">${t(locale, 'review.card.rating', { value: item.authorRating })}</span>
-    <time class="reviews__date" datetime="${machineDate(item.createdAt)}"
-      >${dayLabel(locale, item.createdAt, timezone ?? undefined)}</time>
+    ${when(link, () => html`
+    <a class="reviews__date-link" href="/${locale}/reviews/${item.id}">${date}</a>`,
+    () => date)}
     <span class="reviews__lang">${t(locale, `review.code.${item.lang}`)}</span>
   </p>`;
 }
@@ -322,15 +330,19 @@ export function reviewActions({ locale, item, vote, report }) {
 export function reviewCard({ locale, item, timezone = null, vote = null, report = null }) {
   const { lead, tail } = splitText(item.body, REVIEW.readMoreChars);
 
-  const body = html`${paragraphs(lead).map((part) => html`<p>${part}</p>`)}${when(tail, () => html`
-    <details class="reviews__more">
-      <summary class="reviews__more-link">${t(locale, 'review.readMore')}</summary>
-      ${paragraphs(tail).map((part) => html`<p>${part}</p>`)}
-    </details>`)}`;
+  const body = html`${paragraphs(lead).map((part) => html`<p>${part}</p>`)}`;
+
+  // Хвост в списке не показывается: полный текст живёт на странице отзыва,
+  // и «Читать далее» ведёт туда (F-04-09 §3). Ссылка стоит после текста и
+  // для спойлерного отзыва — снаружи свёртки, иначе до неё не дойти, не
+  // открыв спойлер.
+  const more = when(tail, () => html`
+  <p class="reviews__more"><a class="reviews__more-link" href="/${locale}/reviews/${item.id}"
+    >${t(locale, 'review.readMore')}</a></p>`);
 
   return html`
 <li class="reviews__item" data-review-id="${item.id}">
-  ${reviewMeta({ locale, item, timezone })}
+  ${reviewMeta({ locale, item, timezone, link: true })}
   ${when(!item.spoiler, () => html`
   <div class="reviews__text">${body}</div>`)}
   ${when(item.spoiler, () => html`
@@ -341,6 +353,7 @@ export function reviewCard({ locale, item, timezone = null, vote = null, report 
     </summary>
     <div class="reviews__text" data-nosnippet>${body}</div>
   </details>`)}
+  ${more}
   ${reviewActions({ locale, item, vote, report })}
 </li>`;
 }
