@@ -200,43 +200,6 @@ export function studioCardView({
         </div>`)}`)}
       </section>`)}
 
-      ${when(tab === 'images', () => html`
-      <section class="studio-card__section">
-        <h2 class="studio__section-title">${t(locale, 'studio.card.tab.images')}</h2>
-        ${when(!images || images.length === 0, () => html`
-        <p class="empty">${t(locale, 'studio.card.imagesEmpty')}</p>`)}
-        ${when(images && images.length > 0, () => html`
-        ${images.map((image) => html`
-        <div class="studio-image">
-          <div class="studio-image__preview">
-            <img class="studio-image__frame" alt=""
-                 src="/${locale}/images/${card.slug}/${image.role}-${image.variantWidth ?? image.width}.webp"
-                 style="object-position: ${image.focalX}% ${image.focalY}%">
-            <span class="studio-image__point"
-              style="inset-inline-start: ${image.focalX}%; inset-block-start: ${image.focalY}%"></span>
-          </div>
-          <form class="studio-image__form" method="post"
-                action="/${locale}/admin/catalog/${card.id}/images/focal">
-            <input type="hidden" name="csrf" value="${csrf}">
-            <input type="hidden" name="role" value="${image.role}">
-            <span class="studio-image__name">
-              ${t(locale, `studio.card.image.${image.role}`)} · ${image.width}×${image.height}
-            </span>
-            <label class="field__label" for="focal-x-${image.id}">${t(locale, 'studio.card.focalX')}</label>
-            <input class="field__input" id="focal-x-${image.id}" name="focal_x" type="number"
-              min="0" max="100" value="${image.focalX}">
-            <label class="field__label" for="focal-y-${image.id}">${t(locale, 'studio.card.focalY')}</label>
-            <input class="field__input" id="focal-y-${image.id}" name="focal_y" type="number"
-              min="0" max="100" value="${image.focalY}">
-            <p class="studio-image__actions">
-              <button class="button button--primary" type="submit">${t(locale, 'studio.card.saveFocal')}</button>
-              <button class="button" type="submit" name="reset" value="1"
-                formaction="/${locale}/admin/catalog/${card.id}/images/focal/reset">${t(locale, 'studio.card.resetFocal')}</button>
-            </p>
-          </form>
-        </div>`)}`)}
-      </section>`)}
-
       ${when(tab === 'service', () => html`
       <section class="studio-card__section">
         <h2 class="studio__section-title">${t(locale, 'studio.card.tab.service')}</h2>
@@ -290,6 +253,67 @@ export function studioCardView({
         <button class="button button--primary" type="submit">${t(locale, 'studio.card.save')}</button>
       </p>
     </form>
+
+  ${when(tab === 'images', () => html`
+      <section class="studio-card__section">
+        <h2 class="studio__section-title">${t(locale, 'studio.card.tab.images')}</h2>
+
+        <form class="studio-image__upload" method="post" enctype="multipart/form-data"
+              action="/${locale}/admin/catalog/${card.id}/images">
+          <input type="hidden" name="csrf" value="${csrf}">
+          <label class="field__label" for="image-role">${t(locale, 'studio.card.imageRole')}</label>
+          <select class="field__input" id="image-role" name="role">
+            <option value="poster">${t(locale, 'studio.card.image.poster')}</option>
+            <option value="backdrop">${t(locale, 'studio.card.image.backdrop')}</option>
+            <option value="banner">${t(locale, 'studio.card.image.banner')}</option>
+            <option value="splash">${t(locale, 'studio.card.image.splash')}</option>
+          </select>
+          <label class="field__label" for="image-file">${t(locale, 'studio.card.imageFile')}</label>
+          <input class="field__input" id="image-file" name="file" type="file"
+            accept="image/jpeg,image/png,image/webp" required>
+          <label class="studio-field__origin">
+            <input type="checkbox" name="has_text" value="1">
+            <span>${t(locale, 'studio.card.imageHasText')}</span>
+          </label>
+          <p class="studio-image__actions">
+            <button class="button button--primary" type="submit">${t(locale, 'studio.card.upload')}</button>
+          </p>
+          <p class="studio-card__note">${t(locale, 'studio.card.uploadNote')}</p>
+        </form>
+        ${when(!images || images.length === 0, () => html`
+        <p class="empty">${t(locale, 'studio.card.imagesEmpty')}</p>`)}
+        ${when(images && images.length > 0, () => html`
+        ${images.map((image) => html`
+        <div class="studio-image">
+          <div class="studio-image__preview">
+            <img class="studio-image__frame" alt=""
+                 src="/${locale}/images/${card.slug}/${image.role}-${image.variantWidth ?? image.width}.webp"
+                 style="object-position: ${image.focalX}% ${image.focalY}%">
+            <span class="studio-image__point"
+              style="inset-inline-start: ${image.focalX}%; inset-block-start: ${image.focalY}%"></span>
+          </div>
+          <form class="studio-image__form" method="post"
+                action="/${locale}/admin/catalog/${card.id}/images/focal">
+            <input type="hidden" name="csrf" value="${csrf}">
+            <input type="hidden" name="role" value="${image.role}">
+            <span class="studio-image__name">
+              ${t(locale, `studio.card.image.${image.role}`)} · ${image.width}×${image.height}
+            </span>
+            <label class="field__label" for="focal-x-${image.id}">${t(locale, 'studio.card.focalX')}</label>
+            <input class="field__input" id="focal-x-${image.id}" name="focal_x" type="number"
+              min="0" max="100" value="${image.focalX}">
+            <label class="field__label" for="focal-y-${image.id}">${t(locale, 'studio.card.focalY')}</label>
+            <input class="field__input" id="focal-y-${image.id}" name="focal_y" type="number"
+              min="0" max="100" value="${image.focalY}">
+            <p class="studio-image__actions">
+              <button class="button button--primary" type="submit">${t(locale, 'studio.card.saveFocal')}</button>
+              <button class="button" type="submit" name="reset" value="1"
+                formaction="/${locale}/admin/catalog/${card.id}/images/focal/reset">${t(locale, 'studio.card.resetFocal')}</button>
+            </p>
+          </form>
+        </div>`)}`)}
+      </section>`)}
+
 
     <aside class="studio-card__panel" aria-labelledby="h-card-panel">
       <h2 class="studio__section-title" id="h-card-panel">${t(locale, 'studio.card.panel')}</h2>

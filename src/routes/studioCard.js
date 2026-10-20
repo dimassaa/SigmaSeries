@@ -16,6 +16,25 @@ const BASE = '/admin/catalog';
 const STYLES = ['base', 'admin'];
 
 /**
+ * Разбор тела multipart средствами Node.
+ *
+ * Сторонняя библиотека для этого не нужна: `Request.formData()` разбирает
+ * `multipart/form-data` сам, а предел тела задан разборщиком тела Express.
+ *
+ * @param {object} req
+ * @returns {Promise<FormData>}
+ */
+async function readMultipart(req) {
+  const type = req.headers['content-type'] ?? '';
+  const request = new Request('http://localhost/upload', {
+    method: 'POST',
+    headers: { 'content-type': type },
+    body: req.body,
+  });
+  return request.formData();
+}
+
+/**
  * Маршруты карточки сериала.
  *
  * @param {object} deps
@@ -24,7 +43,9 @@ const STYLES = ['base', 'admin'];
  * @param {object|null} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
-export function createStudioCardRoutes({ card, schedule = null, audit = null, sessionMw = null }) {
+export function createStudioCardRoutes({
+  card, schedule = null, images = null, audit = null, sessionMw = null,
+}) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
 
@@ -170,6 +191,60 @@ export function createStudioCardRoutes({ card, schedule = null, audit = null, se
         return next(error);
       }
     });
+  }
+
+  // Загрузка изображения (F-10-04). Тело multipart разбирает сам Node:
+  // Request.formData() читает форму без сторонней библиотеки, а тип файла
+  // всё равно определяется по содержимому (R-SEC-17), а не по заголовку.
+  if (images) {
+    router.post(`/:locale${BASE}/:id/images`, adminOnly,
+      express.raw({ type: 'multipart/form-data', limit: '16mb' }),
+      async (req, res, next) => {
+        const { locale } = req.params;
+        if (!isLocale(locale)) return next('route');
+        const id = Number(req.params.id);
+        try {
+          const form = await readMultipart(req);
+          const token = form.get('csrf');
+          if (!req.session || !csrfValid(req.session, token)) {
+            return res.status(403).type('text/plain; charset=utf-8')
+              .send(t(locale, 'admin.users.csrf'));
+          }
+          const file = form.get('file');
+          if (!file || typeof file.arrayBuffer !== 'function') {
+            return res.status(400).type('text/plain; charset=utf-8')
+              .send(t(locale, 'studio.card.uploadError.file'));
+          }
+          const buffer = Buffer.from(await file.arrayBuffer());
+          const result = await images.upload({
+            seriesId: id,
+            role: String(form.get('role') ?? ''),
+            buffer,
+            hasText: form.get('has_text') === '1',
+            byId: req.session.user.id,
+          });
+          if (!result.ok) {
+            return res.status(400).type('text/plain; charset=utf-8')
+              .send(t(locale, `studio.card.uploadError.${result.reason}`));
+          }
+          if (audit) {
+            await audit.write({
+              actorId: req.session.user.id,
+              action: 'series.image_upload',
+              objectType: 'series',
+              objectId: id,
+              result: 'ok',
+              reason: String(form.get('role') ?? ''),
+              after: { image_id: result.imageId, cropped: result.cropped },
+            });
+          }
+          return res.status(303)
+            .set('Location', `/${locale}${BASE}/${id}?tab=images`)
+            .end();
+        } catch (error) {
+          return next(error);
+        }
+      });
   }
 
   // Фокальная точка изображения (F-10-04): как кадрировать кадр.

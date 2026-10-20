@@ -100,6 +100,7 @@ export function createApp({
   discussions = null,
   studioCard = null,
   studioSchedule = null,
+  studioImages = null,
   picks = null,
   backupRunner = null,
   backupSchedule = null,
@@ -216,7 +217,7 @@ export function createApp({
   if (studio) app.use(createStudioRoutes({ pool, studio, picks, audit, sessionMw }));
   // Карточка сериала (S-75): правка, публикация, архив.
   if (studioCard) app.use(createStudioCardRoutes({
-    card: studioCard, schedule: studioSchedule, audit, sessionMw,
+    card: studioCard, schedule: studioSchedule, images: studioImages, audit, sessionMw,
   }));
   // Системный обзор (S-70): онлайн, очереди, аномалии, копии.
   if (adminOverview) app.use(createOverviewRoutes({ overview: adminOverview, sessionMw }));
