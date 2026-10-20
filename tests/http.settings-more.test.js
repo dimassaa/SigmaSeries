@@ -16,7 +16,7 @@ import { stubData } from '../src/services/home/data.js';
 import { stubAuthStore } from '../src/services/auth/store.js';
 import { createSessionMiddleware, createMemorySessionStore } from '../src/services/auth/session.js';
 import { hashPassword } from '../src/services/auth/password.js';
-import { generateSecret, generateBackupCodes, hashBackupCode } from '../src/services/auth/totp.js';
+import { generateSecret, generateBackupCodes, hashBackupCode, totpAt } from '../src/services/auth/totp.js';
 import { AUTH } from '../src/config/settings.js';
 
 const PASSWORD = 'правильный-пароль-из-десяти';
@@ -81,7 +81,18 @@ async function withServer({
   const csrfOf = (html) => html.match(/name="csrf" value="([^"]+)"/)?.[1];
 
   const login = await (await get('/ru/login')).text();
-  await post('/ru/login', { email: user.email, password: PASSWORD, csrf: csrfOf(login) });
+  const entered = await post('/ru/login', {
+    email: user.email, password: PASSWORD, csrf: csrfOf(login),
+  });
+  // У кого проверка настроена, вход идёт через код (решение автора, 21.10):
+  // без второго фактора сессии не будет, и проверка раздела ничего не значит.
+  if (twoFactor?.secret && entered.headers.get('location')?.endsWith('/2fa')) {
+    const page = await (await get('/ru/2fa')).text();
+    await post('/ru/2fa', {
+      code: totpAt(twoFactor.secret, Math.floor(Date.now() / 1000)),
+      csrf: csrfOf(page),
+    });
+  }
 
   try {
     await run({ get, post, csrfOf, user, auth, memStore });
@@ -243,19 +254,17 @@ test('слабый новый пароль отклоняется у поля', 
 test('зритель выключает 2FA по паролю', async () => {
   // §8: «зритель отключает 2FA по паролю». Отключение без пароля оставило бы
   // окно, открытое одной ссылкой из письма.
+  //
+  // Проверка настроена до входа: у кого она есть, вход идёт через код
+  // (решение автора, 21.10), иначе сессии не будет вовсе.
   const user = await viewer();
-  const auth0 = stubAuthStore({ [user.email]: user });
-  auth0.setTwoFactor(user.id, {
-    secret: generateSecret(), lastStep: null, backup: [hashBackupCode('AAAAAAAAAA')],
-  });
 
   await withServer({
     user,
+    twoFactor: {
+      secret: generateSecret(), lastStep: null, backup: [hashBackupCode('AAAAAAAAAA')],
+    },
     run: async ({ get, post, auth }) => {
-      auth.setTwoFactor(user.id, {
-        secret: generateSecret(), lastStep: null, backup: [hashBackupCode('AAAAAAAAAA')],
-      });
-
       const csrfOf = (h) => h.match(/name="csrf" value="([^"]+)"/)?.[1];
       const res = await save({ get, post, csrfOf }, '/ru/settings/security', {
         action: 'two_factor', op: 'disable', password: PASSWORD,

@@ -20,6 +20,42 @@ import { AUTH } from '../config/settings.js';
 const STYLES = ['identity'];
 
 
+/**
+ * Записать «наполовину доверенную» сессию и увести человека на второй фактор.
+ *
+ * В сессии лежит только то, что уже проверено паролем, — ровно до подтверждения
+ * кода. Служебные разделы под таким флагом закрыты: иначе 2FA была бы вторым
+ * полем формы.
+ *
+ * @param {object} req
+ * @param {object} input
+ * @param {object} input.user
+ * @param {string} input.email
+ * @param {string[]} input.roles
+ * @param {string} input.kind
+ * @param {boolean} input.configured настроена ли проверка
+ * @returns {Promise<void>}
+ */
+async function beginTwoFactor(req, { user, email, roles, kind, configured }) {
+  await regenerate(req);
+  req.session.pendingTwoFactor = {
+    userId: user.id,
+    account: email,
+    configured,
+    user: {
+      id: user.id,
+      nickname: user.nickname,
+      locale: user.locale,
+      theme: user.theme,
+      roles,
+      kind,
+      // Та же форма объекта сессии, что при простом входе: граница
+      // «Зритель» — подтверждение адреса (M2 §2).
+      confirmed: Boolean(user.email_confirmed),
+    },
+  };
+}
+
 export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
@@ -150,26 +186,20 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
     // войти вовсе: страница S-72 и модерация для него просто не существуют.
     if (kind === 'staff') {
       const state = await auth.twoFactor(user.id);
-      await regenerate(req);
-      req.session.pendingTwoFactor = {
-        userId: user.id,
-        account: email,
-        configured: Boolean(state),
-        // Служебные разделы закрыты, пока флаг не проставлен: срок сессии
-        // служебной роли короткий (R-SEC-03), и ждать настройки долго нельзя.
-        user: {
-          id: user.id,
-          nickname: user.nickname,
-          locale: user.locale,
-          theme: user.theme,
-          roles,
-          kind,
-          // Та же форма объекта сессии, что при простом входе: граница
-          // «Зритель» — подтверждение адреса (M2 §2).
-          confirmed: Boolean(user.email_confirmed),
-        },
-      };
+      await beginTwoFactor(req, { user, email, roles, kind, configured: Boolean(state) });
       return res.redirect(303, `/${locale}${state ? '/2fa' : '/2fa/setup'}`);
+    }
+
+    // F-01-05 §4: код спрашивается у того, кто настроил проверку, — и
+    // зритель тоже (решение автора, 21.10). DEC-015 делает проверку
+    // обязательной для служебных ролей, но не отменяет её у того, кто выбрал
+    // её сам: иначе включённая проверка ничего не значила бы.
+    if (decision.action !== 'confirm_email') {
+      const state = await auth.twoFactor(user.id);
+      if (state) {
+        await beginTwoFactor(req, { user, email, roles, kind, configured: true });
+        return res.redirect(303, `/${locale}/2fa`);
+      }
     }
 
     // R-SEC-02: идентификатор сессии меняется при входе, иначе он был бы

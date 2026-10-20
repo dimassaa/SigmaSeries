@@ -12,6 +12,7 @@ import { createSessionMiddleware, createMemorySessionStore, csrfToken, csrfValid
 import { hashPassword } from '../src/services/auth/password.js';
 import * as limits from '../src/services/auth/limits.js';
 import { AUTH } from '../src/config/settings.js';
+import { generateSecret } from '../src/services/auth/totp.js';
 
 const PASSWORD = 'правильный-пароль-из-десяти';
 
@@ -169,6 +170,27 @@ test('служебная роль после пароля ещё не внутр
 
     // Cookie от анонимной сессии с CSRF — это норма: форма без неё не
     // защищена. Проверяется другое: что ни в одной сессии нет прав.
+    const open = (await sessions()).filter((s) => s?.user);
+    assert.equal(open.length, 0, 'до кода сессии с правами не существует');
+  });
+});
+
+test('зритель с настроенной 2FA после пароля ещё не внутри (F-01-05 §4)', async () => {
+  // Решение автора (21.10): код спрашивается у того, кто настроил проверку, —
+  // и зритель тоже. Иначе включённая проверка ничего не значит, и человек
+  // считает, что защищён вторым фактором, а его не спрашивают.
+  const user = await activeUser();
+  await withServer({ 'a@b.c': user }, {}, async ({ get, post, csrfOf, sessions, auth }) => {
+    auth.setTwoFactor(user.id, { secret: generateSecret(), lastStep: null, backup: [] });
+
+    const html = await (await get('/ru/login')).text();
+    const res = await post('/ru/login', {
+      email: 'a@b.c', password: PASSWORD, csrf: csrfOf(html), next: '/',
+    });
+
+    assert.equal(res.status, 303, 'пароль верен — идём ко второму фактору');
+    assert.equal(res.headers.get('location'), '/ru/2fa', 'зрителя с проверкой ждёт код');
+
     const open = (await sessions()).filter((s) => s?.user);
     assert.equal(open.length, 0, 'до кода сессии с правами не существует');
   });
