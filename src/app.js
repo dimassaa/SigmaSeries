@@ -92,6 +92,7 @@ export function createApp({
   adminOverview = null,
   backups = null,
   studio = null,
+  picks = null,
   backupRunner = null,
   backupSchedule = null,
   votes = null,
@@ -194,7 +195,7 @@ export function createApp({
     backups, readSchedule: backupSchedule, runBackup: backupRunner, audit, sessionMw,
   }));
   // Студия (S-73, S-74): каталог сериалов и очередь неполных карточек.
-  if (studio) app.use(createStudioRoutes({ pool, studio, sessionMw }));
+  if (studio) app.use(createStudioRoutes({ pool, studio, picks, audit, sessionMw }));
   // Системный обзор (S-70): онлайн, очереди, аномалии, копии.
   if (adminOverview) app.use(createOverviewRoutes({ overview: adminOverview, sessionMw }));
   // Журнал аудита (S-81): только чтение, фильтры.

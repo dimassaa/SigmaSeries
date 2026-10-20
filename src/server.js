@@ -31,6 +31,7 @@ import { pgModerationBudget } from './services/moderation/budget.js';
 import { loadSettings } from './services/settings.js';
 import { pgSystemHealth } from './services/admin/health.js';
 import { pgStudioCatalogue } from './services/studio/catalogue.js';
+import { pgEditorialPicks } from './services/studio/picks.js';
 import { pgBannerSelection, localDate } from './services/home/banners.js';
 import { homeSettings } from './services/home/settings.js';
 import { pgModerationDecisions } from './services/moderation/decision.js';
@@ -296,6 +297,7 @@ const app = createApp({
   moderationRestrictions: pgModerationRestrictions(pool, { auth, audit }),
   myMaterials: pgMyMaterials(pool),
   studio: pgStudioCatalogue(pool),
+  picks: pgEditorialPicks(pool),
   adminUsers: pgAdminUsers(pool),
   adminOverview: pgAdminOverview(pool, { backups: pgBackupJobs(pool), health: systemHealth }),
   backups: pgBackupJobs(pool),

@@ -7,8 +7,10 @@
 import express from 'express';
 
 import { isLocale, t } from '../i18n/strings.js';
+import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { studioListView, studioQueueView } from '../view/studio.js';
+import { studioBannersView } from '../view/studioBanners.js';
 
 const BASE = '/admin/catalog';
 
@@ -21,10 +23,12 @@ const STYLES = ['base', 'admin'];
  * @param {object} deps
  * @param {import('pg').Pool} deps.pool
  * @param {object} deps.studio источник данных студии
+ * @param {object} [deps.picks] выборы редакции
+ * @param {object|null} [deps.audit] журнал действий
  * @param {object|null} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
-export function createStudioRoutes({ pool, studio, sessionMw = null }) {
+export function createStudioRoutes({ pool, studio, picks = null, audit = null, sessionMw = null }) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
 
@@ -84,7 +88,143 @@ export function createStudioRoutes({ pool, studio, sessionMw = null }) {
     }
   });
 
+  // «Выбор редакции» и предпросмотр баннеров (S-78, F-10-08).
+  if (picks) {
+    router.get('/:locale/admin/banners', adminOnly, async (req, res, next) => {
+      const { locale } = req.params;
+      if (!isLocale(locale)) return next('route');
+
+      try {
+        const now = new Date();
+        const year = Number(req.query.year) || now.getFullYear();
+        const month = Number(req.query.month) || now.getMonth() + 1;
+        const date = String(req.query.date ?? '') || localDate(now);
+        const [assigned, preview, candidates] = await Promise.all([
+          picks.month({ year, month }),
+          picks.preview({ date }),
+          picks.candidates(50),
+        ]);
+        return res.status(200).type('html').send(layout({
+          account: req.account,
+          locale,
+          path: '/admin/banners',
+          title: pageTitle(locale, t(locale, 'studio.banners.title')),
+          description: t(locale, 'studio.banners.note'),
+          noindex: true,
+          styles: STYLES,
+          body: studioBannersView({
+            locale,
+            month: { year, month },
+            picks: assigned,
+            preview,
+            candidates,
+            date,
+            csrf: csrfToken(req.session),
+          }),
+        }).__raw);
+      } catch (error) {
+        return next(error);
+      }
+    });
+
+    router.post('/:locale/admin/banners', adminOnly, async (req, res, next) => {
+      const { locale } = req.params;
+      if (!isLocale(locale)) return next('route');
+
+      const body = req.body ?? {};
+      const date = String(body.date ?? '');
+      const seriesId = Number(body.series_id);
+      try {
+        if (!csrfValid(req.session, body.csrf)) {
+          return res.status(403).type('text/plain; charset=utf-8')
+            .send(t(locale, 'admin.users.csrf'));
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(seriesId)) {
+          return res.status(400).type('text/plain; charset=utf-8')
+            .send(t(locale, 'studio.banners.badRequest'));
+        }
+        if (date < localDate()) {
+          return res.status(400).type('text/plain; charset=utf-8')
+            .send(t(locale, 'studio.banners.pastDate'));
+        }
+        const saved = await picks.assign({
+          seriesId,
+          date,
+          byId: req.session.user.id,
+          note: String(body.note ?? '').trim() || null,
+        });
+        if (!saved) {
+          return res.status(409).type('text/plain; charset=utf-8')
+            .send(t(locale, 'studio.banners.notFit'));
+        }
+        // Смена выбора посреди суток пересчитывает баннеры сразу: это
+        // единственное исключение из суточного ритма (F-06-02 §5).
+        if (date === localDate()) await picks.recompute({ date });
+        if (audit) {
+          await audit.write({
+            actorId: req.session.user.id,
+            action: 'editorial_pick.set',
+            objectType: 'editorial_pick',
+            objectId: null,
+            result: 'ok',
+            reason: `${date}; series=${seriesId}`,
+            after: { date, series_id: seriesId },
+          });
+        }
+        return res.status(303).set('Location', `/${locale}/admin/banners?date=${date}`).end();
+      } catch (error) {
+        return next(error);
+      }
+    });
+
+    router.post('/:locale/admin/banners/clear', adminOnly, async (req, res, next) => {
+      const { locale } = req.params;
+      if (!isLocale(locale)) return next('route');
+
+      const body = req.body ?? {};
+      const date = String(body.date ?? '');
+      try {
+        if (!csrfValid(req.session, body.csrf)) {
+          return res.status(403).type('text/plain; charset=utf-8')
+            .send(t(locale, 'admin.users.csrf'));
+        }
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+          return res.status(400).type('text/plain; charset=utf-8')
+            .send(t(locale, 'studio.banners.badRequest'));
+        }
+        const removed = await picks.clear({ date });
+        if (audit) {
+          await audit.write({
+            actorId: req.session.user.id,
+            action: 'editorial_pick.clear',
+            objectType: 'editorial_pick',
+            objectId: null,
+            result: removed ? 'ok' : 'denied',
+            reason: date,
+            after: { date },
+          });
+        }
+        return res.status(303).set('Location', `/${locale}/admin/banners?date=${date}`).end();
+      } catch (error) {
+        return next(error);
+      }
+    });
+  }
+
   return router;
+}
+
+/**
+ * Дата в формате YYYY-MM-DD.
+ *
+ * @param {Date} [at]
+ * @returns {string}
+ */
+function localDate(at = new Date()) {
+  const year = at.getFullYear();
+  const month = String(at.getMonth() + 1).padStart(2, '0');
+  const day = String(at.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
 }
 
 /**
