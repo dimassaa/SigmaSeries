@@ -352,9 +352,17 @@ test('среднее по сайту — по учитываемым сериа�
   );
   let result;
   let means;
+  let counted;
   let afterDelete;
   try {
     result = await ratings.refreshSiteAverage();
+    // Число учитываемых сериальных голосов берётся сразу после прохода.
+    // Раньше оно считалось после долгой поштучной правки априоров, и за это
+    // время параллельные файлы успевали и добавить, и убрать голоса: сравнение
+    // шло двух моментов времени, и проверка падала без связи с кодом.
+    ({ rows: [counted] } = await pool.query(
+      `SELECT count(*)::int AS n FROM e_rating WHERE object_type = 'series' AND counted`,
+    ));
     ({ rows: means } = await pool.query(
       'SELECT DISTINCT prior_mean::float AS prior FROM e_series_rating_stat',
     ));
@@ -363,13 +371,16 @@ test('среднее по сайту — по учитываемым сериа�
     await pool.query(`UPDATE e_user SET status = 'deleted' WHERE id = $1`, [adult]);
     afterDelete = await ratings.refreshSiteAverage();
   } finally {
-    for (const row of saved) {
-      // eslint-disable-next-line no-await-in-loop
-      await pool.query(
-        'UPDATE e_series_rating_stat SET prior_mean = $2 WHERE series_id = $1',
-        [row.series_id, row.prior],
-      );
-    }
+    // Априоры возвращаются одним запросом: поштучная правка каждой строки
+    // брала секунды и держала замки на всей таблице, пока шёл остальной
+    // прогон, — а именно в это окно и вклинивались чужие файлы.
+    await pool.query(
+      `UPDATE e_series_rating_stat s
+          SET prior_mean = v.prior
+         FROM unnest($1::bigint[], $2::double precision[]) AS v(series_id, prior)
+        WHERE s.series_id = v.series_id`,
+      [saved.map((row) => row.series_id), saved.map((row) => row.prior)],
+    );
   }
 
   assert.equal(means.length, 1, 'среднее по сайту одно: априор у всех сериалов одинаков');
@@ -388,9 +399,8 @@ test('среднее по сайту — по учитываемым сериа�
 
   // Верхняя граница ловит лишнее: голос серии и недозревший голос в счёт не
   // входят, и голосов в C не может быть больше, чем учитываемых сериальных.
-  const { rows: [counted] } = await pool.query(
-    `SELECT count(*)::int AS n FROM e_rating WHERE object_type = 'series' AND counted`,
-  );
+  // Счётчик взят сразу после прохода (см. выше) — иначе это сравнение двух
+  // моментов времени, между которыми чужие файлы пишут и убирают голоса.
   assert.ok(result.votes <= counted.n, 'в C нет ни голосов серий, ни недозревших');
 });
 
