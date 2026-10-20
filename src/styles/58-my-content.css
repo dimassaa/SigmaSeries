@@ -1,0 +1,94 @@
+/* --- S-35 — «Мои материалы» (F-05-09) ---
+ *
+ * Таблица состояний: автору важно, что с материалом и почему, а не сам
+ * материал. Текст в списке не показывается — список про состояния.
+ *
+ * Цвета, отступы и радиусы — только токены (PRINCIPLES §1).
+ */
+
+.my-content__title { margin-block-end: var(--space-5); }
+
+.my-content__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-block-end: var(--space-5);
+}
+
+.my-content__filter {
+  padding: var(--space-1) var(--space-3);
+  min-block-size: 36px;
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: inherit;
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+
+.my-content__filter:hover { border-color: var(--border-strong); color: var(--text-primary); }
+
+.my-content__filter--on { border-color: var(--accent); color: var(--accent); }
+
+.my-content__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.my-content__table th,
+.my-content__table td {
+  padding: var(--space-3) var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+  vertical-align: top;
+  text-align: start;
+}
+
+.my-content__table thead th {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.my-content__material { font-weight: 500; }
+
+.my-content__kind {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+  font-weight: 400;
+}
+
+.my-content__series { color: inherit; }
+
+.my-content__state-name { display: block; }
+
+.my-content__reason {
+  display: block;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin-block-start: var(--space-1);
+}
+
+.my-content__date { color: var(--text-secondary); white-space: nowrap; }
+
+.my-content__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+.my-content__edit { color: var(--accent); }
+
+.my-content__pages { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-block-start: var(--space-5); }
+
+.my-content__page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 36px;
+  min-block-size: 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.my-content__page--on { border-color: var(--accent); color: var(--accent); }

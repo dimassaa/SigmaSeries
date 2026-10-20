@@ -23,6 +23,7 @@ import { createReviewRoutes } from './routes/review.js';
 import { createSeriesRoutes } from './routes/series.js';
 import { createThemeRoutes } from './routes/theme.js';
 import { createModerationRoutes } from './routes/moderation.js';
+import { createMyContentRoutes } from './routes/myContent.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
 import { createSeasonRoutes } from './routes/season.js';
@@ -80,6 +81,7 @@ export function createApp({
   moderationClusters = null,
   moderationBudget = null,
   moderationRestrictions = null,
+  myMaterials = null,
   votes = null,
   helpfulLimiter = null,
   reports = null,
@@ -172,6 +174,8 @@ export function createApp({
   // Переключатель темы в шапке: выбор уходит в профиль (F-01-06 §8).
   if (auth) app.use(createThemeRoutes({ auth, sessionMw }));
   // Решения редактора по материалам (F-05-04): служебный POST, экран — S-50.
+  // «Мои материалы» (S-35): автор видит состояния своих материалов.
+  if (myMaterials) app.use(createMyContentRoutes({ materials: myMaterials, sessionMw }));
   if (decisions) app.use(createModerationRoutes({
     decisions,
     clustersService: moderationClusters,

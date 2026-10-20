@@ -168,20 +168,32 @@ test('оценки забаненного не входят в среднее п
     [`ban-${crypto.randomUUID().slice(0, 8)}`, 979_000_000 + Math.floor(Math.random() * 900)],
   );
 
-  // Счётчик C общий для всей базы, поэтому сравниваются доли: голос автора
-  // добавляет единицу до бана и убирает её после.
-  const base = await ratings.refreshSiteAverage();
-  await pool.query(
-    `INSERT INTO e_rating (user_id, object_type, series_id, value, counted)
-     VALUES ($1, 'series', $2, 10, TRUE)`,
-    [author, series.id],
-  );
-  const withVote = await ratings.refreshSiteAverage();
-  assert.equal(withVote.votes, base.votes + 1, 'до бана голос входит в C');
+  // Счётчик C общий для всей базы, а параллельные проверки в это же время
+  // добавляют и убирают свои голоса. Поэтому обе цифры снимаются в одной
+  // транзакции: клиент с повторяемым снимком видит базу такой, какая она
+  // была в начале, и разница не плывёт.
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
+    const base = await pgRatings(client).refreshSiteAverage();
+    await client.query(
+      `INSERT INTO e_rating (user_id, object_type, series_id, value, counted)
+       VALUES ($1, 'series', $2, 10, TRUE)`,
+      [author, series.id],
+    );
+    const withVote = await pgRatings(client).refreshSiteAverage();
+    assert.equal(withVote.votes, base.votes + 1, 'до бана голос входит в C');
 
-  await restrictions.ban({ userId: author, reason: 'тест', byId: admin });
-  const after = await ratings.refreshSiteAverage();
-  assert.equal(after.votes, base.votes, 'после бана голос из C ушёл');
+    // Бан должен быть виден в том же снимке, что и счётчик, — поэтому сервис
+    // ограничений получает тот же клиент.
+    const ban = await pgModerationRestrictions(client, { auth, audit: { write: async () => {} } });
+    await ban.ban({ userId: author, reason: 'тест', byId: admin });
+    const after = await pgRatings(client).refreshSiteAverage();
+    assert.equal(after.votes, base.votes, 'после бана голос из C ушёл');
+    await client.query('ROLLBACK');
+  } finally {
+    client.release();
+  }
 
   await pool.query('DELETE FROM e_rating WHERE series_id = $1', [series.id]);
   await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);

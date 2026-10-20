@@ -39,6 +39,7 @@ export const STYLE_GROUPS = [
     ],
   },
   { name: 'moderation', files: ['57-moderation.css'] },
+  { name: 'my', files: ['58-my-content.css'] },
 ];
 
 /** Имена групп в порядке следования: `base` — всегда первая. */
