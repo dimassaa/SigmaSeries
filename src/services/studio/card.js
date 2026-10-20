@@ -351,6 +351,65 @@ export function pgStudioCard(pool) {
   }
 
   /**
+   * Поставить фокальную точку изображения.
+   *
+   * Точка задаётся в процентах (0–100), а хранится долей: интерфейс считает
+   * в процентах, а кадрирование — в долях от края.
+   *
+   * @param {{seriesId: number, role: string, focalX: number, focalY: number}} input
+   * @returns {Promise<{ok: boolean, reason?: string}>}
+   */
+  async function setFocal({ seriesId, role, focalX, focalY }) {
+    if (!['poster', 'backdrop', 'banner', 'splash'].includes(role)) {
+      return { ok: false, reason: 'role' };
+    }
+    const x = Number(focalX);
+    const y = Number(focalY);
+    if (!Number.isFinite(x) || !Number.isFinite(y) || x < 0 || x > 100 || y < 0 || y > 100) {
+      return { ok: false, reason: 'range' };
+    }
+    const { rowCount } = await pool.query(
+      `UPDATE e_image
+          SET focal_x = $3, focal_y = $4
+        WHERE id = (SELECT id FROM e_image
+                     WHERE series_id = $1 AND role = $2
+                     ORDER BY focal_x LIMIT 1)`,
+      [seriesId, role, x / 100, y / 100],
+    );
+    if (!rowCount) return { ok: false, reason: 'no_image' };
+    await recompute(seriesId);
+    return { ok: true };
+  }
+
+  /**
+   * Изображения сериала с их фокальными точками.
+   *
+   * @param {number} seriesId
+   * @returns {Promise<object[]>}
+   */
+  async function images(seriesId) {
+    const { rows } = await pool.query(
+      `SELECT i.id, i.role, i.width, i.height, i.focal_x, i.focal_y, i.source,
+              (SELECT iv.width FROM e_image_variant iv
+                WHERE iv.image_id = i.id ORDER BY iv.width DESC LIMIT 1) AS variant_width
+         FROM e_image i
+        WHERE i.series_id = $1
+        ORDER BY i.role, i.id`,
+      [seriesId],
+    );
+    return rows.map((row) => ({
+      id: Number(row.id),
+      role: row.role,
+      width: Number(row.width),
+      height: Number(row.height),
+      focalX: Math.round(Number(row.focal_x) * 100),
+      focalY: Math.round(Number(row.focal_y) * 100),
+      source: row.source,
+      variantWidth: row.variant_width,
+    }));
+  }
+
+  /**
    * Пересчитать полноту и причины.
    *
    * Причины, которые считаются по карточке, — пересчитываются; те, что
@@ -411,7 +470,8 @@ export function pgStudioCard(pool) {
   }
 
   return {
-    read, save, resetField, publish, archive, restore, dependencies: dependentCounts, history, recompute, genres,
+    read, save, resetField, publish, archive, restore, dependencies: dependentCounts,
+    history, recompute, genres, setFocal, images,
   };
 }
 

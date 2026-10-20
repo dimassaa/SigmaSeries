@@ -788,3 +788,47 @@
 .studio-inline-form { display: flex; gap: var(--space-1); align-items: center; }
 
 .studio-inline-form .field__input { min-inline-size: 150px; }
+
+/* --- Изображения и фокальная точка (F-10-04) --- */
+
+.studio-image {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-block-end: 1px solid var(--border-subtle);
+}
+
+.studio-image__preview {
+  position: relative;
+  inline-size: 200px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+}
+
+.studio-image__frame {
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/* Метка точки: она и есть опорная точка кадрирования. */
+.studio-image__point {
+  position: absolute;
+  inline-size: 14px;
+  block-size: 14px;
+  margin: -7px 0 0 -7px;
+  border: 2px solid var(--accent);
+  border-radius: var(--radius-pill);
+  background: var(--surface-overlay);
+}
+
+.studio-image__form { display: grid; gap: var(--space-1); align-content: start; }
+
+.studio-image__form .field__label { font-size: var(--text-xs); color: var(--text-secondary); }
+
+.studio-image__name { font-weight: 600; }
+
+.studio-image__actions { display: flex; gap: var(--space-2); margin: 0; }

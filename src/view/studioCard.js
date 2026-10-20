@@ -15,6 +15,7 @@ const TABS = [
   { id: 'genres', title: 'studio.card.tab.genres' },
   { id: 'ratings', title: 'studio.card.tab.ratings' },
   { id: 'schedule', title: 'studio.card.tab.schedule' },
+  { id: 'images', title: 'studio.card.tab.images' },
   { id: 'service', title: 'studio.card.tab.service' },
 ];
 
@@ -81,7 +82,8 @@ function field({ locale, card, name, label, type = 'text', value = '', rows = nu
  * @returns {string}
  */
 export function studioCardView({
-  locale, card, history = [], genres = [], schedule = [], tab = 'primary', csrf = '',
+  locale, card, history = [], genres = [], schedule = [], images = [],
+  tab = 'primary', csrf = '',
 }) {
   const cardWith = { ...card, csrf };
   return html`
@@ -195,6 +197,43 @@ export function studioCardView({
               </tr>`)}
             </tbody>
           </table>
+        </div>`)}`)}
+      </section>`)}
+
+      ${when(tab === 'images', () => html`
+      <section class="studio-card__section">
+        <h2 class="studio__section-title">${t(locale, 'studio.card.tab.images')}</h2>
+        ${when(!images || images.length === 0, () => html`
+        <p class="empty">${t(locale, 'studio.card.imagesEmpty')}</p>`)}
+        ${when(images && images.length > 0, () => html`
+        ${images.map((image) => html`
+        <div class="studio-image">
+          <div class="studio-image__preview">
+            <img class="studio-image__frame" alt=""
+                 src="/${locale}/images/${card.slug}/${image.role}-${image.variantWidth ?? image.width}.webp"
+                 style="object-position: ${image.focalX}% ${image.focalY}%">
+            <span class="studio-image__point"
+              style="inset-inline-start: ${image.focalX}%; inset-block-start: ${image.focalY}%"></span>
+          </div>
+          <form class="studio-image__form" method="post"
+                action="/${locale}/admin/catalog/${card.id}/images/focal">
+            <input type="hidden" name="csrf" value="${csrf}">
+            <input type="hidden" name="role" value="${image.role}">
+            <span class="studio-image__name">
+              ${t(locale, `studio.card.image.${image.role}`)} · ${image.width}×${image.height}
+            </span>
+            <label class="field__label" for="focal-x-${image.id}">${t(locale, 'studio.card.focalX')}</label>
+            <input class="field__input" id="focal-x-${image.id}" name="focal_x" type="number"
+              min="0" max="100" value="${image.focalX}">
+            <label class="field__label" for="focal-y-${image.id}">${t(locale, 'studio.card.focalY')}</label>
+            <input class="field__input" id="focal-y-${image.id}" name="focal_y" type="number"
+              min="0" max="100" value="${image.focalY}">
+            <p class="studio-image__actions">
+              <button class="button button--primary" type="submit">${t(locale, 'studio.card.saveFocal')}</button>
+              <button class="button" type="submit" name="reset" value="1"
+                formaction="/${locale}/admin/catalog/${card.id}/images/focal/reset">${t(locale, 'studio.card.resetFocal')}</button>
+            </p>
+          </form>
         </div>`)}`)}
       </section>`)}
 

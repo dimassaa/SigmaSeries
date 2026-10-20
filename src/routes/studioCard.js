@@ -44,10 +44,11 @@ export function createStudioCardRoutes({ card, schedule = null, audit = null, se
     try {
       const data = await card.read(id);
       if (!data) return next('route');
-      const [history, genres, seasons] = await Promise.all([
+      const [history, genres, seasons, pictures] = await Promise.all([
         card.history(id),
         card.genres(),
         schedule ? schedule.forSeries(id) : Promise.resolve([]),
+        card.images(id),
       ]);
       return res.status(200).type('html').send(layout({
         account: req.account,
@@ -63,6 +64,7 @@ export function createStudioCardRoutes({ card, schedule = null, audit = null, se
           history,
           genres,
           schedule: seasons,
+          images: pictures,
           tab: String(req.query.tab ?? 'primary'),
           csrf: csrfToken(req.session),
         }),
@@ -169,6 +171,60 @@ export function createStudioCardRoutes({ card, schedule = null, audit = null, se
       }
     });
   }
+
+  // Фокальная точка изображения (F-10-04): как кадрировать кадр.
+  router.post(`/:locale${BASE}/:id/images/focal`, adminOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+    const id = Number(req.params.id);
+    const body = req.body ?? {};
+    try {
+      if (!csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.csrf'));
+      }
+      const result = await card.setFocal({
+        seriesId: id,
+        role: String(body.role ?? ''),
+        focalX: body.focal_x,
+        focalY: body.focal_y,
+      });
+      if (!result.ok) {
+        return res.status(400).type('text/plain; charset=utf-8')
+          .send(t(locale, `studio.card.focalError.${result.reason}`));
+      }
+      return res.status(303)
+        .set('Location', `/${locale}${BASE}/${id}?tab=images`)
+        .end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  // Сброс точки к значению по умолчанию (2/3, 1/3) — H-33.
+  router.post(`/:locale${BASE}/:id/images/focal/reset`, adminOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+    const id = Number(req.params.id);
+    const body = req.body ?? {};
+    try {
+      if (!csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.csrf'));
+      }
+      await card.setFocal({
+        seriesId: id,
+        role: String(body.role ?? ''),
+        focalX: 67,
+        focalY: 33,
+      });
+      return res.status(303)
+        .set('Location', `/${locale}${BASE}/${id}?tab=images`)
+        .end();
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   router.post(`/:locale${BASE}/:id/publish`, adminOnly, async (req, res, next) => {
     const { locale } = req.params;

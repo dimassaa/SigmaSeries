@@ -128,6 +128,38 @@ test('архив и возврат меняют состояние (F-10-06 §4)
   assert.equal(after.archived, false);
 });
 
+test('фокальная точка ставится и сбрасывается (F-10-04, H-33)', { skip }, async () => {
+  const { rows: [image] } = await pool.query(
+    `INSERT INTO e_image (role, source, mime, width, height, focal_x, focal_y)
+     VALUES ('poster', 'manual', 'image/webp', 185, 278, 0.667, 0.333) RETURNING id`,
+  );
+  await pool.query(
+    `INSERT INTO e_image_variant (image_id, width, height, mime, file, bytes, checksum)
+     VALUES ($1, 185, 278, 'image/webp', decode('00', 'hex'), 1, 'check-focal')`,
+    [image.id],
+  );
+  await pool.query('UPDATE e_image SET series_id = $2 WHERE id = $1', [image.id, seriesId]);
+
+  const set = await card.setFocal({ seriesId, role: 'poster', focalX: 40, focalY: 70 });
+  assert.equal(set.ok, true, 'точка поставлена');
+  const { rows: [after] } = await pool.query(
+    'SELECT focal_x, focal_y FROM e_image WHERE id = $1', [image.id],
+  );
+  assert.equal(Number(after.focal_x), 0.4, 'точка сохранена в долях');
+  assert.equal(Number(after.focal_y), 0.7);
+
+  const out = await card.setFocal({ seriesId, role: 'poster', focalX: 150, focalY: 10 });
+  assert.equal(out.ok, false, 'точка вне 0–100 не принимается');
+  assert.equal(out.reason, 'range');
+
+  const images = await card.images(seriesId);
+  const poster = images.find((item) => item.role === 'poster');
+  assert.ok(poster, 'изображение в списке');
+  assert.equal(poster.focalX, 40, 'в процентах для интерфейса');
+
+  await pool.query('DELETE FROM e_image WHERE id = $1', [image.id]);
+});
+
 test('причины и уровень пересчитываются после правки (F-10-03 §17)', { skip }, async () => {
   await card.save(seriesId, { fields: { description_ru: 'Описание для проверки' } });
   const after = await card.read(seriesId);
