@@ -158,7 +158,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
 
     // Секрет живёт в сессии, пока человек сканирует QR. Он не создаётся заново
     // на каждый GET: иначе перезагрузка страницы отменяла бы настройку.
-    const setup = pending.setup ?? await beginSetup(pending, locale);
+    const setup = pending.setup ?? await beginSetup(req, pending, locale);
 
     return respond(res, 200, renderSetup(req, { setup, error: null }));
   });
@@ -177,7 +177,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
       }));
     }
 
-    const setup = pending.setup ?? await beginSetup(pending, locale);
+    const setup = pending.setup ?? await beginSetup(req, pending, locale);
     if (!setup) return res.redirect(303, `/${locale}/login`);
 
     const check = verifyWithStep(setup.secret, String(body.code ?? ''), {
@@ -276,7 +276,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
   }
 
   /** Новый секрет и десять резервных кодов для настройки. */
-  async function beginSetup(pending, locale) {
+  async function beginSetup(req, pending, locale) {
     const secret = generateSecret();
     const codes = generateBackupCodes();
     const setup = {

@@ -185,6 +185,10 @@ test('зритель с настроенной 2FA всё равно входи�
 });
 
 test('вход служебного аккаунта без настроенной 2FA не падает', async () => {
+  // Проверка усилена после находки в браузере: страница настройки падала с
+  // «req is not defined», и тест этого не видел — он требовал лишь «страница
+  // непустая», а экран ошибки тоже непустой. Теперь требуется содержимое
+  // экрана: секрет и поле кода.
   const user = await staffUser({ id: 11, email: 'ed@example.com' });
   await withServer({
     user,
@@ -194,7 +198,9 @@ test('вход служебного аккаунта без настроенно
       const res = await signIn(user.email);
       assert.equal(res.status, 303, 'вход завершается, а не падает');
       const page = await (await get('/ru/2fa/setup')).text();
-      assert.equal(page.length > 0, true, 'экран настройки отдаётся');
+      assert.ok(!page.includes('Что-то пошло не так'), 'страница настройки не экрана ошибки');
+      assert.match(page, /name="code"/, 'экран настройки просит код');
+      assert.match(page, /class="setup__secret"/, 'экран настройки показывает секрет');
     },
   });
 });
