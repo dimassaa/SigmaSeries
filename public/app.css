@@ -3661,9 +3661,11 @@ a:hover { color: var(--accent-hover); }
   font-size: var(--text-sm);
 }
 
+/* Название сериала — навигационная ссылка, а не заголовок-герой: фокус
+   экрана — текст отзыва (UI §19), и он должен быть крупнее. */
 .review-page__title {
   margin-block: var(--space-1) var(--space-4);
-  font-size: var(--text-xl);
+  font-size: var(--text-lg);
 }
 
 .review-page__series {
@@ -3678,8 +3680,8 @@ a:hover { color: var(--accent-hover); }
 .review-page__text {
   max-width: 70ch;
   margin-block-start: var(--space-4);
-  font-size: var(--text-lg);
-  line-height: 1.6;
+  font-size: var(--text-xl);
+  line-height: 1.5;
 }
 
 .review-page__card .reviews__foot {
@@ -3689,5 +3691,6 @@ a:hover { color: var(--accent-hover); }
 @media (max-width: 480px) {
   .review-page { padding-block: var(--space-4) var(--space-7); }
   .review-page__card { padding: var(--space-4); }
-  .review-page__text { font-size: var(--text-base); }
+  .review-page__title { font-size: var(--text-base); }
+  .review-page__text { font-size: var(--text-lg); }
 }
