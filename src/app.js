@@ -30,6 +30,7 @@ import { createOverviewRoutes } from './routes/adminOverview.js';
 import { createBackupRoutes } from './routes/backups.js';
 import { createStudioRoutes } from './routes/studio.js';
 import { createDiscussionRoutes } from './routes/discussions.js';
+import { createStudioLibraryRoutes } from './routes/studioCollections.js';
 import { createStudioCardRoutes } from './routes/studioCard.js';
 import { createSystemSettingsRoutes } from './routes/systemSettings.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
@@ -94,6 +95,8 @@ export function createApp({
   adminOverview = null,
   backups = null,
   studio = null,
+  studioCollections = null,
+  studioDictionaries = null,
   discussions = null,
   studioCard = null,
   picks = null,
@@ -203,6 +206,11 @@ export function createApp({
   if (discussions) app.use(createDiscussionRoutes({
     discussions, series, dictionary, limits: moderationBudget,
     restrictions: moderationRestrictions, sessionMw,
+  }));
+  // Подборки и справочники студии (S-77, S-80).
+  if (studioCollections) app.use(createStudioLibraryRoutes({
+    collections: studioCollections, dictionaries: studioDictionaries,
+    series, audit, sessionMw,
   }));
   if (studio) app.use(createStudioRoutes({ pool, studio, picks, audit, sessionMw }));
   // Карточка сериала (S-75): правка, публикация, архив.

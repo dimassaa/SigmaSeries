@@ -99,6 +99,15 @@ export function adminOverviewView({ locale, data, csrf = null }) {
         <a class="admin-overview__link" href="/${locale}/admin/backups">${t(locale, 'admin.overview.link.backups')}</a>
       </li>
       <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/collections">${t(locale, 'admin.overview.link.collections')}</a>
+      </li>
+      <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/banners">${t(locale, 'admin.overview.link.banners')}</a>
+      </li>
+      <li class="admin-overview__link-item">
+        <a class="admin-overview__link" href="/${locale}/admin/dictionaries">${t(locale, 'admin.overview.link.dictionaries')}</a>
+      </li>
+      <li class="admin-overview__link-item">
         <a class="admin-overview__link" href="/${locale}/admin/settings">${t(locale, 'admin.overview.link.settings')}</a>
       </li>
     </ul>

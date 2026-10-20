@@ -608,7 +608,11 @@
   .studio-card { grid-template-columns: 1fr; }
 }
 
-.studio-card__form { display: grid; gap: var(--space-4); }
+.studio-card__form {
+  display: grid;
+  gap: var(--space-4);
+  max-inline-size: 760px;
+}
 
 .studio-card__section {
   display: grid;
@@ -727,3 +731,52 @@
 .studio-history__actor,
 .studio-history__at,
 .studio-history__reason { color: var(--text-secondary); }
+
+/* --- Подборки и справочники студии --- */
+
+.studio-series-list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+
+.studio-series-list__item {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.studio-series-list__title { font-weight: 600; }
+
+.studio-series-list__buttons { display: flex; gap: var(--space-1); }
+
+.studio-dictionary__form {
+  display: grid;
+  gap: var(--space-2);
+  margin-block-start: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  max-inline-size: 520px;
+}
+
+.studio-dictionary__form .field__label { font-size: var(--text-xs); color: var(--text-secondary); }
+
+.studio-countries {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-countries__item {
+  padding: 2px var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
