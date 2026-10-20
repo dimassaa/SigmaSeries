@@ -30,6 +30,7 @@ import { createOverviewRoutes } from './routes/adminOverview.js';
 import { createBackupRoutes } from './routes/backups.js';
 import { createStudioRoutes } from './routes/studio.js';
 import { createDiscussionRoutes } from './routes/discussions.js';
+import { createGuideRoutes } from './routes/guides.js';
 import { createStudioLibraryRoutes } from './routes/studioCollections.js';
 import { createStudioCardRoutes } from './routes/studioCard.js';
 import { createSystemSettingsRoutes } from './routes/systemSettings.js';
@@ -98,6 +99,7 @@ export function createApp({
   studioCollections = null,
   studioDictionaries = null,
   discussions = null,
+  guides = null,
   studioCard = null,
   studioSchedule = null,
   studioImages = null,
@@ -204,6 +206,11 @@ export function createApp({
     backups, readSchedule: backupSchedule, runBackup: backupRunner, audit, sessionMw,
   }));
   // Студия (S-73, S-74): каталог сериалов и очередь неполных карточек.
+  // Руководства (S-11, S-12): список и статья.
+  if (guides) app.use(createGuideRoutes({
+    guides, series, dictionary, limits: moderationBudget,
+    restrictions: moderationRestrictions, sessionMw,
+  }));
   // Обсуждения сериала (S-13, S-14): темы, посты, ответы.
   if (discussions) app.use(createDiscussionRoutes({
     discussions, series, dictionary, limits: moderationBudget,

@@ -536,3 +536,59 @@
 .episode__link { display: grid; grid-template-columns: 32px 1fr auto; gap: var(--space-3); color: inherit; text-decoration: none; }
 .episode__link:hover .episode__title { color: var(--accent); }
 .episode__date { font-variant-numeric: tabular-nums; color: var(--text-secondary); font-size: var(--text-xs); }
+
+/* --- Руководства (F-05-06) --- */
+
+.guides__title,
+.guide__title { margin-block-end: var(--space-2); }
+
+.guides__subtitle,
+.guide__meta { color: var(--text-secondary); font-size: var(--text-sm); }
+
+.guides__form {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-4);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.guides__form .field__label { font-size: var(--text-xs); color: var(--text-secondary); }
+
+.guides__note { color: var(--text-secondary); font-size: var(--text-sm); margin: 0; }
+
+.guides__spoiler {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.guides__actions { margin: 0; }
+
+.guides__list { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+
+.guides__item {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.guides__link { color: var(--text-primary); font-weight: 600; text-decoration: none; }
+
+.guides__link:hover { color: var(--accent); }
+
+.guides__meta { color: var(--text-secondary); font-size: var(--text-sm); }
+
+.guide__body { display: grid; gap: var(--space-4); margin-block-start: var(--space-4); }
+
+.guide__section { display: grid; gap: var(--space-2); }
+
+.guide__heading { font-size: var(--text-lg); }
+
+.guide__text { margin: 0; white-space: pre-wrap; }

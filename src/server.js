@@ -36,6 +36,7 @@ import { pgStudioCard } from './services/studio/card.js';
 import { pgStudioSchedule } from './services/studio/schedule.js';
 import { pgStudioImages } from './services/studio/images.js';
 import { pgDiscussions } from './services/discussions/topics.js';
+import { pgGuides } from './services/guides/service.js';
 import { pgStudioCollections } from './services/studio/collections.js';
 import { pgStudioDictionaries } from './services/studio/dictionaries.js';
 import { pgBannerSelection, localDate } from './services/home/banners.js';
@@ -244,6 +245,9 @@ const ratings = pgRatings(pool);
 // снимок заморозки обязан читаться без пересчётов (F-04-08).
 const anomalies = pgAnomalySensor({ pool, ratings });
 const audit = pgAuditLog(pool);
+// Ограничения пользователя (мьют, бан) — один источник для админских экранов,
+// обсуждений и руководств.
+const moderationRestrictions = pgModerationRestrictions(pool, { auth, audit });
 
 const countMatured = () => ratings.countMaturedRatings(new Date())
   .then((count) => {
@@ -300,8 +304,11 @@ const app = createApp({
   decisions: pgModerationDecisions(pool),
   moderationClusters: pgModerationClusters(pool),
   moderationBudget: moderationBudget,
-  moderationRestrictions: pgModerationRestrictions(pool, { auth, audit }),
+  moderationRestrictions,
   myMaterials: pgMyMaterials(pool),
+  guides: pgGuides(pool, {
+    limits: moderationBudget, restrictions: moderationRestrictions,
+  }),
   discussions: pgDiscussions(pool, {
     limits: moderationBudget,
     restrictions: pgModerationRestrictions(pool, { auth, audit }),
