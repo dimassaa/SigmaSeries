@@ -109,7 +109,7 @@
 
 /* Телефон (TOKENS §3): у крупных ступеней своя высота, мелкие не меняются.
    Точка перелома та же, что у остальных частей (639px). */
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   :root {
     --text-3xl: 28px;
     --text-2xl: 24px;
@@ -241,7 +241,7 @@ a:hover { color: var(--accent-hover); }
   padding: var(--space-6) var(--space-4) var(--space-9);
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .topbar { flex-wrap: wrap; }
   .topbar__nav { order: 3; width: 100%; margin-inline-end: 0; }
   .content { padding: var(--space-5) var(--space-4) var(--space-8); }
@@ -843,7 +843,7 @@ a:hover { color: var(--accent-hover); }
 
 /* --- Брейкпоинты: 360 / 768 / 1440 (LAYOUT-GRID §6) --- */
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .posters { grid-template-columns: repeat(3, 1fr); }
   .banners { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .banners > :first-child { grid-column: 1 / -1; min-height: 300px; }

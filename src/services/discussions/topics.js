@@ -34,15 +34,14 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    */
   async function listForSeries(seriesId, { page = 1, perPage = 20 } = {}) {
     const { rows } = await pool.query(
-      `SELECT m.id, m.body, m.spoiler, m.created_at, m.sections, m.state,
+      `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.state,
               u.nickname, u.id AS author_id,
               (SELECT count(*)::int FROM e_material p
                 WHERE p.parent_id = m.id AND p.kind = 'post'
                   AND p.state = ANY($2::text[])) AS posts,
               (SELECT count(*)::int FROM e_material p
                 WHERE p.parent_id = m.id AND p.kind = 'post'
-                  AND p.state = ANY($2::text[])
-                  AND (p.sections->>'pinned') = 'true') AS pinned
+                  AND p.state = ANY($2::text[]) AND p.pinned) AS pinned
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
         WHERE m.kind = 'topic' AND m.series_id = $1
@@ -69,7 +68,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    */
   async function topic(topicId, { page = 1, perPage = 50, userId = null } = {}) {
     const { rows: [head] } = await pool.query(
-      `SELECT m.id, m.body, m.spoiler, m.created_at, m.sections, m.state, m.series_id,
+      `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.state, m.series_id,
               u.nickname, u.id AS author_id, s.slug AS series_slug
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
@@ -86,13 +85,13 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
     }
 
     const { rows: posts } = await pool.query(
-      `SELECT m.id, m.body, m.spoiler, m.created_at, m.sections, m.state,
+      `SELECT m.id, m.body, m.spoiler, m.created_at, m.pinned, m.state,
               u.nickname, u.id AS author_id
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
         WHERE m.parent_id = $1 AND m.kind = 'post'
           AND m.state = ANY($2::text[])
-        ORDER BY (COALESCE(m.sections->>'pinned', 'false')) DESC, m.created_at ASC
+        ORDER BY m.pinned DESC, m.created_at ASC
         LIMIT $3 OFFSET $4`,
       [topicId, [...VISIBLE], perPage, (Math.max(1, page) - 1) * perPage],
     );
@@ -113,7 +112,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
         createdAt: post.created_at,
         author: post.nickname,
         authorId: post.author_id,
-        pinned: post.sections?.pinned === 'true',
+        pinned: Boolean(post.pinned),
       })),
       totalPosts: total.n,
     };
@@ -151,15 +150,14 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
       : result.decision === 'queue' ? 'flagged' : 'checking';
 
     const { rows } = await pool.query(
-      `INSERT INTO e_material (author_id, kind, series_id, body, spoiler, lang, state, submitted_at, matches, sections)
+      `INSERT INTO e_material (author_id, kind, series_id, title, body, spoiler, lang, state, submitted_at, matches)
        VALUES ($1, 'topic', $2, $3, $4, $5, $6, $7, $8, $9)
        RETURNING id, version`,
       [
-        userId, seriesId, text, spoiler, detectLang(text), state, at,
+        userId, seriesId, heading, text, spoiler, detectLang(text), state, at,
         JSON.stringify((result.matched ?? []).map((item) => ({
           word: item.word, list: item.list ?? null, category: item.category ?? null,
         }))),
-        JSON.stringify({ title: heading }),
       ],
     );
     return { ok: true, state, id: Number(rows[0].id), version: Number(rows[0].version) };
@@ -220,9 +218,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    */
   async function pin({ materialId, byId = null }) {
     const { rowCount } = await pool.query(
-      `UPDATE e_material
-          SET sections = jsonb_set(COALESCE(sections, '{}'::jsonb), '{pinned}', 'true'::jsonb, true)
-        WHERE id = $1 AND kind = 'post'`,
+      `UPDATE e_material SET pinned = TRUE WHERE id = $1 AND kind = 'post'`,
       [materialId],
     );
     return rowCount > 0;
@@ -364,7 +360,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
 function decorateTopic(row) {
   return {
     id: row.id,
-    title: row.sections?.title ?? '',
+    title: row.title ?? '',
     body: row.body,
     spoiler: row.spoiler,
     createdAt: row.created_at,

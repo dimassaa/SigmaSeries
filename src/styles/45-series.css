@@ -225,7 +225,7 @@
   margin-block-start: var(--space-1);
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .rating__bars {
     grid-template-columns: 1fr 1fr;
     grid-template-rows: repeat(5, auto);
@@ -279,7 +279,7 @@
 /* Телефон: десять клеток в строку не помещаются — ряд переносится по пять, а
    цель растёт до 44 px, чтобы по ней попадать пальцем, а не прицеливаться
    (R-A11Y-08). */
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .rating__form--compact .rating__scale { grid-template-columns: repeat(5, 44px); }
   .rating__form--compact .rating__scale .rating__value { min-height: 44px; }
 }
@@ -411,7 +411,7 @@
   font-size: var(--text-sm);
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .series__header {
     aspect-ratio: 4 / 5;
   }
@@ -514,7 +514,7 @@
   font-variant-numeric: tabular-nums;
 }
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .season__episode-link { grid-template-columns: 40px 1fr auto; }
   .season__episode-meta { grid-column: 3; justify-self: end; }
 }

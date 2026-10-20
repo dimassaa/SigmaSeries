@@ -59,47 +59,132 @@ export function pgBulkOperations(pool) {
   }
 
   /**
-   * Выполнить действие над выбранными карточками.
+   * Запустить действие над выбранными карточками.
+   *
+   * Работа идёт в фоне: карточек до двухсот, и ждать их в ответе незачем. Задание
+   * записывается в `e_bulk_job`, его состояние видно в студии, а отчёт — по
+   * каждому элементу (F-10-11 §4).
    *
    * @param {object} input
-   * @returns {Promise<object>}
+   * @returns {Promise<object>} задание
    */
-  async function run({ action, ids = [], genre = null, reason = null, byId = null }) {
+  async function start({ action, ids = [], genre = null, reason = null, byId = null }) {
     const plan = await preview({ action, ids, genre, reason });
     if (!plan.ok) return plan;
 
+    const { rows: [job] } = await pool.query(
+      `INSERT INTO e_bulk_job (action, actor_id, total, state, params)
+       VALUES ($1, $2, $3, 'running', $4) RETURNING id`,
+      [
+        action,
+        byId,
+        plan.total,
+        JSON.stringify({
+          ids: plan.ids,
+          genre,
+          reason,
+          skipped: plan.skipped,
+        }),
+      ],
+    );
+
+    // Фоновая работа: ответ странице ждать её не нужно.
+    const work = execute(job.id, { action, genre, reason, skipped: plan.skipped, total: plan.total })
+      .catch((error) => {
+        console.error(`[массовая операция] ${error.message}`);
+      });
+
+    return { ok: true, jobId: Number(job.id), affected: plan.affected, skipped: plan.skipped, work };
+  }
+
+  /**
+   * Выполнить задание.
+   *
+   * @param {number} jobId
+   * @param {object} input
+   * @returns {Promise<object>}
+   */
+  async function execute(jobId, { action, genre, reason, skipped = [], total = 0 }) {
     const client = await pool.connect();
-    const done = [];
-    const skipped = [];
+    const result = [];
+    let done = 0;
     try {
       await client.query('BEGIN');
-      const { rows } = await client.query(
+      // Список карточек — в задании: между прогнозом и выполнением его могли
+      // изменить, и молча работать над другим списком нельзя.
+      const { rows: plan } = await client.query('SELECT params FROM e_bulk_job WHERE id = $1', [jobId]);
+      const ids = plan[0]?.params?.ids ?? [];
+      const { rows: targets } = await client.query(
         'SELECT id, slug, title_ru, title_original, publication_state, level, reasons,'
         + ' (SELECT count(*)::int FROM e_series_genre sg WHERE sg.series_id = s.id) AS genres'
         + ' FROM e_series s WHERE id = ANY($1::bigint[]) FOR UPDATE',
-        [[...new Set(ids.map(Number).filter(Number.isInteger))]],
+        [ids],
       );
 
-      for (const row of rows) {
+      for (const row of targets) {
         const problem = problemOf(action, row, { genre, reason });
         if (problem) {
-          skipped.push({ id: Number(row.id), title: row.title_ru || row.title_original, reason: problem });
-          continue;
+          result.push({ id: Number(row.id), title: row.title_ru || row.title_original, reason: problem });
+        } else {
+          await applyOne(client, action, row, { genre, reason });
+          result.push({ id: Number(row.id), title: row.title_ru || row.title_original, ok: true });
         }
-        await applyOne(client, action, row, { genre, reason });
-        done.push(Number(row.id));
+        done += 1;
+        // Прогресс виден в студии, пока идёт работа.
+        await client.query(
+          'UPDATE e_bulk_job SET done = $2, result = $3 WHERE id = $1',
+          [jobId, done, JSON.stringify(result)],
+        );
       }
       await client.query('COMMIT');
     } catch (error) {
       await client.query('ROLLBACK');
+      await pool.query(
+        `UPDATE e_bulk_job SET state = 'failed', finished_at = now() WHERE id = $1`,
+        [jobId],
+      );
       throw error;
     } finally {
       client.release();
     }
-    return { ok: true, affected: done.length, skipped, total: done.length + skipped.length };
+
+    const failed = result.filter((item) => !item.ok).length;
+    await pool.query(
+      `UPDATE e_bulk_job
+          SET state = $2, done = $3, failed = $4, result = $5, finished_at = now()
+        WHERE id = $1`,
+      [jobId, failed ? 'partial' : 'done', done, failed, JSON.stringify(result)],
+    );
+    return { ok: true, done, failed };
   }
 
-  return { preview, run };
+  /**
+   * Последние задания — их видно в студии.
+   *
+   * @param {number} [limit]
+   * @returns {Promise<object[]>}
+   */
+  async function jobs(limit = 10) {
+    const { rows } = await pool.query(
+      `SELECT j.id, j.action, j.total, j.done, j.failed, j.state, j.at, j.finished_at
+         FROM e_bulk_job j
+        ORDER BY j.at DESC
+        LIMIT $1`,
+      [limit],
+    );
+    return rows.map((row) => ({
+      id: Number(row.id),
+      action: row.action,
+      total: Number(row.total),
+      done: Number(row.done),
+      failed: Number(row.failed),
+      state: row.state,
+      at: row.at,
+      finishedAt: row.finished_at,
+    }));
+  }
+
+  return { preview, start, execute, jobs };
 }
 
 /**

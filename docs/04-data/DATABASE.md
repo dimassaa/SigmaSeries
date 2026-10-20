@@ -218,12 +218,31 @@ CREATE TABLE e_series (
   level   TEXT NOT NULL DEFAULT 'minimum'
           CHECK (level IN ('full','displayable','minimum')),
   added_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Когда карточку меняли в последний раз: правка в студии и импорт. Без
+  -- этого «обновлено» в студии приходилось показывать дату добавления.
+  updated_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Откуда данные карточки: импорт или правка человека. Фильтр студии
+  -- «изменён вручную» (F-10-01 §4) смотрит на это поле.
+  source        TEXT NOT NULL DEFAULT 'tmdb' CHECK (source IN ('tmdb','manual')),
   version       INTEGER NOT NULL DEFAULT 1,   -- оптимистичная блокировка (EC-R2)
   -- Либо IMDb-ключ, либо TMDB-идентификатор: без одного из них
   -- сопоставление не считается состоявшимся
   CONSTRAINT ck_series_source CHECK (imdb_key IS NOT NULL OR tmdb_id IS NOT NULL)
 );
 CREATE INDEX ix_series_exit  ON e_series (exit_state) WHERE archived_at IS NULL;
+
+-- Время последней правки карточки ведёт сам триггер: правило «обновлено
+-- меняется при каждом сохранении» не должно зависеть от того, помнит ли о нём
+-- тот, кто пишет.
+CREATE OR REPLACE FUNCTION t_series_touch() RETURNS trigger AS $fn$
+BEGIN
+  NEW.updated_at = now();
+  RETURN NEW;
+END;
+$fn$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_series_touch BEFORE UPDATE ON e_series
+  FOR EACH ROW EXECUTE FUNCTION t_series_touch();
 CREATE INDEX ix_series_year   ON e_series (year_start);
 CREATE INDEX ix_series_added  ON e_series (added_at DESC);
 -- Поиск по названиям ru/en/original одним запросом.
@@ -305,7 +324,10 @@ CREATE TABLE e_genre (
   code    TEXT PRIMARY KEY,
   name_ru TEXT NOT NULL,
   name_en TEXT NOT NULL,
-  active  BOOLEAN NOT NULL DEFAULT TRUE
+  active  BOOLEAN NOT NULL DEFAULT TRUE,
+  -- Жанр пришёл из импорта, а не из справочника: названия у него нет, и в
+  -- фильтрах он лишний (F-10-10 §5).
+  is_raw  BOOLEAN NOT NULL DEFAULT FALSE
 );
 CREATE TABLE e_series_genre (
   series_id BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
@@ -344,8 +366,12 @@ CREATE TABLE e_external_rating (
 CREATE TABLE e_collection (
   id       BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   slug     TEXT NOT NULL UNIQUE,
-  title    TEXT NOT NULL,
-  description TEXT,
+  -- Название и описание на двух языках: русский обязателен, английный
+  -- желателен (CONTENT-PLAN §3, F-10-07 §4).
+  title_ru TEXT NOT NULL,
+  title_en TEXT,
+  description_ru TEXT,
+  description_en TEXT,
   banner_image_id BIGINT REFERENCES e_image(id) ON DELETE SET NULL,
   weight   NUMERIC(5,2) NOT NULL DEFAULT 0,
   active   BOOLEAN NOT NULL DEFAULT TRUE,
@@ -548,6 +574,12 @@ CREATE TABLE e_material (
   episode_id   BIGINT REFERENCES e_episode(id) ON DELETE RESTRICT,
   parent_id    BIGINT REFERENCES e_material(id) ON DELETE RESTRICT,
   body         TEXT   NOT NULL,
+  -- Заголовок темы или статьи и её адрес. У отзыва заголовка нет, поэтому
+  -- поле пустое.
+  title        TEXT,
+  slug         TEXT,
+  -- Пост закреплён редактором (F-05-07 §8б).
+  pinned       BOOLEAN NOT NULL DEFAULT FALSE,
   sections     JSONB,                -- разделы руководства; текст, не HTML (R-SEC-11)
   spoiler      BOOLEAN NOT NULL DEFAULT FALSE,
   -- Язык текста по письменности, а не по интерфейсу (R-I18N-08): автор
@@ -801,6 +833,9 @@ CREATE TABLE e_image_variant (
   file       BYTEA  NOT NULL,
   mime       TEXT   NOT NULL,
   bytes      INTEGER NOT NULL,
+  -- Заранее размытая копия: заставка показывает кадры размытыми, и фильтр
+  -- на большой картинке стоит дорого (R-PERF-13).
+  blurred    BOOLEAN NOT NULL DEFAULT FALSE,
   -- Имя файла содержит хеш содержимого, поэтому кэш immutable корректен
   checksum   TEXT   NOT NULL,
   CONSTRAINT uq_variant UNIQUE (image_id, width)
@@ -1026,6 +1061,41 @@ CREATE TABLE e_export_job (
 -- обошли бы паузу.
 CREATE INDEX ix_export_user ON e_export_job (user_id, requested_at DESC);
 CREATE INDEX ix_export_queue ON e_export_job (status, requested_at) WHERE status IN ('queued','building');
+
+-- ---------- Версии карточки (F-10-03, F-10-06) ----------
+
+-- История правок карточки: кто, когда, какие поля и откуда. Отдельная
+-- таблица, а не журнал аудита: журнал пишет о действии, версия — о
+-- значениях, и без различий откат невозможен.
+CREATE TABLE e_catalog_version (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  version    INTEGER NOT NULL,
+  author_id  BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
+  at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+  source     TEXT NOT NULL CHECK (source IN ('manual','import')),
+  diff       JSONB NOT NULL DEFAULT '{}',   -- поле: было → стало
+  CONSTRAINT uq_catalog_version UNIQUE (series_id, version)
+);
+CREATE INDEX ix_catalog_version_series ON e_catalog_version (series_id, at DESC);
+
+-- ---------- Задания массовых операций (F-10-11) ----------
+
+CREATE TABLE e_bulk_job (
+  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  action      TEXT NOT NULL,
+  actor_id    BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
+  total       INTEGER NOT NULL DEFAULT 0,
+  done        INTEGER NOT NULL DEFAULT 0,
+  failed      INTEGER NOT NULL DEFAULT 0,
+  state       TEXT NOT NULL DEFAULT 'running'
+              CHECK (state IN ('running','done','partial','failed')),
+  params      JSONB NOT NULL DEFAULT '{}',
+  result      JSONB NOT NULL DEFAULT '[]',  -- по элементу: что вышло
+  at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+  finished_at TIMESTAMPTZ
+);
+CREATE INDEX ix_bulk_job_at ON e_bulk_job (at DESC);
 
 -- ---------- Блокировка поля от перезаписи импортом ----------
 -- Механизм EC-R8 и F-10-03(а): ручное значение помечено происхождением.

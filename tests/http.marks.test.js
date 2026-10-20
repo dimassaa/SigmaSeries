@@ -40,10 +40,20 @@ let series;
 let season;
 let episodes;
 
+/**
+ * Дата по местному времени.
+ *
+ * «Сегодня» у читателя — его пояс, а не UTC: в полночь по местному времени
+ * даты расходятся, и фикстура на UTC путала «вышедшие» и «будущие» серии.
+ */
 function shift(days) {
   const date = new Date();
-  date.setUTCDate(date.getUTCDate() + days);
-  return date.toISOString().slice(0, 10);
+  date.setDate(date.getDate() + days);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
 }
 
 test.before(async () => {

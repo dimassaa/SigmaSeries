@@ -368,8 +368,9 @@ async function writeGenres({ client, seriesId, genres }) {
   for (const name of genres) {
     const code = genreCode(name);
     await client.query(
-      'INSERT INTO e_genre (code, name_ru, name_en) VALUES ($1, $2, $3) ON CONFLICT (code) DO NOTHING',
-      [code, genreNameRu(name), name],
+      `INSERT INTO e_genre (code, name_ru, name_en, is_raw)
+       VALUES ($1, $2, $3, $4) ON CONFLICT (code) DO NOTHING`,
+      [code, genreNameRu(name), name, code.startsWith('imdb:')],
     );
     await client.query(
       'INSERT INTO e_series_genre (series_id, genre_code) VALUES ($1, $2) ON CONFLICT DO NOTHING',

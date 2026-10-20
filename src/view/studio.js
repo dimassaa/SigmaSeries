@@ -47,7 +47,9 @@ function linkWith(locale, path, filters, changes) {
  * @param {object} args.filters
  * @returns {string}
  */
-export function studioListView({ locale, list, genres = [], filters = {}, csrf = '' }) {
+export function studioListView({
+  locale, list, genres = [], filters = {}, jobs = [], csrf = '',
+}) {
   return html`
 <div class="studio">
   <h1 class="studio__title">${t(locale, 'studio.catalogue.title')}</h1>
@@ -103,7 +105,12 @@ export function studioListView({ locale, list, genres = [], filters = {}, csrf =
         min="1900" max="2200" value="${filters.yearTo ?? ''}">
     </span>
     <span class="studio__filter">
-      <label class="field__label" for="studio-sort">${t(locale, 'studio.filter.sort')}</label>
+      <label class="studio-field__origin">
+      <input type="checkbox" name="manual" value="1" ${filters.manual ? 'checked' : ''}>
+      <span>${t(locale, 'studio.filter.manual')}</span>
+    </label>
+
+    <label class="field__label" for="studio-sort">${t(locale, 'studio.filter.sort')}</label>
       <select class="field__input" id="studio-sort" name="sort">
         ${['popular', 'updated', 'title'].map((value) => html`
         <option value="${value}" ${value === (filters.sort ?? 'popular') ? 'selected' : ''}>
@@ -118,6 +125,21 @@ export function studioListView({ locale, list, genres = [], filters = {}, csrf =
   </form>
 
   <p class="studio__summary">${tPlural(locale, 'studio.list.total', list.total, { count: list.total })}</p>
+
+  ${when(jobs.length, () => html`
+  <section class="studio__section">
+    <h2 class="studio__section-title">${t(locale, 'studio.bulk.jobs')}</h2>
+    <ul class="studio-history" role="list">
+      ${jobs.map((job) => html`
+      <li class="studio-history__item">
+        <span class="studio-history__action">${t(locale, `studio.bulk.actions.${job.action}`)}</span>
+        <span class="studio-history__reason">${job.done} / ${job.total}</span>
+        <span class="studio-history__at">${t(locale, `studio.bulk.state.${job.state}`)}</span>
+        ${when(job.failed, () => html`
+        <span class="studio-history__reason">${t(locale, 'studio.bulk.failed', { count: job.failed })}</span>`)}
+      </li>`)}
+    </ul>
+  </section>`)}
 
   ${when(list.rows.length === 0, () => html`
   <p class="empty">${t(locale, 'studio.list.empty')}</p>`)}

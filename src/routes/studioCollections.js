@@ -98,8 +98,10 @@ export function createStudioLibraryRoutes({
           .filter(Number.isInteger);
       const result = await collections.save({
         slug: req.params.slug,
-        title: body.title,
-        description: body.description,
+        title: body.title_ru,
+        titleEn: body.title_en,
+        description: body.description_ru,
+        descriptionEn: body.description_en,
         weight: body.weight,
         active: body.active === '1' || body.active === 'on' || body.active === 'true',
         seriesIds,

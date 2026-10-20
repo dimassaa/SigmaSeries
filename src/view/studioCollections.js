@@ -80,12 +80,20 @@ export function studioCollectionView({ locale, collection, csrf = '' }) {
     <input type="hidden" name="csrf" value="${csrf}">
 
     <label class="field__label" for="collection-title">${t(locale, 'studio.collections.column.title')}</label>
-    <input class="field__input" id="collection-title" name="title" type="text" maxlength="100"
+    <input class="field__input" id="collection-title" name="title_ru" type="text" maxlength="100"
       value="${collection.title}" required>
 
+    <label class="field__label" for="collection-title-en">${t(locale, 'studio.collections.titleEn')}</label>
+    <input class="field__input" id="collection-title-en" name="title_en" type="text" maxlength="100"
+      value="${collection.titleEn ?? ''}">
+
     <label class="field__label" for="collection-description">${t(locale, 'studio.collections.description')}</label>
-    <textarea class="field__input" id="collection-description" name="description" rows="3"
+    <textarea class="field__input" id="collection-description" name="description_ru" rows="3"
       maxlength="500">${collection.description ?? ''}</textarea>
+
+    <label class="field__label" for="collection-description-en">${t(locale, 'studio.collections.descriptionEn')}</label>
+    <textarea class="field__input" id="collection-description-en" name="description_en" rows="3"
+      maxlength="500">${collection.descriptionEn ?? ''}</textarea>
 
     <label class="field__label" for="collection-weight">${t(locale, 'studio.collections.column.weight')}</label>
     <input class="field__input" id="collection-weight" name="weight" type="number" min="0" max="999"

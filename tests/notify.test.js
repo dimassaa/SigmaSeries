@@ -132,7 +132,18 @@ const rowsOf = async (userId) => (await pool.query(
   [userId],
 )).rows;
 
-const day = (offset = 0) => new Date(Date.now() + offset * 86_400_000).toISOString().slice(0, 10);
+/**
+ * Дата по местному времени: «сегодня» считается по поясу читателя.
+ */
+const day = (offset = 0) => {
+  const date = new Date();
+  date.setDate(date.getDate() + offset);
+  return [
+    date.getFullYear(),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    String(date.getDate()).padStart(2, '0'),
+  ].join('-');
+};
 const date = day;   // перенос в этой половине файла читается привычнее как `date(3)`
 
 test.after(async () => {

@@ -195,6 +195,6 @@
   color: var(--danger);
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .review { padding: 0 20px; }
 }

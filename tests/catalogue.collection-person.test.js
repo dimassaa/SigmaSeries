@@ -78,11 +78,11 @@ test('подборка из шести видимых сериалов откр�
   assert.equal(series.length, MIN_VISIBLE, 'в каталоге хватает видимых сериалов');
 
   const { rows: [full] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, description, weight) VALUES ($1, $2, $3, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, description_ru, weight) VALUES ($1, $2, $3, 10) RETURNING id, slug",
     ['test-data-collection-full', 'Проверочная подборка', 'Шесть видимых сериалов'],
   );
   const { rows: [thin] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, weight) VALUES ($1, $2, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 10) RETURNING id, slug",
     ['test-data-collection-thin', 'Проверочная подборка из пяти'],
   );
 
@@ -121,7 +121,7 @@ test('порог считает только видимые сериалы: ар
      RETURNING id`,
   );
   const { rows: [row] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, weight) VALUES ($1, $2, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 10) RETURNING id, slug",
     ['test-data-collection-archived', 'Подборка с архивным'],
   );
 
@@ -148,7 +148,7 @@ test('порог считает только видимые сериалы: ар
 test('неактивная подборка не видна даже с шестью сериалами', { skip }, async () => {
   const series = await sixVisibleSeries();
   const { rows: [row] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, active, weight) VALUES ($1, $2, false, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, active, weight) VALUES ($1, $2, false, 10) RETURNING id, slug",
     ['test-data-collection-hidden', 'Скрытая подборка'],
   );
   for (const [index, id] of series.entries()) {
@@ -172,7 +172,7 @@ test('неизвестная подборка — null, а не пустая с�
 test('сериалы в подборке идут в порядке админа, а не по алфавиту', { skip }, async () => {
   const series = await sixVisibleSeries();
   const { rows: [row] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, weight) VALUES ($1, $2, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 10) RETURNING id, slug",
     ['test-data-collection-order', 'Порядок админа'],
   );
   const order = [...series].reverse();
@@ -195,7 +195,7 @@ test('сериалы в подборке идут в порядке админа
 test('баннер по умолчанию — фон первого сериала, а чужого фона не подставляется', { skip }, async () => {
   const series = await sixVisibleSeries();
   const { rows: [row] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, weight) VALUES ($1, $2, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 10) RETURNING id, slug",
     ['test-data-collection-banner', 'Баннер по умолчанию'],
   );
   for (const [index, id] of series.entries()) {
@@ -235,11 +235,11 @@ test('баннер по умолчанию — фон первого сериа�
 test('список подборок на главной тоже знает про порог в шесть (F-02-05 §3)', { skip }, async () => {
   const series = await sixVisibleSeries();
   const { rows: [row] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, weight) VALUES ($1, $2, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 10) RETURNING id, slug",
     ['test-data-collection-list', 'Подборка для главной'],
   );
   const { rows: [thin] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, weight) VALUES ($1, $2, 9) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 9) RETURNING id, slug",
     ['test-data-collection-list-thin', 'Тонкая подборка для главной'],
   );
   for (const [index, id] of series.entries()) {

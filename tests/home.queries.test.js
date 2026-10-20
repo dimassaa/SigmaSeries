@@ -75,7 +75,7 @@ test('запросы используют только поля, существ�
     'e_image_variant.file', 'e_image_variant.width',
     'e_external_rating.platform', 'e_external_rating.value',
     'e_release.release_date', 'e_season.number',
-    'e_collection.slug', 'e_collection.title', 'e_collection.active',
+    'e_collection.slug', 'e_collection.title_ru', 'e_collection.active',
     'e_genre.code', 'e_genre.name_ru', 'e_genre.active',
     'e_series_genre.genre_code',
   ];

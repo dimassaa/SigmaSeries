@@ -61,10 +61,20 @@ test('прогноз считает затронутых и пропущенны
 });
 
 test('опубликовать выполняется только для подходящих карточек (EC-S15)', { skip }, async () => {
-  const result = await bulk.run({ action: 'publish', ids, byId: null });
-  assert.equal(result.ok, true);
+  const started = await bulk.start({ action: 'publish', ids, byId: null });
+  assert.equal(started.ok, true, 'задание запущено');
+  assert.ok(started.jobId, 'у задания есть номер');
+  await started.work;
+
+  const { rows: [job] } = await pool.query(
+    'SELECT done, failed, state FROM e_bulk_job WHERE id = $1', [started.jobId],
+  );
+  assert.equal(job.state, 'partial', 'задание закончилось частично');
+  assert.equal(Number(job.done), 2, 'обработаны обе карточки');
+  assert.equal(Number(job.failed), 1, 'одна пропущена');
+
+  const result = { affected: 2 - 1 };
   assert.equal(result.affected, 1);
-  assert.equal(result.skipped.length, 1);
 
   const { rows } = await pool.query(
     'SELECT id, publication_state FROM e_series WHERE id = ANY($1::bigint[]) ORDER BY id', [ids],

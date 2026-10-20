@@ -77,7 +77,7 @@ async function sixVisibleSeries() {
 async function withCollection() {
   const series = await sixVisibleSeries();
   const { rows: [row] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, description, weight) VALUES ($1, $2, $3, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, description_ru, weight) VALUES ($1, $2, $3, 10) RETURNING id, slug",
     ['test-http-collection-page', 'Подборка для страницы', 'Описание подборки для проверки'],
   );
   for (const [index, id] of series.entries()) {
@@ -114,7 +114,7 @@ test('страница подборки открывается и показыв
 test('подборка из пяти сериалов не открывается ни под своим адресом, ни ссылкой', { skip }, async () => {
   const series = await sixVisibleSeries();
   const { rows: [row] } = await pool.query(
-    "INSERT INTO e_collection (slug, title, weight) VALUES ($1, $2, 10) RETURNING id, slug",
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 10) RETURNING id, slug",
     ['test-http-collection-thin-page', 'Тонкая подборка'],
   );
   for (const id of series.slice(0, MIN_VISIBLE - 1)) {

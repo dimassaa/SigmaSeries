@@ -25,7 +25,7 @@ export function pgStudioDictionaries(pool) {
    */
   async function genres() {
     const { rows } = await pool.query(
-      `SELECT g.code, g.name_ru, g.name_en, g.active,
+      `SELECT g.code, g.name_ru, g.name_en, g.active, g.is_raw,
               (SELECT count(*)::int FROM e_series_genre sg WHERE sg.genre_code = g.code) AS series_count
          FROM e_genre g
         ORDER BY g.name_ru`,
@@ -36,9 +36,9 @@ export function pgStudioDictionaries(pool) {
       nameEn: row.name_en,
       active: Boolean(row.active),
       seriesCount: Number(row.series_count),
-      // Сырые жанры импорта (с префиксом imdb:) правке не подлежат: у них нет
-      // названия, и они не из справочника.
-      raw: row.code.startsWith('imdb:'),
+      // Сырые жанры импорта правке не подлежат: у них нет названия, и они не
+      // из справочника.
+      raw: Boolean(row.is_raw),
     }));
   }
 

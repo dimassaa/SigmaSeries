@@ -121,7 +121,7 @@ export function pgData(pool) {
       // (F-02-05 §5): подборка из пяти пунктов не появляется на главной.
       // Считать по-разному значило бы, что ссылка ведёт в 404.
       const { rows } = await pool.query(`
-        SELECT c.slug, c.title, count(*)::int AS count,
+        SELECT c.slug, c.title_ru AS title, count(*)::int AS count,
                coalesce(
                  (SELECT iv.width FROM e_image_variant iv
                    JOIN e_image i ON i.id = iv.image_id
@@ -155,7 +155,7 @@ export function pgData(pool) {
            AND s.publication_state = 'published' AND s.archived_at IS NULL
          GROUP BY c.id
         HAVING count(*) >= $2
-         ORDER BY c.weight DESC, c.title
+         ORDER BY c.weight DESC, c.title_ru
          LIMIT $1`, [marqueeCollections, MIN_VISIBLE_SERIES]);
       return rows.map((r) => ({
         slug: r.slug,

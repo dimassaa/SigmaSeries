@@ -40,7 +40,7 @@ export function pgCollections(pool) {
      */
     async collection(slug) {
       const { rows } = await pool.query(
-        'SELECT id, slug, title, description FROM e_collection WHERE slug = $1 AND active AND NOT is_demo',
+        'SELECT id, slug, title_ru, description_ru FROM e_collection WHERE slug = $1 AND active AND NOT is_demo',
         [slug],
       );
       const collection = rows[0];
@@ -55,8 +55,8 @@ export function pgCollections(pool) {
 
       return {
         slug: collection.slug,
-        title: collection.title,
-        description: collection.description ?? '',
+        title: collection.title_ru,
+        description: collection.description_ru ?? '',
         banner: banner ? { width: banner.width } : null,
         series,
         total: series.length,
@@ -71,7 +71,7 @@ export function pgCollections(pool) {
      */
     async list(limit = COLLECTION_LIMIT) {
       const { rows } = await pool.query(
-        `SELECT c.slug, c.title, count(*)::int AS count
+        `SELECT c.slug, c.title_ru AS title, count(*)::int AS count
            FROM e_collection c
            JOIN e_collection_item ci ON ci.collection_id = c.id
            JOIN e_series s ON s.id = ci.series_id
@@ -79,7 +79,7 @@ export function pgCollections(pool) {
             AND s.publication_state = 'published' AND s.archived_at IS NULL
           GROUP BY c.id
          HAVING count(*) >= $2
-          ORDER BY c.weight DESC, c.title
+          ORDER BY c.weight DESC, c.title_ru
           LIMIT $1`,
         [limit, MIN_VISIBLE_SERIES],
       );

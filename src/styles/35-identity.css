@@ -263,7 +263,7 @@
 
 /* Телефон (§19): разделы — список-меню, открываются отдельно, поэтому
    навигация идёт списком, а не колонкой. */
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .settings { flex-direction: column; }
   .settings__nav { min-width: 0; width: 100%; }
   .settings__link { border-inline-start: 0; border-block-start: 1px solid var(--border-subtle); }

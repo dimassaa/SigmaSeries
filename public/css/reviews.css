@@ -204,7 +204,7 @@
   color: var(--danger);
 }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .review { padding: 0 20px; }
 }
 
@@ -434,7 +434,7 @@
 .reviews-top { padding: 0 32px; margin-block-end: var(--space-6); }
 .reviews-top__more { margin-block-start: var(--space-4); }
 
-@media (max-width: 639px) {
+@media (max-width: 767px) {
   .reviews-top { padding: 0 20px; }
 }
 

@@ -241,10 +241,14 @@ export function studioCardView({
         <ul class="studio-history" role="list">
           ${history.map((item) => html`
           <li class="studio-history__item">
-            <span class="studio-history__action">${item.action}</span>
+            <span class="studio-history__action">
+              ${t(locale, item.source === 'manual' ? 'studio.card.history.manual' : 'studio.card.history.import')}
+              · ${t(locale, 'studio.card.version', { version: item.version })}
+            </span>
             <span class="studio-history__actor">${item.actor ?? '—'}</span>
             <span class="studio-history__at">${String(item.at).slice(0, 16).replace('T', ' ')}</span>
-            ${when(item.reason, () => html`<span class="studio-history__reason">${item.reason}</span>`)}
+            ${when(Object.keys(item.diff ?? {}).length, () => html`
+            <span class="studio-history__reason">${Object.keys(item.diff).join(', ')}</span>`)}
           </li>`)}
         </ul>`, () => html`<p class="empty">${t(locale, 'studio.card.historyEmpty')}</p>`)}
       </section>`)}

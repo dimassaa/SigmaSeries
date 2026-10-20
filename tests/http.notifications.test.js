@@ -134,7 +134,14 @@ test.after(async () => {
 
 test('лента разложена по дням читателя, а не по дням сервера', { skip }, async () => {
   const today = todayIn(TIMEZONE);
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString();
+  // Вчера по поясу читателя: день в ленте считается по нему, а не по UTC.
+  const yesterdayDate = new Date();
+  yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+  const yesterday = [
+    yesterdayDate.getFullYear(),
+    String(yesterdayDate.getMonth() + 1).padStart(2, '0'),
+    String(yesterdayDate.getDate()).padStart(2, '0'),
+  ].join('-');
 
   await seed({ params: seriesParams(), at: new Date() });
   await seed({ params: seriesParams({ episodes: [4] }), at: new Date() });
@@ -143,7 +150,7 @@ test('лента разложена по дням читателя, а не по
   const data = await feed.feed({ userId: account.id, today });
   assert.equal(data.groups[0].day, today, 'первым идёт сегодняшний день');
   assert.equal(data.groups[0].items.length, 2, 'два уведомления сегодня');
-  assert.equal(data.groups[1].day, yesterday.slice(0, 10), 'вчерашнее — своим днём');
+  assert.equal(data.groups[1].day, yesterday, 'вчерашнее — своим днём');
   assert.equal(data.groups[1].items.length, 1);
 
   // Читатель в поясе впереди сервера получает день по-своему: сдвиг часового

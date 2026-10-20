@@ -38,7 +38,7 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
    */
   async function list({ seriesId = null, page = 1, perPage = 20 } = {}) {
     const { rows } = await pool.query(
-      `SELECT m.id, m.body, m.spoiler, m.created_at, m.sections, m.series_id,
+      `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.sections, m.series_id,
               s.slug AS series_slug, coalesce(s.title_ru, s.title_original) AS series_title,
               u.nickname
          FROM e_material m
@@ -70,14 +70,14 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
    */
   async function one(slug) {
     const { rows } = await pool.query(
-      `SELECT m.id, m.body, m.spoiler, m.created_at, m.sections, m.series_id,
+      `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.sections, m.series_id,
               s.slug AS series_slug, coalesce(s.title_ru, s.title_original) AS series_title,
               u.nickname
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
          LEFT JOIN e_series s ON s.id = m.series_id
         WHERE m.kind = 'guide' AND m.state = ANY($2::text[])
-          AND m.sections->>'slug' = $1`,
+          AND m.slug = $1`,
       [slug, [...VISIBLE]],
     );
     const row = rows[0];
@@ -128,15 +128,17 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
 
     const slug = `${slugify(heading)}-${crypto.randomUUID().slice(0, 6)}`;
     const { rows } = await pool.query(
-      `INSERT INTO e_material (author_id, kind, series_id, body, spoiler, lang, state, submitted_at, matches, sections)
-       VALUES ($1, 'guide', $2, $3, $4, $5, $6, $7, $8, $9)
+      `INSERT INTO e_material
+         (author_id, kind, series_id, title, slug, body, spoiler, lang, state, submitted_at, matches, sections)
+       VALUES ($1, 'guide', $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
        RETURNING id`,
       [
-        userId, seriesId, body, spoiler, /[а-яё]/i.test(body) ? 'ru' : 'en', state, at,
+        userId, seriesId, heading, slug, body, spoiler,
+        /[а-яё]/i.test(body) ? 'ru' : 'en', state, at,
         JSON.stringify((result.matched ?? []).map((item) => ({
           word: item.word, list: item.list ?? null, category: item.category ?? null,
         }))),
-        JSON.stringify({ title: heading, slug, sections }),
+        JSON.stringify({ sections }),
       ],
     );
     return { ok: true, state, id: Number(rows[0].id), slug };
@@ -154,8 +156,8 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
 function decorate(row) {
   return {
     id: Number(row.id),
-    slug: row.sections?.slug ?? '',
-    title: row.sections?.title ?? '',
+    slug: row.slug ?? row.sections?.slug ?? '',
+    title: row.title ?? row.sections?.title ?? '',
     excerpt: String(row.body ?? '').slice(0, 200),
     spoiler: Boolean(row.spoiler),
     createdAt: row.created_at,

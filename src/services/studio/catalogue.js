@@ -80,6 +80,7 @@ export function pgStudioCatalogue(pool) {
       genre = '',
       yearFrom = null,
       yearTo = null,
+      manual = false,
       sort = 'popular',
     } = options;
 
@@ -121,6 +122,9 @@ export function pgStudioCatalogue(pool) {
     }
     if (Number.isFinite(yearTo)) {
       where.push(`s.year_start <= ${add(Number(yearTo))}`);
+    }
+    if (manual) {
+      where.push("s.source = 'manual'");
     }
 
     const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
@@ -255,10 +259,9 @@ export function pgStudioCatalogue(pool) {
          FROM e_genre g
          JOIN e_series_genre sg ON sg.genre_code = g.code
         WHERE g.active
-          -- Сырые жанры IMDb импорт пишет с префиксом imdb:; в фильтре они
-          -- лишние: у них нет названия, и в них нет ни одного сериала из
-          -- справочника.
-          AND g.code NOT LIKE 'imdb:%'
+          -- Сырые жанры импорта в фильтре лишние: у них нет названия, и в них
+          -- нет ни одного сериала из справочника.
+          AND g.is_raw = FALSE
         GROUP BY g.code, g.name_ru
         ORDER BY g.name_ru`, ['ru'],
     );

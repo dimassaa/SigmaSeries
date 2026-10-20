@@ -111,7 +111,7 @@ export function createStudioRoutes({
           }).__raw);
         }
 
-        const result = await bulk.run({ action, ids, genre, reason, byId: req.session.user.id });
+        const result = await bulk.start({ action, ids, genre, reason, byId: req.session.user.id });
         if (audit) {
           await audit.write({
             actorId: req.session.user.id,
@@ -120,7 +120,7 @@ export function createStudioRoutes({
             objectId: null,
             result: result.ok ? 'ok' : 'denied',
             reason: `${action}; затронуто ${result.affected ?? 0} из ${result.total ?? 0}`,
-            after: result,
+            after: { job_id: result.jobId ?? null, affected: result.affected ?? 0 },
           });
         }
         return res.status(303).set('Location', `/${locale}${BASE}`).end();
@@ -313,6 +313,7 @@ function readFilters(query = {}) {
     genre: String(query.genre ?? ''),
     yearFrom: toYear(query.year_from),
     yearTo: toYear(query.year_to),
+    manual: query.manual === '1' || query.manual === 'on',
     sort: String(query.sort ?? 'popular'),
   };
 }

@@ -182,9 +182,23 @@ export function pgStudioCard(pool) {
         }
       }
 
+      // Версия карточки: что изменилось и чем было. По ней карточку можно
+      // вернуть к прежнему виду (F-10-06 §4).
+      const diff = {};
+      for (const field of changed) {
+        diff[field] = { from: current.fields[field] ?? null, to: clean.values[field] ?? null };
+      }
+      await client.query(
+        `INSERT INTO e_catalog_version (series_id, version, author_id, source, diff)
+         VALUES ($1, $2, $3, 'manual', $4)`,
+        [seriesId, current.version + 1, byId, JSON.stringify(diff)],
+      );
+      // Карточку правил человек — она отличается от импортированной.
+      await client.query("UPDATE e_series SET source = 'manual' WHERE id = $1", [seriesId]);
+
       await recompute(seriesId, client);
       await client.query('COMMIT');
-      return { ok: true, version: current.version + 1, changed };
+      return { ok: true, version: current.version + 1, changed, diff };
     } catch (error) {
       await client.query('ROLLBACK');
       throw error;
@@ -320,9 +334,9 @@ export function pgStudioCard(pool) {
   /**
    * История изменений карточки.
    *
-   * Отдельной таблицы версий в схеме нет, поэтому история — это журнал
-   * действий по объекту: он и так хранится не короче журнала аудита
-   * (F-10-06 §8). Пометка в журнале «журнал, а не версии» стоит в интерфейсе.
+   * Это версии, а не журнал действий: в версии видно, какие поля изменились
+   * и чем они были, и по ней карточку можно вернуть к прежнему виду
+   * (F-10-06 §4).
    *
    * @param {number} seriesId
    * @param {number} [limit]
@@ -330,23 +344,21 @@ export function pgStudioCard(pool) {
    */
   async function history(seriesId, limit = 50) {
     const { rows } = await pool.query(
-      `SELECT a.id, a.at, a.action, a.object_type, a.result, a.reason, a.after_data,
-              u.nickname
-         FROM e_audit_log a
-         LEFT JOIN e_user u ON u.id = a.actor_id
-        WHERE a.object_type = 'series' AND a.object_id = $1
-        ORDER BY a.at DESC
+      `SELECT v.id, v.at, v.source, v.diff, v.version, u.nickname
+         FROM e_catalog_version v
+         LEFT JOIN e_user u ON u.id = v.author_id
+        WHERE v.series_id = $1
+        ORDER BY v.at DESC, v.version DESC
         LIMIT $2`,
       [seriesId, limit],
     );
     return rows.map((row) => ({
       id: row.id,
       at: row.at,
-      action: row.action,
-      result: row.result,
-      reason: row.reason,
+      version: Number(row.version),
+      source: row.source,
       actor: row.nickname,
-      after: row.after_data,
+      diff: row.diff ?? {},
     }));
   }
 

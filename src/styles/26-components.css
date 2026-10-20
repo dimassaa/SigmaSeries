@@ -325,7 +325,7 @@
 
 /* --- Брейкпоинты: 360 / 768 / 1440 (LAYOUT-GRID §6) --- */
 
-@media (min-width: 640px) {
+@media (min-width: 768px) {
   .posters { grid-template-columns: repeat(3, 1fr); }
   .banners { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .banners > :first-child { grid-column: 1 / -1; min-height: 300px; }

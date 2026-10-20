@@ -100,9 +100,9 @@ const TARGETS = {
     titleOf: (row) => row.name,
   },
   collections: {
-    columns: 'c.id, c.slug, c.title, c.description',
+    columns: 'c.id, c.slug, c.title_ru AS title, c.description_ru AS description',
     from: 'e_collection c',
-    text: 'c.title',
+    text: 'c.title_ru',
     visible: 'c.active AND c.is_demo = FALSE',
     titleOf: (row) => row.title,
   },

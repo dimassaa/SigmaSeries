@@ -27,7 +27,8 @@ export function pgStudioCollections(pool) {
    */
   async function list() {
     const { rows } = await pool.query(
-      `SELECT c.id, c.slug, c.title, c.description, c.weight, c.active, c.is_demo,
+      `SELECT c.id, c.slug, c.title_ru, c.title_en, c.description_ru, c.description_en,
+              c.weight, c.active, c.is_demo,
               (SELECT count(*)::int FROM e_collection_item ci
                 JOIN e_series s ON s.id = ci.series_id
                WHERE ci.collection_id = c.id
@@ -36,13 +37,15 @@ export function pgStudioCollections(pool) {
               (SELECT count(*)::int FROM e_collection_item ci
                 WHERE ci.collection_id = c.id) AS total_series
          FROM e_collection c
-        ORDER BY c.weight DESC, c.title`,
+        ORDER BY c.weight DESC, c.title_ru`,
     );
     return rows.map((row) => ({
       id: Number(row.id),
       slug: row.slug,
-      title: row.title,
-      description: row.description,
+      title: row.title_ru,
+      titleEn: row.title_en,
+      description: row.description_ru,
+      descriptionEn: row.description_en,
       weight: Number(row.weight),
       active: Boolean(row.active),
       isDemo: Boolean(row.is_demo),
@@ -61,7 +64,8 @@ export function pgStudioCollections(pool) {
    */
   async function one(slug) {
     const { rows } = await pool.query(
-      `SELECT id, slug, title, description, weight, active, is_demo, banner_image_id
+      `SELECT id, slug, title_ru, title_en, description_ru, description_en,
+              weight, active, is_demo, banner_image_id
          FROM e_collection WHERE slug = $1`,
       [slug],
     );
@@ -88,8 +92,10 @@ export function pgStudioCollections(pool) {
     return {
       id: Number(row.id),
       slug: row.slug,
-      title: row.title,
-      description: row.description,
+      title: row.title_ru,
+      titleEn: row.title_en,
+      description: row.description_ru,
+      descriptionEn: row.description_en,
       weight: Number(row.weight),
       active: Boolean(row.active),
       isDemo: Boolean(row.is_demo),
@@ -115,11 +121,18 @@ export function pgStudioCollections(pool) {
    * @param {object} input
    * @returns {Promise<{ok: boolean, reason?: string, slug?: string}>}
    */
-  async function save({ slug = null, title, description = '', weight = 0, active = true, seriesIds = null }) {
+  async function save({
+    slug = null, title, titleEn = null, description = '', descriptionEn = null,
+    weight = 0, active = true, seriesIds = null,
+  }) {
     const cleanTitle = String(title ?? '').trim();
     if (!cleanTitle || cleanTitle.length > 100) return { ok: false, reason: 'title' };
+    const cleanTitleEn = titleEn ? String(titleEn).trim() : null;
+    if (cleanTitleEn && cleanTitleEn.length > 100) return { ok: false, reason: 'title' };
     const cleanDescription = String(description ?? '').trim();
     if (cleanDescription.length > 500) return { ok: false, reason: 'description' };
+    const cleanDescriptionEn = descriptionEn ? String(descriptionEn).trim() : null;
+    if (cleanDescriptionEn && cleanDescriptionEn.length > 500) return { ok: false, reason: 'description' };
     const cleanWeight = Number(weight);
     if (!Number.isInteger(cleanWeight) || cleanWeight < 0 || cleanWeight > 999) {
       return { ok: false, reason: 'weight' };
@@ -134,15 +147,17 @@ export function pgStudioCollections(pool) {
       if (cleanSlug) {
         const { rows } = await client.query(
           `UPDATE e_collection
-              SET title = $2, description = $3, weight = $4, active = $5
+              SET title_ru = $2, title_en = $3, description_ru = $4, description_en = $5,
+                  weight = $6, active = $7
             WHERE slug = $1 RETURNING id`,
-          [cleanSlug, cleanTitle, cleanDescription, cleanWeight, active],
+          [cleanSlug, cleanTitle, cleanTitleEn, cleanDescription, cleanDescriptionEn, cleanWeight, active],
         );
         if (!rows.length) {
           const { rows: created } = await client.query(
-            `INSERT INTO e_collection (slug, title, description, weight, active, is_demo)
-             VALUES ($1, $2, $3, $4, $5, FALSE) RETURNING id`,
-            [cleanSlug, cleanTitle, cleanDescription, cleanWeight, active],
+            `INSERT INTO e_collection
+               (slug, title_ru, title_en, description_ru, description_en, weight, active, is_demo)
+             VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE) RETURNING id`,
+            [cleanSlug, cleanTitle, cleanTitleEn, cleanDescription, cleanDescriptionEn, cleanWeight, active],
           );
           id = created[0].id;
         } else {
