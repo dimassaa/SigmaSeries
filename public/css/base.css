@@ -531,6 +531,10 @@ a:hover { color: var(--accent-hover); }
   grid-template-columns: 1fr;
 }
 
+/* Колонки должны ужиматься: `1fr` — это minmax(auto, 1fr), и длинное
+   название в третьем баннере распирало сетку за правую панель. */
+.banners > * { min-inline-size: 0; }
+
 .banner {
   position: relative;
   display: grid;
@@ -833,17 +837,17 @@ a:hover { color: var(--accent-hover); }
 
 @media (min-width: 640px) {
   .posters { grid-template-columns: repeat(3, 1fr); }
-  .banners { grid-template-columns: repeat(2, 1fr); }
+  .banners { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .banners > :first-child { grid-column: 1 / -1; min-height: 300px; }
 }
 
 @media (min-width: 1024px) {
   .posters { grid-template-columns: repeat(4, 1fr); }
-  /* Десктоп: три баннера в ряд (F-06-01 §19). */
-  .banners { grid-template-columns: repeat(3, 1fr); }
-  .banners > :first-child { grid-column: auto; min-height: 260px; }
 }
 
 @media (min-width: 1440px) {
   .posters { grid-template-columns: repeat(6, 1fr); }
+  /* Десктоп: три баннера в ряд (F-06-01 §19). */
+  .banners { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .banners > :first-child { grid-column: auto; min-height: 260px; }
 }
