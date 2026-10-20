@@ -30,6 +30,7 @@ import { pgAnomalySensor } from './services/rating/anomalies.js';
 import { pgModerationBudget } from './services/moderation/budget.js';
 import { pgModerationDecisions } from './services/moderation/decision.js';
 import { pgModerationClusters } from './services/moderation/cluster.js';
+import { pgModerationRestrictions } from './services/moderation/restriction.js';
 import { pgAuditLog } from './services/audit/log.js';
 import { pgReviews } from './services/reviews/store.js';
 import { pgReviewList } from './services/reviews/list.js';
@@ -219,6 +220,7 @@ const app = createApp({
   decisions: pgModerationDecisions(pool),
   moderationClusters: pgModerationClusters(pool),
   moderationBudget: moderationBudget,
+  moderationRestrictions: pgModerationRestrictions(pool, { auth, audit }),
   // Голоса «Полезно» (F-04-06). Потолок частоты — по пользователю: у голоса
   // есть владелец, сети и устройство не ограничиваются.
   votes: pgReviewVotes(pool),

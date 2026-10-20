@@ -11,6 +11,7 @@ import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { dayLabel } from './dates.js';
 import { paragraphs } from './reviews.js';
+import { MODERATION } from '../config/settings.js';
 
 /**
  * Очередь модерации и разбор материала.
@@ -91,6 +92,27 @@ export function moderationView({ locale, queue = [], clusters = [], material = n
           <span class="mod__decision-date">${dayLabel(locale, row.decidedAt)}</span>
         </li>`)}
       </ul>`)}
+
+      <form class="mod__restrict" method="post" action="/${locale}/mod/user/${material.authorId}">
+        <input type="hidden" name="csrf" value="${csrf}">
+        <input type="hidden" name="back" value="/${locale}/mod?material=${material.id}">
+        <h3 class="mod__restrict-title">${t(locale, 'mod.mute.title')}</h3>
+        <label class="field__label" for="mod-restrict-reason">${t(locale, 'mod.mute.reason')}</label>
+        <input class="field__input" id="mod-restrict-reason" name="reason" type="text" required>
+        <label class="field__label" for="mod-restrict-hours">${t(locale, 'mod.mute.hours')}</label>
+        <input class="field__input" id="mod-restrict-hours" name="hours" type="number" min="1"
+          value="${MODERATION.muteMinHours}">
+        <label class="mod__whitelist">
+          <input type="checkbox" name="hide_materials" value="1">
+          <span>${t(locale, 'mod.ban.hide')}</span>
+        </label>
+        <p class="mod__actions">
+          <button class="button button--quiet" type="submit" name="action" value="mute"
+            >${t(locale, 'mod.mute.submit')}</button>
+          <button class="button button--danger" type="submit" name="action" value="ban"
+            >${t(locale, 'mod.ban.submit')}</button>
+        </p>
+      </form>
 
       <form class="mod__form" method="post" action="/${locale}/mod/${material.id}">
         <input type="hidden" name="csrf" value="${csrf}">

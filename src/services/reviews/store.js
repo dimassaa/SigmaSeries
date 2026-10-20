@@ -123,7 +123,7 @@ export function pgReviews(pool, { budget = null } = {}) {
       const { rows } = await pool.query(
         `SELECT reason, expires_at
            FROM e_restriction
-          WHERE user_id = $1 AND kind = 'mute' AND revoked_at IS NULL
+          WHERE user_id = $1 AND kind IN ('mute', 'ban') AND revoked_at IS NULL
             AND (expires_at IS NULL OR expires_at > $2)`,
         [userId, at],
       );

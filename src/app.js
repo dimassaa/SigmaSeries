@@ -79,6 +79,7 @@ export function createApp({
   decisions = null,
   moderationClusters = null,
   moderationBudget = null,
+  moderationRestrictions = null,
   votes = null,
   helpfulLimiter = null,
   reports = null,
@@ -172,7 +173,12 @@ export function createApp({
   if (auth) app.use(createThemeRoutes({ auth, sessionMw }));
   // Решения редактора по материалам (F-05-04): служебный POST, экран — S-50.
   if (decisions) app.use(createModerationRoutes({
-    decisions, clustersService: moderationClusters, budget: moderationBudget, audit, sessionMw,
+    decisions,
+    clustersService: moderationClusters,
+    budget: moderationBudget,
+    restrictions: moderationRestrictions,
+    audit,
+    sessionMw,
   }));
   if (anomalies && audit) app.use(createAdminRoutes({ anomalies, audit, sessionMw }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel }));

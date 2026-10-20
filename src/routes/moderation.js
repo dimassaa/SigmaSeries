@@ -33,7 +33,7 @@ const rawHtml = (page) => page.__raw;
  * @returns {import('express').Router}
  */
 export function createModerationRoutes({
-  decisions, clustersService = null, budget = null, audit = null, sessionMw = null,
+  decisions, clustersService = null, budget = null, restrictions = null, audit = null, sessionMw = null,
 }) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
@@ -86,6 +86,65 @@ export function createModerationRoutes({
           mode,
         }),
       })));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  // Ограничение автора материала: мьют (редактор) или бан (администратор).
+  router.post(`/:locale${BASE}/user/:userId`, editorOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+
+    const userId = Number(req.params.userId);
+    if (!Number.isInteger(userId) || userId < 1) {
+      return res.status(404).type('text/plain; charset=utf-8')
+        .send(t(locale, 'mod.error.missing'));
+    }
+
+    const body = req.body ?? {};
+    const action = String(body.action ?? '');
+    const reason = String(body.reason ?? '').trim();
+    const hours = Number(body.hours ?? MODERATION.muteMinHours);
+    const hideMaterials = body.hide_materials === '1' || body.hide_materials === 'on';
+    const roles = req.session?.user?.roles ?? [];
+    const isAdmin = roles.includes('admin');
+
+    try {
+      if (!csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'mod.error.csrf'));
+      }
+      // Бан — только администратор (F-05-08 §2): редактор ограничивает
+      // поток материалов, но не отнимает доступ к сервису.
+      if (action === 'ban' && !isAdmin) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'mod.error.ban'));
+      }
+
+      let result;
+      if (action === 'mute') {
+        result = await restrictions.mute({ userId, hours, reason, byId: req.session.user.id, isAdmin });
+      } else if (action === 'ban') {
+        result = await restrictions.ban({ userId, reason, byId: req.session.user.id, hideMaterials });
+      } else if (action === 'revoke') {
+        result = await restrictions.revoke({ userId, byId: req.session.user.id, reason });
+      } else {
+        result = { ok: false, reason: 'action' };
+      }
+
+      if (!result.ok) {
+        const key = {
+          reason: 'mod.error.reason',
+          hours: 'mod.error.hours',
+          privileged: 'mod.error.privileged',
+          action: 'mod.error.decision',
+        }[result.reason] ?? 'mod.error.decision';
+        return res.status(400).type('text/plain; charset=utf-8').send(t(locale, key));
+      }
+
+      const back = body.back ? safeReturnTo(body.back) : `/${locale}${BASE}`;
+      return res.status(303).set('Location', back).end();
     } catch (error) {
       return next(error);
     }

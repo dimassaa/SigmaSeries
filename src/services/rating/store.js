@@ -593,8 +593,12 @@ export function pgRatings(pool) {
     async refreshSiteAverage(at = new Date()) {
       const { rows } = await pool.query(
         `SELECT count(*)::int AS votes, coalesce(sum(value), 0)::float AS sum
-           FROM e_rating
-          WHERE object_type = 'series' AND counted`,
+           FROM e_rating r
+          WHERE r.object_type = 'series' AND r.counted
+            AND NOT EXISTS (
+              SELECT 1 FROM e_restriction ban
+               WHERE ban.user_id = r.user_id AND ban.kind = 'ban'
+                 AND ban.revoked_at IS NULL) `,
       );
       const votes = Number(rows[0].votes);
       const sum = Number(rows[0].sum);

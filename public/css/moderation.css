@@ -109,3 +109,15 @@
 .mod__whitelist { display: flex; gap: var(--space-2); align-items: center; }
 
 .mod__actions { display: flex; flex-wrap: wrap; gap: var(--space-3); }
+
+.mod__restrict {
+  margin-block-start: var(--space-6);
+  padding-block-start: var(--space-4);
+  border-top: 1px solid var(--border-subtle);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  max-width: 70ch;
+}
+
+.mod__restrict-title { font-size: var(--text-base); font-weight: 600; }
