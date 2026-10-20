@@ -90,7 +90,7 @@ try {
 
 // Секреты проверяются до старта, а не при первом обращении: без них
 // приложение поднялось бы и отвечало бы, падая на первой же регистрации.
-const REQUIRED_SECRETS = ['SESSION_SECRET', 'BLIND_INDEX_SECRET', 'ADDRESS_SECRET'];
+const REQUIRED_SECRETS = ['SESSION_SECRET', 'BLIND_INDEX_SECRET', 'ADDRESS_SECRET', 'MAIL_SECRET'];
 const missing = REQUIRED_SECRETS.filter((name) => !process.env[name]);
 if (missing.length) {
   console.error(`[startup] Не заданы секреты: ${missing.join(', ')}. Сгенерируйте: openssl rand -hex 32`);

@@ -212,9 +212,10 @@ INSERT INTO e_role_assignment (user_id, role) VALUES (<id>, 'admin');
 export SESSION_SECRET=$(openssl rand -hex 32)      # подпись сессий
 export BLIND_INDEX_SECRET=$(openssl rand -hex 32)  # HMAC для поиска по адресу
 export ADDRESS_SECRET=$(openssl rand -hex 32)      # шифротекст адреса (AES-256-GCM)
+export MAIL_SECRET=$(openssl rand -hex 32)         # шифротекст писем: отдельный ключ, утечка одного не раскрывает другой
 ```
 
-Для локального запуска эти три секрета удобнее положить в **`.env`** в корне
+Для локального запуска эти четыре секрета удобнее положить в **`.env`** в корне
 репозитория — файл уже в `.gitignore`, а `npm start` и скрипт импорта читают
 его сами (`--env-file-if-exists=.env`). Состав переменных с комментариями —
 [`.env.example`](.env.example); туда же кладутся параметры базы, почты и
@@ -227,7 +228,7 @@ export ADDRESS_SECRET=$(openssl rand -hex 32)      # шифротекст адр
 Без любого из них соответствующая операция падает с внятной ошибкой, а не
 работает «как-то»: без `SESSION_SECRET` не подписывается сессия, без
 `BLIND_INDEX_SECRET` аккаунт не находится по адресу, без `ADDRESS_SECRET`
-адрес не шифруется.
+адрес не шифруется, без `MAIL_SECRET` не шифруются письма.
 
 > Уже заведённые аккаунты хранят в `e_user.email_enc` пустое значение:
 > восстановить из него адрес нельзя, потому что открытым он не сохранялся.

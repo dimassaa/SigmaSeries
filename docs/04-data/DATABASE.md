@@ -674,7 +674,19 @@ CREATE TABLE e_import_run (
   -- запустить нельзя: держал другой прогон (F-12-07 §5, §18);
   -- `resumed` — прогон, продолжающийся после обрыва (F-12-09).
   status     TEXT   NOT NULL DEFAULT 'planned'
-             CHECK (status IN ('planned','running','success','partial','error','skipped','resumed'))
+             CHECK (status IN ('planned','running','success','partial','error','skipped','resumed')),
+  -- С чем прогон запускался (F-12-09 §3): без параметров отчёт не объясняет,
+  -- что именно прогоняли.
+  params     JSONB  NOT NULL DEFAULT '{}',
+  -- Счётчики прогона: сколько позиций дошло до конца, сколько пропущено и
+  -- сколько упало с ошибкой. Отчёт брал эти числа «всего минус записано», и
+  -- ошибки с пропусками выглядели одинаково (№68, №88, №102).
+  counters   JSONB  NOT NULL DEFAULT '{}',
+  -- Почему прогон пропущен целиком: держал другой прогон, режим защиты.
+  skip_reason TEXT,
+  -- Контрольная точка: до какой стадии доведено. Повторный запуск после
+  -- сбоя продолжает с неё, а не начинает заново (F-12-09, №95).
+  checkpoint JSONB  NOT NULL DEFAULT '{}'
 );
 -- Не больше одного запланированного запуска каждого вида: два плана на одну
 -- ночь означали бы либо двойную работу, либо вечный пропуск одного из них.
@@ -952,13 +964,19 @@ CREATE TABLE e_mail (
   kind            TEXT   NOT NULL
                   CHECK (kind IN ('email_verify','email_taken','password_reset','password_changed',
                                   'email_change','email_change_requested','email_changed',
-                                  'two_factor_enabled','deletion_requested','data_export_ready')),
-  -- Адрес получателя шифруется тем же ключом, что и в e_user: открытым он
-  -- не лежит ни в одной таблице проекта.
+                                  'two_factor_enabled','deletion_requested','data_export_ready',
+                                  'data_export_failed')),
+  -- Адрес получателя шифруется ключом писем (MAIL_SECRET), а не общим с
+  -- адресом пользователя: утечка одного ключа не раскрывает другое
+  -- (R-SEC-26, №50).
   recipient_enc   BYTEA  NOT NULL,
   locale          TEXT   NOT NULL DEFAULT 'ru' CHECK (locale IN ('ru','en')),
   subject         TEXT   NOT NULL,
   body            TEXT   NOT NULL,
+  -- Токен из письма — в отдельной зашифрованной колонке. Тело письма читают
+  -- и очередь, и журнал, а действующий токен подтверждения или сброса в
+  -- открытом виде означает, что его заберёт кто угодно, кто читает базу (№47).
+  token_enc       BYTEA,
   status          TEXT   NOT NULL DEFAULT 'queued'
                   CHECK (status IN ('queued','sending','sent','failed')),
   attempts        SMALLINT NOT NULL DEFAULT 0,
@@ -1061,6 +1079,21 @@ CREATE TABLE e_export_job (
 -- обошли бы паузу.
 CREATE INDEX ix_export_user ON e_export_job (user_id, requested_at DESC);
 CREATE INDEX ix_export_queue ON e_export_job (status, requested_at) WHERE status IN ('queued','building');
+
+-- ---------- История адресов сериала (F-10-06, EC-C2) ----------
+
+-- Старый адрес должен вести на новый, иначе переименование обрывает ссылки,
+-- которые люди уже раздали. Адрес сериала уникален, значит и прежние адреса
+-- уникальны: прежний адрес не может достаться другому сериалу.
+CREATE TABLE e_series_slug (
+  id         BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  slug       TEXT NOT NULL,
+  changed_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  changed_by BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
+  CONSTRAINT uq_series_slug UNIQUE (slug)
+);
+CREATE INDEX ix_series_slug_series ON e_series_slug (series_id, changed_at DESC);
 
 -- ---------- Версии карточки (F-10-03, F-10-06) ----------
 

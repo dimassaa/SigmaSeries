@@ -172,16 +172,23 @@ async function main() {
     );
     // Размыкатель открыт — прогон не чистый, и молча закрыть его как успешный
     // значило бы потерять это в отчёте (F-12-09 §3).
+    const counters = {
+      enriched: items.length,
+      errors: errors.length,
+      skipped_no_pair: matched.rows.length - targets.length,
+      seconds,
+    };
     if (tmdb.breakerTripped) {
-      await store.finishRun(matched.runId, 'partial');
+      await store.finishRun(matched.runId, 'partial', { counters });
       console.log(`\nПрогон #${matched.runId} частичный: размыкатель открыт после ${tmdb.breakerPauses} пауз`);
     } else {
-      await store.finishRun(matched.runId, 'success');
+      await store.finishRun(matched.runId, 'success', { counters });
       console.log(`\nПрогон #${matched.runId}: обогащено ${items.length} за ${seconds} с, ошибок ${errors.length}`);
     }
-    // Подтверждённые пары, обогащённые прошлым прогоном, пропускаются. Молча
-    // пропущенные позиции выглядят так, будто часть каталога потерялась.
-    const skipped = counts[0].n - targets.length;
+    // Пропущенные позиции считаются отдельно от ошибок: «уже обогащено ранее»
+    // и «упало при обогащении» — разные вещи, а в отчёте они выглядели
+    // одинаково (№88).
+    const skipped = matched.rows.length - targets.length;
     if (skipped > 0) console.log(`  без подтверждённой пары, пропущено: ${skipped}`);
     if (errors.length) {
       const reasons = new Map();

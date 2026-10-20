@@ -190,11 +190,17 @@ export function createSeriesRoutes({
 
     try {
       const found = await series.bySlug(slug);
-      // Неопубликованный сериал для посетителя не существует: иначе его адрес
-      // утекал бы наружу до того, как редактор закончит с ним (EC-K2).
-      // `next('notfound')` в Express 5 — не сигнал, а ошибка, поэтому 404
-      // отдаётся здесь же, тем же видом, что и на главной.
+      // Прежний адрес сериала ведёт на новый: ссылка, которую уже раздали,
+      // не должна обрываться (EC-C2, F-10-06 §4).
       if (!found) {
+        const moved = await series.byOldSlug(slug);
+        if (moved) {
+          return res.redirect(301, `/${locale}/series/${moved.slug}`);
+        }
+        // Неопубликованный сериал для посетителя не существует: иначе его адрес
+        // утекал бы наружу до того, как редактор закончит с ним (EC-K2).
+        // `next('notfound')` в Express 5 — не сигнал, а ошибка, поэтому 404
+        // отдаётся здесь же, тем же видом, что и на главной.
         return res.status(404).type('html').send(notFound(locale, req.account).__raw);
       }
 

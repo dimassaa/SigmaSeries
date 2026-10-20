@@ -182,6 +182,16 @@ export function pgStudioCard(pool) {
         }
       }
 
+      // Смена адреса: прежний уходит в историю, и ссылка на него ведёт на
+      // новый, а не обрывается (EC-C2).
+      if (changed.includes('slug') && current.fields.slug) {
+        await client.query(
+          `INSERT INTO e_series_slug (series_id, slug, changed_by)
+           VALUES ($1, $2, $3) ON CONFLICT (slug) DO NOTHING`,
+          [seriesId, current.fields.slug, byId],
+        );
+      }
+
       // Версия карточки: что изменилось и чем было. По ней карточку можно
       // вернуть к прежнему виду (F-10-06 §4).
       const diff = {};

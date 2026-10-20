@@ -65,6 +65,25 @@ export function pgSeries(pool) {
      * @param {string} slug
      * @returns {Promise<object|null>}
      */
+    /**
+     * Серия по прежнему адресу.
+     *
+     * Адрес сериала меняется, а ссылки на старый адрес уже разошлись: без
+     * истории адресов они обрывались бы (EC-C2, F-10-06 §4).
+     *
+     * @param {string} slug прежний адрес
+     * @returns {Promise<object|null>}
+     */
+    async byOldSlug(slug) {
+      const { rows } = await pool.query(
+        `SELECT s.slug FROM e_series_slug h
+           JOIN e_series s ON s.id = h.series_id
+          WHERE h.slug = $1`,
+        [slug],
+      );
+      return rows[0] ? { slug: rows[0].slug } : null;
+    },
+
     async bySlug(slug) {
       const { rows } = await pool.query(
         `SELECT id, slug, imdb_key, tmdb_id,

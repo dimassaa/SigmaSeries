@@ -54,6 +54,20 @@ export function blindIndex(email) {
 }
 
 /**
+ * Ключ по назначению.
+ *
+ * Адрес пользователя и письма шифруются разными ключами: утечка одного не
+ * раскрывает другое (R-SEC-26, №50). Назначение входит и в метку, поэтому
+ * шифротекст из одного поля нельзя подставить в другое.
+ *
+ * @param {string} purpose назначение значения
+ * @returns {Buffer} 32 байта
+ */
+function keyFor(purpose) {
+  return purpose === 'mail' ? keyOf('MAIL_SECRET') : keyOf('ADDRESS_SECRET');
+}
+
+/**
  * Шифрует значение для хранения.
  *
  * @param {string} value открытый текст (адрес, секрет TOTP)
@@ -63,7 +77,7 @@ export function blindIndex(email) {
  */
 export function encryptValue(value, purpose) {
   const iv = crypto.randomBytes(IV_BYTES);
-  const cipher = crypto.createCipheriv('aes-256-gcm', keyOf('ADDRESS_SECRET'), iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', keyFor(purpose), iv);
   cipher.setAAD(aad(purpose));
   const body = Buffer.concat([cipher.update(String(value), 'utf8'), cipher.final()]);
 
@@ -93,16 +107,54 @@ export function decryptValue(stored, purpose) {
     throw new Error(`неизвестная версия формата шифра: ${stored[0]}`);
   }
 
+  try {
+    return decipherWith(stored, purpose, keyFor(purpose));
+  } catch {
+    // Причины три — ключ, подмена байта, чужое назначение, — и различить их
+    // по сообщению нельзя: это была бы подсказка атакующему. Родителю
+    // достаточно знать, что значение непригодно.
+    throw new Error(
+      'не удалось расшифровать значение: ключ не тот или данные подменены (ADDRESS_SECRET)',
+    );
+  }
+}
+
+/**
+ * Прочитать письмо, зашифрованное до появления отдельного ключа.
+ *
+ * Письма, поставленные в очередь до 21.10, зашифрованы общим ключом адресов.
+ * Они живут недолго (F-01-12 §8), но прочитать их надо: иначе человек,
+ * которому письмо ещё не ушло, не получит его вовсе. Назначение остаётся тем
+ * же, поэтому метка в AAD совпадает.
+ *
+ * @param {Buffer|null} stored значение из колонки BYTEA
+ * @returns {string|null}
+ */
+export function decryptLegacyMail(stored) {
+  if (stored === null || stored === undefined) return null;
+  return decipherWith(stored, 'mail', keyOf('ADDRESS_SECRET'));
+}
+
+/**
+ * Расшифровать шифротекст заданным ключом.
+ *
+ * @param {Buffer} stored значение из колонки BYTEA
+ * @param {string} purpose назначение: метка входит в AAD
+ * @param {Buffer} key ключ
+ * @returns {string}
+ */
+function decipherWith(stored, purpose, key) {
   const iv = stored.subarray(1, 1 + IV_BYTES);
   const tag = stored.subarray(1 + IV_BYTES, 1 + IV_BYTES + TAG_BYTES);
   const body = stored.subarray(1 + IV_BYTES + TAG_BYTES);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  decipher.setAAD(aad(purpose));
+  decipher.setAuthTag(tag);
+  return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8');
+}
 
-  try {
-    const decipher = crypto.createDecipheriv('aes-256-gcm', keyOf('ADDRESS_SECRET'), iv);
-    decipher.setAAD(aad(purpose));
-    decipher.setAuthTag(tag);
-    return Buffer.concat([decipher.update(body), decipher.final()]).toString('utf8');
-  } catch {
+/**
+ * Старое расшифрование, оставленное для преемственности формата.
     // Причины три — ключ, подмена байта, чужое назначение, — и различить их
     // по сообщению нельзя: это была бы подсказка атакующему. Родителю
     // достаточно знать, что значение непригодно.

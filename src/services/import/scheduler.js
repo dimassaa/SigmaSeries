@@ -96,9 +96,11 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
 
   async function planRun(kind, at) {
     const { rows } = await pool.query(
-      `INSERT INTO e_import_run (kind, status, started_at) VALUES ($1, 'planned', $2)
+      `INSERT INTO e_import_run (kind, status, started_at, params) VALUES ($1, 'planned', $2, $3)
        ON CONFLICT (kind) WHERE status = 'planned' DO NOTHING RETURNING id, kind, started_at`,
-      [kind, at],
+      // Параметры прогона: с чем он запланирован. Без них отчёт не объясняет,
+      // что именно запускали (F-12-09 §3, №68).
+      [kind, at, JSON.stringify({ planned_at: new Date(at).toISOString() })],
     );
     return rows[0] ?? null;
   }
@@ -195,7 +197,9 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
       if (!fresh) continue;
       // Пропуск без проверки блокировки: она и так есть, раз мы здесь.
       await pool.query(
-        "UPDATE e_import_run SET status = 'skipped', finished_at = now() WHERE id = $1 AND status = 'planned'",
+        `UPDATE e_import_run
+            SET status = 'skipped', finished_at = now(), skip_reason = 'следователь за прогоном'
+          WHERE id = $1 AND status = 'planned'`,
         [fresh.id],
       );
       recorded.push(child);
@@ -228,7 +232,8 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
   async function start(row) {
     if (await lockHeld()) {
       const skipped = await pool.query(
-        `UPDATE e_import_run SET status = 'skipped', finished_at = now()
+        `UPDATE e_import_run
+            SET status = 'skipped', finished_at = now(), skip_reason = 'прогон держит другой'
           WHERE id = $1 AND status = 'planned' RETURNING id`,
         [row.id],
       );
@@ -253,7 +258,9 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
       // Молча пропущенная задача — это «всё прошло» в отчёте и ничего в
       // каталоге. Такой пропуск обязан быть виден.
       await pool.query(
-        "UPDATE e_import_run SET status = 'skipped', finished_at = now() WHERE id = $1",
+        `UPDATE e_import_run
+            SET status = 'skipped', finished_at = now(), skip_reason = 'задача не зарегистрирована'
+          WHERE id = $1`,
         [row.id],
       );
       log(`[планировщик] ${row.kind}: задача не зарегистрирована, запуск пропущен`);

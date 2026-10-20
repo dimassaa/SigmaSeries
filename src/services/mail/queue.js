@@ -15,7 +15,7 @@
 
 import crypto from 'node:crypto';
 
-import { encryptValue, decryptValue } from '../auth/crypto.js';
+import { encryptValue, decryptValue, decryptLegacyMail } from '../auth/crypto.js';
 import { mailText } from '../../i18n/mails.js';
 import { linkFromBody } from './devbox.js';
 import { MAIL_SETTINGS } from '../../config/settings.js';
@@ -33,6 +33,60 @@ const browserMark = (value) => crypto
 
 /** Сколько писем забирает работник за раз. */
 const BATCH = 10;
+
+/**
+ * Расшифровать значение письма.
+ *
+ * Сначала — нынешний ключ писем, при неудаче — старый, общий с адресами:
+ * так читаются письма, поставленные в очередь до 21.10 (№50).
+ *
+ * @param {Buffer|null} stored значение из колонки BYTEA
+ * @returns {string|null}
+ */
+function decryptMail(stored) {
+  if (stored === null || stored === undefined) return null;
+  try {
+    return decryptValue(stored, 'mail');
+  } catch {
+    return decryptLegacyMail(stored);
+  }
+}
+
+/**
+ * Место, где в теле письма лежит токен.
+ *
+ * В базе токена нет: он в отдельной зашифрованной колонке, а в теле стоит
+ * это место. Читающий базу видит письмо без действующего токена (№47).
+ */
+const TOKEN_PLACEHOLDER = '{{token}}';
+
+/**
+ * Отделить токен от ссылки.
+ *
+ * @param {string} link ссылка с токеном
+ * @returns {{body: string, token: string|null}} ссылка без токена и сам токен
+ */
+export function splitToken(link) {
+  const text = String(link ?? '');
+  const match = /([?&]token=)([^&\s]+)/.exec(text);
+  if (!match) return { body: text, token: null };
+  return {
+    body: text.replace(match[0], `${match[1]}${TOKEN_PLACEHOLDER}`),
+    token: match[2],
+  };
+}
+
+/**
+ * Вернуть токен в тело письма.
+ *
+ * @param {string} body тело с местом для токена
+ * @param {string|null} token токен
+ * @returns {string}
+ */
+export function restoreToken(body, token) {
+  if (!token) return String(body ?? '');
+  return String(body ?? '').split(TOKEN_PLACEHOLDER).join(token);
+}
 
 /**
  * На сколько минут письмо считается занятым после взятия в обработку.
@@ -67,13 +121,17 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
      */
     async enqueue(job) {
       const locale = job.locale ?? 'ru';
-      const text = mailText(job.kind, locale, { link: job.link ?? '' });
+      // Токен из ссылки уходит в отдельную зашифрованную колонку, а в теле
+      // остаётся место: в базе действующего токена быть не должно (№47).
+      const { body: link, token } = splitToken(job.link);
+      const text = mailText(job.kind, locale, { link });
 
       // Предел размера (F-01-12 §9). Считается тело и тема вместе: письмо
       // уходит именно в таком виде, и большой получатель упирается в лимит
-      // провайдера, а не в наш.
+      // провайдера, а не в наш. Тело считается с возвращённым токеном — в базе
+      // токена нет, а письмо уйдёт с ним.
       const sizeKb = (Buffer.byteLength(text.subject, 'utf8')
-        + Buffer.byteLength(text.body, 'utf8')) / 1024;
+        + Buffer.byteLength(restoreToken(text.body, token), 'utf8')) / 1024;
       if (sizeKb > MAIL_SETTINGS.maxSizeKb) {
         throw new Error(
           `Письмо «${job.kind}» велико: ${sizeKb.toFixed(1)} КБ из ${MAIL_SETTINGS.maxSizeKb}`,
@@ -93,8 +151,8 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
       }
 
       const { rows: inserted } = await pool.query(
-        `INSERT INTO e_mail (kind, recipient_enc, locale, subject, body, browser_id)
-         VALUES ($1, $2, $3, $4, $5, $6)
+        `INSERT INTO e_mail (kind, recipient_enc, locale, subject, body, browser_id, token_enc)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)
          RETURNING id`,
         [
           job.kind,
@@ -104,6 +162,8 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
           text.body,
           // Отметка браузера — хеш, а не сама cookie (H-51).
           job.browserId ? browserMark(job.browserId) : null,
+          // Токен — зашифрованным и отдельно от тела.
+          token ? encryptValue(token, 'mail') : null,
         ],
       );
       return inserted[0].id;
@@ -120,7 +180,7 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
      */
     async processDue({ now = new Date(), limit = BATCH } = {}) {
       const { rows: due } = await pool.query(
-        `SELECT id, kind, recipient_enc, locale, subject, body, attempts
+        `SELECT id, kind, recipient_enc, locale, subject, body, attempts, token_enc
            FROM e_mail
           WHERE status IN ('queued','sending')
             AND next_attempt_at <= $1
@@ -148,9 +208,10 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
 
         try {
           await deliver({
-            to: decryptValue(row.recipient_enc, 'mail'),
+            to: decryptMail(row.recipient_enc),
             subject: row.subject,
-            body: row.body,
+            // Здесь токен нужен в теле: письмо уходит человеку со ссылкой.
+            body: restoreToken(row.body, decryptMail(row.token_enc)),
             kind: row.kind,
           });
           await pool.query(
@@ -192,17 +253,23 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
     async forBrowser(browserId, { limit = 5 } = {}) {
       if (!browserId) return [];
       const { rows } = await pool.query(
-        `SELECT id, kind, body, created_at FROM e_mail
+        `SELECT id, kind, body, created_at, token_enc FROM e_mail
           WHERE browser_id = $1 ORDER BY created_at DESC LIMIT $2`,
         [browserMark(browserId), limit],
       );
-      return rows.map((row) => ({
-        id: row.id,
-        kind: row.kind,
-        body: row.body,
-        browserId,
-        createdAt: row.created_at,
-      }));
+      return rows.map((row) => {
+        let body = row.body;
+        try {
+          // Демо-помощнику нужна рабочая ссылка: токен достаётся из своей
+          // колонки, а не из тела.
+          body = restoreToken(row.body, decryptMail(row.token_enc));
+        } catch {
+          body = row.body;
+        }
+        return {
+          id: row.id, kind: row.kind, body, browserId, createdAt: row.created_at,
+        };
+      });
     },
 
     /**
@@ -215,11 +282,22 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
      */
     async listing({ limit = 50 } = {}) {
       const { rows } = await pool.query(
-        `SELECT id, kind, locale, subject, body, status, attempts, created_at, sent_at
+        `SELECT id, kind, locale, subject, body, status, attempts, created_at, sent_at, token_enc
            FROM e_mail ORDER BY created_at DESC LIMIT $1`,
         [limit],
       );
-      return rows.map((row) => ({ ...row, link: linkFromBody(row.body) }));
+      return rows.map((row) => {
+        // Ссылка в ящике админа рабочая: токен достаётся из своей колонки.
+        // Письмо, которое не читается (старый ключ, подмена), не должно рушить
+        // весь ящик: в нём есть и другие письма.
+        let body = row.body;
+        try {
+          body = restoreToken(row.body, decryptMail(row.token_enc));
+        } catch {
+          body = row.body;
+        }
+        return { ...row, body, link: linkFromBody(body) };
+      });
     },
 
     /**

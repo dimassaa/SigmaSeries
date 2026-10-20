@@ -12,3 +12,4 @@
 process.env.SESSION_SECRET ??= 'test-secret';
 process.env.BLIND_INDEX_SECRET ??= 'test-blind-index-secret';
 process.env.ADDRESS_SECRET ??= 'test-address-secret';
+process.env.MAIL_SECRET ??= 'test-mail-secret';

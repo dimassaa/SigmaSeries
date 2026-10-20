@@ -156,10 +156,32 @@ export function createImportStore(pool) {
      * @param {'success'|'partial'|'error'} status
      * @returns {Promise<void>}
      */
-    async finishRun(runId, status) {
+    /**
+     * Закрыть прогон.
+     *
+     * Счётчики и контрольная точка пишутся рядом со статусом: по отчёту
+     * должно быть видно, сколько позиций дошло до конца, сколько упало и на чём
+     * прогон остановился (F-12-09, №68, №102).
+     *
+     * @param {number} runId
+     * @param {string} status
+     * @param {{counters?: object|null, checkpoint?: object|null}} [extra]
+     * @returns {Promise<void>}
+     */
+    async finishRun(runId, status, { counters = null, checkpoint = null } = {}) {
       await pool.query(
-        'UPDATE e_import_run SET status = $2, finished_at = now() WHERE id = $1',
-        [runId, status],
+        `UPDATE e_import_run
+            SET status = $2,
+                finished_at = now(),
+                counters = coalesce($3::jsonb, counters),
+                checkpoint = coalesce($4::jsonb, checkpoint)
+          WHERE id = $1`,
+        [
+          runId,
+          status,
+          counters ? JSON.stringify(counters) : null,
+          checkpoint ? JSON.stringify(checkpoint) : null,
+        ],
       );
     },
   };
