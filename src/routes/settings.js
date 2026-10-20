@@ -27,6 +27,10 @@ import { deletedView } from '../view/deleted.js';
 import { deleteConfirm as deleteConfirmView } from '../view/settings.js';
 import { LOCALES, LOCALE_NAMES } from '../i18n/strings.js';
 import { AUTH, STAFF_ROLES, DAY } from '../config/settings.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['identity'];
+
 
 const BASE = '/settings';
 
@@ -487,6 +491,7 @@ export function createSettingsRoutes({
 
     const token = typeof req.query.token === 'string' ? req.query.token : '';
     return respond(res, 200, layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: EMAIL_CHANGE_PATH,
@@ -510,6 +515,7 @@ export function createSettingsRoutes({
     const body = req.body ?? {};
     if (!csrfValid(req.session, body.csrf)) {
       return respond(res, 403, layout({
+        styles: STYLES,
         account: req.account,
         locale, path: EMAIL_CHANGE_PATH, title: t(locale, 'settings.email.title'),
         description: t(locale, 'settings.email.lead'), noindex: true,
@@ -522,6 +528,7 @@ export function createSettingsRoutes({
 
     const token = String(body.token ?? '');
     const stale = () => respond(res, 200, layout({
+      styles: STYLES,
       account: req.account,
       locale, path: EMAIL_CHANGE_PATH, title: t(locale, 'settings.email.title'),
       description: t(locale, 'settings.email.lead'), noindex: true,
@@ -735,6 +742,7 @@ export function createSettingsRoutes({
       ? t(locale, 'settings.deletePending.title')
       : t(locale, 'settings.deleted.title');
     return layout({
+      styles: STYLES,
       account,
       locale,
       path: view.pending ? DELETE_PENDING_PATH : DELETE_DONE_PATH,
@@ -748,6 +756,7 @@ export function createSettingsRoutes({
 /** Экран подтверждения удаления с перечнем последствий (R-SEC-12). */
   async function renderDeleteConfirm(req, { locale, user, error, values }) {
     return layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: `${BASE}/data/delete`,
@@ -833,6 +842,7 @@ router.get(`/:locale${BASE}/data/delete`, (req, res, next) => {
     if (!user) return res.redirect(303, `/${locale}/login`);
 
     return respond(res, 200, layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: `${BASE}/data/delete`,
@@ -930,6 +940,7 @@ router.get(`/:locale${BASE}/data/delete`, (req, res, next) => {
   async function render(req, { section, user, error, saved = false, values = null, ...rest }) {
     const locale = req.params.locale;
     return layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: `${BASE}/${section}`,

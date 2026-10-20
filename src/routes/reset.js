@@ -23,6 +23,10 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import * as limits from '../services/auth/limits.js';
 import { ensureBrowserId } from '../services/mail/browser.js';
 import { demoMailFor, linkFromBody } from '../services/mail/devbox.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['identity'];
+
 
 /** Путь без локали: адрес S-22 из SCREENS. */
 const PATH = '/password/reset';
@@ -243,6 +247,7 @@ export function createResetRoutes({
     const locale = req.params.locale;
     const body = resetView({ locale, csrf: csrfToken(req.session), ...ctx });
     return layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: PATH,

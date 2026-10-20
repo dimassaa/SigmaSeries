@@ -258,17 +258,23 @@ test('страница ошибки не раскрывает внутренно
 
 // ─── Стили ────────────────────────────────────────────────────────────────────
 
-test('таблица стилей отдаётся одной ссылкой и одним файлом', async () => {
-  // Требование «одна каскадная таблица стилей»: пользователю отдаётся один
-  // файл, собранный из частей на этапе сборки.
+test('стили отдаются по экранам: общая таблица и те, что нужны странице', async () => {
+  // Таблицы разделены по экранам: страница тянет общую и те группы, что ей
+  // нужны, — так страница получает меньше килобайт, а правила остаются в
+  // файлах по назначению. Общая идёт первой: без неё нет ни токенов, ни
+  // оболочки.
   await withApp(stubData(), async (get) => {
     const html = await (await get('/ru/')).text();
     const links = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map((m) => m[0]);
-    assert.equal(links.length, 1, 'стилей должен быть ровно один');
-    const href = links[0].match(/href="([^"]+)"/)[1];
-    const css = await get(href);
-    assert.equal(css.status, 200);
-    assert.match(css.headers.get('content-type'), /text\/css/);
+    assert.ok(links.length >= 1, 'стили подключены');
+    const hrefs = links.map((link) => link.match(/href="([^"]+)"/)[1]);
+    assert.match(hrefs[0], /^\/css\/base\.css$/, 'первой идёт общая таблица');
+
+    for (const href of hrefs) {
+      const css = await get(href);
+      assert.equal(css.status, 200, `${href} отдаётся`);
+      assert.match(css.headers.get('content-type'), /text\/css/);
+    }
   });
 });
 
@@ -279,8 +285,8 @@ test('цвет задаётся токеном, а не прямо в разме
     assert.ok(!/style="[^"]*#[0-9a-f]{3,6}/i.test(html), 'цвета в инлайн-стилях запрещены');
     assert.ok(!/<style[\s>]/i.test(html), 'встроенного <style> быть не должно');
 
-    // Токены определены в таблице, и обе темы описаны в одном файле.
-    const css = await (await get('/app.css')).text();
+    // Токены определены в общей таблице, и обе темы описаны в одном файле.
+    const css = await (await get('/css/base.css')).text();
     assert.match(css, /--accent:/);
     assert.match(css, /\[data-theme='light'\]/);
     assert.match(css, /\[data-theme='dark'\]/);
@@ -288,12 +294,31 @@ test('цвет задаётся токеном, а не прямо в разме
   });
 });
 
-test('собранная таблица одна и собрана из частей', async () => {
+test('таблицы собраны из частей, и порядок внутри группы обязателен', async () => {
   await withApp(stubData(), async (get) => {
-    const css = await (await get('/app.css')).text();
+    const css = await (await get('/css/base.css')).text();
     const parts = (css.match(/─── (\d\d-[a-z-]+\.css) ───/g) ?? []);
-    assert.ok(parts.length >= 5, `частей в сб��рке: ${parts.length}`);
+    assert.ok(parts.length >= 3, `частей в общей таблице: ${parts.length}`);
     // Порядок обязателен: токены должны быть раньше, чем их использующие.
     assert.ok(css.indexOf('00-tokens.css') < css.indexOf('10-base.css'));
+  });
+});
+
+test('статика сжимается, а без сжатия остаётся как есть', async () => {
+  // Браузер шлёт `Accept-Encoding: gzip` почти всегда, и без ответа на
+  // него каждая страница тянет полтора сотни килобайт текста.
+  await withApp(stubData(), async (get) => {
+    // `fetch` сам просит gzip, поэтому «без сжатия» — это явная просьба
+    // ничего не сжимать.
+    const plain = await get('/css/base.css', { headers: { 'accept-encoding': 'identity' } });
+    assert.equal(plain.status, 200);
+    assert.equal(plain.headers.get('content-encoding'), null, 'без сжатия отдаётся как есть');
+    const raw = await plain.text();
+
+    const zipped = await get('/css/base.css', { headers: { 'accept-encoding': 'gzip' } });
+    assert.equal(zipped.status, 200);
+    assert.equal(zipped.headers.get('content-encoding'), 'gzip', 'сжатая отдача помечена');
+    const body = await zipped.text();
+    assert.equal(body, raw, 'сжатое тело распаковывается в то же самое');
   });
 });

@@ -11,6 +11,10 @@ import { panelFor } from './panel.js';
 import { searchView } from '../view/search.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { DEFAULT_RATE_PER_MINUTE } from '../services/search/limits.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['search'];
+
 
 const rawHtml = (page) => page.__raw;
 
@@ -73,6 +77,7 @@ export function createSearchRoutes({
         .set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))
         .type('html')
         .send(rawHtml(layout({
+          styles: STYLES,
           account: req.account,
           locale,
           path: '/search',
@@ -87,6 +92,7 @@ export function createSearchRoutes({
     try {
       const result = await search.find({ query, offsets: offsetsFrom(req.query.from) });
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path: '/search',

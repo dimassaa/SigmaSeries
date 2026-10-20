@@ -1,25 +1,23 @@
-// Сборка одной таблицы стилей из частей.
+// Сборка таблиц стилей по экранам.
 //
-// Требование задания: ко всему веб-приложению применяется одна каскадная
-// таблица стилей. Исходники разделены по маршрутам и компонентам — иначе
-// одна таблица на шестьдесят экранов станет нечитаемой уже к ноябрю, — но
-// пользователю отдаётся ровно один файл. Требование выполняется буквально:
-// на этапе сборки части соединяются в один документ.
-//
-// Порядок задаётся именами файлов: 00-tokens идёт первым, чтобы токены были
-// доступны всем ниже, 40-messages последним, чтобы не перебивал компоненты.
+// Исходники разделены по маршрутам и компонентам — одна таблица на шестьдесят
+// экранов нечитаема уже к ноябрю. Сборщик собирает их в группы (список групп
+// — в `src/config/styles.js`) и кладёт в `public/css/<группа>.css`: страница
+// подключает общую часть и те группы, что ей нужны.
 //
 // Запуск:
-//   node tools/build-css.mjs           пересобрать public/app.css
+//   node tools/build-css.mjs           пересобрать public/css/*.css
 //   node tools/build-css.mjs --check   только проверить, ничего не писая
 
-import { readdir, readFile, writeFile, mkdir } from 'node:fs/promises';
+import { readdir, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { STYLE_GROUPS } from '../src/config/styles.js';
+
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const SRC = path.join(ROOT, 'src', 'styles');
-const OUT = path.join(ROOT, 'public', 'app.css');
+const OUT = path.join(ROOT, 'public', 'css');
 const TOKENS_FILE = '00-tokens.css';
 
 const names = (await readdir(SRC)).filter((n) => n.endsWith('.css')).sort();
@@ -28,9 +26,33 @@ if (names.length === 0) {
   process.exit(1);
 }
 
-const parts = [];
+// Каждый исходник должен попасть ровно в одну группу: забытый файл молча
+// выпал бы из сборки, и страница потеряла бы стили без единого сообщения.
+const grouped = STYLE_GROUPS.flatMap((group) => group.files);
+const missing = names.filter((name) => !grouped.includes(name));
+const unknown = grouped.filter((name) => !names.includes(name));
+const twice = grouped.filter((name, i) => grouped.indexOf(name) !== i);
+if (missing.length || unknown.length || twice.length) {
+  console.error('Файлы и группы не сходятся:');
+  for (const name of missing) console.error(`  нет группы для ${name}`);
+  for (const name of unknown) console.error(`  в группе есть несуществующий ${name}`);
+  for (const name of twice) console.error(`  файл в двух группах: ${name}`);
+  process.exit(1);
+}
+
+// Порядок групп должен совпадать с порядком файлов: иначе правила из
+// разных экранов перебивают друг друга иначе, чем в одной общей таблице.
+const order = STYLE_GROUPS.flatMap((group) => group.files);
+if (order.join(',') !== names.join(',')) {
+  console.error('Порядок групп не совпадает с порядком файлов:');
+  console.error(`  файлы:   ${names.join(', ')}`);
+  console.error(`  группы: ${order.join(', ')}`);
+  process.exit(1);
+}
+
+const parts = new Map();
 for (const name of names) {
-  parts.push([name, (await readFile(path.join(SRC, name), 'utf8')).trim()]);
+  parts.set(name, (await readFile(path.join(SRC, name), 'utf8')).trim());
 }
 
 // Проверка: цвет вне файла токенов — ошибка, тема не переключится (TOKENS §8).
@@ -49,7 +71,7 @@ for (const [name, body] of parts) {
 }
 if (offToken.length) {
   console.error('Цвет записан вне файла токенов — тема не переключится:');
-  for (const where of offToken) console.error('  ' + where);
+  for (const where of offToken) console.error(`  ${where}`);
   process.exit(1);
 }
 
@@ -74,33 +96,56 @@ if (undefinedVars.length) {
   process.exit(1);
 }
 
-const header = [
-  '/* SigmaSeries — собранная таблица стилей.',
-  '   Этот файл НЕ ПРАВИТСЯ РУКАМИ.',
-  '   Источник: src/styles/*.css, порядок по имени файла.',
-  '   Сборка:   node tools/build-css.mjs',
-  '   Проверка: npm run css:check',
-  `   Частей: ${names.length}`,
-  '*/',
-].join('\n');
-
-const out = [header, ...parts.map(([n, b]) => `/* ─── ${n} ─── */\n${b}`)].join('\n\n') + '\n';
+const outputs = new Map();
+for (const group of STYLE_GROUPS) {
+  const header = [
+    `/* SigmaSeries — таблица стилей «${group.name}».`,
+    '   Этот файл НЕ ПРАВИТСЯ РУКАМИ.',
+    '   Источник: src/styles/*.css, состав — src/config/styles.js.',
+    '   Сборка:   node tools/build-css.mjs',
+    '   Проверка: npm run css:check',
+    `   Частей: ${group.files.length}`,
+    '*/',
+  ].join('\n');
+  const body = group.files
+    .map((name) => `/* ─── ${name} ─── */\n${parts.get(name)}`)
+    .join('\n\n');
+  outputs.set(path.join(OUT, `${group.name}.css`), `${header}\n\n${body}\n`);
+}
 
 if (process.argv.includes('--check')) {
-  let current = null;
-  try {
-    current = await readFile(OUT, 'utf8');
-  } catch {
-    /* файла нет — расхождение */
+  let broken = 0;
+  for (const [file, expected] of outputs) {
+    let current = null;
+    try {
+      current = await readFile(file, 'utf8');
+    } catch {
+      /* файла нет — расхождение */
+    }
+    if (current !== expected) {
+      console.error(`Расхождение: ${path.relative(ROOT, file)} не соответствует src/styles/*.css`);
+      broken += 1;
+    }
   }
-  if (current !== out) {
-    console.error('Расхождение: public/app.css не соответствует src/styles/*.css');
+  if (broken) {
     console.error('Пересоберите: node tools/build-css.mjs');
     process.exit(1);
   }
-  console.log(`Стили синхронны: ${out.split('\n').length} строк, частей ${names.length}.`);
+  const lines = [...outputs.values()].reduce((sum, text) => sum + text.split('\n').length, 0);
+  console.log(`Стили синхронны: ${STYLE_GROUPS.length} таблиц, ${lines} строк, частей ${names.length}.`);
 } else {
-  await mkdir(path.dirname(OUT), { recursive: true });
-  await writeFile(OUT, out, 'utf8');
-  console.log(`Записано public/app.css: ${out.split('\n').length} строк из ${names.length} частей.`);
+  await mkdir(OUT, { recursive: true });
+  for (const [file, text] of outputs) await writeFile(file, text, 'utf8');
+  // Устаревшие таблицы убираются: группа переименована или состав изменился —
+  // и старый файл остался бы в каталоге навсегда, занимая место и путая
+  // страницу, которая его просит.
+  const wanted = new Set([...outputs.keys()].map((file) => path.basename(file)));
+  for (const name of await readdir(OUT)) {
+    if (name.endsWith('.css') && !wanted.has(name)) {
+      await rm(path.join(OUT, name));
+      console.log(`Удалён устаревший public/css/${name}`);
+    }
+  }
+  const lines = [...outputs.values()].reduce((sum, text) => sum + text.split('\n').length, 0);
+  console.log(`Записано ${STYLE_GROUPS.length} таблиц в public/css: ${lines} строк из ${names.length} частей.`);
 }

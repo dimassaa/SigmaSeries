@@ -12,6 +12,10 @@ import { homeView } from '../view/home.js';
 import { collectHomeData } from '../services/home/data.js';
 import { t, isLocale, DEFAULT_LOCALE } from '../i18n/strings.js';
 import { html, raw } from '../view/render.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = [];
+
 
 /** Страницы, которые не попадают в индекс (R-SEO-06). */
 const NOINDEX_PATHS = ['/search', '/signin', '/signup', '/settings', '/notifications'];
@@ -40,6 +44,7 @@ export function createHomeRoutes({ data, sessionMw = null, panel = null }) {
     try {
       const homeData = await collectHomeData(data, locale);
       const page = layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path: '/',
@@ -80,6 +85,7 @@ export function createNotFoundRoutes() {
 
 export function notFound(locale, account = null) {
   return layout({
+    styles: STYLES,
     account,
     locale,
     path: '/404',
@@ -108,6 +114,7 @@ export function errorHandler(locale) {
     console.error('[error]', err?.stack ?? err);
     const loc = isLocale(req.params?.locale) ? req.params.locale : locale;
     res.status(500).type('html').send(layout({
+      styles: STYLES,
       account: req.account,
       locale: loc,
       path: '/500',

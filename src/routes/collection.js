@@ -13,6 +13,10 @@ import { collectionView } from '../view/collection.js';
 import { personView } from '../view/person.js';
 import { notFound } from './home.js';
 import { t, isLocale } from '../i18n/strings.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['collection'];
+
 
 const rawHtml = (page) => page.__raw;
 
@@ -34,6 +38,7 @@ export function createCollectionRoutes({ collections, person, sessionMw = null, 
       if (!found) return res.status(404).type('html').send(notFound(locale, req.account).__raw);
 
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path: `/collections/${slug}`,
@@ -66,6 +71,7 @@ export function createCollectionRoutes({ collections, person, sessionMw = null, 
       if (!found) return res.status(404).type('html').send(notFound(locale, req.account).__raw);
 
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path: `/people/${slug}`,

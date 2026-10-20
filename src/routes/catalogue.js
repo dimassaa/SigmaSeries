@@ -10,6 +10,10 @@ import { layout, pageTitle } from '../view/layout.js';
 import { panelFor } from './panel.js';
 import { catalogueView, href } from '../view/catalogue.js';
 import { t, isLocale } from '../i18n/strings.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['catalogue'];
+
 
 const rawHtml = (page) => page.__raw;
 
@@ -50,6 +54,7 @@ export function createCatalogueRoutes({ catalogue, sessionMw = null, panel = nul
       const noindex = page.items.length === 0;
 
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path: '/series',

@@ -11,6 +11,10 @@ import { notificationsView } from '../view/notification.js';
 import { csrfValid, csrfToken } from '../services/auth/session.js';
 import { isLocale, t } from '../i18n/strings.js';
 import { todayIn } from '../services/timezone.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['notifications'];
+
 
 /** Категории, которые можно выбрать фильтром. */
 const CATEGORIES = ['release', 'moderation', 'reply', 'service'];
@@ -50,6 +54,7 @@ export function createNotificationRoutes({ feed, sessionMw }) {
       const unread = await feed.unreadCount(req.session.user.id);
 
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path: '/notifications',

@@ -21,6 +21,10 @@ import { REPORT_CODES } from '../services/reviews/reports.js';
 import { reportStateFor, voteNumber, voteStateFor } from './review-actions.js';
 import { cooldownLeft, REASONS } from '../services/reviews/store.js';
 import { checkMaterial } from '../services/moderation/check.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['series', 'reviews', 'tracking'];
+
 
 /** Ответ отправляется разобранной строкой: `send()` объекта ушёл бы в JSON. */
 const rawHtml = (page) => page.__raw;
@@ -155,6 +159,7 @@ export function createSeriesRoutes({
     }) : null;
 
     return layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: `/series/${slug}`,
@@ -197,6 +202,7 @@ export function createSeriesRoutes({
       // об этом узнать (EC-C1).
       if (found.archived) {
         return res.status(410).type('html').send(rawHtml(layout({
+          styles: STYLES,
           account: req.account,
           locale,
           path: `/series/${slug}`,
@@ -239,6 +245,7 @@ export function createSeriesRoutes({
         // а человек должен узнать, что случилось (EC-C1).
         if (found.archived) {
           return res.status(410).type('html').send(rawHtml(layout({
+            styles: STYLES,
             account: req.account,
             locale,
             path: `/series/${slug}/reviews`,
@@ -287,6 +294,7 @@ export function createSeriesRoutes({
         const noindex = !(page.page === 1 && defaults) || (locale === 'en' && !found.descriptionRu);
 
         return res.status(200).type('html').send(rawHtml(layout({
+          styles: STYLES,
           account: req.account,
           locale,
           path: `/series/${slug}/reviews`,

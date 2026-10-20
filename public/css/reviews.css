@@ -1,0 +1,761 @@
+/* SigmaSeries — таблица стилей «reviews».
+   Этот файл НЕ ПРАВИТСЯ РУКАМИ.
+   Источник: src/styles/*.css, состав — src/config/styles.js.
+   Сборка:   node tools/build-css.mjs
+   Проверка: npm run css:check
+   Частей: 5
+*/
+
+/* ─── 52-reviews.css ─── */
+/* Блок «Ваш отзыв» и диалог формы (F-04-04, S-06).
+   Форма — настоящий `<dialog>`: со скриптом открывается модально, без
+   скрипта показывается переходом по якорю `#review-dialog` (селектор
+   `:target` ниже). Оба состояния описаны здесь, чтобы страница работала
+   целиком без JavaScript. */
+
+.review {
+  padding: 0 32px;
+  margin-block-end: var(--space-6);
+}
+
+.review__hint,
+.review__cooldown {
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-3);
+}
+
+.review__state { margin: 0 0 var(--space-3); }
+
+/* Состояние названо словом, а цвет лишь подтверждает его: цвет — не
+   единственный носитель (PRINCIPLES, п. 5). */
+.review__state--published { color: var(--positive); }
+.review__state--flagged,
+.review__state--checking { color: var(--warning); }
+.review__state--rejected,
+.review__state--hidden { color: var(--danger); }
+
+.review__body {
+  max-width: 70ch;
+  margin-block-end: var(--space-3);
+}
+
+.review__body p { margin: 0 0 var(--space-3); }
+
+.review__spoiler-note {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  margin: 0;
+}
+
+.review__flagged { margin-block-end: var(--space-3); }
+
+.review__notice,
+.review__category {
+  color: var(--text-secondary);
+  margin: 0 0 var(--space-2);
+}
+
+/* Переносы автора сохраняются: подсветка расставлена по позициям в исходной
+   строке, и переформатирование сдвинуло бы её. */
+.review__fragment {
+  max-width: 70ch;
+  margin: 0 0 var(--space-2);
+  white-space: pre-wrap;
+}
+
+/* Найденное слово подсвечено, но не названо: автор видит свой фрагмент
+   (R-MOD-12). Тона `warning` в обеих темах достаточно контрастны к
+   `text-inverse` — 4,5:1 выполняется в тёмной и светлой. */
+.review__mark {
+  padding: 0 2px;
+  border-radius: var(--radius-sm);
+  background: var(--warning);
+  color: var(--text-inverse);
+}
+
+.review__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+}
+
+.review__delete { margin: 0; }
+
+/* ─── Диалог ─────────────────────────────────────────────────────────────── */
+
+.review__dialog {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(640px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+/* Фолбэк без скрипта: якорь ведёт на диалог, браузер показывает `:target`. */
+.review__dialog:target { display: block; }
+
+.review__dialog::backdrop { background: rgb(0 0 0 / 0.55); }
+
+.review__dialog-body { padding: var(--space-5); }
+
+.review__dialog-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-lg);
+}
+
+/* ─── Форма ──────────────────────────────────────────────────────────────── */
+
+.review__form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.review__rating {
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.review__legend {
+  display: block;
+  margin-block-end: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.review__field {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.review__label { font-weight: 600; }
+
+.review__textarea {
+  width: 100%;
+  min-height: 160px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
+}
+
+.review__textarea:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.review__count {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.review__check {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 44px;
+}
+
+.review__check input {
+  width: 18px;
+  height: 18px;
+}
+
+.review__lang {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.review__lang select {
+  min-height: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.review__buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.review__error {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--danger);
+  border-radius: var(--radius-sm);
+  color: var(--danger);
+}
+
+@media (max-width: 639px) {
+  .review { padding: 0 20px; }
+}
+
+/* ─── 53-review-list.css ─── */
+/* --- S-09 — список отзывов (F-04-05) и блок «Лучшие» на S-06 ---
+ *
+ * Раскладка: слева сводка и фильтры, справа лента карточек. Карточка общая
+ * с блоком «Лучшие отзывы», поэтому здесь только список; формы отзыва живут
+ * в `52-reviews.css`.
+ *
+ * Цвета, отступы и радиусы — только токены: своё значение здесь означало бы,
+ * что тема перестанет переключаться (PRINCIPLES §1). Текст держит меру
+ * строкой (`70ch`): длинная строка читается хуже.
+ */
+
+.reviews__title { margin-block-end: var(--space-5); }
+
+.reviews {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: 1fr;
+  align-items: start;
+  margin-block-end: var(--space-7);
+}
+
+@media (min-width: 1024px) {
+  .reviews { grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); }
+
+  /* Сводка и фильтры следуют за прокруткой, пока лента длиннее их самих:
+     панель «Как в каталоге», без слоя поверх страницы. */
+  .reviews__side { position: sticky; top: var(--space-3); }
+}
+
+.reviews__summary { margin-block-end: var(--space-5); }
+
+/* --- Фильтры --- */
+
+/* Панель — `<details>`: на телефоне она свёрнута за строкой «Фильтры · N»,
+   на широком экране строка прячется, а тело видно всегда. Скрипт только
+   закрывает панель на телефоне, но не является условием работы. */
+.reviews__filters {
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.reviews__filters-summary {
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.reviews__filters-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Широкий экран: свёртка не показывает состояние, поэтому строка-кнопка
+   прячется целиком, а тело видно при любом состоянии `open`: вертикальный
+   телефон, поставленный набок, не должен потерять фильтры. У скрытого тела
+   у `<details>` свои механики (`display: none` и `content-visibility`),
+   поэтому обнуляются обе. */
+@media (min-width: 1024px) {
+  .reviews__filters > summary { display: none; }
+  .reviews__filters > .reviews__filters-body {
+    display: block;
+    content-visibility: visible;
+  }
+}
+
+.reviews__filter + .reviews__filter { margin-block-start: var(--space-3); }
+
+.reviews__filter-label {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.reviews__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviews__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.reviews__chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* Активная метка названа цветом, положением и `aria-current` в разметке. */
+.reviews__chip[aria-current] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.reviews__chip-count { color: var(--text-secondary); font-size: var(--text-xs); }
+.reviews__chip[aria-current] .reviews__chip-count { color: var(--accent-contrast); }
+
+/* --- Лента --- */
+
+.reviews__total {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+}
+
+.reviews__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviews__item { padding-block: var(--space-4); }
+
+/* Разделитель между карточками, а не рамка вокруг каждой: лента — один
+   поток текста, а не набор «коробок». */
+.reviews__item + .reviews__item {
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.reviews__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.reviews__nick { font-weight: 600; }
+
+/* Обезличенный отзыв (EC-V6): слово вместо ника, без выделения. */
+.reviews__nick--deleted {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* Оценка автора — моноширинная цифра, как в самом чате оценок (H-71):
+   разряды никуда не «прыгают». Для слуха число названо словами рядом. */
+.reviews__card-rating {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  color: var(--text-primary);
+}
+
+.reviews__date,
+.reviews__lang {
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.reviews__text { max-width: 70ch; }
+.reviews__text p { margin: 0 0 var(--space-3); }
+.reviews__text p:last-child { margin: 0; }
+
+/* Спойлер — свёртка `<details>`. Её собственный маркер убран: состояние
+   названо словами «Показать»/«Скрыть», а стрелка была бы вторым носителем
+   того же смысла. */
+.reviews__spoiler summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.reviews__spoiler {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+/* До раскрытия видна только надпись «Показать»: два сообщения, а не оба
+   сразу — показывается нужное. */
+.reviews__spoiler-hide { display: none; }
+
+.reviews__spoiler[open] summary .reviews__spoiler-show { display: none; }
+.reviews__spoiler[open] summary .reviews__spoiler-hide { display: inline; }
+
+.reviews__spoiler summary { color: var(--text-primary); }
+
+.reviews__more { margin-block-start: var(--space-2); }
+
+/* «Читать далее» — ссылка на страницу отзыва (F-04-09 §3): полный текст
+   живёт там, и в списке он обрезан. */
+.reviews__more-link { color: var(--text-secondary); }
+.reviews__more-link:hover { color: var(--text-primary); }
+
+/* Дата в списке — тоже ссылка на страницу отзыва, но выглядит датой:
+   подчёркивание появляется при наведении, а при фокусе — рамка. */
+.reviews__date-link { color: inherit; text-decoration: none; }
+.reviews__date-link:hover { color: var(--text-primary); text-decoration: underline; }
+
+/* --- Пустое состояние --- */
+
+.reviews__empty {
+  padding: var(--space-6);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.reviews__empty-title { margin: 0 0 var(--space-3); font-size: var(--text-lg); }
+.reviews__empty-path { margin: 0; }
+
+/* --- Блок «Лучшие отзывы» на S-06 --- */
+
+.reviews-top { padding: 0 32px; margin-block-end: var(--space-6); }
+.reviews-top__more { margin-block-start: var(--space-4); }
+
+@media (max-width: 639px) {
+  .reviews-top { padding: 0 20px; }
+}
+
+/* ─── 54-review-vote.css ─── */
+/* --- Голос «Полезно» (F-04-06) -------------------------------------------
+ *
+ * Кнопка-переключатель под отзывом: состояние видно и цветом, и числом
+ * нажатий, и значением `aria-pressed`; цвет не единственный носитель
+ * (R-A11Y-19). Цель касания не меньше 44 px. Футер один на карточку,
+ * кнопка не растягивается во всю строку.
+ *
+ * Цвета и отступы — только токены (PRINCIPLES §1); движется только то,
+ * что можно (`transform`, `opacity`).
+ */
+
+.reviews__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-block-start: var(--space-3);
+}
+
+.reviews__vote-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.reviews__vote-button:hover { background: var(--surface-hover); }
+
+/* Голос поставлен: та же кнопка, иначе широкая разрядка от смены текста
+   дёргает карточку (содержимое меняет ширину на символ). Смысл состояния
+   несёт и `aria-pressed`, поэтому looked-класс здесь про цвет подложки. */
+.reviews__vote-button--on {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-contrast);
+  font-weight: 500;
+}
+
+/* На время запроса из скрипта: это то самое «сохраняется» (F-04-06 §6);
+   без скрипта отправка уходит сразу, состояние и не успевает погаснуть.
+   Притушённость — число, как у неактивных кнопок статуса (`50-tracking.css`). */
+.reviews__vote-button[aria-busy='true'],
+.reviews__vote-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.reviews__vote-count,
+.reviews__vote-hint {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.reviews__vote-hint { margin: 0; }
+
+.reviews__vote-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reviews__vote-button { transition: none; }
+}
+
+/* ─── 55-review-report.css ─── */
+/* --- Жалоба на отзыв (F-04-07) -------------------------------------------
+ *
+ * Меню «⋯» в футере карточки и один диалог на страницу: причина из списка
+ * и необязательный комментарий. Диалог — тот же нативный `<dialog>`, что
+ * у отзыва (52-reviews): работает без скрипта через состояние адреса,
+ * скрипт лишь открывает с места (см. `public/app.js`).
+ *
+ * Цвета и отступы — только токены (PRINCIPLES §1); движется только то,
+ * что можно (`transform`, `opacity`). Два размытых слоя на экран не
+ * превышаются: у диалога стекло нет — подложка затемнена, не размыта.
+ *
+ * Пункт меню — цель касания 44 px и видимый фокус; состояние `details`
+ * открыто/закрыт дублируется разворотом списка целиком, цвет не
+ * единственный носитель (R-A11Y-19).
+ */
+
+/* ─── Меню «⋯» в футере карточки ────────────────────────────────────────── */
+
+.reviews__menu {
+  position: relative;
+  margin-inline-start: auto;
+}
+
+.reviews__menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+  /* Хвост снимает у summary встроенный маркер раскрытия: состояние
+     выдаёт сам popup, маркер дублировал бы его. */
+  list-style: none;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.reviews__menu-toggle::-webkit-details-marker { display: none; }
+
+.reviews__menu-toggle:hover,
+.reviews__menu[open] .reviews__menu-toggle { background: var(--surface-hover); }
+
+.reviews__menu-pop {
+  position: absolute;
+  inset-block-end: calc(100% + 4px);
+  inset-inline-end: 0;
+  z-index: 10;
+  min-inline-size: 180px;
+  padding: var(--space-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  /* Тени-токенов нет: выпадающие Popup соседних частей (47, 51)
+     рисуют ее значением напрямую — тем же правилом. */
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+}
+
+.reviews__menu-item {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.reviews__menu-item:hover { background: var(--surface-hover); }
+
+/* ─── Диалог жалобы ─────────────────────────────────────────────────────── */
+
+.reviews__report {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(480px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+/* Сервер открывает диалог атрибутом `open` (состояние адреса), но после
+   сброса стилей `display` у закрытого диалога обязан остаться `none`,
+   а у открытого — блок. */
+.reviews__report[open] { display: block; }
+
+.reviews__report:not([open]) { display: none; }
+
+.reviews__report::backdrop { background: rgb(0 0 0 / 0.55); }
+
+.reviews__report-body { padding: var(--space-5); }
+
+.reviews__report-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-lg);
+}
+
+.reviews__report-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.reviews__report-reasons {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.reviews__report-legend {
+  display: block;
+  margin-block-end: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.reviews__report-reason {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 44px;
+  cursor: pointer;
+}
+
+.reviews__report-comment-label {
+  margin-block-start: var(--space-2);
+  font-weight: 600;
+}
+
+.reviews__report-text {
+  min-block-size: 88px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
+}
+
+.reviews__report-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* Ошибка поля названа текстом и объявляется `role="alert"`; цвет — не
+   единственный носитель (R-A11Y-19). */
+.reviews__report-err {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.reviews__report-done {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.reviews__report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+/* ─── 56-review-page.css ─── */
+/* --- S-10 — страница отзыва (F-04-09) ---
+ *
+ * Одна колонка ≤ 720 px: страница про один отзыв, и текст отзыва — её
+ * главный и самый крупный элемент (фокус экрана, UI §19). Мера строки
+ * та же, что у карточки в списке (`70ch`), поэтому чтение не меняется
+ * при переходе из ленты на страницу.
+ *
+ * Шапка и футер отзыва — те же классы, что в списке: правила прав и вид
+ * метаданных не должны расходиться от страницы к странице.
+ *
+ * Цвета, отступы и радиусы — только токены: своё значение здесь означало бы,
+ * что тема перестанет переключаться (PRINCIPLES §1).
+ */
+
+.review-page {
+  max-width: 720px;
+  margin-inline: auto;
+  padding-block: var(--space-5) var(--space-8);
+}
+
+.review-page__card {
+  padding: var(--space-5);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+/* Надпись «Отзыв» — подпись над названием сериала, а не заголовок: заголовок
+   страницы отвечает на вопрос «о чём это», и отвечает сериал. */
+.review-page__kicker {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* Название сериала — навигационная ссылка, а не заголовок-герой: фокус
+   экрана — текст отзыва (UI §19), и он должен быть крупнее. */
+.review-page__title {
+  margin-block: var(--space-1) var(--space-4);
+  font-size: var(--text-lg);
+}
+
+.review-page__series {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.review-page__series:hover { color: var(--accent-hover); text-decoration: underline; }
+
+/* Текст отзыва — фокус экрана: он крупнее служебной строки и читается
+   свободной мерой, а не стеной. */
+.review-page__text {
+  max-width: 70ch;
+  margin-block-start: var(--space-4);
+  font-size: var(--text-xl);
+  line-height: 1.5;
+}
+
+.review-page__card .reviews__foot {
+  margin-block-start: var(--space-5);
+}
+
+@media (max-width: 480px) {
+  .review-page { padding-block: var(--space-4) var(--space-7); }
+  .review-page__card { padding: var(--space-4); }
+  .review-page__title { font-size: var(--text-base); }
+  .review-page__text { font-size: var(--text-lg); }
+}

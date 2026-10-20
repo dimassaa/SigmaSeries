@@ -17,6 +17,10 @@ import { reviewPageView } from '../view/reviewPage.js';
 import { reportStateFor, voteStateFor } from './review-actions.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { timezoneOf } from '../services/timezone.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['reviews'];
+
 
 /** Ответ отправляется разобранной строкой: `send()` объекта ушёл бы в JSON. */
 const rawHtml = (page) => page.__raw;
@@ -59,6 +63,7 @@ export function createReviewRoutes({
         // должен знать, что случилось (EC-V14, как на странице сериала).
         if (found.series.archived) {
           return res.status(410).type('html').send(rawHtml(layout({
+            styles: STYLES,
             account: req.account,
             locale,
             path: `/reviews/${found.review.id}`,
@@ -86,6 +91,7 @@ export function createReviewRoutes({
           : null;
 
         return res.status(200).type('html').send(rawHtml(layout({
+          styles: STYLES,
           account: req.account,
           locale,
           path: `/reviews/${found.review.id}`,

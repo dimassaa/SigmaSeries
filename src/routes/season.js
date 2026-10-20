@@ -17,6 +17,10 @@ import { HOUR } from '../config/settings.js';
 import { UNDO_WINDOW_SECONDS } from '../services/tracking/marks.js';
 import { goneView } from '../view/series.js';
 import { t, isLocale } from '../i18n/strings.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['series', 'tracking'];
+
 
 const rawHtml = (page) => page.__raw;
 
@@ -53,6 +57,7 @@ export function createSeasonRoutes({
 
       const path = `/series/${slug}/seasons/${seasonNumber}`;
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path,
@@ -108,6 +113,7 @@ export function createSeasonRoutes({
 
       const path = `/series/${slug}/seasons/${seasonNumber}/episodes/${episodeNumber}`;
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path,

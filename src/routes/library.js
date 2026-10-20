@@ -17,6 +17,10 @@ import { t, isLocale } from '../i18n/strings.js';
 import { csrfToken } from '../services/auth/session.js';
 import { LIBRARY_PAGE_SIZE } from '../services/tracking/library.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['tracking'];
+
 
 const rawHtml = (page) => page.__raw;
 
@@ -69,6 +73,7 @@ export function createLibraryRoutes({ library, sessionMw, progress = null, subsc
         : null;
 
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path: '/library',

@@ -13,6 +13,10 @@ import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
 import * as limits from '../services/auth/limits.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { AUTH } from '../config/settings.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['identity'];
+
 
 export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
   const router = express.Router({ strict: true });
@@ -252,6 +256,7 @@ function respond(res, status, page) {
 
 function renderForm(ctx) {
   return layout({
+    styles: STYLES,
     account: ctx.account,
     locale: ctx.locale,
     path: '/login',

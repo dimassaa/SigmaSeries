@@ -1,0 +1,540 @@
+/* SigmaSeries — таблица стилей «tracking».
+   Этот файл НЕ ПРАВИТСЯ РУКАМИ.
+   Источник: src/styles/*.css, состав — src/config/styles.js.
+   Сборка:   node tools/build-css.mjs
+   Проверка: npm run css:check
+   Частей: 1
+*/
+
+/* ─── 50-tracking.css ─── */
+/* Кнопка статуса просмотра (F-03-01, измерение 12).
+   Правила оформления: docs/02-design/PRINCIPLES.md, TOKENS.md.
+
+   Одно primary («Смотрю»), когда статуса нет; когда статус есть — он и есть
+   кнопка, а остальные живут в раскрывающемся меню. Состояние читается и по
+   значку, и по тексту: цвет статуса не единственный признак (R-A11Y-19). */
+
+.status {
+  margin-block-end: var(--space-3);
+}
+
+.status__primary,
+.status__button,
+.status__item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 40px;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.status__primary {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: transparent;
+  font-weight: 500;
+}
+
+.status__current {
+  position: relative;
+}
+
+.status__button {
+  background: var(--surface-overlay);
+  list-style: none;
+  cursor: pointer;
+}
+
+/* Стрелка у раскрывающегося списка: у `<summary>` своя, и она спорит с нашей. */
+.status__button::-webkit-details-marker {
+  display: none;
+}
+
+.status__list {
+  position: absolute;
+  inset-inline-start: 0;
+  inset-block-start: calc(100% + var(--space-1));
+  z-index: 2;
+  min-inline-size: 200px;
+  margin: 0;
+  padding: var(--space-1);
+  list-style: none;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  /* Стекло разрешено для выпадающих меню (R-DES-21); здесь без размытия —
+     меню и так читается, а лишний слой тянет перерисовку при каждом открытии. */
+  background: var(--surface-overlay);
+}
+
+.status__item {
+  inline-size: 100%;
+  border-color: transparent;
+  justify-content: flex-start;
+}
+
+.status__item:hover,
+.status__button:hover {
+  background: var(--surface-hover);
+}
+
+.status__item--remove {
+  color: var(--danger);
+}
+
+.status__guest {
+  display: inline-flex;
+  min-block-size: 40px;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.status--readonly {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+/* S-30 — закладки (F-03-04).
+   Вкладки — горизонтальная строка, на телефоне прокручивается: шесть вкладок с
+   счётчиками не помещаются в ширину, а прятать их означало бы потерять фильтр.
+   Правая панель «Предстоящие» на этой странице отсутствует (H-30). */
+
+.library {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.library__title {
+  margin-block: var(--space-4) 0;
+}
+
+.library__tabs {
+  display: flex;
+  gap: var(--space-2);
+  overflow-x: auto;
+  padding-block-end: var(--space-2);
+  scrollbar-width: thin;
+}
+
+.library__tab {
+  flex: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  min-block-size: 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.library__tab--on {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  background: var(--surface-hover);
+  font-weight: 500;
+}
+
+/* Счётчик — текстом рядом с названием, а не только цветом вкладки. */
+.library__tab-count {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.library__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.library__search,
+.library__sort {
+  min-block-size: 40px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+}
+
+.library__list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.library__card {
+  display: grid;
+  grid-template-columns: 64px 1fr;
+  gap: var(--space-4);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.library__item--archived .library__card {
+  opacity: 0.8;
+}
+
+.library__poster-img,
+.library__poster-fallback {
+  display: block;
+  inline-size: 100%;
+  aspect-ratio: 2 / 3;
+  object-fit: cover;
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+}
+
+.library__body {
+  display: grid;
+  gap: var(--space-2);
+  align-content: start;
+  min-inline-size: 0;
+}
+
+.library__name {
+  margin: 0;
+  font-size: var(--text-base);
+}
+
+.library__year {
+  margin-inline-start: var(--space-2);
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+.library__progress {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.library__progress-bar {
+  inline-size: 120px;
+  block-size: 6px;
+  accent-color: var(--accent);
+}
+
+/* Бейдж «новые серии»: точка была бы смыслом только для того, кто её знает,
+   поэтому здесь текст, а не кружок (R-A11Y-19). */
+.library__badge {
+  margin: 0;
+  align-self: start;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-pill);
+  color: var(--accent);
+  font-size: var(--text-xs);
+}
+
+.library__progress-percent {
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+}
+
+.library__skipped {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--warning);
+}
+
+.library__progress-text,
+.library__continue,
+.library__next,
+.library__archived {
+  margin: 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.library__archived {
+  color: var(--warning);
+}
+
+@media (min-width: 720px) {
+  .library__list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+/* Флажок отметки серии (F-03-02).
+   Цель касания — 44 px: квадрат флажка может быть меньше, рамка вокруг него
+   обязана быть нет. На телефоне это разница между «отметил» и «не заметил». */
+
+.mark {
+  margin: 0;
+}
+
+.mark__button {
+  display: grid;
+  place-items: center;
+  inline-size: 44px;
+  block-size: 44px;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.mark__button:hover {
+  border-color: var(--accent);
+}
+
+.mark__button--on {
+  background: var(--positive);
+  border-color: transparent;
+  color: var(--text-inverse);
+}
+
+/* Не вышедшая серия: флажок виден, но не нажимается, и человек читает дату
+   выхода из подсказки, а не гадает, что сломалось (EC-T2). */
+.mark__button[disabled] {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.mark--guest {
+  display: inline-block;
+  inline-size: 44px;
+}
+
+.mark--bulk .button {
+  font-size: var(--text-xs);
+}
+
+.season__episode {
+  display: grid;
+  grid-template-columns: 44px 1fr;
+  gap: var(--space-2);
+  align-items: start;
+}
+
+.season__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.mark-notice {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin-block: var(--space-3);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  font-size: var(--text-sm);
+}
+
+.mark-notice--warn {
+  border-color: var(--warning);
+  color: var(--warning);
+}
+
+.episode__mark {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+/* Прогресс и «продолжить» на странице сериала (F-03-03, R-DES-04).
+   Числа моноширинные и без цветового кодирования: «12 из 24» читается глазом,
+   а полоса рядом — для тех, кто хочет сравнить быстрее. */
+
+.progress {
+  display: grid;
+  gap: var(--space-2);
+  margin-block: var(--space-2) var(--space-3);
+  max-inline-size: 42ch;
+}
+
+.progress--empty {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.progress__bar {
+  inline-size: 100%;
+  block-size: 6px;
+  accent-color: var(--accent);
+}
+
+.progress__count {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  margin: 0;
+}
+
+.progress__numbers {
+  font-variant-numeric: tabular-nums;
+  font-size: var(--text-sm);
+}
+
+.progress__percent,
+.progress__next-date,
+.progress__awaiting,
+.progress__skipped {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.progress__next {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin: 0;
+}
+
+.progress__skipped {
+  color: var(--warning);
+}
+
+/* Колокольчик «Следить за выходом» (F-03-07).
+   Кнопка не «светится»: включённое состояние — акцентная рамка и другой
+   значок, а не только цвет (R-A11Y-19). Подпись под кнопкой объясняет, кто
+   решил: человек или автоматика, — иначе «Смотрю» выглядит как «приложение
+   само всё сделало». */
+
+.subs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin-block: var(--space-2);
+}
+
+.subs form {
+  margin: 0;
+}
+
+.subs__button {
+  display: inline-flex;
+  gap: var(--space-2);
+  align-items: center;
+  min-block-size: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
+.subs__button:hover {
+  border-color: var(--accent);
+}
+
+.subs__button--on {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.subs__note {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.subs--archived,
+.subs--guest {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.subs-notice {
+  margin: 0 0 var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--warning);
+  font-size: var(--text-sm);
+}
+
+/* Плотный список закладок (#127, F-03-04 §4).
+   На телефоне он же и есть вид по умолчанию: карточки в две колонки занимают
+   весь экран одной записью, а список показывает пять. */
+.library__view { display: inline-flex; gap: var(--space-1); }
+.library__view-button {
+  min-width: 44px; min-height: 44px;
+  display: inline-flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+}
+.library__view-button:hover { border-color: var(--border-strong); color: var(--text-primary); }
+/* Активный вид помечен и цветом, и рамкой: иначе при плохом зрении переключатель
+   не читается (R-A11Y-19). */
+.library__view-button--on { color: var(--text-primary); border-color: var(--accent); }
+
+.library__rows { list-style: none; margin: 0; padding: 0; }
+
+.library__row {
+  display: grid;
+  grid-template-columns: 48px 1fr auto;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.library__row--archived { opacity: 0.7; }
+
+.library__row-poster { display: block; }
+.library__row-poster-img {
+  display: block; width: 48px; height: 72px; object-fit: cover;
+  border-radius: var(--radius-sm); background: var(--surface-sunken);
+}
+.library__row-poster-fallback {
+  display: block; width: 48px; height: 72px;
+  border-radius: var(--radius-sm); background: var(--surface-hover);
+}
+
+.library__row-body { min-width: 0; }
+.library__row-name { font-size: var(--text-base); margin: 0; }
+.library__row-progress { margin-block-start: var(--space-1); }
+.library__row-next { margin-block-start: var(--space-1); font-size: var(--text-xs); color: var(--text-secondary); }
+
+.library__row-actions { display: flex; align-items: center; gap: var(--space-2); }
+
+/* Телефон: карточки становятся плотным списком (F-03-04 §19).
+   Макет требует на телефоне именно список, а переключателя вида там может не
+   быть под рукой — поэтому вид по умолчанию меняется стилями, без скрипта и
+   без второго набора разметки. */
+@media (max-width: 640px) {
+  .library__card {
+    display: grid;
+    grid-template-columns: 48px 1fr auto;
+    gap: var(--space-3);
+    align-items: center;
+    padding: var(--space-2) 0;
+  }
+  .library__poster-img {
+    width: 48px; height: 72px; border-radius: var(--radius-sm);
+  }
+  .library__poster-fallback { width: 48px; height: 72px; }
+}

@@ -16,6 +16,10 @@ import { isLocale, t } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { devboxBadge, linkFromBody } from '../services/mail/devbox.js';
 import { switchMode } from '../services/mail/mode.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['identity'];
+
 
 const BASE = '/admin/mailbox';
 
@@ -64,6 +68,7 @@ export function createMailboxRoutes({ auth, sessionMw, mailQueue, mailMode, jour
       : null;
 
     return respond(res, 200, layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: BASE,
@@ -128,6 +133,7 @@ export function createMailboxRoutes({ auth, sessionMw, mailQueue, mailMode, jour
       mailMode.current(),
     ]);
     return layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: BASE,

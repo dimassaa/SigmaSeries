@@ -7,6 +7,7 @@
 import { html, raw, attr, esc, when } from './render.js';
 import { t, LOCALES, LOCALE_NAMES, DEFAULT_LOCALE } from '../i18n/strings.js';
 import { SEARCH_SETTINGS } from '../config/settings.js';
+import { styleGroups } from '../config/styles.js';
 
 /**
  * `<title>` контентной страницы по таблице шаблонов (SEO §2).
@@ -36,14 +37,25 @@ export function pageTitle(locale, middle) {
  * @param {object} [page.body] фрагмент содержимого
  * @param {boolean} [page.noindex] служебная страница
  * @param {string} [page.theme] системная тема пользователя, известная заранее
+ * @param {string[]} [page.styles] группы таблиц стилей, нужные странице;
+ *   без списка подключаются все (см. `src/config/styles.js`)
  * @param {string} [page.panel] готовая разметка правой панели; без неё панели нет
  * @param {{nickname: string, unread: number, pollSeconds?: number}|null} [page.account]
  *   меню аккаунта; `null` — гость, и вместо меню показывается вход
  */
 export function layout(page) {
-  const { locale, title, description, path, body = '', noindex = false, jsonLd = null } = page;
+  const {
+    locale, title, description, path, body = '', noindex = false, jsonLd = null, styles = null,
+  } = page;
   const other = LOCALES.find((l) => l !== locale);
   const canonical = `/${locale}${path === '/' ? '/' : path}`;
+
+  // Таблицы стилей — по экранам: общая плюс те, что нужны странице. Порядок
+  // задан списком групп, иначе правила перебивали бы друг друга иначе, чем
+  // в одной общей таблице.
+  const styleLinks = styleGroups(styles)
+    .map((name) => `<link rel="stylesheet" href="/css/${name}.css">`)
+    .join('\n');
 
   const head = html`<meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -54,7 +66,7 @@ ${noindex ? html`<meta name="robots" content="noindex, follow">` : ''}
 ${LOCALES.map((l) => html`<link rel="alternate" hreflang="${l}" href="/${l}${path === '/' ? '/' : path}">`)}
 <link rel="alternate" hreflang="x-default" href="/${DEFAULT_ROUTE(path)}">
 ${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))}</script>` : ''}
-<link rel="stylesheet" href="/app.css">
+${raw(styleLinks)}
 <!-- Клиентский скрипт — на каждой странице: без него не работают переключатель
      темы, «Полезно» без перезагрузки, диалог жалобы, показ пароля и
      сохранение прокрутки при смене языка. Атрибут defer не блокирует

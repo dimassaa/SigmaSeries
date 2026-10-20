@@ -1,0 +1,715 @@
+/* SigmaSeries — таблица стилей «base».
+   Этот файл НЕ ПРАВИТСЯ РУКАМИ.
+   Источник: src/styles/*.css, состав — src/config/styles.js.
+   Сборка:   node tools/build-css.mjs
+   Проверка: npm run css:check
+   Частей: 5
+*/
+
+/* ─── 00-tokens.css ─── */
+/* Значения темы. Единственное место в проекте, где есть hex.
+   Компонент, написавший цвет напрямую, не переключает тему (TOKENS §8). */
+
+:root,
+[data-theme='dark'] {
+  --surface-canvas: #080809;
+  --surface-raised: #141415;
+  --surface-overlay: #1b1d1f;
+  --surface-sunken: #101011;
+  --surface-hover: #26272d;
+
+  --border-subtle: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+
+  --text-primary: #ECECEF;
+  --text-secondary: #9A9AA3;
+  --text-inverse: #080809;
+
+  --accent: #83c3ff;
+  --accent-hover: #a3d3ff;
+  --accent-contrast: #080809;
+
+  --positive: #3fb27f;
+  --warning: #d99a2b;
+  --danger: #e05252;
+
+  --blur-light: 8px;
+  --scrim: linear-gradient(100deg, rgba(0, 0, 0, 0.72) 0%, rgba(0, 0, 0, 0.30) 55%, rgba(0, 0, 0, 0) 100%);
+
+  color-scheme: dark;
+}
+
+[data-theme='light'] {
+  --surface-canvas: #FBFBFC;
+  --surface-raised: #FFFFFF;
+  --surface-overlay: #FFFFFF;
+  --surface-sunken: #F1F2F4;
+  --surface-hover: #EEF0F3;
+
+  --border-subtle: rgba(0, 0, 0, 0.08);
+  --border-strong: rgba(0, 0, 0, 0.14);
+
+  --text-primary: #16171A;
+  --text-secondary: #5A5C63;
+  --text-inverse: #FFFFFF;
+
+  --accent: #1668d4;
+  --accent-hover: #0f57b5;
+  --accent-contrast: #FFFFFF;
+
+  --positive: #1c7a4d;
+  --warning: #8a5a06;
+  --danger: #a52a2a;
+
+  --scrim: linear-gradient(100deg, rgba(0, 0, 0, 0.62) 0%, rgba(0, 0, 0, 0.24) 55%, rgba(0, 0, 0, 0) 100%);
+
+  color-scheme: light;
+}
+
+/* ─── 10-base.css ─── */
+/* Основа: сброс, типографика, фокус. */
+
+/* Системный стек: кириллица есть в основном начертании и в цифрах.
+   Webfont не подключается, поэтому font-display не нужен — шрифт не грузится.
+   При добавлении загружаемого шрифта font-display: swap обязателен (R-DES-17):
+   без него текст мигает несовместимыми метриками. */
+:root {
+  --font-sans: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  --font-mono: ui-monospace, 'JetBrains Mono', 'Cascadia Code', Consolas, monospace;
+
+  /* Шкала растёт на 4, потом на 8: мелкие отступы различаются глазом,
+     крупные — нет. Последняя ступень обязана существовать для каждой
+     использованной: переменная без значения отбрасывает всё правило. */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 24px; --space-6: 32px; --space-7: 48px; --space-8: 64px;
+  --space-9: 96px;
+
+  --radius-sm: 4px; --radius-md: 8px; --radius-lg: 12px; --radius-pill: 999px;
+
+  /* Шкала размеров текста (TOKENS §3): семь ступеней, ничего между.
+     Токен вместо числа означает, что экран обязан пользоваться шкалой:
+     число вне шкалы — тот же дефект, что hex вместо цветового токена. */
+  --text-3xl: 40px;
+  --text-2xl: 32px;
+  --text-xl: 24px;
+  --text-lg: 18px;
+  --text-base: 16px;
+  --text-sm: 14px;
+  --text-xs: 12px;
+
+  --dur-fast: 120ms; --dur-base: 200ms; --dur-slow: 320ms;
+  --ease-out: cubic-bezier(0.2, 0, 0, 1);
+  --ease-in: cubic-bezier(0.4, 0, 0.2, 1);
+
+  --content-max: 1440px;
+}
+
+/* Телефон (TOKENS §3): у крупных ступеней своя высота, мелкие не меняются.
+   Точка перелома та же, что у остальных частей (639px). */
+@media (max-width: 639px) {
+  :root {
+    --text-3xl: 28px;
+    --text-2xl: 24px;
+    --text-xl: 20px;
+    --text-lg: 16px;
+  }
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--surface-canvas);
+  color: var(--text-primary);
+  font: 400 16px/1.55 var(--font-sans);
+  min-height: 100vh;
+}
+
+h1, h2, h3 { margin: 0; font-weight: 600; line-height: 1.25; }
+p { margin: 0; }
+ul, ol { margin: 0; padding: 0; list-style: none; }
+img { display: block; max-width: 100%; height: auto; }
+
+a { color: var(--accent); text-decoration-thickness: 1px; text-underline-offset: 2px; }
+a:hover { color: var(--accent-hover); }
+
+/* Видимый фокус у каждого элемента, и он не обрезается родителем (R-A11Y-04). */
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: var(--radius-sm);
+}
+
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px;
+  padding: 0; margin: -1px; overflow: hidden;
+  clip-path: inset(50%); white-space: nowrap; border: 0;
+}
+
+/* Ссылка «перейти к содержимому» прячется, но остаётся в порядке фокуса. */
+.skip-link {
+  position: absolute; left: var(--space-3); top: var(--space-3);
+  z-index: 100;
+  padding: var(--space-2) var(--space-4);
+  background: var(--accent); color: var(--accent-contrast);
+  border-radius: var(--radius-sm);
+  transform: translateY(-200%);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.skip-link:focus-visible { transform: translateY(0); color: var(--accent-contrast); }
+
+@media (prefers-reduced-motion: reduce) {
+  /* Движение выключается полностью, а не ослабляется (R-DES-27). */
+  *, *::before, *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ─── 20-shell.css ─── */
+/* Оболочка: верхняя панель и область содержимого. */
+
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--border-subtle);
+  background: var(--surface-canvas);
+}
+
+.topbar__brand {
+  font-weight: 700;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.topbar__nav { display: flex; gap: var(--space-4); margin-inline-end: auto; }
+.topbar__nav a { color: var(--text-secondary); text-decoration: none; }
+.topbar__nav a:hover { color: var(--text-primary); }
+
+.topbar__controls { display: flex; align-items: center; gap: var(--space-3); }
+
+.topbar__theme {
+  /* Цель касания не меньше 44px (R-A11Y-08). */
+  min-width: 44px; min-height: 44px;
+  display: inline-grid; place-items: center;
+  background: transparent; color: var(--text-secondary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.topbar__theme:hover { color: var(--text-primary); border-color: var(--border-strong); }
+
+.topbar__locales { display: flex; gap: var(--space-1); }
+.topbar__lang {
+  display: inline-flex; align-items: center;
+  min-height: 44px; padding: 0 var(--space-3);
+  color: var(--text-secondary); text-decoration: none;
+  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+}
+.topbar__lang:hover { color: var(--text-primary); }
+/* Активный язык помечен и цветом, и подчёркиванием: цвет не единственный
+   носитель состояния (R-A11Y-19). */
+.topbar__lang[aria-current='true'] {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.topbar__signin {
+  display: inline-flex; align-items: center; min-height: 44px;
+  padding: 0 var(--space-4);
+  background: var(--accent); color: var(--accent-contrast);
+  border-radius: var(--radius-sm); text-decoration: none; font-weight: 600;
+}
+.topbar__signin:hover { background: var(--accent-hover); color: var(--accent-contrast); }
+
+.content {
+  max-width: var(--content-max);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-4) var(--space-9);
+}
+
+@media (max-width: 639px) {
+  .topbar { flex-wrap: wrap; }
+  .topbar__nav { order: 3; width: 100%; margin-inline-end: 0; }
+  .content { padding: var(--space-5) var(--space-4) var(--space-8); }
+}
+
+/* Правая панель «Предстоящие» (UI-04, F-03-06).
+   Плоская поверхность без стекла: панель стоит рядом с фоном страницы, и
+   размывать под ней нечего (R-DES-20, MATERIALS-GLASS §1). */
+.page__body--panel {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 320px;
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.panel {
+  position: sticky;
+  top: var(--space-3);
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+}
+
+.panel__title {
+  font-size: var(--text-sm);
+  margin-block-end: var(--space-3);
+  color: var(--text-secondary);
+}
+
+.panel__list { list-style: none; margin: 0; padding: 0; }
+
+.panel__row + .panel__row { border-top: 1px solid var(--border-subtle); }
+
+.panel__link {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-2) 0;
+  min-height: 44px;
+  justify-content: center;
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.panel__link:hover .panel__series { text-decoration: underline; }
+.panel__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.panel__series {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Сериалы «Смотрю» и «В планах» помечены точкой: человек узнаёт свои закладки
+   в общем списке (H-71). Точка не единственный признак — рядом стоит подпись
+   даты и название (R-A11Y-19). Размер — глиф, а не текст: вне шкалы TOKENS. */
+.panel__row--mine .panel__series::before {
+  content: '●';
+  margin-inline-end: var(--space-1);
+  color: var(--accent);
+  font-size: 10px;
+  vertical-align: middle;
+}
+
+.panel__meta {
+  display: flex;
+  gap: var(--space-2);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+.panel__label { color: var(--text-primary); }
+
+.panel__empty { font-size: var(--text-sm); color: var(--text-secondary); }
+
+.panel__all {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-block-start: var(--space-2);
+  color: var(--accent);
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+.panel__all:hover { text-decoration: underline; }
+
+/* Ниже 1280 px панели нет (H-30): на такой ширине она съедала бы место
+   содержимого, ради которого человек пришёл. */
+@media (max-width: 1279px) {
+  .page__body--panel { grid-template-columns: minmax(0, 1fr); }
+  .panel { display: none; }
+}
+
+/* Слой подсказок под полем поиска в шапке: он на каждой странице, поэтому живёт вместе с оболочкой. */
+
+/* Слой подсказок под полем: стекло допустимо — он лежит над контентом
+   (R-DES-21), и без подложки подписи поверх фотографии не прочитать. */
+.search__suggestions {
+  position: absolute;
+  inset-inline: 0;
+  top: calc(100% + var(--space-1));
+  z-index: 10;
+  max-block-size: 60vh;
+  overflow-y: auto;
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+}
+
+@supports (backdrop-filter: blur(8px)) {
+  .search__suggestions {
+    backdrop-filter: blur(var(--blur-light));
+  }
+}
+
+.search__suggestion {
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+  min-block-size: 44px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.search__suggestion:hover,
+.search__suggestion[aria-selected="true"] { background: var(--surface-hover); }
+
+/* Меню аккаунта в шапке: открывается на каждой странице, поэтому живёт вместе с оболочкой. */
+
+/* Меню аккаунта и лента уведомлений (F-03-09, UI-02, UI-11, S-31). */
+
+/* Меню — на `<details>`, поэтому раскрывается без скрипта. Позиционирование
+   абсолютное, а не на `position: sticky` слоя: меню не должно двигать
+   содержимое страницы при открытии. */
+.account {
+  position: relative;
+}
+
+.account__avatar {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  cursor: pointer;
+  list-style: none;
+  position: relative;
+}
+.account__avatar::-webkit-details-marker { display: none; }
+.account__avatar:hover { background: var(--border-subtle); }
+.account__avatar:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.account__letter {
+  font-weight: 600;
+  font-size: var(--text-sm);
+  text-transform: uppercase;
+}
+
+/* Красная точка — не единственный признак: рядом в меню стоит число
+   (R-A11Y-19). Сама точка скрыта от чтения с экрана. */
+.account__dot {
+  position: absolute;
+  top: 2px; right: 2px;
+  width: 10px; height: 10px;
+  border-radius: var(--radius-pill);
+  background: var(--danger);
+  border: 2px solid var(--surface-canvas);
+}
+
+.account__menu {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  right: 0;
+  z-index: 20;
+  min-width: 220px;
+  display: flex; flex-direction: column;
+  padding: var(--space-2);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.account__link {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  min-height: 44px;
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.account__link:hover { background: var(--surface-hover); }
+.account__link:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Форма выхода внутри меню: кнопка выглядит пунктом меню, но остаётся
+   кнопкой — иначе она не отправит токен. Ширина 100% и свои отступы нужны,
+   чтобы кнопка не растягивалась по содержимому и совпадала с пунктами. */
+.account__form { margin: 0; }
+
+.account__link--signout {
+  width: 100%;
+  border: 0;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+  background: none;
+}
+
+/* ─── 25-messages.css ─── */
+/* Сообщения: 404, ошибка, кнопка. */
+
+.block--message { padding-block: var(--space-9); text-align: center; }
+.message__title { font-size: var(--text-2xl); margin-block-end: var(--space-3); }
+.message__text { color: var(--text-secondary); margin-block-end: var(--space-5); }
+
+.button {
+  display: inline-flex; align-items: center;
+  min-height: 44px; padding: 0 var(--space-6);
+  background: var(--accent); color: var(--accent-contrast);
+  border-radius: var(--radius-sm); text-decoration: none; font-weight: 600;
+}
+.button:hover { background: var(--accent-hover); color: var(--accent-contrast); }
+
+/* Модификаторы кнопки. Разметка их использовала и раньше (экран удаления,
+   отметки, лента уведомлений), но правил не было: тихая и опасная кнопки
+   выглядели как обычная — то есть главное действие на экране оказывалось
+   невыделенным, а разрушающее выглядело так же, как безопасное. */
+
+/* Тихая: вторичное действие рядом с главным. Главная на экране одна
+   (R-DES-24), поэтому тихих может быть сколько угодно. */
+.button--quiet {
+  background: transparent;
+  color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  font-weight: 500;
+}
+.button--quiet:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* Опасная: цветом и рамкой, а не только цветом — иначе при плохом зрении
+   «продолжить удаление» неотличимо от «отменить» (R-A11Y-19). */
+.button--danger {
+  background: transparent;
+  color: var(--danger);
+  border: 1px solid var(--danger);
+}
+.button--danger:hover { background: var(--danger); color: var(--text-inverse); }
+
+/* Стекло появляется только когда под ним есть изображение. На сплошной
+   поверхности размытие нечего размывать (MATERIALS-GLASS §1). */
+@supports (backdrop-filter: blur(8px)) {
+  .banner__scrim {
+    backdrop-filter: blur(var(--blur-light));
+    background: linear-gradient(100deg,
+      rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.45) 60%, rgba(0, 0, 0, 0.2) 100%);
+  }
+}
+
+/* ─── 26-components.css ─── */
+/* Блоки главной. Порядок в разметке задан спецификацией, не здесь. */
+
+.block { margin-block-end: var(--space-8); }
+
+.block__title {
+  font-size: var(--text-lg);
+  margin-block-end: var(--space-4);
+  color: var(--text-primary);
+}
+
+.empty {
+  color: var(--text-secondary);
+  padding: var(--space-5) 0;
+}
+
+/* --- Баннеры --- */
+
+.banners {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: 1fr;
+}
+
+.banner {
+  position: relative;
+  display: grid;
+  align-content: end;
+  gap: var(--space-1);
+  min-height: 220px;
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+  text-decoration: none;
+  color: var(--text-primary);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Подложка под текстом. Без неё контраст к фотографии не гарантирован
+   ни на каком кадре (R-DES-23, R-A11Y-02): контраст считается к подложке. */
+.banner__image {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+.banner__scrim {
+  position: absolute; inset: 0;
+  background: var(--scrim);
+  pointer-events: none;
+}
+
+.banner__reason,
+.banner__title,
+.banner__meta { position: relative; }
+
+.banner__reason {
+  font-size: var(--text-xs);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.banner__title {
+  font-size: var(--text-xl);
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.banner__meta { font-size: var(--text-sm); color: var(--text-secondary); }
+
+.banner:hover { border-color: var(--border-strong); }
+.banner:hover .banner__title { color: var(--accent); }
+
+/* --- Постеры --- */
+
+.posters,
+.taste__grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(2, 1fr);
+}
+
+/* Выбор любимых: карточка оборачивается в метку, потому что это флажок, а не
+   ссылка. Отмеченное состояние — рамка и подпись, а не только цвет (R-A11Y-19). */
+.taste__pick { display: block; cursor: pointer; }
+
+.taste__pick--on .poster__frame { border-color: var(--accent); border-width: 2px; }
+
+.taste__input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.taste__input:focus-visible + .poster__frame { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.taste__count {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.poster { text-decoration: none; color: inherit; display: block; }
+
+.poster__frame {
+  display: block;
+  /* Пропорция объявлена явно: без неё CLS не ноль (R-PERF). */
+  aspect-ratio: 2 / 3;
+  border-radius: var(--radius-sm);
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-subtle);
+}
+
+.poster__img { width: 100%; height: 100%; object-fit: cover; }
+
+.poster__fallback {
+  display: block; width: 100%; height: 100%;
+  background: repeating-linear-gradient(135deg,
+    var(--surface-sunken) 0 10px, var(--surface-raised) 10px 20px);
+}
+
+.poster__title {
+  display: block;
+  margin-block-start: var(--space-2);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.poster__meta { display: block; font-size: var(--text-xs); color: var(--text-secondary); }
+
+.poster:hover .poster__frame { border-color: var(--border-strong); }
+
+/* --- Подборки --- */
+
+.marquee {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(220px, 1fr);
+  gap: var(--space-4);
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  padding-block-end: var(--space-2);
+}
+
+.collection {
+  scroll-snap-align: start;
+  display: grid;
+  gap: var(--space-1);
+  min-height: 120px;
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  text-decoration: none;
+  color: var(--text-primary);
+  transition: border-color var(--dur-fast) var(--ease-out);
+}
+.collection:hover { border-color: var(--border-strong); }
+.collection__title { font-weight: 600; }
+.collection__count { font-size: var(--text-xs); color: var(--text-secondary); }
+
+/* --- Жанры --- */
+
+.genres {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.genre {
+  display: inline-flex; align-items: center;
+  min-height: 44px;
+  padding: 0 var(--space-5);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: border-color var(--dur-fast) var(--ease-out), color var(--dur-fast) var(--ease-out);
+}
+.genre:hover { border-color: var(--accent); color: var(--accent); }
+
+/* --- Брейкпоинты: 360 / 768 / 1440 (LAYOUT-GRID §6) --- */
+
+@media (min-width: 640px) {
+  .posters { grid-template-columns: repeat(3, 1fr); }
+  .banners { grid-template-columns: repeat(2, 1fr); }
+  .banners > :first-child { grid-column: 1 / -1; min-height: 300px; }
+}
+
+@media (min-width: 1024px) {
+  .posters { grid-template-columns: repeat(4, 1fr); }
+}
+
+@media (min-width: 1440px) {
+  .posters { grid-template-columns: repeat(6, 1fr); }
+  .banners { grid-template-columns: repeat(3, 1fr); }
+  .banners > :first-child { grid-column: auto; min-height: 260px; }
+}

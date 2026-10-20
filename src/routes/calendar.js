@@ -20,6 +20,10 @@ import { layout, pageTitle } from '../view/layout.js';
 import { calendarView, VIEWS, FILTERS } from '../view/calendar.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['calendar'];
+
 
 const rawHtml = (page) => page.__raw;
 
@@ -59,6 +63,7 @@ export function createCalendarRoutes({ calendar, sessionMw = null }) {
         : await calendar.days({ ...range, userId: user?.id ?? null, timezone });
 
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         // Путь без параметров: `canonical` в оболочке собирается из пути, а

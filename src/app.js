@@ -33,6 +33,7 @@ import { createStatusRoutes } from './routes/status.js';
 import { createLibraryRoutes } from './routes/library.js';
 import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
 import { createJournal } from './services/journal.js';
+import { compressedStatic } from './services/assets.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -124,11 +125,15 @@ export function createApp({
   app.use(express.urlencoded({ extended: false, limit: '16kb' }));
   app.use(express.json({ limit: '16kb' }));
 
+  // Сжатие статики: таблицы стилей и скрипт отдаются gzip'ом, если клиент
+  // его понимает. Файла нет — запрос уходит дальше, к обычной отдаче.
+  app.use(compressedStatic(publicDir));
+
   app.use(express.static(publicDir, {
     // Кэш на год и `immutable` годятся файлам, в имя которых входит хэш
-    // содержимого. Здесь имена постоянные (`app.css`, `app.js`), и браузер,
-    // однажды получив файл, не запрашивал бы его никогда: после правки
-    // человек продолжал бы видеть старую версию. Час с последующей
+    // содержимого. Здесь имена постоянные (`/css/base.css`, `/app.js`), и
+    // браузер, однажды получив файл, не запрашивал бы его никогда: после
+    // правки человек продолжал бы видеть старую версию. Час с последующей
     // сверкой по ETag — компромисс между трафиком и свежестью.
     maxAge: '1h',
     setHeaders(res) {

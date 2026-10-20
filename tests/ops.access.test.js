@@ -160,6 +160,10 @@ test('журнал убирается по сроку, а без срока жи
 });
 
 test('копия записывается с файлом и ротация не трогает негодные (EC-B8)', { skip }, async () => {
+  // Уборка до начала: после неудачного прогона строки остаются, и следующий
+  // прогон считает их своими.
+  await pool.query("DELETE FROM e_backup_job WHERE file_path LIKE 'test-backup-%' OR (status = 'error' AND file_path IS NULL)");
+
   const good = await backups.record({ status: 'verified', sizeBytes: 100, filePath: 'test-backup-a' });
   const bad = await backups.record({ status: 'error', sizeBytes: 10, filePath: null });
 
@@ -173,16 +177,20 @@ test('копия записывается с файлом и ротация не
     // eslint-disable-next-line no-await-in-loop
     await backups.record({ status: 'verified', sizeBytes: 100, filePath: `test-backup-${i}` });
   }
-  const removed = await backups.prune({ keepLast: 2 });
+  await backups.prune({ keepLast: 2 });
 
+  // Считаются свои строки, а не все удалённые: ротация убирает и чужие
+  // проверенные копии (например, из расписания), и их число к проверке этого
+  // теста отношения не имеет.
   const { rows } = await pool.query(
     `SELECT file_path FROM e_backup_job
       WHERE file_path LIKE 'test-backup-%' OR status = 'error'
       ORDER BY id`,
   );
-  assert.equal(rows.some((row) => row.file_path === 'test-backup-a'), false,
+  const ours = rows.filter((row) => (row.file_path ?? '').startsWith('test-backup-')).map((row) => row.file_path);
+  assert.equal(ours.includes('test-backup-a'), false,
     'самая старая проверенная копия убрана: сверх срока она лишняя');
-  assert.equal(removed, 1, 'одна лишняя проверенная убрана');
+  assert.equal(ours.length, 2, 'из трёх проверенных остались две последние');
   assert.equal((await backups.recent({ limit: 20 })).some((row) => row.status === 'error'), true,
     'негодная копия в журнале осталась');
 

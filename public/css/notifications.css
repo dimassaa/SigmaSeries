@@ -1,0 +1,126 @@
+/* SigmaSeries — таблица стилей «notifications».
+   Этот файл НЕ ПРАВИТСЯ РУКАМИ.
+   Источник: src/styles/*.css, состав — src/config/styles.js.
+   Сборка:   node tools/build-css.mjs
+   Проверка: npm run css:check
+   Частей: 1
+*/
+
+/* ─── 51-notifications.css ─── */
+/* Лента уведомлений (F-03-09, S-31). Меню аккаунта уехало в оболочку: оно на каждой странице. */
+
+/* Лента — одна колонка, как в спецификации (F-03-09 §19). */
+.notifications__title { margin-block-end: var(--space-5); }
+
+.notifications__all { margin-block-end: var(--space-4); }
+
+.notifications__categories {
+  display: flex; flex-wrap: wrap; gap: var(--space-2);
+  margin-block-end: var(--space-5);
+}
+.notifications__filter {
+  display: inline-flex; align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+.notifications__filter:hover { color: var(--text-primary); border-color: var(--border-strong); }
+/* Выбранный фильтр помечен не только цветом, но и подчёркиванием. */
+.notifications__filter--on {
+  color: var(--text-primary);
+  border-color: var(--accent);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.notifications__feed { margin: 0; padding: 0; }
+
+.notifications__day + .notifications__day { margin-block-start: var(--space-6); }
+
+.notifications__day-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text-secondary);
+  margin-block-end: var(--space-2);
+  position: sticky;
+  top: 0;
+  padding-block: var(--space-1);
+  background: var(--surface-canvas);
+}
+
+.notifications__items {
+  list-style: none;
+  margin: 0; padding: 0;
+  display: flex; flex-direction: column;
+  gap: var(--space-2);
+}
+
+.notifications__item {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: var(--space-3);
+  align-items: start;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/* Размер — глиф значка, а не текст: вне шкалы TOKENS сознательно. */
+.notifications__icon { font-size: 20px; line-height: 1.4; }
+
+.notifications__body { min-width: 0; }
+
+.notifications__item-title { font-weight: 600; margin: 0; }
+.notifications__item--unread .notifications__item-title { font-weight: 700; }
+.notifications__item--unread { border-left: 3px solid var(--accent); }
+
+.notifications__item-text { margin: var(--space-1) 0 0; color: var(--text-primary); }
+
+.notifications__item-meta {
+  margin: var(--space-1) 0 0;
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+  display: flex; gap: var(--space-2);
+}
+
+/* Недоступный сериал: без ссылки, но объяснением, куда делась (EC-T14). */
+.notifications__gone { color: var(--warning); }
+
+.notifications__actions {
+  display: flex; flex-direction: column;
+  align-items: stretch;
+  gap: var(--space-1);
+}
+.notifications__actions form { margin: 0; }
+
+.notifications__open {
+  display: inline-flex; align-items: center;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  color: var(--accent);
+  text-decoration: none;
+  font-size: var(--text-sm);
+}
+.notifications__open:hover { text-decoration: underline; }
+
+.notifications__pager { margin-block-start: var(--space-5); }
+
+.notifications__hint {
+  margin-block-start: var(--space-6);
+  font-size: var(--text-xs);
+  color: var(--text-secondary);
+}
+
+/* Телефон: те же строки на всю ширину (F-03-09 §19). */
+@media (max-width: 640px) {
+  .notifications__item { grid-template-columns: 24px 1fr; }
+  .notifications__actions {
+    grid-column: 1 / -1;
+    flex-direction: row; flex-wrap: wrap; align-items: center;
+  }
+}

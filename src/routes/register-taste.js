@@ -15,6 +15,10 @@ import { tasteStepView } from '../view/register.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { GRID_SIZE, MAX_CHOICE, MIN_CHOICE } from '../services/recommendations/taste.js';
 import { isLocale, t } from '../i18n/strings.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['identity'];
+
 
 const rawHtml = (page) => page.__raw;
 
@@ -68,6 +72,7 @@ export function createTasteRoutes({ taste, search, auth, sessionMw }) {
         ? await searched(query)
         : await taste.popular();
       return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
         account: req.account,
         locale,
         path: '/register/taste',

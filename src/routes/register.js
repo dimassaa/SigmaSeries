@@ -25,6 +25,10 @@ import * as limits from '../services/auth/limits.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { ensureBrowserId } from '../services/mail/browser.js';
 import { demoMailFor, linkFromBody } from '../services/mail/devbox.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['identity'];
+
 
 /**
  * @param {object} deps
@@ -64,6 +68,7 @@ export function createRegisterRoutes({
       ?? (pow.required ? limitsApi.issueChallenge(limitsApi.registrationKey(ip), pow.zeros) : null);
 
     return layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: '/register',
@@ -432,6 +437,7 @@ async function demoLink(req, res, mailQueue, mailMode) {
 function renderConfirm(req, pending, opts = {}) {
   const locale = req.params.locale;
   return layout({
+    styles: STYLES,
     account: req.account,
     locale,
     path: '/register',
@@ -462,6 +468,7 @@ function renderVerify(req, state) {
     error: 'error.generic.title',
   };
   return layout({
+    styles: STYLES,
     account: req.account,
     locale,
     path: '/verify',

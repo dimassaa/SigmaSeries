@@ -29,6 +29,10 @@ import {
 } from '../services/auth/totp.js';
 import { qrSvg } from '../services/auth/qr.js';
 import * as limits from '../services/auth/limits.js';
+// Таблицы стилей этой страницы: общая плюс нужные группам. Список
+// берётся из `src/config/styles.js`, порядок подключения — оттуда же.
+const STYLES = ['identity'];
+
 
 const CODE_PATH = '/2fa';
 const SETUP_PATH = '/2fa/setup';
@@ -218,6 +222,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
     }
 
     const page = layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: CODE_PATH,
@@ -305,6 +310,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
   function renderCode(req, { error, backupUsed = false, codesLeft = null }) {
     const locale = req.params.locale;
     return layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: CODE_PATH,
@@ -324,6 +330,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
   function renderSetup(req, { setup, error }) {
     const locale = req.params.locale;
     return layout({
+      styles: STYLES,
       account: req.account,
       locale,
       path: SETUP_PATH,
