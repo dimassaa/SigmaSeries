@@ -695,6 +695,11 @@ const MESSAGES = {
     'home.banners.reason.editorial': 'Выбор редакции',
     'home.banners.rating': 'IMDb {rating}',
     'home.banners.empty': 'Каталог пока пуст: баннеры появятся после первой загрузки.',
+    'home.fresh.prev': 'Предыдущий круг новинок',
+    'home.fresh.next': 'Следующий круг новинок',
+    'home.fresh.dot': 'Круг новинок {n}',
+    'home.collections.prev': 'Предыдущие подборки',
+    'home.collections.next': 'Следующие подборки',
     'home.banners.withdrawn': 'Снят с публикации',
     'home.banners.placeholder': 'Кадр не загружен',
 
@@ -1761,6 +1766,11 @@ const MESSAGES = {
     'home.banners.reason.editorial': 'Editor’s pick',
     'home.banners.rating': 'IMDb {rating}',
     'home.banners.empty': 'The catalogue is empty: banners appear after the first import.',
+    'home.fresh.prev': 'The previous circle of new releases',
+    'home.fresh.next': 'The next circle of new releases',
+    'home.fresh.dot': 'Circle of new releases {n}',
+    'home.collections.prev': 'The previous collections',
+    'home.collections.next': 'The next collections',
     'home.banners.withdrawn': 'Withdrawn from publication',
     'home.banners.placeholder': 'No frame loaded',
 

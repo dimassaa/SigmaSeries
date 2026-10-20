@@ -165,22 +165,106 @@
 
 /* --- Подборки --- */
 
-.marquee {
+/* --- Карусель новинок (F-06-03) --- */
+
+.carousel {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.carousel__slides {
+  flex: 1;
+  min-inline-size: 0;
+}
+
+.carousel__circle[hidden] { display: none; }
+
+.carousel__button,
+.marquee__button {
+  flex: 0 0 auto;
+  inline-size: 44px;
+  block-size: 44px;
   display: grid;
-  grid-auto-flow: column;
-  grid-auto-columns: minmax(220px, 1fr);
+  place-items: center;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-subtle);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+.carousel__button:hover,
+.marquee__button:hover { border-color: var(--border-strong); }
+
+.carousel__dots {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-2);
+  margin-block-start: var(--space-3);
+}
+
+.carousel__dot {
+  inline-size: 10px;
+  block-size: 10px;
+  padding: 0;
+  border: none;
+  border-radius: var(--radius-pill);
+  background: var(--border-strong);
+  cursor: pointer;
+}
+
+.carousel__dot.is-current { background: var(--accent); }
+
+/* --- Бегущая строка подборок (F-06-04) --- */
+
+.marquee {
+  display: flex;
+  align-items: stretch;
+  gap: var(--space-2);
+}
+
+.marquee__viewport {
+  flex: 1;
+  min-inline-size: 0;
+  overflow: hidden;
+}
+
+.marquee__track {
+  display: flex;
   gap: var(--space-4);
-  overflow-x: auto;
-  scroll-snap-type: x mandatory;
-  padding-block-end: var(--space-2);
+  list-style: none;
+  margin: 0;
+  padding: 0 0 var(--space-2);
+  /* Двигается только transform (R-DES-25): всё остальное пересчитывает
+     раскладку и дёргает страницу. */
+  animation: marquee-scroll var(--marquee-duration, 30s) linear infinite;
+}
+
+.marquee__item { flex: 0 0 clamp(200px, 22vw, 260px); }
+
+.marquee.is-paused .marquee__track { animation-play-state: paused; }
+
+@keyframes marquee-scroll {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
 }
 
 .collection {
   scroll-snap-align: start;
+  position: relative;
+  overflow: hidden;
   display: grid;
+  /* Название и число — внизу, где подложка плотная: контраст текста
+     считается к подложке, а не к фотографии (R-DES-23). */
+  align-content: end;
   gap: var(--space-1);
   min-height: 120px;
-  padding: var(--space-4);
+  /* Отступы — у полосы под текстом: иначе полоса не доходит до краёв карточки
+     и видно её прямоугольник. */
+  padding: 0;
   border-radius: var(--radius-md);
   background: var(--surface-raised);
   border: 1px solid var(--border-subtle);
@@ -189,6 +273,29 @@
   transition: border-color var(--dur-fast) var(--ease-out);
 }
 .collection:hover { border-color: var(--border-strong); }
+/* Баннер подборки — фон карточки. Текст лежит на подложке, а не на кадре
+   (R-DES-23): контраст текста к подложке, а не к фотографии. */
+.collection__banner {
+  position: absolute;
+  inset: 0;
+  inline-size: 100%;
+  block-size: 100%;
+  object-fit: cover;
+}
+
+/* Подложка под текстом — сплошная, а не полупрозрачная: контраст текста
+   считается к подложке, и на светлом кадре полупрозрачная полоса его не
+   гарантирует (R-DES-23). */
+.collection__body {
+  position: relative;
+  margin-block-start: auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-canvas);
+}
+
+.collection__title,
+.collection__count { display: block; }
+
 .collection__title { font-weight: 600; }
 .collection__count { font-size: var(--text-xs); color: var(--text-secondary); }
 

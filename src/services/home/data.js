@@ -31,6 +31,8 @@ export function pgData(pool) {
   };
 
   return {
+    /** Настройки главной: интервал бегущей строки и прочее. */
+    settings: current,
     async banners() {
       const { bannersPerDay } = await current();
       // Баннеры показываются за последний день, на который их посчитали, а не
@@ -72,30 +74,45 @@ export function pgData(pool) {
     },
 
     async fresh() {
-      const { freshPerPage } = await current();
+      const { freshPerPage, freshPages } = await current();
+      // Три круга по шесть приходят одним ответом: переключение круга не
+      // ходит в сеть и не меняет адрес (F-06-03 §8а).
       const { rows } = await pool.query(`
-        SELECT s.slug,
-               coalesce(s.title_ru, s.title_original) AS title,
-               s.year_start,
-               rel.release_date,
-               pv.width AS poster_width
-          FROM e_series s
-          JOIN e_season se ON se.series_id = s.id
-          JOIN e_release rel ON rel.season_id = se.id
-          LEFT JOIN LATERAL (
-            SELECT iv.width FROM e_image_variant iv
-            JOIN e_image i2 ON i2.id = iv.image_id
-            WHERE i2.series_id = s.id AND i2.role = 'poster'
-            ORDER BY iv.width LIMIT 1
-          ) pv ON true
-         WHERE s.archived_at IS NULL
-           AND s.exit_state IN ('airing','announced')
-           AND rel.release_date <= CURRENT_DATE
-           AND rel.release_date >= CURRENT_DATE - INTERVAL '14 days'
-         GROUP BY s.id, rel.release_date, pv.width
-         ORDER BY rel.release_date DESC, s.year_start
-         LIMIT $1`, [freshPerPage]);
-      return rows.map(decorateSeries);
+        WITH ranked AS (
+          SELECT s.slug,
+                 coalesce(s.title_ru, s.title_original) AS title,
+                 s.year_start,
+                 rel.release_date,
+                 r.value::float AS imdb,
+                 pv.width AS poster_width,
+                 row_number() OVER (
+                   ORDER BY rel.release_date DESC, r.value DESC NULLS LAST, s.slug
+                 ) AS rn
+            FROM e_series s
+            JOIN e_season se ON se.series_id = s.id
+            JOIN e_release rel ON rel.season_id = se.id
+            LEFT JOIN e_external_rating r
+                   ON r.series_id = s.id AND r.platform = 'imdb'
+            LEFT JOIN LATERAL (
+              SELECT iv.width FROM e_image_variant iv
+              JOIN e_image i2 ON i2.id = iv.image_id
+              WHERE i2.series_id = s.id AND i2.role = 'poster'
+              ORDER BY iv.width LIMIT 1
+            ) pv ON true
+           WHERE s.archived_at IS NULL
+             AND s.exit_state IN ('airing','announced')
+             AND rel.release_date <= CURRENT_DATE
+             AND rel.release_date >= CURRENT_DATE - INTERVAL '14 days'
+           GROUP BY s.id, rel.release_date, r.value, pv.width
+        )
+        SELECT * FROM ranked WHERE rn <= $1 ORDER BY rn`,
+      [freshPerPage * freshPages]);
+      const items = rows.map(decorateSeries);
+      const circles = [];
+      for (let i = 0; i < items.length; i += freshPerPage) {
+        circles.push(items.slice(i, i + freshPerPage));
+      }
+      return circles;
     },
 
     async collections() {
@@ -104,7 +121,33 @@ export function pgData(pool) {
       // (F-02-05 §5): подборка из пяти пунктов не появляется на главной.
       // Считать по-разному значило бы, что ссылка ведёт в 404.
       const { rows } = await pool.query(`
-        SELECT c.slug, c.title, count(*)::int AS count
+        SELECT c.slug, c.title, count(*)::int AS count,
+               coalesce(
+                 (SELECT iv.width FROM e_image_variant iv
+                   JOIN e_image i ON i.id = iv.image_id
+                  WHERE i.id = c.banner_image_id
+                  ORDER BY iv.width DESC LIMIT 1),
+                 -- Фон по умолчанию — кадр первого сериала подборки (F-06-04 §4).
+                 (SELECT iv.width FROM e_image_variant iv
+                   JOIN e_image i ON i.id = iv.image_id
+                   JOIN e_collection_item first_item
+                     ON first_item.series_id = i.series_id
+                  WHERE first_item.collection_id = c.id
+                    AND first_item.ordinal = (SELECT min(ordinal) FROM e_collection_item
+                                               WHERE collection_id = c.id)
+                    AND i.role = 'backdrop'
+                  ORDER BY iv.width DESC LIMIT 1)
+               ) AS banner_width,
+               coalesce(
+                 (SELECT s2.slug FROM e_collection_item first_item
+                    JOIN e_series s2 ON s2.id = first_item.series_id
+                   WHERE first_item.collection_id = c.id
+                     AND first_item.ordinal = (SELECT min(ordinal) FROM e_collection_item
+                                                WHERE collection_id = c.id)),
+                 (SELECT s3.slug FROM e_collection_item any_item
+                    JOIN e_series s3 ON s3.id = any_item.series_id
+                   WHERE any_item.collection_id = c.id)
+               ) AS banner_slug
           FROM e_collection c
           JOIN e_collection_item ci ON ci.collection_id = c.id
           JOIN e_series s ON s.id = ci.series_id
@@ -114,7 +157,13 @@ export function pgData(pool) {
         HAVING count(*) >= $2
          ORDER BY c.weight DESC, c.title
          LIMIT $1`, [marqueeCollections, MIN_VISIBLE_SERIES]);
-      return rows.map((r) => ({ slug: r.slug, title: r.title, count: r.count }));
+      return rows.map((r) => ({
+        slug: r.slug,
+        title: r.title,
+        count: r.count,
+        bannerWidth: r.banner_width,
+        bannerSlug: r.banner_slug,
+      }));
     },
 
     async genres() {
@@ -198,6 +247,7 @@ export function stubData(over = {}) {
     fresh: over.fresh ?? empty,
     collections: over.collections ?? empty,
     genres: over.genres ?? empty,
+    settings: over.settings ?? (async () => ({ marqueeIntervalMs: 4000 })),
   };
 }
 
@@ -209,11 +259,16 @@ export function stubData(over = {}) {
  * Разница между «нет данных» и «не удалось получить» обязана быть видна.
  */
 export async function collectHomeData(data, locale) {
-  const [banners, fresh, collections, genres] = await Promise.all([
+  const [banners, fresh, collections, genres, settings] = await Promise.all([
     data.banners(),
     data.fresh(locale),
     data.collections(),
     data.genres(locale),
+    // Интервал бегущей строки нужен в разметке: значение из базы, а не из кода.
+    data.settings ? data.settings() : Promise.resolve(null),
   ]);
-  return { banners, fresh, collections, genres };
+  return {
+    banners, fresh, collections, genres,
+    marqueeIntervalMs: settings ? settings.marqueeIntervalMs : 4000,
+  };
 }

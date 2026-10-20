@@ -214,6 +214,36 @@ test('снятый с публикации сериал остаётся в ба
   });
 });
 
+test('круги новинок приходят в разметке и переключаются кнопками (F-06-03)', async () => {
+  const circle = [{ slug: 'a', title: 'Первый', year: 2026, posterWidth: 185 }];
+  const data = stubData({ fresh: async () => [circle, circle, circle] });
+  await withApp(data, async (get) => {
+    const html = await (await get('/ru/')).text();
+    assert.equal((html.match(/data-carousel-circle/g) ?? []).length, 3, 'три круга');
+    assert.equal((html.match(/data-carousel-dot="/g) ?? []).length, 3, 'три точки');
+    assert.match(html, /data-carousel-prev/, 'кнопка «влево»');
+    assert.match(html, /data-carousel-next/, 'кнопка «вправо»');
+    // Первый круг открыт, остальные скрыты: без этого видны все 18 постеров.
+    const start = html.indexOf('data-carousel-circle');
+    const first = html.slice(start, html.indexOf('>', start));
+    assert.ok(!first.includes('hidden'), 'первый круг открыт');
+  });
+});
+
+test('бегущая строка имеет кнопки и интервал из настроек (F-06-04)', async () => {
+  const data = stubData({
+    collections: async () => [{ slug: 'c', title: 'Подборка', count: 8, bannerWidth: 320, bannerSlug: 's' }],
+    settings: async () => ({ marqueeIntervalMs: 7000 }),
+  });
+  await withApp(data, async (get) => {
+    const html = await (await get('/ru/')).text();
+    assert.match(html, /data-marquee/, 'лента на месте');
+    assert.match(html, /data-interval="7000"/, 'интервал из настроек, а не из кода');
+    assert.match(html, /data-marquee-prev/, 'кнопка «влево»');
+    assert.match(html, /data-marquee-next/, 'кнопка «вправо»');
+  });
+});
+
 test('подборка из одного сериала читается как «1 сериал» (R-I18N-03)', async () => {
   // Подпись ссылки — единственный текст подборки для скринридера, и форма
   // числительного в ней видна вслух: «Подборка «Одна», 1 сериалов» — ошибка,
@@ -230,7 +260,7 @@ test('подборка из одного сериала читается как 
 
 test('название сериала с тегами экранируется', async () => {
   const nasty = '<script>alert(1)</script>';
-  await withApp(stubData({ fresh: async () => [{ slug: 'x', title: nasty, year: 2026 }] }), async (get) => {
+  await withApp(stubData({ fresh: async () => [[{ slug: 'x', title: nasty, year: 2026 }]] }), async (get) => {
     const html = await (await get('/ru/')).text();
     assert.ok(!html.includes(nasty), 'сырой HTML в ответе быть не должно');
     assert.match(html, /&lt;script&gt;/);
@@ -239,7 +269,7 @@ test('название сериала с тегами экранируется',
 
 test('значение из данных не может закрыть атрибут', async () => {
   const nasty = '" onmouseover="alert(1)';
-  await withApp(stubData({ fresh: async () => [{ slug: 'x', title: nasty, year: 2026 }] }), async (get) => {
+  await withApp(stubData({ fresh: async () => [[{ slug: 'x', title: nasty, year: 2026 }]] }), async (get) => {
     const html = await (await get('/ru/')).text();
     assert.ok(!html.includes('onmouseover="alert'), 'инъекция в атрибут не прошла');
   });

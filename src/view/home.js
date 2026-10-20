@@ -23,6 +23,10 @@ const imageUrl = (locale, slug, role, width) => (width ? `/${locale}/images/${sl
  * @param {object} page.data результат data.js
  */
 export function homeView({ locale, data }) {
+  // Интервал бегущей строки — из настроек: он меняется администратором, а
+  // значение в разметке осталось бы прежним.
+  const marqueeInterval = Number(data.marqueeIntervalMs) > 0 ? Number(data.marqueeIntervalMs) : 4000;
+
   const body = html`
 <h1 class="visually-hidden">${t(locale, 'home.title')}</h1>
 
@@ -53,37 +57,67 @@ export function homeView({ locale, data }) {
 <section class="block block--fresh" aria-labelledby="h-fresh">
   <h2 class="block__title" id="h-fresh">${t(locale, 'home.fresh.heading')}</h2>
   ${when(data.fresh.length > 0, () => html`
-  <ol class="posters" role="list">
-    ${data.fresh.map((s) => html`
-    <li class="posters__item">
-      <a class="poster" href="/${locale}/series/${s.slug}"
-         aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
-        <span class="poster__frame">
-          ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
-             alt="" width="185" height="278" loading="lazy" decoding="async">`)}
-          ${when(!s.posterUrl, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
-        </span>
-        <span class="poster__title">${s.title}</span>
-        <span class="poster__meta">${s.year}</span>
-      </a>
-    </li>`)}
-  </ol>`)}
+  <div class="carousel" data-carousel>
+    <button class="carousel__button carousel__button--prev" type="button" data-carousel-prev
+            aria-label="${t(locale, 'home.fresh.prev')}"><span aria-hidden="true">‹</span></button>
+    <div class="carousel__slides">
+      ${data.fresh.map((circle, index) => html`
+      <ol class="posters carousel__circle" role="list" data-carousel-circle
+         ${index === 0 ? '' : 'hidden'}>
+        ${circle.map((s) => html`
+        <li class="posters__item">
+          <a class="poster" href="/${locale}/series/${s.slug}"
+             aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
+            <span class="poster__frame">
+              ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
+                 alt="" width="185" height="278" loading="lazy" decoding="async">`)}
+              ${when(!s.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
+            </span>
+            <span class="poster__title">${s.title}</span>
+            <span class="poster__meta">${s.year}</span>
+          </a>
+        </li>`)}
+      </ol>`)}
+    </div>
+    <button class="carousel__button carousel__button--next" type="button" data-carousel-next
+            aria-label="${t(locale, 'home.fresh.next')}"><span aria-hidden="true">›</span></button>
+    ${when(data.fresh.length > 1, () => html`
+    <div class="carousel__dots" data-carousel-dots>
+      ${data.fresh.map((circle, index) => html`
+      <button class="carousel__dot${index === 0 ? ' is-current' : ''}" type="button"
+              data-carousel-dot="${index}" aria-current="${index === 0 ? 'true' : 'false'}"
+              aria-label="${t(locale, 'home.fresh.dot', { n: index + 1 })}"></button>`)}
+    </div>`)}
+  </div>`)}
   ${when(data.fresh.length === 0, () => html`<p class="empty">${t(locale, 'home.fresh.empty')}</p>`)}
 </section>
 
 <section class="block block--collections" aria-labelledby="h-collections">
   <h2 class="block__title" id="h-collections">${t(locale, 'home.collections.heading')}</h2>
   ${when(data.collections.length > 0, () => html`
-  <ul class="marquee" role="list">
-    ${data.collections.map((c) => html`
-    <li class="marquee__item">
-      <a class="collection" href="/${locale}/collections/${c.slug}"
-         aria-label="${tPlural(locale, 'home.collections.itemLabel', c.count, { title: c.title })}">
-        <span class="collection__title">${c.title}</span>
-        <span class="collection__count">${c.count}</span>
-      </a>
-    </li>`)}
-  </ul>`)}
+  <div class="marquee" data-marquee data-interval="${marqueeInterval}">
+    <button class="marquee__button" type="button" data-marquee-prev
+            aria-label="${t(locale, 'home.collections.prev')}"><span aria-hidden="true">‹</span></button>
+    <div class="marquee__viewport" data-marquee-viewport>
+      <ul class="marquee__track" role="list" data-marquee-track>
+        ${data.collections.map((c) => html`
+        <li class="marquee__item">
+          <a class="collection" href="/${locale}/collections/${c.slug}"
+             aria-label="${tPlural(locale, 'home.collections.itemLabel', c.count, { title: c.title })}">
+            ${when(c.bannerWidth && c.bannerSlug,
+              () => html`<img class="collection__banner" src="${imageUrl(locale, c.bannerSlug, 'backdrop', c.bannerWidth)}"
+                   alt="" width="320" height="180" loading="lazy" decoding="async">`)}
+            <span class="collection__body">
+              <span class="collection__title">${c.title}</span>
+              <span class="collection__count">${c.count}</span>
+            </span>
+          </a>
+        </li>`)}
+      </ul>
+    </div>
+    <button class="marquee__button" type="button" data-marquee-next
+            aria-label="${t(locale, 'home.collections.next')}"><span aria-hidden="true">›</span></button>
+  </div>`)}
   ${when(data.collections.length === 0, () => html`<p class="empty">${t(locale, 'home.collections.empty')}</p>`)}
 </section>
 

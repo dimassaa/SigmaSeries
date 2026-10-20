@@ -228,8 +228,9 @@ test('главная читает свои ключи, а без них рабо
     const data = pgData(pool);
     const banners = await data.banners();
     assert.ok(banners.length <= 1, 'баннеров не больше, чем велела настройка');
+    // Новинки приходят кругами: настройка ограничивает круг, а не весь ряд.
     const fresh = await data.fresh();
-    assert.ok(fresh.length <= 2, 'и новинок столько же');
+    assert.ok(fresh.every((circle) => circle.length <= 2), 'в круге не больше, чем велела настройка');
   } finally {
     await pool.query("DELETE FROM e_system_setting WHERE key LIKE 'home.%'");
   }

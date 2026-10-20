@@ -889,6 +889,114 @@
     }, true);
   }
 
+  // ─── Карусель новинок (F-06-03) ────────────────────────────────────────────
+  //
+  // Круги приходят одним ответом: переключение не ходит в сеть и не меняет
+  // адрес. Автопрокрутки нет — она мешает дочитать карточку.
+
+  function initCarousel() {
+    var carousels = document.querySelectorAll('[data-carousel]');
+    for (var i = 0; i < carousels.length; i++) {
+      (function (carousel) {
+        var circles = carousel.querySelectorAll('[data-carousel-circle]');
+        if (circles.length < 2) return;
+        var dots = carousel.querySelectorAll('[data-carousel-dot]');
+        var current = 0;
+
+        function show(index) {
+          current = (index + circles.length) % circles.length;
+          for (var c = 0; c < circles.length; c++) {
+            if (c === current) circles[c].removeAttribute('hidden');
+            else circles[c].setAttribute('hidden', '');
+          }
+          for (var d = 0; d < dots.length; d++) {
+            var isCurrent = d === current;
+            dots[d].className = isCurrent ? 'carousel__dot is-current' : 'carousel__dot';
+            dots[d].setAttribute('aria-current', isCurrent ? 'true' : 'false');
+          }
+        }
+
+        var prev = carousel.querySelector('[data-carousel-prev]');
+        var next = carousel.querySelector('[data-carousel-next]');
+        if (prev) prev.addEventListener('click', function () { show(current - 1); });
+        if (next) next.addEventListener('click', function () { show(current + 1); });
+        for (var d = 0; d < dots.length; d++) {
+          (function (index) {
+            dots[index].addEventListener('click', function () { show(index); });
+          })(d);
+        }
+        // Стрелки: переключение круга с клавиатуры, а не только мышью.
+        carousel.addEventListener('keydown', function (event) {
+          if (event.key === 'ArrowLeft') { show(current - 1); }
+          else if (event.key === 'ArrowRight') { show(current + 1); }
+          else return;
+          event.preventDefault();
+        });
+      })(carousels[i]);
+    }
+  }
+
+  // ─── Бегущая строка подборок (F-06-04) ─────────────────────────────────────
+  //
+  // Строка едет сама, но останавливается при наведении и при фокусе: иначе
+  // она недоступна с клавиатуры (R-A11Y-09). Кнопки прокручивают её вручную.
+  // Двигается только transform (R-DES-25).
+
+  function initMarquee() {
+    var marquees = document.querySelectorAll('[data-marquee]');
+    for (var i = 0; i < marquees.length; i++) {
+      (function (marquee) {
+        var track = marquee.querySelector('[data-marquee-track]');
+        var viewport = marquee.querySelector('[data-marquee-viewport]');
+        if (!track || !viewport) return;
+        var items = track.children;
+        if (!items.length) return;
+
+        // Дубль набора: без него конец ленты видно и переход «прыгает».
+        var count = items.length;
+        if (count < 2) {
+          // Одинокая подборка: ехать нечему, и кнопки уводили бы в пустоту.
+          marquee.className = marquee.className.replace(/ ?is-paused/g, '');
+          var single = marquee.querySelectorAll('.marquee__button');
+          for (var b = 0; b < single.length; b++) single[b].hidden = true;
+          return;
+        }
+        track.innerHTML += track.innerHTML;
+        var interval = Number(marquee.getAttribute('data-interval')) || 4000;
+        track.style.animationDuration = (interval * count / 1000) + 's';
+
+        function pause() { marquee.className = marquee.className.replace(/ ?is-paused/g, '') + ' is-paused'; }
+        function resume() { marquee.className = marquee.className.replace(/ ?is-paused/g, ''); }
+
+        marquee.addEventListener('mouseenter', pause);
+        marquee.addEventListener('mouseleave', resume);
+        marquee.addEventListener('focusin', pause);
+        marquee.addEventListener('focusout', resume);
+
+        // Ручная прокрутка: сдвиг на ширину одного шага. Ширина берётся из
+        // расстояния между соседними карточками, а не из константы.
+        var offset = 0;
+        function step(direction) {
+          var first = track.children[0];
+          var second = track.children[1];
+          if (!first || !second) return;
+          var width = second.offsetLeft - first.offsetLeft;
+          if (!width) return;
+          var max = Math.max(0, (track.scrollWidth / 2) - viewport.clientWidth);
+          offset += direction * width;
+          if (offset > 0) offset = 0;
+          if (offset < -max) offset = -max;
+          viewport.style.transform = 'translateX(' + offset + 'px)';
+        }
+
+        var prev = marquee.querySelector('[data-marquee-prev]');
+        var next = marquee.querySelector('[data-marquee-next]');
+        if (prev) prev.addEventListener('click', function () { step(-1); });
+        if (next) next.addEventListener('click', function () { step(1); });
+      })(marquees[i]);
+    }
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -905,6 +1013,8 @@
     initReviewVotes();
     initReviewReports();
     initConfirmations();
+    initCarousel();
+    initMarquee();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();
