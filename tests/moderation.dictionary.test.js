@@ -37,8 +37,11 @@ test('словарь отдаёт слова списков и их катего
   );
   const dictionary = await pgDictionary(pool).load();
   assert.equal(dictionary.available, true);
-  assert.deepEqual(dictionary.block, [{ word: `${PREFIX}слово`, category: 'profanity' }]);
-  assert.deepEqual(dictionary.allow, [{ word: `${PREFIX}можно`, category: null }]);
+  // Словарь отдаёт весь список, а параллельные проверки кладут в него свои
+  // слова: сравниваем только свои, иначе проверка падает от чужого слова.
+  const own = (list) => list.filter((item) => item.word.startsWith(PREFIX));
+  assert.deepEqual(own(dictionary.block), [{ word: `${PREFIX}слово`, category: 'profanity' }]);
+  assert.deepEqual(own(dictionary.allow), [{ word: `${PREFIX}можно`, category: null }]);
 });
 
 test('неактивные слова не попадают в словарь', { skip }, async () => {
