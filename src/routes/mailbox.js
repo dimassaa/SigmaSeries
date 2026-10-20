@@ -10,6 +10,8 @@
 
 import express from 'express';
 
+import { respond } from '../http/helpers.js';
+
 import { layout } from '../view/layout.js';
 import { mailboxView } from '../view/mailbox.js';
 import { isLocale, t } from '../i18n/strings.js';
@@ -154,11 +156,4 @@ export function createMailboxRoutes({ auth, sessionMw, mailQueue, mailMode, jour
   }
 
   return router;
-}
-
-function respond(res, status, page) {
-  res.set('X-Robots-Tag', 'noindex, follow');
-  // R-SEC-24: служебная страница не кэшируется — в списке лежат ссылки.
-  res.set('Cache-Control', 'no-store');
-  return res.status(status).type('html').send(page.__raw);
 }

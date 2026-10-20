@@ -6,6 +6,8 @@
 
 import express from 'express';
 
+import { respond, clientIp } from '../http/helpers.js';
+
 import { layout } from '../view/layout.js';
 import { signinView } from '../view/signin.js';
 import { authenticate, decideAfterCredentials, safeReturnTo, sessionKind, sessionDurations } from '../services/auth/login.js';
@@ -246,13 +248,6 @@ function localized(locale, path) {
   return `/${locale}${p}`;
 }
 
-function respond(res, status, page) {
-  res.set('X-Robots-Tag', 'noindex, follow');
-  // R-SEC-24: личная страница не кэшируется. Иначе на общем компьютере
-  // следующий человек увидит из кеша заполненную форму и адрес из неё.
-  res.set('Cache-Control', 'no-store');
-  return res.status(status).type('html').send(page.__raw);
-}
 
 function renderForm(ctx) {
   return layout({
@@ -274,8 +269,5 @@ function regenerate(req) {
 }
 
 /** IP для лимитов: заголовок берётся только если приложение за прокси. */
-function clientIp(req) {
-  return req.ip ?? req.socket?.remoteAddress ?? 'unknown';
-}
 
 export { express };

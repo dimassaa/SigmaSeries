@@ -13,6 +13,8 @@
 
 import express from 'express';
 
+import { respond, clientIp } from '../http/helpers.js';
+
 import { layout } from '../view/layout.js';
 import { resetView, headingKey } from '../view/reset.js';
 import { isLocale, t } from '../i18n/strings.js';
@@ -272,15 +274,5 @@ function resetTokenValid(row, token) {
   return verifyToken(row, token).ok;
 }
 
-function respond(res, status, page) {
-  res.set('X-Robots-Tag', 'noindex, follow');
-  // R-SEC-24: в адресе смены пароля лежит токен, и кеш на общем компьютере
-  // отдал бы его следующему человеку.
-  res.set('Cache-Control', 'no-store');
-  return res.status(status).type('html').send(page.__raw);
-}
 
 /** IP для лимитов: заголовок берётся только если приложение за прокси. */
-function clientIp(req) {
-  return req.ip ?? req.socket?.remoteAddress ?? 'unknown';
-}

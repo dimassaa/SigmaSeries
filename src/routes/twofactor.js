@@ -14,6 +14,8 @@
 
 import express from 'express';
 
+import { respond } from '../http/helpers.js';
+
 import { layout } from '../view/layout.js';
 import { twoFactorView } from '../view/twofactor.js';
 import { setupView } from '../view/twofactor-setup.js';
@@ -356,12 +358,6 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
  * R-SEC-24: на странице настройки лежит секрет 2FA, и кеш на общем
  * компьютере отдал бы его следующему человеку.
  */
-function respond(res, status, page) {
-  res.set('X-Robots-Tag', 'noindex, follow');
-  // R-SEC-24: личная страница не кэшируется.
-  res.set('Cache-Control', 'no-store');
-  return res.status(status).type('html').send(page.__raw);
-}
 
 function regenerate(req) {
   return new Promise((resolve, reject) => {

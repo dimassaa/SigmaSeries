@@ -17,67 +17,6 @@ export const YEAR_TOLERANCE = 1;
  * пробелы. «The Office» и «Office» должны совпасть, а «Office» и «Officer» —
  * нет, поэтому похожие строки не склеиваются, а только упрощаются.
  */
-export function titleKey(title) {
-  return String(title ?? '')
-    .toLowerCase()
-    .replace(/ё/g, 'е')          // до NFKD: тот разложит «ё» на «е» + диакритику,
-    .normalize('NFKD')            // и замена выше станет бессильной
-    .replace(/\p{M}+/gu, '')     // остальные диакритики убираем целиком
-    .replace(/[‘’“”]/g, '')
-    .replace(/[.,:;!?()[\]"'`]/g, ' ')
-    .replace(/\b(the|a|an)\b/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-/**
- * Сопоставляет одну позицию IMDb с кандидатами TMDB.
- *
- * Спецификация требует 994 из 1000 по замеру. Ошибки здесь несимметричны:
- * ложное совпадение склеит два разных сериала в один и разнесёт по карточке
- * чужие отзывы, а пропуск означает лишь «карточка неполная» и чинится вручную.
- * Поэтому сомнение всегда разрешается в пропуск.
- *
- * @param {{tconst:string, title:string, year:number|null}} imdb
- * @param {{id:number, title:string, originalTitle?:string, year:number|null}[]} candidates
- * @returns {{match:object|null, reason:string, ambiguous:boolean}}
- */
-export function matchSeries(imdb, candidates) {
-  if (!Array.isArray(candidates) || candidates.length === 0) {
-    return { match: null, reason: 'нет-кандидатов', ambiguous: false };
-  }
-
-  const key = titleKey(imdb?.title);
-  if (!key) return { match: null, reason: 'пустое-название', ambiguous: false };
-
-  let pool = candidates.filter((c) => titleKey(c.title) === key || titleKey(c.originalTitle) === key);
-
-  if (pool.length === 0) return { match: null, reason: 'нет-по-названию', ambiguous: false };
-
-  // Год известен у обоих — сужаем по допуску. Год неизвестен у одного из
-  // источников: не отбрасываем, но помечаем, потому что это сомнительное
-  // сопоставление и оно попадёт в очередь админа (CONTENT-PLAN §3).
-  if (imdb.year != null) {
-    const byYear = pool.filter((c) => c.year != null && Math.abs(c.year - imdb.year) <= YEAR_TOLERANCE);
-    if (byYear.length > 0) pool = byYear;
-    else pool = pool.filter((c) => c.year == null);
-    if (pool.length === 0) return { match: null, reason: 'год-не-совпал', ambiguous: false };
-  }
-
-  if (pool.length > 1) {
-    // Два кандидата с одинаковым названием и близким годом: выбрать
-    // «более похожий» — значит угадать. Лучше пропуск и ручная правка.
-    return { match: null, reason: 'неоднозначно', ambiguous: true };
-  }
-
-  const chosen = pool[0];
-  return {
-    match: chosen,
-    reason: imdb.year == null || chosen.year == null ? 'сомнительное-сопоставление' : 'ok',
-    ambiguous: false,
-  };
-}
-
 // ─── OP-07. Полнота карточки ──────────────────────────────────────────────────
 
 /** Требования уровней — CONTENT-PLAN §3, дословно. */

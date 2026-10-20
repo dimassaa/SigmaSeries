@@ -12,6 +12,8 @@
 
 import express from 'express';
 
+import { respond, clientIp, safeHash } from '../http/helpers.js';
+
 import { layout } from '../view/layout.js';
 import { registerView, verifyView } from '../view/register.js';
 import {
@@ -20,7 +22,6 @@ import {
   resendAllowed,
 } from '../services/auth/register.js';
 import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
-import { hashToken } from '../services/auth/password.js';
 import * as limits from '../services/auth/limits.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { ensureBrowserId } from '../services/mail/browser.js';
@@ -483,13 +484,6 @@ function renderVerify(req, state) {
 
 // ─── Служебное ───────────────────────────────────────────────────────────────
 
-function respond(res, status, page) {
-  res.set('X-Robots-Tag', 'noindex, follow');
-  // R-SEC-24: личная страница не кэшируется. Иначе на общем компьютере
-  // следующий человек увидит из кеша заполненную форму и адрес из неё.
-  res.set('Cache-Control', 'no-store');
-  return res.status(status).type('html').send(page.__raw);
-}
 
 /** Значения, которые возвращаются в форму. Пароля среди них нет. */
 function pick(body) {
@@ -501,9 +495,6 @@ function pick(body) {
 }
 
 /** IP для лимитов: заголовок берётся только если приложение за прокси. */
-function clientIp(req) {
-  return req.ip ?? req.socket?.remoteAddress ?? 'unknown';
-}
 
 function regenerate(req) {
   return new Promise((resolve, reject) => {
@@ -511,11 +502,6 @@ function regenerate(req) {
   });
 }
 
-/** Хеш токена; при мусоре на входе — null, без исключения. */
-function safeHash(token) {
-  if (typeof token !== 'string' || !token) return null;
-  return hashToken(token);
-}
 
 /** Нарушение уникального индекса: код 23505 в PostgreSQL. */
 function isDuplicate(e) {

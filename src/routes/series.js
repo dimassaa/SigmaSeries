@@ -8,6 +8,8 @@ import crypto from 'node:crypto';
 
 import express from 'express';
 
+import { clientIp } from '../http/helpers.js';
+
 import { layout, pageTitle } from '../view/layout.js';
 import { notFound } from './home.js';
 import { seriesView, goneView } from '../view/series.js';
@@ -31,9 +33,6 @@ const STYLES = ['series', 'reviews', 'tracking'];
 const rawHtml = (page) => page.__raw;
 
 /** Сеть посетителя: тот же ключ, что у прочих лимитов (`R-SEC-31`). */
-function clientIp(req) {
-  return req.ip ?? req.socket?.remoteAddress ?? 'unknown';
-}
 
 /**
  * Ключ устройства для потолка публикаций (R-MOD-10).

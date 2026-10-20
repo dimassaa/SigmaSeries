@@ -14,6 +14,8 @@
 
 import express from 'express';
 
+import { respond } from '../http/helpers.js';
+
 import { layout } from '../view/layout.js';
 import { settingsView } from '../view/settings.js';
 import { isLocale, t } from '../i18n/strings.js';
@@ -984,11 +986,4 @@ router.get(`/:locale${BASE}/data/delete`, (req, res, next) => {
  */
 function timezones() {
   return Intl.supportedValuesOf('timeZone');
-}
-
-function respond(res, status, page) {
-  res.set('X-Robots-Tag', 'noindex, follow');
-  // R-SEC-24: личная страница не кэшируется.
-  res.set('Cache-Control', 'no-store');
-  return res.status(status).type('html').send(page.__raw);
 }

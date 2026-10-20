@@ -5,88 +5,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-  titleKey,
-  matchSeries,
   completeness,
   applyIncoming,
   runImport,
   YEAR_TOLERANCE,
 } from '../src/services/import/pipeline.js';
-
-const imdb = (title, year) => ({ tconst: 'tt1', title, year });
-const tmdb = (title, year, extra = {}) => ({ id: 1, title, year, ...extra });
-
-// ─── Ключ названия ────────────────────────────────────────────────────────────
-
-test('ключ не зависит от регистра, пунктуации и артикля', () => {
-  assert.equal(titleKey('The Office'), titleKey('Office'));
-  assert.equal(titleKey('Breaking Bad!'), titleKey('breaking  bad'));
-});
-
-test('ключ приводит ё к е', () => {
-  assert.equal(titleKey('Ёлки'), titleKey('Ёлки'.replace('Ё', 'Е')));
-});
-
-test('похожие названия не склеиваются', () => {
-  assert.notEqual(titleKey('Office'), titleKey('Officer'));
-});
-
-// ─── OP-06. Сопоставление ─────────────────────────────────────────────────────
-
-test('точное совпадение по названию и году', () => {
-  const r = matchSeries(imdb('Breaking Bad', 2008), [tmdb('Breaking Bad', 2008)]);
-  assert.equal(r.match.id, 1);
-  assert.equal(r.reason, 'ok');
-});
-
-test('разница в годе в пределах допуска считается совпадением', () => {
-  // Источники округляют по-разному; единица года — нормальная погрешность.
-  const r = matchSeries(imdb('Breaking Bad', 2008), [tmdb('Breaking Bad', 2008 + YEAR_TOLERANCE)]);
-  assert.ok(r.match, 'ожидалось совпадение в пределах допуска');
-});
-
-test('разница в годе сверх допуска — не совпадение', () => {
-  const r = matchSeries(imdb('Breaking Bad', 2008), [tmdb('Breaking Bad', 2015)]);
-  assert.equal(r.match, null);
-  assert.equal(r.reason, 'год-не-совпал');
-});
-
-test('оригинальное название тоже сверяется', () => {
-  // У TMDB название переведено, оригинал совпадает.
-  const r = matchSeries(imdb('Breaking Bad', 2008), [tmdb('Во все тяжкие', 2008, { originalTitle: 'Breaking Bad' })]);
-  assert.ok(r.match);
-});
-
-test('два кандидата одного года и названия дают пропуск, а не выбор', () => {
-  // Год здесь не различает, а выбрать «более похожий» — значит угадать.
-  // Ложное совпадение склеит два разных сериала и разнесёт по карточке
-  // чужие отзывы; пропуск чинится руками.
-  const r = matchSeries(imdb('The Office', 2005), [
-    tmdb('The Office', 2005), { ...tmdb('The Office', 2005), id: 2 },
-  ]);
-  assert.equal(r.match, null);
-  assert.equal(r.ambiguous, true);
-  assert.equal(r.reason, 'неоднозначно');
-});
-
-test('неоднозначность разрешается годом', () => {
-  const r = matchSeries(imdb('The Office', 2005), [tmdb('The Office', 2005), tmdb('The Office', 2013)]);
-  assert.ok(r.match);
-  assert.equal(r.match.year, 2005);
-});
-
-test('неизвестный год помечается как сомнительное сопоставление', () => {
-  // Не повод отказывать: повод поставить в очередь админа (CONTENT-PLAN §3).
-  const r = matchSeries(imdb('Some Show', null), [tmdb('Some Show', 1999)]);
-  assert.ok(r.match);
-  assert.equal(r.reason, 'сомнительное-сопоставление');
-});
-
-test('отсутствие кандидатов и пустое название дают пропуск, а не исключение', () => {
-  assert.equal(matchSeries(imdb('X', 2000), []).match, null);
-  assert.equal(matchSeries(imdb('', 2000), [tmdb('X', 2000)]).reason, 'пустое-название');
-  assert.equal(matchSeries(null, [tmdb('X', 2000)]).match, null);
-});
 
 // ─── OP-07. Полнота ───────────────────────────────────────────────────────────
 
