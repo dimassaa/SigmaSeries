@@ -44,6 +44,21 @@ export function pgAuthStore(pool) {
     },
 
     /**
+     * Тема человека из профиля.
+     *
+     * Читается из базы, а не из сессии: сессия хранит снимок на момент входа,
+     * и выбор темы, сделанный позже, в ней остался бы старым — а страница
+     * берёт тему отсюда на каждом экране.
+     *
+     * @param {number} userId
+     * @returns {Promise<string|null>} тема или null, если человека нет
+     */
+    async themeOf(userId) {
+      const { rows } = await pool.query('SELECT theme FROM e_user WHERE id = $1', [userId]);
+      return rows[0]?.theme ?? null;
+    },
+
+    /**
      * Сохраняет настройки пользователя (F-01-06 §8).
      *
      * Поля перечислены явно, а не собираются из объекта: иначе в аккаунт
@@ -1855,6 +1870,11 @@ export function stubAuthStore(users = {}, roles = {}) {
      * настройкам. Пропуск фильтра означал бы, что в аккаунт можно записать
      * что угодно — по одному POST.
      */
+    async themeOf(userId) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      return found?.theme ?? null;
+    },
+
     async updatePreferences(userId, values) {
       const found = Object.values(users).find((u) => u.id === userId);
       if (!found) return;

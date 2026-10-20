@@ -21,6 +21,7 @@ import { createMailboxRoutes } from './routes/mailbox.js';
 import { createAdminRoutes } from './routes/admin.js';
 import { createReviewRoutes } from './routes/review.js';
 import { createSeriesRoutes } from './routes/series.js';
+import { createThemeRoutes } from './routes/theme.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
 import { createSeasonRoutes } from './routes/season.js';
@@ -163,6 +164,8 @@ export function createApp({
   }));
   // Решение по аномалии — служебный POST только для админа; без альтернатив
   // (страницы нет до M9), поэтому монтируется только вместе с журналом.
+  // Переключатель темы в шапке: выбор уходит в профиль (F-01-06 §8).
+  if (auth) app.use(createThemeRoutes({ auth, sessionMw }));
   if (anomalies && audit) app.use(createAdminRoutes({ anomalies, audit, sessionMw }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.

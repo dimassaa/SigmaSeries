@@ -36,7 +36,8 @@ export function pageTitle(locale, middle) {
  * @param {string} page.path путь без локали, например «/»
  * @param {object} [page.body] фрагмент содержимого
  * @param {boolean} [page.noindex] служебная страница
- * @param {string} [page.theme] системная тема пользователя, известная заранее
+ * @param {string} [page.theme] тема страницы: выбор человека из профиля
+ *   (в `page.account.theme`), «system» — если выбора нет
  * @param {string[]} [page.styles] группы таблиц стилей, нужные странице;
  *   без списка подключаются все (см. `src/config/styles.js`)
  * @param {string} [page.panel] готовая разметка правой панели; без неё панели нет
@@ -75,11 +76,19 @@ ${raw(styleLinks)}
 <script>
   // Тема ставится до первой отрисовки, иначе на тёмной теме виден белый
   // кадр. Ранний скрипт — единственное место, где JS в <head> оправдан.
+  //
+  // Сервер — источник правды: в разметке уже стоит тема человека (из
+  // профиля). Перезаписывать её своим значением нельзя, иначе выбор из
+  // профиля не действует ни на одной странице. Разрешается только «системная»
+  // тема: её браузер знает лучше сервера.
   (function () {
     try {
-      var t = localStorage.getItem('theme');
+      var t = document.documentElement.dataset.theme;
       if (!t || t === 'system') {
-        t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        t = localStorage.getItem('theme');
+        if (!t || t === 'system') {
+          t = matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+        }
       }
       document.documentElement.dataset.theme = t;
     } catch (e) { document.documentElement.dataset.theme = 'dark'; }
@@ -111,6 +120,7 @@ ${raw(styleLinks)}
   </form>
   <div class="topbar__controls">
     <button type="button" class="topbar__theme" data-theme-toggle
+            data-theme-csrf="${page.account?.csrf ?? ''}"
             aria-label="${t(locale, 'app.theme.toggle')}">◐</button>
     <div class="topbar__locales">${localeLinks}</div>
     ${when(page.account, () => accountMenu({ locale, account: page.account, poll: page.account.pollSeconds ?? 0 }),
@@ -125,7 +135,7 @@ ${raw(styleLinks)}
 </body>`;
 
   return html`<!DOCTYPE html>
-<html lang="${locale}" data-theme="${page.theme ?? 'dark'}">
+<html lang="${locale}" data-theme="${page.theme ?? page.account?.theme ?? 'system'}">
 <head>
 ${head}
 </head>

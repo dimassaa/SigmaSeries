@@ -232,7 +232,16 @@ const app = createApp({
   auth,
   sessionMw: createSessionMiddleware(pool, undefined, {
     // Один запрос на страницу, только вошедшим: гостю меню не показывается.
-    account: async (user) => ({ nickname: user.nickname, unread: await feed.unreadCount(user.id), pollSeconds: POLL_SECONDS }),
+    // Тема едет с аккаунтом: страница должна знать выбор человека ещё до
+    // отрисовки, иначе первая картинка мигнёт чужой темой (F-01-06 §8).
+    account: async (user) => ({
+      nickname: user.nickname,
+      // Тема — из профиля, а не из сессии: сессия хранит снимок на момент
+      // входа, и выбор, сделанный позже, остался бы в ней старым.
+      theme: await auth.themeOf(user.id),
+      unread: await feed.unreadCount(user.id),
+      pollSeconds: POLL_SECONDS,
+    }),
   }),
   mailQueue,
   mailMode,

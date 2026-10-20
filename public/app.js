@@ -186,6 +186,18 @@
       var next = root.dataset.theme === 'light' ? 'dark' : 'light';
       root.dataset.theme = next;
       try { localStorage.setItem('theme', next); } catch (e) { /* приватный режим */ }
+      // Выбор уходит в профиль: тема человека должна действовать на всех
+      // страницах и на других устройствах, а не только в этом браузере
+      // (F-01-06 §8). Токен есть только у вошедшего — гостю сохранять нечего.
+      var csrf = button.getAttribute('data-theme-csrf');
+      if (!csrf) return;
+      var locale = (location.pathname.split('/')[1] || 'ru');
+      fetch('/' + locale + '/theme', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: 'csrf=' + encodeURIComponent(csrf) + '&theme=' + encodeURIComponent(next),
+      }).catch(function () { /* выбор уже применён локально */ });
     });
   }
 

@@ -612,6 +612,9 @@ export function createSettingsRoutes({
       await auth.updatePreferences(user.id, {
         theme, locale: nextLocale, timezone,
       });
+      // Сессия — то, что страница читает на каждом экране: тема из профиля
+      // без этого осталась бы прежней до следующего входа.
+      if (req.session?.user) req.session.user.theme = theme;
     }
     // Гостю значения живут на его стороне: скрипт темы читает localStorage,
     // а язык задаётся адресом. Подменять их сервером нечем и незачем.
