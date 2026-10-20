@@ -19,6 +19,7 @@ import { createTwoFactorRoutes } from './routes/twofactor.js';
 import { createSettingsRoutes } from './routes/settings.js';
 import { createMailboxRoutes } from './routes/mailbox.js';
 import { createAdminRoutes } from './routes/admin.js';
+import { createReviewRoutes } from './routes/review.js';
 import { createSeriesRoutes } from './routes/series.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
@@ -145,6 +146,11 @@ export function createApp({
     series, watchStatus, sessionMw, progress, subscriptions, ratings, ratingLimiter,
     reviews, reviewList, votes, helpfulLimiter, reports, reportLimiter,
     dictionary, reviewIpLimiter, reviewDeviceLimiter,
+  }));
+  // Страница отзыва (S-10) живёт вне сериала: адрес `/reviews/{id}` один на
+  // отзыв, и по сериалу он не выводится.
+  if (reviewList) app.use(createReviewRoutes({
+    reviewList, votes, reports, sessionMw,
   }));
   // Решение по аномалии — служебный POST только для админа; без альтернатив
   // (страницы нет до M9), поэтому монтируется только вместе с журналом.

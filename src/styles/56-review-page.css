@@ -1,0 +1,64 @@
+/* --- S-10 — страница отзыва (F-04-09) ---
+ *
+ * Одна колонка ≤ 720 px: страница про один отзыв, и текст отзыва — её
+ * главный и самый крупный элемент (фокус экрана, UI §19). Мера строки
+ * та же, что у карточки в списке (`70ch`), поэтому чтение не меняется
+ * при переходе из ленты на страницу.
+ *
+ * Шапка и футер отзыва — те же классы, что в списке: правила прав и вид
+ * метаданных не должны расходиться от страницы к странице.
+ *
+ * Цвета, отступы и радиусы — только токены: своё значение здесь означало бы,
+ * что тема перестанет переключаться (PRINCIPLES §1).
+ */
+
+.review-page {
+  max-width: 720px;
+  margin-inline: auto;
+  padding-block: var(--space-5) var(--space-8);
+}
+
+.review-page__card {
+  padding: var(--space-5);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+/* Надпись «Отзыв» — подпись над названием сериала, а не заголовок: заголовок
+   страницы отвечает на вопрос «о чём это», и отвечает сериал. */
+.review-page__kicker {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.review-page__title {
+  margin-block: var(--space-1) var(--space-4);
+  font-size: var(--text-xl);
+}
+
+.review-page__series {
+  color: var(--text-primary);
+  text-decoration: none;
+}
+
+.review-page__series:hover { color: var(--accent-hover); text-decoration: underline; }
+
+/* Текст отзыва — фокус экрана: он крупнее служебной строки и читается
+   свободной мерой, а не стеной. */
+.review-page__text {
+  max-width: 70ch;
+  margin-block-start: var(--space-4);
+  font-size: var(--text-lg);
+  line-height: 1.6;
+}
+
+.review-page__card .reviews__foot {
+  margin-block-start: var(--space-5);
+}
+
+@media (max-width: 480px) {
+  .review-page { padding-block: var(--space-4) var(--space-7); }
+  .review-page__card { padding: var(--space-4); }
+  .review-page__text { font-size: var(--text-base); }
+}

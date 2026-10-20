@@ -269,23 +269,22 @@ export function reportDialog({ locale, series, report }) {
  * @param {object|null} [args.vote] состояние голоса карточки
  * @param {object|null} [args.report] состояние жалобы страницы (меню «⋯»)
  */
-export function reviewCard({ locale, item, timezone = null, vote = null, report = null }) {
+/**
+ * Шапка отзыва: ник, оценка автора, дата, метка языка (F-04-05 §4, F-04-09 §4).
+ *
+ * Карточка в списке и страница отзыва показывают одно и то же, и по-разному
+ * быть не может: оценка и дата в карточке — те же числа, что на странице,
+ * а «Пользователь удалён» вместо ника — то же правило (EC-V6).
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {object} args.item строка отзыва
+ * @param {string|null} [args.timezone] пояс посетителя для подписи даты
+ * @returns {string}
+ */
+export function reviewMeta({ locale, item, timezone = null }) {
   const deleted = item.authorStatus === 'deleted';
-  const { lead, tail } = splitText(item.body, REVIEW.readMoreChars);
-
-  const body = html`${paragraphs(lead).map((part) => html`<p>${part}</p>`)}${when(tail, () => html`
-    <details class="reviews__more">
-      <summary class="reviews__more-link">${t(locale, 'review.readMore')}</summary>
-      ${paragraphs(tail).map((part) => html`<p>${part}</p>`)}
-    </details>`)}`;
-
-  // Меню жалобы живёт в футере рядом с голосом (одна строка раскладки).
-  // Голоса нет — футера нет и меню нет: без сервиса голосов ни одна
-  // поверхность карточек не собирается, жаловаться стало бы негде.
-  const menu = vote ? reportMenuFor({ locale, item, report }) : '';
-
   return html`
-<li class="reviews__item" data-review-id="${item.id}">
   <p class="reviews__head">
     <span class="reviews__nick${deleted ? ' reviews__nick--deleted' : ''}"
       >${deleted ? t(locale, 'review.deleted') : item.authorNickname}</span>
@@ -294,7 +293,44 @@ export function reviewCard({ locale, item, timezone = null, vote = null, report 
     <time class="reviews__date" datetime="${machineDate(item.createdAt)}"
       >${dayLabel(locale, item.createdAt, timezone ?? undefined)}</time>
     <span class="reviews__lang">${t(locale, `review.code.${item.lang}`)}</span>
-  </p>
+  </p>`;
+}
+
+/**
+ * Футер отзыва: голос «Полезно» и меню жалобы (F-04-06, F-04-07).
+ *
+ * На карточке списка и на странице отзыва футер одинаковый: право голоса и
+ * право жалобы не зависят от того, где стоит отзыв, иначе одна страница
+ * предложила бы войти там, где другая показывает форму.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {object} args.item строка отзыва (`id`, `authorId`)
+ * @param {object|null} args.vote данные кнопки «Полезно»; `null` — футера нет
+ * @param {object|null} args.report состояние жалобы страницы
+ * @returns {string} пустая строка, если футера быть не должно
+ */
+export function reviewActions({ locale, item, vote, report }) {
+  if (!vote) return '';
+  // Меню жалобы живёт в футере рядом с голосом (одна строка раскладки).
+  // Голоса нет — футера нет и меню нет: без сервиса голосов ни одна
+  // поверхность карточек не собирается, жаловаться стало бы негде.
+  const menu = reportMenuFor({ locale, item, report });
+  return voteRow({ locale, vote, menu });
+}
+
+export function reviewCard({ locale, item, timezone = null, vote = null, report = null }) {
+  const { lead, tail } = splitText(item.body, REVIEW.readMoreChars);
+
+  const body = html`${paragraphs(lead).map((part) => html`<p>${part}</p>`)}${when(tail, () => html`
+    <details class="reviews__more">
+      <summary class="reviews__more-link">${t(locale, 'review.readMore')}</summary>
+      ${paragraphs(tail).map((part) => html`<p>${part}</p>`)}
+    </details>`)}`;
+
+  return html`
+<li class="reviews__item" data-review-id="${item.id}">
+  ${reviewMeta({ locale, item, timezone })}
   ${when(!item.spoiler, () => html`
   <div class="reviews__text">${body}</div>`)}
   ${when(item.spoiler, () => html`
@@ -305,7 +341,7 @@ export function reviewCard({ locale, item, timezone = null, vote = null, report 
     </summary>
     <div class="reviews__text" data-nosnippet>${body}</div>
   </details>`)}
-  ${voteRow({ locale, vote, menu })}
+  ${reviewActions({ locale, item, vote, report })}
 </li>`;
 }
 
