@@ -7,6 +7,7 @@
 import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { dayLabel } from './dates.js';
+import { MODERATION } from '../config/settings.js';
 
 const ROLE_KEYS = ['admin', 'editor', 'analyst'];
 
@@ -125,7 +126,7 @@ export function adminUsersView({ locale, list, query = {} }) {
  * @param {object} args.user
  * @returns {string}
  */
-export function adminUserView({ locale, user }) {
+export function adminUserView({ locale, user, csrf = null }) {
   return html`
 <div class="admin-user">
   <h1 class="admin-user__title">${user.nickname}</h1>
@@ -168,6 +169,53 @@ export function adminUserView({ locale, user }) {
         <span class="admin-user__material-date">${dayLabel(locale, item.submittedAt)}</span>
       </li>`)}
     </ul>`, () => html`<p class="empty">${t(locale, 'admin.user.noMaterials')}</p>`)}
+  </section>
+
+  <section class="admin-user__actions">
+    <h2 class="admin-user__section-title">${t(locale, 'admin.user.actions')}</h2>
+
+    <form class="admin-user__action" method="post" action="/${locale}/admin/users/${user.id}/role">
+      <input type="hidden" name="csrf" value="${csrf ?? ''}">
+      <input type="hidden" name="back" value="/${locale}/admin/users/${user.id}">
+      <label class="field__label" for="admin-role-name">${t(locale, 'admin.user.role')}</label>
+      <select class="field__input" id="admin-role-name" name="role">
+        ${ROLE_KEYS.map((role) => html`
+        <option value="${role}">${t(locale, `admin.role.${role}`)}</option>`)}
+      </select>
+      <label class="field__label" for="admin-role-reason">${t(locale, 'admin.user.reason')}</label>
+      <input class="field__input" id="admin-role-reason" name="reason" type="text" required
+        maxlength="500">
+      <p class="admin-user__action-buttons">
+        <button class="button button--primary" type="submit" name="action" value="grant"
+          >${t(locale, 'admin.user.grantRole')}</button>
+        <button class="button button--quiet" type="submit" name="action" value="revoke"
+          >${t(locale, 'admin.user.revokeRole')}</button>
+      </p>
+    </form>
+
+    <form class="admin-user__action" method="post" action="/${locale}/admin/users/${user.id}/restrict">
+      <input type="hidden" name="csrf" value="${csrf ?? ''}">
+      <input type="hidden" name="back" value="/${locale}/admin/users/${user.id}">
+      <label class="field__label" for="admin-restrict-reason">${t(locale, 'admin.user.reason')}</label>
+      <input class="field__input" id="admin-restrict-reason" name="reason" type="text" required
+        maxlength="500">
+      <label class="field__label" for="admin-restrict-hours">${t(locale, 'admin.user.hours')}</label>
+      <input class="field__input" id="admin-restrict-hours" name="hours" type="number" min="1"
+        value="${MODERATION.muteMinHours}">
+      <label class="admin-user__checkbox">
+        <input type="checkbox" name="hide_materials" value="1">
+        <span>${t(locale, 'admin.user.hideMaterials')}</span>
+      </label>
+      <p class="admin-user__action-buttons">
+        <button class="button button--quiet" type="submit" name="action" value="mute"
+          >${t(locale, 'admin.user.mute')}</button>
+        <button class="button button--danger" type="submit" name="action" value="ban"
+          >${t(locale, 'admin.user.ban')}</button>
+        ${when(user.restrictions.length, () => html`
+        <button class="button button--quiet" type="submit" name="action" value="revoke"
+          >${t(locale, 'admin.user.lift')}</button>`)}
+      </p>
+    </form>
   </section>
 
   ${when(user.decisions.length, () => html`

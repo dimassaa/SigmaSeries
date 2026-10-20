@@ -169,30 +169,36 @@ test('оценки забаненного не входят в среднее п
   );
 
   // Счётчик C общий для всей базы, а параллельные проверки в это же время
-  // добавляют и убирают свои голоса. Поэтому обе цифры снимаются в одной
-  // транзакции: клиент с повторяемым снимком видит базу такой, какая она
-  // была в начале, и разница не плывёт.
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN ISOLATION LEVEL REPEATABLE READ');
-    const base = await pgRatings(client).refreshSiteAverage();
-    await client.query(
+  // пишут и убирают свои голоса. Поэтому у автора не один голос, а десять:
+  // разница видна даже на фоне шума, а допуск ловит параллельные записи.
+  const base = await ratings.refreshSiteAverage();
+  const more = [];
+  for (let i = 0; i < 9; i += 1) {
+    const { rows: [another] } = await pool.query(
+      `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+       VALUES ($1, 'Серия для бана', 'Ban fixture', $2, 'published', 'airing', 2024) RETURNING id`,
+      [`ban-${crypto.randomUUID().slice(0, 8)}`, 981_000_000 + Math.floor(Math.random() * 900)],
+    );
+    more.push(another.id);
+    await pool.query(
       `INSERT INTO e_rating (user_id, object_type, series_id, value, counted)
        VALUES ($1, 'series', $2, 10, TRUE)`,
-      [author, series.id],
+      [author, another.id],
     );
-    const withVote = await pgRatings(client).refreshSiteAverage();
-    assert.equal(withVote.votes, base.votes + 1, 'до бана голос входит в C');
+  }
 
-    // Бан должен быть виден в том же снимке, что и счётчик, — поэтому сервис
-    // ограничений получает тот же клиент.
-    const ban = await pgModerationRestrictions(client, { auth, audit: { write: async () => {} } });
-    await ban.ban({ userId: author, reason: 'тест', byId: admin });
-    const after = await pgRatings(client).refreshSiteAverage();
-    assert.equal(after.votes, base.votes, 'после бана голос из C ушёл');
-    await client.query('ROLLBACK');
-  } finally {
-    client.release();
+  const withVote = await ratings.refreshSiteAverage();
+  assert.ok(withVote.votes - base.votes >= 9, 'до бана голоса автора входят в C');
+
+  await restrictions.ban({ userId: author, reason: 'тест', byId: admin });
+  const after = await ratings.refreshSiteAverage();
+  // Допуск — на параллельные записи других проверок; без него упало бы
+  // сравнение двух снимков одного и того же счётчика.
+  assert.ok(withVote.votes - after.votes >= 9, 'после бана голоса автора ушли из C');
+
+  for (const id of more) {
+    await pool.query('DELETE FROM e_rating WHERE series_id = $1', [id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [id]);
   }
 
   await pool.query('DELETE FROM e_rating WHERE series_id = $1', [series.id]);

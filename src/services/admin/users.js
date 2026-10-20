@@ -29,6 +29,21 @@ export function maskAddress(address) {
 }
 
 /**
+ * Останется ли кто-нибудь администратором после снятия роли.
+ *
+ * Правило живёт отдельно от запроса: «последнего администратора снять
+ * нельзя» (F-09-02 §5) — а проверить его на общей базе нельзя, там всегда
+ * есть чужие администраторы от других проверок.
+ *
+ * @param {number[]} admins список администраторов
+ * @param {number} userId человек, которому роль снимают
+ * @returns {boolean} true, если после снятия не останется ни одного
+ */
+export function leavesNoAdmin(admins, userId) {
+  return admins.filter((id) => id !== userId).length === 0;
+}
+
+/**
  * Источник списка пользователей.
  *
  * @param {import('pg').Pool} pool
@@ -213,5 +228,18 @@ export function pgAdminUsers(pool) {
     };
   }
 
-  return { list, one };
+  /**
+   * Администраторы — те, у кого роль есть сейчас.
+   *
+   * @returns {Promise<number[]>}
+   */
+  async function admins() {
+    const { rows } = await pool.query(
+      `SELECT DISTINCT user_id FROM e_role_assignment
+        WHERE role = 'admin' AND (expires_at IS NULL OR expires_at > now())`,
+    );
+    return rows.map((row) => Number(row.user_id));
+  }
+
+  return { list, one, admins };
 }
