@@ -177,7 +177,14 @@ export function createApp({
   if (auth) app.use(createThemeRoutes({ auth, sessionMw }));
   // Решения редактора по материалам (F-05-04): служебный POST, экран — S-50.
   // Раздел администрирования: пользователи и карточка человека (S-71, S-72).
-  if (adminUsers) app.use(createAdminUsersRoutes({ users: adminUsers, sessionMw }));
+  if (adminUsers) app.use(createAdminUsersRoutes({
+    users: adminUsers,
+    auth,
+    restrictions: moderationRestrictions,
+    audit,
+    pool,
+    sessionMw,
+  }));
   // «Мои материалы» (S-35): автор видит состояния своих материалов.
   if (myMaterials) app.use(createMyContentRoutes({ materials: myMaterials, sessionMw }));
   if (decisions) app.use(createModerationRoutes({
