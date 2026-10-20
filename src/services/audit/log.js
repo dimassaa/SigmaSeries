@@ -176,6 +176,86 @@ export function pgAuditLog(pool) {
      * @param {{keepDays?: number|null}} [options]
      * @returns {Promise<number>} сколько записей убрано
      */
+    /**
+     * Страница журнала: только чтение, с фильтрами (F-09-03, S-81).
+     *
+     * @param {{action?: string|null, actorId?: number|null, objectType?: string|null,
+     *   objectId?: number|null, from?: string|null, to?: string|null, page?: number,
+     *   pageSize?: number}} input
+     * @returns {Promise<{items: object[], total: number, page: number, pages: number}>}
+     */
+    async list({
+      action = null, actorId = null, objectType = null, objectId = null,
+      from = null, to = null, page = 1, pageSize = 50,
+    } = {}) {
+      const current = Math.max(1, Number(page) || 1);
+      const size = Math.max(1, Number(pageSize) || 50);
+      const params = [];
+      const where = [];
+      if (action) {
+        params.push(action);
+        where.push(`a.action = $${params.length}`);
+      }
+      if (actorId) {
+        params.push(actorId);
+        where.push(`a.actor_id = $${params.length}`);
+      }
+      if (objectType) {
+        params.push(objectType);
+        where.push(`a.object_type = $${params.length}`);
+      }
+      if (objectId) {
+        params.push(objectId);
+        where.push(`a.object_id = $${params.length}`);
+      }
+      if (from) {
+        params.push(from);
+        where.push(`a.at >= $${params.length}::timestamptz`);
+      }
+      if (to) {
+        params.push(to);
+        where.push(`a.at <= $${params.length}::timestamptz`);
+      }
+      const clause = where.length ? `WHERE ${where.join(' AND ')}` : '';
+
+      const { rows: [tally] } = await pool.query(
+        `SELECT count(*)::int AS total FROM e_audit_log a ${clause}`,
+        params,
+      );
+      const total = Number(tally.total);
+
+      const { rows } = await pool.query(
+        `SELECT a.id, a.at, a.actor_id, a.action, a.object_type, a.object_id, a.result,
+                a.reason, a.before_data, a.after_data,
+                u.nickname AS actor_nickname
+           FROM e_audit_log a
+           LEFT JOIN e_user u ON u.id = a.actor_id
+           ${clause}
+          ORDER BY a.at DESC, a.id DESC
+          LIMIT $${params.length + 1} OFFSET $${params.length + 2}`,
+        [...params, size, (current - 1) * size],
+      );
+
+      return {
+        items: rows.map((row) => ({
+          id: Number(row.id),
+          at: row.at,
+          actorId: row.actor_id === null ? null : Number(row.actor_id),
+          actorNickname: row.actor_nickname,
+          action: row.action,
+          objectType: row.object_type,
+          objectId: row.object_id === null ? null : Number(row.object_id),
+          result: row.result,
+          reason: row.reason,
+          before: row.before_data,
+          after: row.after_data,
+        })),
+        total,
+        page: current,
+        pages: Math.max(1, Math.ceil(total / size)),
+      };
+    },
+
     async prune({ keepDays = null } = {}) {
       const days = Number(keepDays);
       if (!Number.isFinite(days) || days <= 0) return 0;

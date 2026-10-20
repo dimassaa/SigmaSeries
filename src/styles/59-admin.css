@@ -135,3 +135,122 @@
 .admin-user__checkbox { display: flex; gap: var(--space-2); align-items: center; }
 
 .admin-user__action-buttons { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+
+/* --- Журнал аудита (S-81) --- */
+
+.audit-log__title { margin-block-end: var(--space-5); }
+
+.audit-log__filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: end;
+  margin-block-end: var(--space-4);
+}
+
+.audit-log__filters .field__input { min-block-size: 44px; }
+
+.audit-log__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-block-end: var(--space-4);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.audit-log__chip {
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.audit-log__reset { color: var(--accent); }
+
+.audit-log__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.audit-log__table th,
+.audit-log__table td {
+  padding: var(--space-3) var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+  vertical-align: top;
+  text-align: start;
+}
+
+.audit-log__table thead th {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.audit-log__when,
+.audit-log__who { color: var(--text-secondary); white-space: nowrap; }
+
+.audit-log__action { font-weight: 500; }
+
+.audit-log__object,
+.audit-log__reason { display: block; color: var(--text-secondary); font-size: var(--text-sm); }
+
+.audit-log__result { white-space: nowrap; }
+
+.audit-log__pages { display: flex; flex-wrap: wrap; gap: var(--space-2); margin-block-start: var(--space-5); }
+
+.audit-log__page {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 36px;
+  min-block-size: 36px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  color: inherit;
+  text-decoration: none;
+}
+
+.audit-log__page--on { border-color: var(--accent); color: var(--accent); }
+
+.audit-log__total { color: var(--text-secondary); font-size: var(--text-sm); margin-block-start: var(--space-3); }
+
+/* --- Системный обзор (S-70) --- */
+
+.admin-overview__title { margin-block-end: var(--space-5); }
+
+.admin-overview__section-title { font-size: var(--text-lg); margin-block-end: var(--space-3); }
+
+.admin-overview__list { display: flex; flex-direction: column; gap: var(--space-3); margin-block-end: var(--space-6); }
+
+.admin-overview__anomaly,
+.admin-overview__backup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.admin-overview__anomaly-title { font-weight: 500; }
+
+.admin-overview__anomaly-numbers,
+.admin-overview__backup-date,
+.admin-overview__backup-status { color: var(--text-secondary); font-size: var(--text-sm); }
+
+.admin-overview__decision { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+.admin-overview__decision .field__input { min-block-size: 44px; min-inline-size: 220px; flex: 1 1 220px; }
+
+.admin-overview__facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: var(--space-2) var(--space-5);
+  margin-block-end: var(--space-6);
+}
+
+.admin-overview__facts dt { color: var(--text-secondary); }

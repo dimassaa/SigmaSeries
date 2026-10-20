@@ -25,6 +25,8 @@ import { createThemeRoutes } from './routes/theme.js';
 import { createModerationRoutes } from './routes/moderation.js';
 import { createMyContentRoutes } from './routes/myContent.js';
 import { createAdminUsersRoutes } from './routes/adminUsers.js';
+import { createAuditRoutes } from './routes/auditLog.js';
+import { createOverviewRoutes } from './routes/adminOverview.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
 import { createSeasonRoutes } from './routes/season.js';
@@ -84,6 +86,7 @@ export function createApp({
   moderationRestrictions = null,
   myMaterials = null,
   adminUsers = null,
+  adminOverview = null,
   votes = null,
   helpfulLimiter = null,
   reports = null,
@@ -177,6 +180,10 @@ export function createApp({
   if (auth) app.use(createThemeRoutes({ auth, sessionMw }));
   // Решения редактора по материалам (F-05-04): служебный POST, экран — S-50.
   // Раздел администрирования: пользователи и карточка человека (S-71, S-72).
+  // Системный обзор (S-70): онлайн, очереди, аномалии, копии.
+  if (adminOverview) app.use(createOverviewRoutes({ overview: adminOverview, sessionMw }));
+  // Журнал аудита (S-81): только чтение, фильтры.
+  if (audit) app.use(createAuditRoutes({ audit, sessionMw }));
   if (adminUsers) app.use(createAdminUsersRoutes({
     users: adminUsers,
     auth,
