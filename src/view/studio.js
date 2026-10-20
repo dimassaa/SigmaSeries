@@ -47,7 +47,7 @@ function linkWith(locale, path, filters, changes) {
  * @param {object} args.filters
  * @returns {string}
  */
-export function studioListView({ locale, list, genres = [], filters = {} }) {
+export function studioListView({ locale, list, genres = [], filters = {}, csrf = '' }) {
   return html`
 <div class="studio">
   <h1 class="studio__title">${t(locale, 'studio.catalogue.title')}</h1>
@@ -122,11 +122,27 @@ export function studioListView({ locale, list, genres = [], filters = {} }) {
   ${when(list.rows.length === 0, () => html`
   <p class="empty">${t(locale, 'studio.list.empty')}</p>`)}
 
+  <form class="studio-bulk" method="post" action="/${locale}/admin/catalog/bulk">
+    <input type="hidden" name="csrf" value="${csrf}">
+    <div class="studio-bulk__panel">
+      <label class="field__label" for="bulk-action">${t(locale, 'studio.bulk.action')}</label>
+      <select class="field__input" id="bulk-action" name="action">
+        <option value="publish">${t(locale, 'studio.bulk.actions.publish')}</option>
+        <option value="archive">${t(locale, 'studio.bulk.actions.archive')}</option>
+        <option value="add_genre">${t(locale, 'studio.bulk.actions.add_genre')}</option>
+        <option value="remove_genre">${t(locale, 'studio.bulk.actions.remove_genre')}</option>
+      </select>
+      <label class="field__label" for="bulk-genre">${t(locale, 'studio.bulk.genre')}</label>
+      <input class="field__input" id="bulk-genre" name="genre" type="text" placeholder="drama">
+      <button class="button button--primary" type="submit">${t(locale, 'studio.bulk.apply')}</button>
+    </div>
+
   ${when(list.rows.length > 0, () => html`
   <table class="studio__table">
     <caption class="visually-hidden">${t(locale, 'studio.catalogue.title')}</caption>
     <thead>
       <tr>
+        <th scope="col"><span class="visually-hidden">${t(locale, 'studio.bulk.check')}</span></th>
         <th scope="col">${t(locale, 'studio.column.title')}</th>
         <th scope="col">${t(locale, 'studio.column.publication')}</th>
         <th scope="col">${t(locale, 'studio.column.exit')}</th>
@@ -140,6 +156,10 @@ export function studioListView({ locale, list, genres = [], filters = {} }) {
     <tbody>
       ${list.rows.map((row) => html`
       <tr class="studio__row">
+        <td class="studio__check">
+          <input type="checkbox" name="ids" value="${row.id}"
+            aria-label="${t(locale, 'studio.bulk.checkOne', { title: row.title })}">
+        </td>
         <th scope="row" class="studio__title-cell">
           <a class="studio__title-link" href="/${locale}/admin/catalog/${row.id}">
             ${when(row.posterWidth, () => html`
@@ -171,6 +191,7 @@ export function studioListView({ locale, list, genres = [], filters = {} }) {
       </tr>`)}
     </tbody>
   </table>
+  </form>
 
   ${pagination(locale, list, BASE, filters)}`)}
 </div>`;

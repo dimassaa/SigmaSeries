@@ -28,7 +28,9 @@ const STYLES = ['base', 'admin'];
  * @param {object|null} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
-export function createStudioRoutes({ pool, studio, picks = null, audit = null, sessionMw = null }) {
+export function createStudioRoutes({
+  pool, studio, picks = null, bulk = null, audit = null, sessionMw = null,
+}) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
 
@@ -58,12 +60,75 @@ export function createStudioRoutes({ pool, studio, picks = null, audit = null, s
         description: t(locale, 'studio.catalogue.description'),
         noindex: true,
         styles: STYLES,
-        body: studioListView({ locale, list, genres, filters }),
+        body: studioListView({
+          locale, list, genres, filters, csrf: csrfToken(req.session),
+        }),
       }).__raw);
     } catch (error) {
       return next(error);
     }
   });
+
+  // Массовая операция над каталогом (F-10-11). Сначала прогноз: сколько
+  // карточек затронет действие и какие не подойдут; потом выполнение.
+  if (bulk) {
+    router.post(`/:locale${BASE}/bulk`, adminOnly, async (req, res, next) => {
+      const { locale } = req.params;
+      if (!isLocale(locale)) return next('route');
+      const body = req.body ?? {};
+      try {
+        if (!req.session || !csrfValid(req.session, body.csrf)) {
+          return res.status(403).type('text/plain; charset=utf-8')
+            .send(t(locale, 'admin.users.csrf'));
+        }
+        const ids = [].concat(body.ids ?? []).map((value) => Number(value)).filter(Number.isInteger);
+        const action = String(body.action ?? '');
+        const genre = body.genre ? String(body.genre) : null;
+        const reason = body.reason ? String(body.reason) : null;
+
+        if (body.confirm !== '1') {
+          const plan = await bulk.preview({ action, ids, genre, reason });
+          if (!plan.ok) {
+            return res.status(400).type('text/plain; charset=utf-8')
+              .send(t(locale, `studio.bulk.error.${plan.reason}`));
+          }
+          return res.status(200).type('html').send(layout({
+            account: req.account,
+            locale,
+            path: BASE,
+            title: pageTitle(locale, t(locale, 'studio.bulk.title')),
+            description: t(locale, 'studio.bulk.description'),
+            noindex: true,
+            styles: STYLES,
+            body: bulkPreviewView({
+              locale,
+              plan,
+              action,
+              genre,
+              reason,
+              csrf: csrfToken(req.session),
+            }),
+          }).__raw);
+        }
+
+        const result = await bulk.run({ action, ids, genre, reason, byId: req.session.user.id });
+        if (audit) {
+          await audit.write({
+            actorId: req.session.user.id,
+            action: 'catalogue.bulk',
+            objectType: 'series',
+            objectId: null,
+            result: result.ok ? 'ok' : 'denied',
+            reason: `${action}; затронуто ${result.affected ?? 0} из ${result.total ?? 0}`,
+            after: result,
+          });
+        }
+        return res.status(303).set('Location', `/${locale}${BASE}`).end();
+      } catch (error) {
+        return next(error);
+      }
+    });
+  }
 
   router.get(`/:locale${BASE}/incomplete`, adminOnly, async (req, res, next) => {
     const { locale } = req.params;

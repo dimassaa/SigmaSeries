@@ -38,6 +38,7 @@ import { pgStudioImages } from './services/studio/images.js';
 import { pgDiscussions } from './services/discussions/topics.js';
 import { pgGuides } from './services/guides/service.js';
 import { pgStudioCollections } from './services/studio/collections.js';
+import { pgBulkOperations } from './services/studio/bulk.js';
 import { pgStudioDictionaries } from './services/studio/dictionaries.js';
 import { pgBannerSelection, localDate } from './services/home/banners.js';
 import { homeSettings } from './services/home/settings.js';
@@ -314,6 +315,7 @@ const app = createApp({
     restrictions: pgModerationRestrictions(pool, { auth, audit }),
   }),
   studioCollections: pgStudioCollections(pool),
+  bulk: pgBulkOperations(pool),
   studioDictionaries: pgStudioDictionaries(pool),
   studio: pgStudioCatalogue(pool),
   studioCard: pgStudioCard(pool),

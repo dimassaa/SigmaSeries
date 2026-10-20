@@ -97,6 +97,7 @@ export function createApp({
   backups = null,
   studio = null,
   studioCollections = null,
+  bulk = null,
   studioDictionaries = null,
   discussions = null,
   guides = null,
@@ -221,7 +222,7 @@ export function createApp({
     collections: studioCollections, dictionaries: studioDictionaries,
     series, audit, sessionMw,
   }));
-  if (studio) app.use(createStudioRoutes({ pool, studio, picks, audit, sessionMw }));
+  if (studio) app.use(createStudioRoutes({ pool, studio, picks, bulk, audit, sessionMw }));
   // Карточка сериала (S-75): правка, публикация, архив.
   if (studioCard) app.use(createStudioCardRoutes({
     card: studioCard, schedule: studioSchedule, images: studioImages, audit, sessionMw,
