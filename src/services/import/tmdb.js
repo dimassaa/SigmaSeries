@@ -19,6 +19,21 @@ export class TmdbError extends Error {
   }
 }
 
+/**
+ * Отклонил ли источник ключ.
+ *
+ * Отдельная проверка вместо `error.status === 401` в каждом месте: у ошибки
+ * HTTP-статус лежит в `status`, а `code` — это код PostgreSQL ('23505') или
+ * системы ('ENOENT'), и путать их легко. Проверка `error.code === 401` в
+ * проекте уже стояла — и не срабатывала никогда.
+ *
+ * @param {unknown} error
+ * @returns {boolean}
+ */
+export function isKeyRejected(error) {
+  return error?.status === 401;
+}
+
 /** Задержки между попытками для 5xx и сети (F-12-09 §3). */
 const BACKOFF_MS = [1000, 2000, 4000, 8000, 16000];
 

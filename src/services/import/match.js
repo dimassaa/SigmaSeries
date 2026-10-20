@@ -4,7 +4,7 @@
 // сериала из ответа, проверка пары. Название не сверяется (H-28), сомнение
 // всегда разрешается в `pair_doubt`, а не в догадку.
 
-import { pickCandidate, verifyPair } from './tmdb.js';
+import { pickCandidate, verifyPair, isKeyRejected } from './tmdb.js';
 import { IMPORT_SETTINGS } from '../../config/settings.js';
 
 /**
@@ -67,6 +67,9 @@ export async function matchCandidates({ items, tmdb, concurrency = IMPORT_SETTIN
       try {
         results[index] = await matchOne(items[index], tmdb);
       } catch (error) {
+        // 401 — не «ошибка позиции», а отказ ключа: прогон прерывается целиком
+        // (F-12-09 §3), иначе тысяча позиций получит тысячу одинаковых отказов.
+        if (isKeyRejected(error)) throw error;
         // Сбой сети или API на одной позиции не должен уносить прогон: иначе
         // из тысячи сериалов не отвечали бы все (F-12-09 §3).
         results[index] = {

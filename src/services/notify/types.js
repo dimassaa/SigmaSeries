@@ -18,6 +18,10 @@ export const KINDS = {
   moderation_result: { category: 'moderation', channel: 'in_service' },
   reply: { category: 'reply', channel: 'in_service' },
   import_failed: { category: 'service', channel: 'staff' },
+  // Прогон импорта остановлен: ключ отклонили (F-12-09 §17).
+  import_key_rejected: { category: 'service', channel: 'staff' },
+  // Прогон импорта остановлен на середине: размыкатель открыт (F-12-09 §17).
+  import_partial: { category: 'service', channel: 'staff' },
   mail_failed: { category: 'service', channel: 'staff' },
   collection_hidden: { category: 'service', channel: 'staff' },
   spam_surge: { category: 'service', channel: 'staff' },

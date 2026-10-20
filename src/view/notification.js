@@ -18,6 +18,8 @@ const ICON = {
   moderation_result: '🛡',
   reply: '💬',
   import_failed: '⚙',
+  import_key_rejected: '🔑',
+  import_partial: '⚠️',
   mail_failed: '✉',
   collection_hidden: '🚫',
   spam_surge: '📈',
@@ -51,6 +53,22 @@ export function notificationText(locale, row) {
   };
 
   switch (row.kind) {
+    case 'import_key_rejected':
+      return {
+        title: t(locale, 'notify.import_key_rejected.title'),
+        body: t(locale, 'notify.import_key_rejected.body', {
+          runId: params.runId ?? '',
+        }),
+      };
+    case 'import_partial':
+      return {
+        title: t(locale, 'notify.import_partial.title'),
+        body: t(locale, 'notify.import_partial.body', {
+          runId: params.runId ?? '',
+          done: params.done ?? 0,
+          total: params.total ?? 0,
+        }),
+      };
     case 'rating_anomaly':
       return {
         title: t(locale, 'notify.rating_anomaly.title'),

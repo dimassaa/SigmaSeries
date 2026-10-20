@@ -24,6 +24,23 @@ const COLUMNS = [
 const CHUNK = 500;
 
 /**
+ * Ограничение выборки.
+ *
+ * `LIMIT ALL` нельзя передать параметром — Postgres ждёт литерал. Подставляем
+ * его в текст, но только из числа, разобранного из аргументов: строковое
+ * значение сюда попасть не может.
+ *
+ * @param {number} limit
+ * @returns {string}
+ */
+function limitClause(limit) {
+  if (!Number.isFinite(limit) || limit < 0) {
+    throw new Error(`предел должен быть числом, получено «${limit}»`);
+  }
+  return limit > 0 ? `LIMIT ${Math.floor(limit)}` : '';
+}
+
+/**
  * Одна вставка пачки позиций.
  *
  * @param {object} pool
@@ -120,6 +137,135 @@ export function createImportStore(pool) {
     },
 
     /**
+     * Исходы позиций прогона.
+     *
+     * Считаются по всем позициям прогона, а не по тем, что обработаны в этом
+     * запуске: прогон, который продолжали после обрыва, обязан показать в
+     * отчёте весь объём работы — иначе «обработано 120 из 1000» в первой
+     * попытке и «обработано 80 из 300» во второй читались бы как две
+     * разные работы (F-12-09 §3, №68).
+     *
+     * @param {number} runId
+     * @returns {Promise<{counts: Record<string, number>, total: number, done: number, failed: number, withoutPair: number}>}
+     */
+    async progress(runId) {
+      const { rows } = await pool.query(
+        `SELECT outcome,
+                count(*)::int AS n,
+                count(*) FILTER (WHERE tmdb_id IS NULL AND outcome <> 'error')::int AS without_pair
+           FROM e_import_item_result WHERE run_id = $1
+          GROUP BY outcome`,
+        [runId],
+      );
+
+      const counts = {};
+      let total = 0;
+      let failed = 0;
+      let withoutPair = 0;
+      for (const row of rows) {
+        counts[row.outcome] = row.n;
+        total += row.n;
+        withoutPair += row.without_pair;
+        if (row.outcome === 'error') failed += row.n;
+      }
+      return { counts, total, failed, done: total - failed, withoutPair };
+    },
+
+    /**
+     * Позиции, которым ещё не искали пару.
+     *
+     * Берётся последний начатый прогон, а не последний успешный: прогон,
+     * оборванный сбоем, продолжается с места, а не начинается заново
+     * (F-12-09, №95). Перебираются только незавершённые позиции — те, что не
+     * дошли до своей стадии, и те, что упали: упавшая позиция не сделана, и
+     * прогон, однажды сорвавшийся на сети, иначе больше никогда не дошёл бы
+     * до конца.
+     *
+     * @param {object} [options]
+     * @param {number} [options.limit] сколько позиций взять; 0 — все
+     * @returns {Promise<{runId: number, items: object[], status: string}|null>}
+     */
+    async pendingCandidates({ limit = 0 } = {}) {
+      const { rows: runs } = await pool.query(
+        `SELECT id, status FROM e_import_run
+          WHERE kind = 'full_run' AND status NOT IN ('planned','skipped')
+          ORDER BY id DESC LIMIT 1`,
+      );
+      if (!runs.length) return null;
+
+      const { rows } = await pool.query(
+        `SELECT tconst, popularity_rank, start_year
+           FROM e_import_item_result
+          WHERE run_id = $1 AND tmdb_id IS NULL
+            AND (stage = 'candidates' OR outcome = 'error')
+          ORDER BY popularity_rank
+          ${limitClause(limit)}`,
+        [runs[0].id],
+      );
+      return { runId: runs[0].id, items: rows, status: runs[0].status };
+    },
+
+    /**
+     * Позиции с подтверждённой парой — для обогащения.
+     *
+     * Берётся последний запуск любого вида: новинки приходят прогоном
+     * `discover_sync`, и если смотреть только на `full_run`, обогащение их
+     * просто не увидит. И последний прогон, в котором есть сопоставленные
+     * позиции: он мог оборваться, и тогда обогащение продолжает его, а не
+     * ищет другой (F-12-09, №95).
+     *
+     * @param {object} [options]
+     * @param {number} [options.limit] сколько позиций взять; 0 — все
+     * @returns {Promise<{runId: number, rows: object[], status: string}|null>}
+     */
+    async matchedSeries({ limit = 0 } = {}) {
+      const { rows: runs } = await pool.query(
+        `SELECT r.id, r.status FROM e_import_run r
+          WHERE r.status NOT IN ('planned','skipped')
+            AND EXISTS (
+              SELECT 1 FROM e_import_item_result i
+               WHERE i.run_id = r.id AND i.tmdb_id IS NOT NULL)
+          ORDER BY r.id DESC LIMIT 1`,
+      );
+      if (!runs.length) return null;
+
+      // Отбираются ВСЕ строки с подтверждённой парой, а не только те, что ещё
+      // не обогащены. Иначе прогон нельзя переиграть: после записи в каталог
+      // стадия становится `written`, и повторное обогащение молча нашло бы
+      // ноль позиций — а новые сезоны и даты как раз и требуют повторного
+      // обогащения.
+      const { rows } = await pool.query(
+        `SELECT tconst, tmdb_id, popularity_rank, start_year, num_votes, average_rating
+           FROM e_import_item_result
+          WHERE run_id = $1 AND tmdb_id IS NOT NULL
+          ORDER BY popularity_rank
+          ${limitClause(limit)}`,
+        [runs[0].id],
+      );
+      return { runId: runs[0].id, rows, status: runs[0].status };
+    },
+
+    /**
+     * Продолжить прогон после обрыва.
+     *
+     * Новый прогон не заводится: у него есть позиции и их стадии, и новый
+     * прогон потерял бы половину работы (F-12-09, №95). Статус «resumed» —
+     * для отчёта: видно, что прогон продолжался, а не начинался заново.
+     *
+     * @param {number} runId
+     * @returns {Promise<boolean>} был ли прогон в состоянии, из которого
+     *   продолжают
+     */
+    async resumeRun(runId) {
+      const { rowCount } = await pool.query(
+        `UPDATE e_import_run SET status = 'resumed', started_at = now()
+          WHERE id = $1 AND status IN ('error','partial','running','resumed')`,
+        [runId],
+      );
+      return (rowCount ?? 0) > 0;
+    },
+
+    /**
      * Пишет позиции прогона.
      *
      * @param {number} runId
@@ -149,13 +295,6 @@ export function createImportStore(pool) {
       return written;
     },
 
-    /**
-     * Закрывает прогон.
-     *
-     * @param {number} runId
-     * @param {'success'|'partial'|'error'} status
-     * @returns {Promise<void>}
-     */
     /**
      * Закрыть прогон.
      *

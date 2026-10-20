@@ -8,6 +8,7 @@
 // (F-12-06 §5).
 
 import { writeOriginsForSeries } from './write.js';
+import { isKeyRejected } from './tmdb.js';
 
 /**
  * Проставляет страны и сети сериалам, у которых их нет.
@@ -50,7 +51,7 @@ export async function fillOrigins({
       errors += 1;
       // Ключ истёк или сеть легла: останавливаемся, а не тратим остальные
       // попытки на заведомо бесполезные запросы (F-12-09 §3).
-      if (error.code === 401) {
+      if (isKeyRejected(error)) {
         log(`[страны] ключ TMDB отвергнут: ${error.message}`);
         break;
       }

@@ -165,7 +165,9 @@ test.after(async () => {
 test('тип уведомления знает категорию, а неизвестный тип — ошибка (F-03-08 §8е)', () => {
   assert.equal(categoryOf('release_today'), 'release');
   assert.equal(categoryOf('import_failed'), 'service');
-  assert.equal(Object.keys(KINDS).length, 12, 'в реестре двенадцать типов, лишних нет');
+  assert.equal(categoryOf('import_key_rejected'), 'service');
+  assert.equal(categoryOf('import_partial'), 'service');
+  assert.equal(Object.keys(KINDS).length, 14, 'в реестре четырнадцать типов, лишних нет');
   assert.throws(() => categoryOf('что-то новое'), /неизвестный тип/,
     'уведомление без категории нельзя ни показать, ни отключить — это ошибка кода');
 });

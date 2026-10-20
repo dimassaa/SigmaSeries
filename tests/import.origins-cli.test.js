@@ -10,6 +10,7 @@ import { createPool } from '../src/db/pool.js';
 import { writeSeries, loadSlugs } from '../src/services/import/write.js';
 import { buildRawSeries } from '../src/services/import/enrich.js';
 import { fillOrigins, parseArgs } from '../src/services/import/origins.js';
+import { TmdbError } from '../src/services/import/tmdb.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -137,7 +138,10 @@ test('ключ, отвергнутый TMDB, останавливает обхо
   const lines = [];
   const tmdb = {
     async getDetailsLocalized() {
-      throw Object.assign(new Error('401 Unauthorized'), { code: 401 });
+      // Настоящая ошибка источника, а не самодельная с полем `code`: у
+      // `TmdbError` HTTP-статус лежит в `status`, и подделка с другим полем
+      // проверяла бы не тот код, который работает в бою.
+      throw new TmdbError('TMDB отклонил ключ (401) — неверный ключ', 401);
     },
   };
 

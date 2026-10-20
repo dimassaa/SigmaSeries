@@ -9,6 +9,7 @@
 // на сезон. Замер спецификации — около 13 запросов и 26 минут на 1197 сериалов.
 
 import { IMPORT_SETTINGS } from '../../config/settings.js';
+import { isKeyRejected } from './tmdb.js';
 
 /** Пределы из F-12-03 §9: всё, что длиннее, обрезается и помечается. */
 export const LIMITS = {
@@ -231,6 +232,52 @@ export async function enrichSeries({ tmdbId, imdb, tmdb }) {
 }
 
 /**
+ * Позиции прогона по результатам обогащения.
+ *
+ * Разделены на три части намеренно. Удачные позиции идут в прогон как
+ * обогащённые; упавшие — как ошибки, потому что упавшая позиция не сделана и
+ * прогон после обрыва должен перебрать её заново (F-12-09, №95); причины
+ * ошибок собираются отдельно для журнала — «224 ошибки» без текста это не
+ * диагностика, а число, которое придётся выяснять заново.
+ *
+ * @param {object} args
+ * @param {{raw: object|null, error: string|null}[]} args.results результаты обогащения
+ * @param {{tconst: string, tmdbId: number, rank: number|null}[]} args.targets цели, по тому же индексу
+ * @param {Map<string, object>} [args.people] режиссёры и «В ролях» по tconst
+ * @returns {{items: object[], failed: object[], errors: {tconst: string, message: string}[]}}
+ */
+export function itemsFromEnrichment({ results, targets, people = new Map() }) {
+  const items = [];
+  const failed = [];
+  const errors = [];
+
+  results.forEach((entry, index) => {
+    const target = targets[index];
+    if (!entry.raw) {
+      errors.push({ tconst: target.tconst, message: entry.error });
+      failed.push({
+        tconst: target.tconst,
+        tmdbId: target.tmdbId,
+        stage: 'matched',
+        outcome: 'error',
+        reasons: [String(entry.error ?? '')],
+      });
+      return;
+    }
+    items.push({
+      tconst: target.tconst,
+      tmdbId: target.tmdbId,
+      stage: 'enriched',
+      outcome: 'ok',
+      rank: target.rank,
+      raw: { ...entry.raw, people: people.get(target.tconst) ?? { directors: [], cast: [] } },
+    });
+  });
+
+  return { items, failed, errors };
+}
+
+/**
  * Обогащает список сериалов параллельно (`import.api_concurrency`).
  *
  * @param {object} options
@@ -251,6 +298,9 @@ export async function enrichAll({ items, tmdb, concurrency = IMPORT_SETTINGS.api
       try {
         out[index] = { raw: await enrichSeries({ ...items[index], tmdb }), error: null };
       } catch (error) {
+        // 401 — не «ошибка позиции», а отказ ключа: прогон прерывается целиком
+        // (F-12-09 §3), иначе тысяча позиций получит тысячу одинаковых отказов.
+        if (isKeyRejected(error)) throw error;
         out[index] = { raw: null, error: String(error?.message ?? error) };
       }
     }

@@ -16,11 +16,12 @@ import path from 'node:path';
 
 import { createPool } from '../db/pool.js';
 import { ensureDataset, DATASETS } from '../services/import/datasets.js';
-import { createTmdbClient } from '../services/import/tmdb.js';
-import { enrichAll } from '../services/import/enrich.js';
+import { createTmdbClient, isKeyRejected } from '../services/import/tmdb.js';
+import { enrichAll, itemsFromEnrichment } from '../services/import/enrich.js';
 import { collectPeople, collectGenres } from '../services/import/people.js';
 import { createImportStore } from '../services/import/store.js';
 import { assertNotFrozen } from '../services/import/freeze.js';
+import { notifyAdmins } from '../services/import/notify.js';
 import { IMPORT_SETTINGS } from '../config/settings.js';
 
 const DATA_DIR = process.env.IMDB_DATA_DIR ?? path.resolve('data/imdb');
@@ -31,36 +32,6 @@ function parseArgs(argv) {
     if (argv[i] === '--limit') args.limit = Number(argv[i + 1]);
   }
   return args;
-}
-
-/** Подтверждённые пары последнего прогона: сопоставлять больше нечего. */
-async function matchedSeries(pool, args) {
-  const { rows: runs } = await pool.query(
-    // Последний успешный запуск ЛЮБОГО вида: новинки приходят прогоном
-    // `discover_sync`, и если смотреть только на `full_run`, обогащение их
-    // просто не увидит.
-    `SELECT id FROM e_import_run
-      WHERE status = 'success'
-      ORDER BY id DESC LIMIT 1`,
-  );
-  if (!runs.length) return null;
-
-  const limit = args.limit;
-  if (!Number.isFinite(limit) || limit < 0) throw new Error(`--limit должен быть числом, получено «${args.limit}»`);
-
-  // Отбираются ВСЕ строки с подтверждённой парой, а не только те, что ещё не
-  // обогащены. Иначе прогон нельзя переиграть: после записи в каталог стадия
-  // становится `written`, и повторное обогащение молча нашло бы ноль позиций —
-  // а новые сезоны и даты как раз и требуют повторного обогащения.
-  const { rows } = await pool.query(
-    `SELECT tconst, tmdb_id, popularity_rank, start_year, num_votes, average_rating
-       FROM e_import_item_result
-      WHERE run_id = $1 AND tmdb_id IS NOT NULL
-      ORDER BY popularity_rank
-      ${limit > 0 ? `LIMIT ${Math.floor(limit)}` : ''}`,
-    [runs[0].id],
-  );
-  return { runId: runs[0].id, rows };
 }
 
 const mb = (n) => `${(n / 1048576).toFixed(0)} МБ`;
@@ -76,12 +47,15 @@ async function main() {
 
   const pool = createPool();
   const store = createImportStore(pool);
+  // Номер прогона нужен вне блока try: при сбое прогон надо закрыть и
+  // сообщить администратору, а он известен только после выбора прогона.
+  let runId = null;
 
   try {
   await assertNotFrozen(pool);
-    const matched = await matchedSeries(pool, { limit });
+    const matched = await store.matchedSeries({ limit });
     if (!matched) {
-      console.log('Нет успешного прогона: сначала `npm run import:candidates` и `npm run import:match`');
+      console.log('Нет прогона с сопоставленными позициями: сначала `npm run import:candidates` и `npm run import:match`');
       process.exitCode = 1;
       return;
     }
@@ -90,6 +64,14 @@ async function main() {
       process.exitCode = 1;
       return;
     }
+    runId = matched.runId;
+    // Продолжение: прогон, который оборвался, продолжается с места — новый
+    // прогон не заводится (F-12-09, №95).
+    if (matched.status !== 'success') {
+      await store.resumeRun(matched.runId);
+      console.log(`Прогон #${matched.runId} продолжается после обрыва.`);
+    }
+
     const tconsts = matched.rows.map((row) => row.tconst);
 
     console.log('Скачиваю датасеты людей…');
@@ -143,46 +125,47 @@ async function main() {
 
     const enriched = await enrichAll({ items: targets, tmdb });
 
-    const items = [];
-    const errors = [];
-    enriched.forEach((entry, index) => {
-      const target = targets[index];
-      if (!entry.raw) {
-        // Причина ошибки обязана быть видна: «224 ошибки» без текста —
-        // это не диагностика, а число, которое придётся выяснять заново.
-        errors.push({ tconst: target.tconst, message: entry.error });
-        return;
-      }
-      items.push({
-        tconst: target.tconst,
-        tmdbId: target.tmdbId,
-        stage: 'enriched',
-        outcome: 'ok',
-        rank: target.rank,
-        raw: { ...entry.raw, people: people.get(target.tconst) ?? { directors: [], cast: [] } },
-      });
+    const { items, failed, errors } = itemsFromEnrichment({
+      results: enriched,
+      targets,
+      people,
     });
 
-    await store.saveItems(matched.runId, items);
+    await store.saveItems(matched.runId, [...items, ...failed]);
 
     const seconds = Math.round((Date.now() - started) / 1000);
-    const { rows: counts } = await pool.query(
-      'SELECT count(*)::int AS n FROM e_import_item_result WHERE run_id = $1 AND tmdb_id IS NOT NULL',
-      [matched.runId],
-    );
     // Размыкатель открыт — прогон не чистый, и молча закрыть его как успешный
     // значило бы потерять это в отчёте (F-12-09 §3).
+    // Счётчики — по всему прогону, а не по текущей попытке: прогон мог быть
+    // продолжен после обрыва, и отчёт обязан показать весь объём работы.
+    const progress = await store.progress(matched.runId);
     const counters = {
-      enriched: items.length,
-      errors: errors.length,
-      skipped_no_pair: matched.rows.length - targets.length,
+      enriched: progress.counts.ok ?? 0,
+      errors: progress.failed,
+      skipped_no_pair: progress.withoutPair,
+      total: progress.total,
       seconds,
     };
+    // Контрольная точка: до какой стадии доведены позиции. По ней видно, где
+    // прогон остановился, и с чего его продолжать (F-12-09, №95).
+    const checkpoint = { stage: 'enriched', processed: progress.done, planned: progress.total };
     if (tmdb.breakerTripped) {
-      await store.finishRun(matched.runId, 'partial', { counters });
+      await store.finishRun(matched.runId, 'partial', { counters, checkpoint });
       console.log(`\nПрогон #${matched.runId} частичный: размыкатель открыт после ${tmdb.breakerPauses} пауз`);
+      // Источник перестал отвечать: администратор должен узнать об этом без
+      // запроса в консоль (F-12-09 §17, №94).
+      await notifyAdmins({
+        pool,
+        kind: 'import_partial',
+        params: {
+          runId: matched.runId,
+          done: progress.done,
+          total: progress.total,
+        },
+        dedupKey: `import-partial:${matched.runId}`,
+      });
     } else {
-      await store.finishRun(matched.runId, 'success', { counters });
+      await store.finishRun(matched.runId, 'success', { counters, checkpoint });
       console.log(`\nПрогон #${matched.runId}: обогащено ${items.length} за ${seconds} с, ошибок ${errors.length}`);
     }
     // Пропущенные позиции считаются отдельно от ошибок: «уже обогащено ранее»
@@ -212,6 +195,22 @@ async function main() {
   } catch (error) {
     console.error(`\nОбогащение не удалось: ${error.message}`);
     process.exitCode = 1;
+    // Прогон закрывается ошибкой: иначе он навсегда остался бы «идущим», и
+    // отчёт показывал бы незавершённый прогон (F-12-09 §3).
+    if (runId) await store.finishRun(runId, 'error').catch(() => {});
+    // 401 — ключ отклонили: без уведомления администратор узнал бы об этом
+    // только из журнала процесса, которого к тому времени уже нет (§17, №94).
+    if (isKeyRejected(error) && runId) {
+      await notifyAdmins({
+        pool,
+        kind: 'import_key_rejected',
+        // В параметры — только числа: текст собирается при чтении на языке
+        // читателя (R-I18N-14), и русская причина из журнала туда попасть не
+        // должна.
+        params: { runId },
+        dedupKey: `import-key-rejected:${runId}`,
+      }).catch(() => {});
+    }
   } finally {
     await pool.end();
   }
