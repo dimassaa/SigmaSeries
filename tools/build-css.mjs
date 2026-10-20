@@ -10,6 +10,7 @@
 //   node tools/build-css.mjs --check   только проверить, ничего не писая
 
 import { readdir, readFile, writeFile, mkdir, rm } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -113,6 +114,16 @@ for (const group of STYLE_GROUPS) {
   outputs.set(path.join(OUT, `${group.name}.css`), `${header}\n\n${body}\n`);
 }
 
+// Версия файлов: хэш содержимого собранных таблиц и клиентского скрипта.
+// Ссылка на стиль с этой версией меняется после каждой сборки, и браузер
+// перезапрашивает файл, а не держит старый до истечения кэша.
+const version = createHash('sha256')
+  .update([...outputs.values()].join('\n'))
+  .update(await readFile(path.join(ROOT, 'public', 'app.js'), 'utf8'))
+  .digest('hex')
+  .slice(0, 12);
+const VERSION_FILE = path.join(ROOT, 'public', 'asset-version.txt');
+
 if (process.argv.includes('--check')) {
   let broken = 0;
   for (const [file, expected] of outputs) {
@@ -132,6 +143,11 @@ if (process.argv.includes('--check')) {
     process.exit(1);
   }
   const lines = [...outputs.values()].reduce((sum, text) => sum + text.split('\n').length, 0);
+  const currentVersion = (await readFile(VERSION_FILE, 'utf8').catch(() => '')).trim();
+  if (currentVersion !== version) {
+    console.error('Версия файлов не совпадает: соберите стили заново (node tools/build-css.mjs)');
+    process.exit(1);
+  }
   console.log(`Стили синхронны: ${STYLE_GROUPS.length} таблиц, ${lines} строк, частей ${names.length}.`);
 } else {
   await mkdir(OUT, { recursive: true });
@@ -146,6 +162,7 @@ if (process.argv.includes('--check')) {
       console.log(`Удалён устаревший public/css/${name}`);
     }
   }
+  await writeFile(VERSION_FILE, `${version}\n`, 'utf8');
   const lines = [...outputs.values()].reduce((sum, text) => sum + text.split('\n').length, 0);
-  console.log(`Записано ${STYLE_GROUPS.length} таблиц в public/css: ${lines} строк из ${names.length} частей.`);
+  console.log(`Записано ${STYLE_GROUPS.length} таблиц в public/css: ${lines} строк из ${names.length} частей. Версия ${version}.`);
 }

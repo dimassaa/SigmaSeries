@@ -4,10 +4,31 @@
 // единственный h1, ссылка «перейти к содержимому», видимый фокус,
 // canonical и взаимные hreflang (R-SEO-02, R-SEO-03, R-A11Y-04).
 
+import { readFileSync } from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { html, raw, attr, esc, when } from './render.js';
 import { t, LOCALES, LOCALE_NAMES, DEFAULT_LOCALE } from '../i18n/strings.js';
 import { SEARCH_SETTINGS } from '../config/settings.js';
 import { styleGroups } from '../config/styles.js';
+
+/**
+ * Версия файлов статики.
+ *
+ * Ссылка на стиль и скрипт несёт версию: после сборки она меняется, и
+ * браузер перезапрашивает файл вместо того, чтобы доиспользовать старый до
+ * истечения кэша. Без этого правка стилей доезжала до людей через час, а
+ * иногда и через год.
+ */
+const ASSET_VERSION = (() => {
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  try {
+    return readFileSync(path.resolve(here, '../../public/asset-version.txt'), 'utf8').trim();
+  } catch {
+    return '';
+  }
+})();
 
 /**
  * `<title>` контентной страницы по таблице шаблонов (SEO §2).
@@ -55,7 +76,7 @@ export function layout(page) {
   // задан списком групп, иначе правила перебивали бы друг друга иначе, чем
   // в одной общей таблице.
   const styleLinks = styleGroups(styles)
-    .map((name) => `<link rel="stylesheet" href="/css/${name}.css">`)
+    .map((name) => `<link rel="stylesheet" href="/css/${name}.css${ASSET_VERSION ? `?v=${ASSET_VERSION}` : ''}">`)
     .join('\n');
 
   const head = html`<meta charset="utf-8">
@@ -72,7 +93,7 @@ ${raw(styleLinks)}
      темы, «Полезно» без перезагрузки, диалог жалобы, показ пароля и
      сохранение прокрутки при смене языка. Атрибут defer не блокирует
      отрисовку, а ранняя подстановка темы остаётся инлайном ниже. -->
-<script src="/app.js" defer></script>
+<script src="/app.js${ASSET_VERSION ? `?v=${ASSET_VERSION}` : ''}" defer></script>
 <script>
   // Тема ставится до первой отрисовки, иначе на тёмной теме виден белый
   // кадр. Ранний скрипт — единственное место, где JS в <head> оправдан.

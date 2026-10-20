@@ -67,7 +67,9 @@ test('клиентский скрипт подключается на каждо
   // разметку, а не поведение в браузере.
   await withApp(stubData(), async (get) => {
     const html = await (await get('/ru/')).text();
-    assert.match(html, /<script src="\/app\.js" defer><\/script>/,
+    // Версия в ссылке: после сборки она меняется, и браузер перезапрашивает
+    // файл, а не держит старый до истечения кэша.
+    assert.match(html, /<script src="\/app\.js\?v=[0-9a-f]+" defer><\/script>/,
       'клиентский скрипт подключён к странице');
   });
 });
@@ -268,7 +270,7 @@ test('стили отдаются по экранам: общая таблица
     const links = [...html.matchAll(/<link[^>]+rel="stylesheet"[^>]*>/g)].map((m) => m[0]);
     assert.ok(links.length >= 1, 'стили подключены');
     const hrefs = links.map((link) => link.match(/href="([^"]+)"/)[1]);
-    assert.match(hrefs[0], /^\/css\/base\.css$/, 'первой идёт общая таблица');
+    assert.match(hrefs[0], /^\/css\/base\.css(\?v=[0-9a-f]+)?$/, 'первой идёт общая таблица');
 
     for (const href of hrefs) {
       const css = await get(href);
