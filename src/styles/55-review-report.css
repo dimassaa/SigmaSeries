@@ -55,7 +55,7 @@
   background: var(--surface-raised);
   /* Тени-токенов нет: выпадающие Popup соседних частей (47, 51)
      рисуют ее значением напрямую — тем же правилом. */
-  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+  box-shadow: var(--shadow-float);
 }
 
 .reviews__menu-item {
