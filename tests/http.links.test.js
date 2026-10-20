@@ -19,6 +19,7 @@ import { pgPerson } from '../src/services/catalogue/person.js';
 import { pgCalendar } from '../src/services/catalogue/calendar.js';
 import { pgDiscussions } from '../src/services/discussions/topics.js';
 import { pgModerationBudget } from '../src/services/moderation/budget.js';
+import { pgGuides } from '../src/services/guides/service.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -54,6 +55,9 @@ test.before(async () => {
     // Обсуждения: серия ссылается на них в меню, и проверка ссылок обязана
     // их видеть.
     discussions: pgDiscussions(pool, { limits: pgModerationBudget(pool) }),
+    // Руководства: серия ссылается на них в меню, и проверка ссылок обязана
+    // их видеть.
+    guides: pgGuides(pool, { limits: pgModerationBudget(pool) }),
   });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {

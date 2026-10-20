@@ -49,7 +49,7 @@ export function createGuideRoutes({
         description: t(locale, 'guides.description'),
         styles: STYLES,
         body: guidesListView({
-          locale, list, user: writer(req), csrf: csrfToken(req.session),
+          locale, list, user: writer(req), csrf: req.session ? csrfToken(req.session) : '',
         }),
       }).__raw);
     } catch (error) {
@@ -72,7 +72,7 @@ export function createGuideRoutes({
         description: t(locale, 'guides.description'),
         styles: STYLES,
         body: guidesListView({
-          locale, list, series: found, user: writer(req), csrf: csrfToken(req.session),
+          locale, list, series: found, user: writer(req), csrf: req.session ? csrfToken(req.session) : '',
         }),
       }).__raw);
     } catch (error) {
