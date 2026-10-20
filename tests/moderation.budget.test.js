@@ -12,7 +12,9 @@ import crypto from 'node:crypto';
 import { createPool } from '../src/db/pool.js';
 import { pgAuthStore } from '../src/services/auth/store.js';
 import { makeToken } from '../src/services/auth/password.js';
-import { cautiousFrom, pgModerationBudget } from '../src/services/moderation/budget.js';
+import {
+  cautiousFrom, pgModerationBudget, resetCautiousMode,
+} from '../src/services/moderation/budget.js';
 import { MODERATION } from '../src/config/settings.js';
 
 process.env.BLIND_INDEX_SECRET ??= 'test-blind-index-secret';
@@ -74,7 +76,7 @@ test.after(async () => {
   const ids = `SELECT id FROM e_series WHERE id = ANY($1::bigint[])`;
   await pool.query(`DELETE FROM e_material WHERE series_id IN (${ids})`, [series]);
   await pool.query('DELETE FROM e_series WHERE id = ANY($1::bigint[])', [series]);
-  await pool.query("DELETE FROM e_system_setting WHERE key = 'mod.cautious.test'");
+  resetCautiousMode();
   await pool.end();
 });
 
@@ -114,23 +116,20 @@ test('правило режима: помеченных больше доли �
   assert.equal(cautiousFrom({ flagged: 3, total: 10 }).share, 0.3, 'доля посчитана');
 });
 
-test('состояние режима читается из настроек системы и включается пересчётом', { skip }, async () => {
-  await pool.query("DELETE FROM e_system_setting WHERE key = 'mod.cautious.test'");
+test('режим — состояние процесса: пересчёт обновляет его (F-05-03 §4)', { skip }, async () => {
+  // Режим живёт в процессе, а не в базе: запись в общей базе переключала бы
+  // чужие проверки, которые идут параллельно.
+  resetCautiousMode();
   const before = await budget.cautiousState();
-  assert.equal(before.cautious, false, 'без записи режим выключен');
+  assert.equal(before.cautious, false, 'после перезапуска режим выключен');
 
-  await pool.query("INSERT INTO e_system_setting (key, value) VALUES ('mod.cautious.test', '1')");
-  const after = await budget.cautiousState();
-  assert.equal(after.cautious, true, 'запись включает режим');
-
-  // Пересчёт кладёт состояние в настройки: решение о режиме принимает
-  // система по расписанию, а не та отправка, что пришла последней.
   const refreshed = await budget.refresh();
+  const after = await budget.cautiousState();
+  assert.equal(after.cautious, refreshed.cautious, 'состояние обновлено пересчётом');
   assert.equal(typeof refreshed.cautious, 'boolean');
-  const { rows } = await pool.query("SELECT value FROM e_system_setting WHERE key = 'mod.cautious.test'");
-  assert.equal(rows[0].value, refreshed.cautious ? '1' : '0', 'состояние записано');
+  assert.equal(typeof refreshed.share, 'number', 'доля посчитана');
 
-  await pool.query("DELETE FROM e_system_setting WHERE key = 'mod.cautious.test'");
+  resetCautiousMode();
 });
 
 test('очередь растёт, когда самый старый материал ждёт дольше цели разбора (EC-U9)', { skip }, async () => {

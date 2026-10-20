@@ -145,6 +145,55 @@ export function pgModerationClusters(pool) {
   }
 
   /**
+   * Очередь модерации в порядке разбора (F-05-03 §4(1)).
+   *
+   * Порядок такой:
+   *   1. материалы, пролежавшие в очереди дольше суток, — их поднимают
+   *      вперёд: иначе они не будут разобраны никогда (EC-U9);
+   *   2. среди остальных — те, на которые пожаловались: жалобы говорят,
+   *      что материал скорее всего плох;
+   *   3. потом свежие: волна идёт сейчас, и разбирают её сейчас.
+   *
+   *   Окно кластеризации (`mod.cluster_window_h`) тут — порог подъёма, а не
+   *   отбор материалов: материал, пролежавший дольше суток, в очередь входит
+   *   и поднимается, а отсекать его как «старый» нельзя.
+   *
+   * Фраза спецификации («сначала жалобы, затем свежие, затем старые — старый
+   * поднимается») читается двояко: поднятые старые материалы стоят либо
+   * перед всеми, либо после жалоб. Здесь они перед всеми — иначе «подняться»
+   * ничего не меняет, кроме хвоста, который и так разбирают последним.
+   *
+   * @param {{windowHours?: number, limit?: number, states?: string[]}} [input]
+   * @returns {Promise<Array<{id: number, authorId: number, seriesId: number|null,
+   *   state: string, createdAt: Date, submittedAt: Date, complaints: number,
+   *   raised: boolean, waitingMinutes: number}>>}
+   */
+  async function ordered({ windowHours = MODERATION.clusterWindowH, limit = 50, states = QUEUE_STATES } = {}) {
+    const { rows } = await pool.query(
+      `SELECT m.id, m.author_id, m.series_id, m.state, m.created_at, m.submitted_at,
+              (SELECT count(*)::int FROM e_report r WHERE r.material_id = m.id) AS complaints,
+              (m.submitted_at < now() - ($2 || ' hours')::interval) AS raised,
+              extract(epoch FROM (now() - m.submitted_at)) / 60 AS waiting
+         FROM e_material m
+        WHERE m.state = ANY($1::text[])
+        ORDER BY raised DESC, complaints DESC, m.submitted_at DESC
+        LIMIT $3`,
+      [states, String(windowHours), limit],
+    );
+    return rows.map((row) => ({
+      id: Number(row.id),
+      authorId: Number(row.author_id),
+      seriesId: row.series_id === null ? null : Number(row.series_id),
+      state: row.state,
+      createdAt: row.created_at,
+      submittedAt: row.submitted_at,
+      complaints: Number(row.complaints),
+      raised: row.raised === true,
+      waitingMinutes: Math.round(Number(row.waiting)),
+    }));
+  }
+
+  /**
    * Кластеры: группы материалов с общей сигнатурой или близким отпечатком.
    *
    * @param {{windowHours: number, minSize: number, states?: string[]}} input
@@ -253,5 +302,5 @@ export function pgModerationClusters(pool) {
     }
   }
 
-  return { queued, groups, decide };
+  return { queued, ordered, groups, decide };
 }

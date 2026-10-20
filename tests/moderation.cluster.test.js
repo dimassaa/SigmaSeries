@@ -129,6 +129,41 @@ test('один материал — не кластер: ниже порога �
     'одиночный материал в кластер не попал');
 });
 
+test('очередь упорядочена: прождавшие, потом жалобы, потом свежие (F-05-03 §4(1), EC-U9)', { skip }, async () => {
+  const seriesId = await seriesWith();
+  const now = new Date();
+  const fresh = await queued({ authorId: await viewer(), seriesId, body: 'Свежий материал без жалоб' });
+  const complained = await queued({ authorId: await viewer(), seriesId, body: 'Материал с жалобами' });
+  const stale = await queued({
+    authorId: await viewer(),
+    seriesId,
+    body: 'Материал, пролежавший в очереди дольше суток',
+  });
+  await pool.query(
+    `UPDATE e_material SET submitted_at = now() - interval '30 hours' WHERE id = $1`,
+    [stale],
+  );
+  await pool.query(
+    `INSERT INTO e_report (material_id, user_id, reason) VALUES ($1, $2, 'spam')`,
+    [complained, await viewer()],
+  );
+
+  const queue = await clusters.ordered({ windowHours: MODERATION.clusterWindowH });
+  const ids = queue.map((item) => item.id);
+  assert.ok(ids.includes(stale) && ids.includes(complained) && ids.includes(fresh),
+    'все три в очереди');
+  assert.ok(ids.indexOf(stale) < ids.indexOf(complained),
+    'прождавший поднят над жалобами');
+  assert.ok(ids.indexOf(complained) < ids.indexOf(fresh),
+    'с жалобами — выше свежего');
+
+  const staleItem = queue.find((item) => item.id === stale);
+  assert.equal(staleItem.raised, true, 'прождавший помечен поднятым');
+  assert.ok(staleItem.waitingMinutes > MODERATION.clusterWindowH * 60, 'ждал дольше суток');
+  const complainedItem = queue.find((item) => item.id === complained);
+  assert.equal(complainedItem.complaints, 1, 'число жалоб посчитано');
+});
+
 test('решение по кластеру достаёт до всех материалов группы и до пришедших позже', { skip }, async () => {
   const seriesId = await seriesWith();
   const body = 'Один текст, на который решили кластером';

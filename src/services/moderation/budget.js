@@ -33,12 +33,23 @@ export function cautiousFrom({ flagged, total, threshold = MODERATION.autoBlockS
 }
 
 /**
+ * Состояние «осторожного» режима сервиса.
+ *
+ * Живёт в процессе, а не в базе: решение о режиме принимает система, и оно
+ * должно одинаково видеть и отправка материала, и редактор, и администратор —
+ * все они в одном процессе (ADR-004). В базе такая запись была бы видна ещё
+ * и проверкам, которые идут по общей базе параллельно: включённый режим
+ * переключил бы чужие проверки на «материал ждёт решения».
+ */
+let cautiousMode = false;
+
+/**
  * Источник данных бюджетов модерации.
  *
  * @param {import('pg').Pool} pool
  * @returns {object}
  */
-export function pgModerationBudget(pool, { stateKey = 'mod.cautious' } = {}) {
+export function pgModerationBudget(pool) {
   /**
    * Сколько материалов автор подал за последнюю минуту.
    *
@@ -66,11 +77,7 @@ export function pgModerationBudget(pool, { stateKey = 'mod.cautious' } = {}) {
    * @returns {Promise<{cautious: boolean}>}
    */
   async function cautiousState() {
-    const { rows } = await pool.query(
-      'SELECT value FROM e_system_setting WHERE key = $1',
-      [stateKey],
-    );
-    return { cautious: rows[0]?.value === '1' };
+    return { cautious: cautiousMode };
   }
 
   /**
@@ -94,11 +101,7 @@ export function pgModerationBudget(pool, { stateKey = 'mod.cautious' } = {}) {
     const { cautious, share, threshold } = cautiousFrom({ flagged, total });
 
     const pressure = await queuePressure({ at });
-    await pool.query(
-      `INSERT INTO e_system_setting (key, value, changed_at) VALUES ($1, $2, now())
-         ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, changed_at = now()`,
-      [stateKey, cautious ? '1' : '0'],
-    );
+    cautiousMode = cautious;
 
     return {
       cautious,
@@ -133,4 +136,9 @@ export function pgModerationBudget(pool, { stateKey = 'mod.cautious' } = {}) {
   }
 
   return { submissionsInMinute, cautiousState, refresh, queuePressure };
+}
+
+/** Сбросить состояние режима: им пользуются проверки и перезапуск. */
+export function resetCautiousMode() {
+  cautiousMode = false;
 }
