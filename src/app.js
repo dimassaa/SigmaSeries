@@ -29,6 +29,7 @@ import { createAuditRoutes } from './routes/auditLog.js';
 import { createOverviewRoutes } from './routes/adminOverview.js';
 import { createBackupRoutes } from './routes/backups.js';
 import { createStudioRoutes } from './routes/studio.js';
+import { createDiscussionRoutes } from './routes/discussions.js';
 import { createStudioCardRoutes } from './routes/studioCard.js';
 import { createSystemSettingsRoutes } from './routes/systemSettings.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
@@ -93,6 +94,7 @@ export function createApp({
   adminOverview = null,
   backups = null,
   studio = null,
+  discussions = null,
   studioCard = null,
   picks = null,
   backupRunner = null,
@@ -182,7 +184,7 @@ export function createApp({
   // Страница отзыва (S-10) живёт вне сериала: адрес `/reviews/{id}` один на
   // отзыв, и по сериалу он не выводится.
   if (reviewList) app.use(createReviewRoutes({
-    reviewList, votes, reports, sessionMw,
+    reviewList, votes, reports, discussions, dictionary, sessionMw,
   }));
   // Решение по аномалии — служебный POST только для админа; без альтернатив
   // (страницы нет до M9), поэтому монтируется только вместе с журналом.
@@ -197,6 +199,11 @@ export function createApp({
     backups, readSchedule: backupSchedule, runBackup: backupRunner, audit, sessionMw,
   }));
   // Студия (S-73, S-74): каталог сериалов и очередь неполных карточек.
+  // Обсуждения сериала (S-13, S-14): темы, посты, ответы.
+  if (discussions) app.use(createDiscussionRoutes({
+    discussions, series, dictionary, limits: moderationBudget,
+    restrictions: moderationRestrictions, sessionMw,
+  }));
   if (studio) app.use(createStudioRoutes({ pool, studio, picks, audit, sessionMw }));
   // Карточка сериала (S-75): правка, публикация, архив.
   if (studioCard) app.use(createStudioCardRoutes({ card: studioCard, audit, sessionMw }));

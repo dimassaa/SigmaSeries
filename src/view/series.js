@@ -129,6 +129,7 @@ export function seriesView({
       <li><a href="#cast">${t(locale, 'series.menu.cast')}</a></li>`)}
       ${when(reviewBlock, () => html`
       <li><a href="#reviews">${t(locale, 'series.menu.reviews')}</a></li>`)}
+      <li><a href="/${locale}/series/${series.slug}/discussions">${t(locale, 'series.menu.discussions')}</a></li>
     </ul>
   </nav>
 

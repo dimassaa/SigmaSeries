@@ -29,7 +29,27 @@ import { reviewActions, reviewMeta, reportDialog } from './reviewList.js';
  * @param {object|null} [args.report] состояние жалобы страницы
  * @returns {string}
  */
-export function reviewPageView({ locale, review, series, timezone = null, vote = null, report = null }) {
+/**
+ * Дата по-русски: 20.10.2026.
+ *
+ * @param {Date|string} value
+ * @returns {string}
+ */
+function dayOf(value) {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return [
+    String(date.getDate()).padStart(2, '0'),
+    String(date.getMonth() + 1).padStart(2, '0'),
+    date.getFullYear(),
+  ].join('.');
+}
+
+export function reviewPageView({
+  locale, review, series, timezone = null, vote = null, report = null,
+  comments = [], user = null, csrf = '',
+}) {
   // Язык текста — свой: отзыв может быть на языке, отличном от языка
   // страницы, и тогда читающий экран должен читать его правильным голосом
   // (R-I18N-08).
@@ -55,6 +75,30 @@ export function reviewPageView({ locale, review, series, timezone = null, vote =
     </details>`)}
     ${reviewActions({ locale, item: review, vote, report })}
   </article>
+
+  <section class="review-page__comments" aria-labelledby="h-review-comments">
+    <h2 class="block__title" id="h-review-comments">${t(locale, 'review.page.comments')}</h2>
+    ${when(comments.length === 0, () => html`
+    <p class="empty">${t(locale, 'review.page.commentsEmpty')}</p>`)}
+    ${when(comments.length > 0, () => html`
+    <ul class="comment__list" role="list">
+      ${comments.map((comment) => html`
+      <li class="comment__item">
+        <p class="discussion__body">${comment.body}</p>
+        <p class="discussion__meta">${comment.author} · ${dayOf(comment.createdAt)}</p>
+      </li>`)}
+    </ul>`)}
+    ${when(user, () => html`
+    <form class="discussion__form" method="post" action="/${locale}/reviews/${review.id}/comments">
+      <input type="hidden" name="csrf" value="${csrf}">
+      <label class="field__label" for="comment-body">${t(locale, 'review.page.commentLabel')}</label>
+      <textarea class="field__input" id="comment-body" name="body" rows="3" required></textarea>
+      <p class="discussions__actions">
+        <button class="button button--primary" type="submit">${t(locale, 'review.page.commentSend')}</button>
+      </p>
+    </form>`)}
+  </section>
+
   ${reportDialog({ locale, series, report })}
 </div>`;
 }

@@ -16,6 +16,7 @@ import { goneView } from '../view/series.js';
 import { reviewPageView } from '../view/reviewPage.js';
 import { reportStateFor, voteStateFor } from './review-actions.js';
 import { t, isLocale } from '../i18n/strings.js';
+import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { timezoneOf } from '../services/timezone.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
@@ -39,10 +40,48 @@ export function createReviewRoutes({
   reviewList = null,
   votes = null,
   reports = null,
+  discussions = null,
+  dictionary = null,
   sessionMw = null,
 }) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
+
+  // Ответ на отзыв: комментарий под чужим мнением (F-05-07, S-10).
+  if (discussions) {
+    router.post('/:locale/reviews/:id/comments', async (req, res, next) => {
+      const { locale } = req.params;
+      if (!isLocale(locale)) return next('route');
+
+      const id = Number(req.params.id);
+      const body = req.body ?? {};
+      try {
+        if (!csrfValid(req.session, body.csrf)) {
+          return res.status(403).type('text/plain; charset=utf-8')
+            .send(t(locale, 'admin.users.csrf'));
+        }
+        const user = req.session?.user ?? null;
+        if (!user) {
+          return res.status(403).type('text/plain; charset=utf-8')
+            .send(t(locale, 'discussions.signIn'));
+        }
+        const result = await discussions.addComment({
+          userId: user.id,
+          reviewId: id,
+          body: body.body,
+          spoiler: body.spoiler === '1' || body.spoiler === 'on',
+          dictionary: dictionary ? await dictionary.load() : { block: [], allow: [], available: false },
+        });
+        if (!result.ok) {
+          return res.status(400).type('text/plain; charset=utf-8')
+            .send(t(locale, `discussions.error.${result.reason}`));
+        }
+        return res.status(303).set('Location', `/${locale}/reviews/${id}`).end();
+      } catch (error) {
+        return next(error);
+      }
+    });
+  }
 
   if (reviewList) {
     router.get('/:locale/reviews/:id', async (req, res, next) => {
@@ -90,6 +129,11 @@ export function createReviewRoutes({
           ? reportStateFor({ req, locale, slug: found.series.slug, back, user, session })
           : null;
 
+        // Комментарии к отзыву: ответы под чужим мнением (F-05-07, S-10).
+        const comments = discussions
+          ? await discussions.comments(found.review.id)
+          : [];
+
         return res.status(200).type('html').send(rawHtml(layout({
           styles: STYLES,
           account: req.account,
@@ -105,6 +149,9 @@ export function createReviewRoutes({
             timezone: timezoneOf(req),
             vote: voteState?.get(found.review.id) ?? null,
             report: reportState,
+            comments,
+            user,
+            csrf: csrfToken(req.session),
           }),
         })));
       } catch (error) {

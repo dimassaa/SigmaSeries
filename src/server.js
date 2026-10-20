@@ -33,6 +33,7 @@ import { pgSystemHealth } from './services/admin/health.js';
 import { pgStudioCatalogue } from './services/studio/catalogue.js';
 import { pgEditorialPicks } from './services/studio/picks.js';
 import { pgStudioCard } from './services/studio/card.js';
+import { pgDiscussions } from './services/discussions/topics.js';
 import { pgBannerSelection, localDate } from './services/home/banners.js';
 import { homeSettings } from './services/home/settings.js';
 import { pgModerationDecisions } from './services/moderation/decision.js';
@@ -297,6 +298,10 @@ const app = createApp({
   moderationBudget: moderationBudget,
   moderationRestrictions: pgModerationRestrictions(pool, { auth, audit }),
   myMaterials: pgMyMaterials(pool),
+  discussions: pgDiscussions(pool, {
+    limits: moderationBudget,
+    restrictions: pgModerationRestrictions(pool, { auth, audit }),
+  }),
   studio: pgStudioCatalogue(pool),
   studioCard: pgStudioCard(pool),
   picks: pgEditorialPicks(pool),

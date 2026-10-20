@@ -11,6 +11,7 @@
 // читают базу на каждый запрос.
 
 import {
+  UGC as UGC_DEFAULTS,
   RATING as RATING_DEFAULTS,
   REVIEW as REVIEW_DEFAULTS,
   MODERATION as MODERATION_DEFAULTS,
@@ -34,6 +35,12 @@ const DEFAULTS = {
   'review.read_more_chars': REVIEW_DEFAULTS.readMoreChars,
   'review.helpful_rate_per_hour': REVIEW_DEFAULTS.helpfulRatePerHour,
   'review.report_rate_per_day': REVIEW_DEFAULTS.reportRatePerDay,
+  'ugc.topic_min_chars': UGC_DEFAULTS.topicMinChars,
+  'ugc.topic_max_chars': UGC_DEFAULTS.topicMaxChars,
+  'ugc.comment_max_chars': UGC_DEFAULTS.commentMaxChars,
+  'ugc.guide_min_chars': UGC_DEFAULTS.guideMinChars,
+  'ugc.guide_max_chars': UGC_DEFAULTS.guideMaxChars,
+  'ugc.edits_per_day': UGC_DEFAULTS.editsPerDay,
   'ugc.link_forbidden': 1,
   'ugc.recheck_cooldown_min': 5,
   'mod.submission_rate_per_min': MODERATION_DEFAULTS.submissionRatePerMin,
@@ -62,6 +69,7 @@ export const RATING = { ...RATING_DEFAULTS };
 export const REVIEW = { ...REVIEW_DEFAULTS };
 export const MODERATION = { ...MODERATION_DEFAULTS };
 export const ADMIN = { ...ADMIN_DEFAULTS };
+export const UGC = { ...UGC_DEFAULTS };
 export const AUTH = { ...AUTH_DEFAULTS };
 
 /** Все значения ключом — так их показывает экран настроек. */
@@ -115,6 +123,14 @@ export async function loadSettings(pool) {
     clusterWindowH: raw['mod.cluster_window_h'],
     clusterMinSize: raw['mod.cluster_min_size'],
     queueTargetMin: raw['mod.queue_target_min'],
+  });
+  Object.assign(UGC, {
+    topicMinChars: raw['ugc.topic_min_chars'],
+    topicMaxChars: raw['ugc.topic_max_chars'],
+    commentMaxChars: raw['ugc.comment_max_chars'],
+    guideMinChars: raw['ugc.guide_min_chars'],
+    guideMaxChars: raw['ugc.guide_max_chars'],
+    editsPerDay: raw['ugc.edits_per_day'],
   });
   Object.assign(ADMIN, {
     onlineWindowMin: raw['admin.online_window_min'],

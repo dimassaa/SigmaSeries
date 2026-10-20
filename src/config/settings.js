@@ -247,6 +247,20 @@ export const REVIEW = {
   longMinChars: 1000,
 };
 
+export const UGC = {
+  /** `ugc.topic_min_chars` — короче тема не создаётся. */
+  topicMinChars: 20,
+  /** `ugc.topic_max_chars` — длиннее тема не создаётся. */
+  topicMaxChars: 3000,
+  /** `ugc.comment_max_chars` — длиннее ответ или комментарий не создаётся. */
+  commentMaxChars: 2000,
+  /** `ugc.guide_min_chars` / `ugc.guide_max_chars` — пределы статьи руководства. */
+  guideMinChars: 500,
+  guideMaxChars: 50000,
+  /** `ugc.edits_per_day` — сколько правок своего материала в сутки. */
+  editsPerDay: 20,
+};
+
 export const MODERATION = {
   /** R-MOD-10: зритель — 10 материалов в час. */
   materialsPerHour: 10,
