@@ -4,6 +4,13 @@
 // Ручное значение закрыто от перезаписи импортом, и рядом же кнопка «вернуть
 // как было в импорте» (F-10-03 §8а). Справа — панель полноты: уровень,
 // причины и то, куда сериал можно поставить.
+//
+// Форм на странице несколько, и ни одна не вложена в другую: HTML этого не
+// допускает — браузер выбрасывает тег внутренней формы, её поля приклеиваются
+// к внешней форме, и в теле запроса появляются два поля csrf. Тогда проверка
+// CSRF видит не строку, а массив, и любое сохранение уходит в «сессия
+// устарела». Поэтому кнопки, которые делают другое действие, живут в своей
+// форме, а кнопки внутри формы правки задают formaction.
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
@@ -18,6 +25,9 @@ const TABS = [
   { id: 'images', title: 'studio.card.tab.images' },
   { id: 'service', title: 'studio.card.tab.service' },
 ];
+
+/** Вкладки, на которых редактируются поля карточки. */
+const FIELD_TABS = ['primary', 'texts', 'genres'];
 
 /**
  * Дата для поля формы.
@@ -60,11 +70,9 @@ function field({ locale, card, name, label, type = 'text', value = '', rows = nu
         ? html`<span class="studio-origin studio-origin--manual">${t(locale, 'studio.card.origin.manual')}</span>`
         : html`<span class="studio-origin">${t(locale, 'studio.card.origin.import')}</span>`}
       ${when(manual, () => html`
-      <form class="studio-field__reset" method="post" action="/${locale}/admin/catalog/${card.id}/reset-field">
-        <input type="hidden" name="csrf" value="${card.csrf}">
-        <input type="hidden" name="field" value="${name}">
-        <button class="button button--quiet" type="submit">${t(locale, 'studio.card.reset')}</button>
-      </form>`)}
+      <button class="button button--quiet studio-field__reset" type="submit"
+        name="field" value="${name}"
+        formaction="/${locale}/admin/catalog/${card.id}/reset-field">${t(locale, 'studio.card.reset')}</button>`)}
     </span>
     ${when(hint, () => html`<span class="studio-field__hint">${hint}</span>`)}
   </span>`;
@@ -86,6 +94,7 @@ export function studioCardView({
   tab = 'primary', csrf = '',
 }) {
   const cardWith = { ...card, csrf };
+  const saveAction = `/${locale}/admin/catalog/${card.id}`;
   return html`
 <div class="studio studio--card">
   <h1 class="studio__title">${card.fields.title_ru || card.fields.title_original}</h1>
@@ -104,7 +113,8 @@ export function studioCardView({
   </nav>
 
   <div class="studio-card">
-    <form class="studio-card__form" method="post" action="/${locale}/admin/catalog/${card.id}">
+    ${when(FIELD_TABS.includes(tab), () => html`
+    <form class="studio-card__form" method="post" action="${saveAction}">
       <input type="hidden" name="csrf" value="${csrf}">
       <input type="hidden" name="version" value="${card.version}">
 
@@ -140,191 +150,191 @@ export function studioCardView({
         </div>
       </section>`)}
 
-      ${when(tab === 'ratings', () => html`
-      <section class="studio-card__section">
-        <h2 class="studio__section-title">${t(locale, 'studio.card.tab.ratings')}</h2>
-        <dl class="studio-facts">
-          <dt>IMDb</dt>
-          <dd>${card.imdb !== null ? String(card.imdb).replace('.', ',') : '—'}
-            ${when(card.imdbVotes !== null && card.imdbVotes !== undefined, () => html`<span class="studio-facts__note">${card.imdbVotes}</span>`)}
-            ${when(card.measuredOn, () => html`<span class="studio-facts__note">${String(card.measuredOn).slice(0, 10)}</span>`)}
-          </dd>
-          <dt>${t(locale, 'studio.card.imdbKey')}</dt>
-          <dd>${card.imdbKey ?? '—'}</dd>
-          <dt>TMDB</dt>
-          <dd>${card.tmdbId ?? '—'}</dd>
-        </dl>
-        <p class="studio-card__note">${t(locale, 'studio.card.ratingsNote')}</p>
-      </section>`)}
-
-      ${when(tab === 'schedule', () => html`
-      <section class="studio-card__section">
-        <h2 class="studio__section-title">${t(locale, 'studio.card.tab.schedule')}</h2>
-        ${when(!schedule || schedule.length === 0, () => html`
-        <p class="empty">${t(locale, 'studio.card.scheduleEmpty')}</p>`)}
-        ${when(schedule && schedule.length > 0, () => html`
-        ${schedule.map((season) => html`
-        <div class="studio-season">
-          <h3 class="studio__subsection-title">${t(locale, 'studio.card.season', { number: season.number })}</h3>
-          <table class="studio__table">
-            <thead>
-              <tr>
-                <th scope="col">${t(locale, 'studio.card.episode')}</th>
-                <th scope="col">${t(locale, 'studio.card.date')}</th>
-                <th scope="col">${t(locale, 'studio.card.state')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${season.episodes.map((episode) => html`
-              <tr class="studio__row">
-                <th scope="row" class="studio__title-cell">
-                  ${t(locale, 'studio.card.episodeNumber', { number: episode.number })}
-                  ${when(episode.locked, () => html`
-                  <span class="studio__origin studio-origin--manual">${t(locale, 'studio.card.locked')}</span>`)}
-                </th>
-                <td>
-                  <form class="studio-inline-form" method="post"
-                        action="/${locale}/admin/catalog/${card.id}/schedule">
-                    <input type="hidden" name="csrf" value="${csrf}">
-                    <input type="hidden" name="season_id" value="${season.id}">
-                    <input type="hidden" name="episode_id" value="${episode.id}">
-                    <input class="field__input" type="date" name="date"
-                      value="${dayOf(episode.date)}">
-                    <button class="button button--quiet" type="submit">${t(locale, 'studio.card.saveDate')}</button>
-                  </form>
-                </td>
-                <td>${episode.state ? t(locale, `studio.release.${episode.state}`) : '—'}</td>
-              </tr>`)}
-            </tbody>
-          </table>
-        </div>`)}`)}
-      </section>`)}
-
-      ${when(tab === 'service', () => html`
-      <section class="studio-card__section">
-        <h2 class="studio__section-title">${t(locale, 'studio.card.tab.service')}</h2>
-
-        <p class="studio-card__actions">
-          ${when(card.publicationState !== 'published', () => html`
-          <button class="button button--primary" type="submit" formaction="/${locale}/admin/catalog/${card.id}/publish"
-            ${when(card.publishBlockers.length, () => 'disabled')}>
-            ${t(locale, 'studio.card.publish')}
-          </button>`)}
-          ${when(card.publicationState === 'published' && !card.archived, () => html`
-          <button class="button" type="submit" formaction="/${locale}/admin/catalog/${card.id}/archive">
-            ${t(locale, 'studio.card.archive')}
-          </button>`)}
-          ${when(card.archived, () => html`
-          <button class="button" type="submit" formaction="/${locale}/admin/catalog/${card.id}/restore">
-            ${t(locale, 'studio.card.restore')}
-          </button>`)}
-        </p>
-
-        ${when(card.publishBlockers.length, () => html`
-        <p class="studio-card__blockers">
-          ${t(locale, 'studio.card.publishBlockers')}: ${card.publishBlockers.join(', ')}
-        </p>`)}
-
-        <h3 class="studio__subsection-title">${t(locale, 'studio.card.dependencies')}</h3>
-        <dl class="studio-facts">
-          <dt>${t(locale, 'studio.card.dep.banners')}</dt><dd>${card.dependencies.banners}</dd>
-          <dt>${t(locale, 'studio.card.dep.collections')}</dt><dd>${card.dependencies.collections}</dd>
-          <dt>${t(locale, 'studio.card.dep.watchers')}</dt><dd>${card.dependencies.watchers}</dd>
-          <dt>${t(locale, 'studio.card.dep.marks')}</dt><dd>${card.dependencies.marks}</dd>
-          <dt>${t(locale, 'studio.card.dep.reviews')}</dt><dd>${card.dependencies.reviews}</dd>
-          <dt>${t(locale, 'studio.card.dep.ratings')}</dt><dd>${card.dependencies.ratings}</dd>
-          <dt>${t(locale, 'studio.card.dep.releases')}</dt><dd>${card.dependencies.releases}</dd>
-        </dl>
-
-        <h3 class="studio__subsection-title">${t(locale, 'studio.card.history')}</h3>
-        ${when(history.length, () => html`
-        <ul class="studio-history" role="list">
-          ${history.map((item) => html`
-          <li class="studio-history__item">
-            <span class="studio-history__action">
-              ${t(locale, item.source === 'manual' ? 'studio.card.history.manual' : 'studio.card.history.import')}
-              · ${t(locale, 'studio.card.version', { version: item.version })}
-            </span>
-            <span class="studio-history__actor">${item.actor ?? '—'}</span>
-            <span class="studio-history__at">${String(item.at).slice(0, 16).replace('T', ' ')}</span>
-            ${when(Object.keys(item.diff ?? {}).length, () => html`
-            <span class="studio-history__reason">${Object.keys(item.diff).join(', ')}</span>`)}
-            ${when(Object.keys(item.diff ?? {}).length, () => html`
-            <form class="studio-history__restore" method="post"
-                  action="/${locale}/admin/catalog/${card.id}/versions/${item.version}/restore"
-                  data-confirm="${t(locale, 'studio.card.restoreConfirm')}">
-              <input type="hidden" name="csrf" value="${csrf}">
-              <button class="button button--quiet" type="submit">${t(locale, 'studio.card.restore')}</button>
-            </form>`)}
-          </li>`)}
-        </ul>`, () => html`<p class="empty">${t(locale, 'studio.card.historyEmpty')}</p>`)}
-      </section>`)}
-
       <p class="studio-card__actions">
         <button class="button button--primary" type="submit">${t(locale, 'studio.card.save')}</button>
       </p>
-    </form>
+    </form>`)}
 
-  ${when(tab === 'images', () => html`
-      <section class="studio-card__section">
-        <h2 class="studio__section-title">${t(locale, 'studio.card.tab.images')}</h2>
+    ${when(tab === 'ratings', () => html`
+    <section class="studio-card__section">
+      <h2 class="studio__section-title">${t(locale, 'studio.card.tab.ratings')}</h2>
+      <dl class="studio-facts">
+        <dt>IMDb</dt>
+        <dd>${card.imdb !== null ? String(card.imdb).replace('.', ',') : '—'}
+          ${when(card.imdbVotes !== null && card.imdbVotes !== undefined, () => html`<span class="studio-facts__note">${card.imdbVotes}</span>`)}
+          ${when(card.measuredOn, () => html`<span class="studio-facts__note">${String(card.measuredOn).slice(0, 10)}</span>`)}
+        </dd>
+        <dt>${t(locale, 'studio.card.imdbKey')}</dt>
+        <dd>${card.imdbKey ?? '—'}</dd>
+        <dt>TMDB</dt>
+        <dd>${card.tmdbId ?? '—'}</dd>
+      </dl>
+      <p class="studio-card__note">${t(locale, 'studio.card.ratingsNote')}</p>
+    </section>`)}
 
-        <form class="studio-image__upload" method="post" enctype="multipart/form-data"
-              action="/${locale}/admin/catalog/${card.id}/images">
-          <input type="hidden" name="csrf" value="${csrf}">
-          <label class="field__label" for="image-role">${t(locale, 'studio.card.imageRole')}</label>
-          <select class="field__input" id="image-role" name="role">
-            <option value="poster">${t(locale, 'studio.card.image.poster')}</option>
-            <option value="backdrop">${t(locale, 'studio.card.image.backdrop')}</option>
-            <option value="banner">${t(locale, 'studio.card.image.banner')}</option>
-            <option value="splash">${t(locale, 'studio.card.image.splash')}</option>
-          </select>
-          <label class="field__label" for="image-file">${t(locale, 'studio.card.imageFile')}</label>
-          <input class="field__input" id="image-file" name="file" type="file"
-            accept="image/jpeg,image/png,image/webp" required>
-          <label class="studio-field__origin">
-            <input type="checkbox" name="has_text" value="1">
-            <span>${t(locale, 'studio.card.imageHasText')}</span>
-          </label>
-          <p class="studio-image__actions">
-            <button class="button button--primary" type="submit">${t(locale, 'studio.card.upload')}</button>
-          </p>
-          <p class="studio-card__note">${t(locale, 'studio.card.uploadNote')}</p>
-        </form>
-        ${when(!images || images.length === 0, () => html`
-        <p class="empty">${t(locale, 'studio.card.imagesEmpty')}</p>`)}
-        ${when(images && images.length > 0, () => html`
-        ${images.map((image) => html`
-        <div class="studio-image">
-          <div class="studio-image__preview">
-            <img class="studio-image__frame" alt=""
-                 src="/${locale}/images/${card.slug}/${image.role}-${image.variantWidth ?? image.width}.webp"
-                 style="object-position: ${image.focalX}% ${image.focalY}%">
-            <span class="studio-image__point"
-              style="inset-inline-start: ${image.focalX}%; inset-block-start: ${image.focalY}%"></span>
-          </div>
-          <form class="studio-image__form" method="post"
-                action="/${locale}/admin/catalog/${card.id}/images/focal">
+    ${when(tab === 'schedule', () => html`
+    <section class="studio-card__section">
+      <h2 class="studio__section-title">${t(locale, 'studio.card.tab.schedule')}</h2>
+      ${when(!schedule || schedule.length === 0, () => html`
+      <p class="empty">${t(locale, 'studio.card.scheduleEmpty')}</p>`)}
+      ${when(schedule && schedule.length > 0, () => html`
+      ${schedule.map((season) => html`
+      <div class="studio-season">
+        <h3 class="studio__subsection-title">${t(locale, 'studio.card.season', { number: season.number })}</h3>
+        <table class="studio__table">
+          <thead>
+            <tr>
+              <th scope="col">${t(locale, 'studio.card.episode')}</th>
+              <th scope="col">${t(locale, 'studio.card.date')}</th>
+              <th scope="col">${t(locale, 'studio.card.state')}</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${season.episodes.map((episode) => html`
+            <tr class="studio__row">
+              <th scope="row" class="studio__title-cell">
+                ${t(locale, 'studio.card.episodeNumber', { number: episode.number })}
+                ${when(episode.locked, () => html`
+                <span class="studio__origin studio-origin--manual">${t(locale, 'studio.card.locked')}</span>`)}
+              </th>
+              <td>
+                <form class="studio-inline-form" method="post"
+                      action="/${locale}/admin/catalog/${card.id}/schedule">
+                  <input type="hidden" name="csrf" value="${csrf}">
+                  <input type="hidden" name="season_id" value="${season.id}">
+                  <input type="hidden" name="episode_id" value="${episode.id}">
+                  <input class="field__input" type="date" name="date"
+                    value="${dayOf(episode.date)}">
+                  <button class="button button--quiet" type="submit">${t(locale, 'studio.card.saveDate')}</button>
+                </form>
+              </td>
+              <td>${episode.state ? t(locale, `studio.release.${episode.state}`) : '—'}</td>
+            </tr>`)}
+          </tbody>
+        </table>
+      </div>`)}`)}
+    </section>`)}
+
+    ${when(tab === 'service', () => html`
+    <section class="studio-card__section">
+      <h2 class="studio__section-title">${t(locale, 'studio.card.tab.service')}</h2>
+
+      <form class="studio-card__actions" method="post" action="${saveAction}">
+        <input type="hidden" name="csrf" value="${csrf}">
+        ${when(card.publicationState !== 'published', () => html`
+        <button class="button button--primary" type="submit" formaction="${saveAction}/publish"
+          ${when(card.publishBlockers.length, () => 'disabled')}>
+          ${t(locale, 'studio.card.publish')}
+        </button>`)}
+        ${when(card.publicationState === 'published' && !card.archived, () => html`
+        <button class="button" type="submit" formaction="${saveAction}/archive">
+          ${t(locale, 'studio.card.archive')}
+        </button>`)}
+        ${when(card.archived, () => html`
+        <button class="button" type="submit" formaction="${saveAction}/restore">
+          ${t(locale, 'studio.card.restore')}
+        </button>`)}
+      </form>
+
+      ${when(card.publishBlockers.length, () => html`
+      <p class="studio-card__blockers">
+        ${t(locale, 'studio.card.publishBlockers')}: ${card.publishBlockers.join(', ')}
+      </p>`)}
+
+      <h3 class="studio__subsection-title">${t(locale, 'studio.card.dependencies')}</h3>
+      <dl class="studio-facts">
+        <dt>${t(locale, 'studio.card.dep.banners')}</dt><dd>${card.dependencies.banners}</dd>
+        <dt>${t(locale, 'studio.card.dep.collections')}</dt><dd>${card.dependencies.collections}</dd>
+        <dt>${t(locale, 'studio.card.dep.watchers')}</dt><dd>${card.dependencies.watchers}</dd>
+        <dt>${t(locale, 'studio.card.dep.marks')}</dt><dd>${card.dependencies.marks}</dd>
+        <dt>${t(locale, 'studio.card.dep.reviews')}</dt><dd>${card.dependencies.reviews}</dd>
+        <dt>${t(locale, 'studio.card.dep.ratings')}</dt><dd>${card.dependencies.ratings}</dd>
+        <dt>${t(locale, 'studio.card.dep.releases')}</dt><dd>${card.dependencies.releases}</dd>
+      </dl>
+
+      <h3 class="studio__subsection-title">${t(locale, 'studio.card.history')}</h3>
+      ${when(history.length, () => html`
+      <ul class="studio-history" role="list">
+        ${history.map((item) => html`
+        <li class="studio-history__item">
+          <span class="studio-history__action">
+            ${t(locale, item.source === 'manual' ? 'studio.card.history.manual' : 'studio.card.history.import')}
+            · ${t(locale, 'studio.card.version', { version: item.version })}
+          </span>
+          <span class="studio-history__actor">${item.actor ?? '—'}</span>
+          <span class="studio-history__at">${String(item.at).slice(0, 16).replace('T', ' ')}</span>
+          ${when(Object.keys(item.diff ?? {}).length, () => html`
+          <span class="studio-history__reason">${Object.keys(item.diff).join(', ')}</span>`)}
+          ${when(Object.keys(item.diff ?? {}).length, () => html`
+          <form class="studio-history__restore" method="post"
+                action="/${locale}/admin/catalog/${card.id}/versions/${item.version}/restore"
+                data-confirm="${t(locale, 'studio.card.restoreConfirm')}">
             <input type="hidden" name="csrf" value="${csrf}">
-            <input type="hidden" name="role" value="${image.role}">
-            <span class="studio-image__name">
-              ${t(locale, `studio.card.image.${image.role}`)} · ${image.width}×${image.height}
-            </span>
-            <label class="field__label" for="focal-x-${image.id}">${t(locale, 'studio.card.focalX')}</label>
-            <input class="field__input" id="focal-x-${image.id}" name="focal_x" type="number"
-              min="0" max="100" value="${image.focalX}">
-            <label class="field__label" for="focal-y-${image.id}">${t(locale, 'studio.card.focalY')}</label>
-            <input class="field__input" id="focal-y-${image.id}" name="focal_y" type="number"
-              min="0" max="100" value="${image.focalY}">
-            <p class="studio-image__actions">
-              <button class="button button--primary" type="submit">${t(locale, 'studio.card.saveFocal')}</button>
-              <button class="button" type="submit" name="reset" value="1"
-                formaction="/${locale}/admin/catalog/${card.id}/images/focal/reset">${t(locale, 'studio.card.resetFocal')}</button>
-            </p>
-          </form>
-        </div>`)}`)}
-      </section>`)}
+            <button class="button button--quiet" type="submit">${t(locale, 'studio.card.restore')}</button>
+          </form>`)}
+        </li>`)}
+      </ul>`, () => html`<p class="empty">${t(locale, 'studio.card.historyEmpty')}</p>`)}
+    </section>`)}
 
+    ${when(tab === 'images', () => html`
+    <section class="studio-card__section">
+      <h2 class="studio__section-title">${t(locale, 'studio.card.tab.images')}</h2>
+
+      <form class="studio-image__upload" method="post" enctype="multipart/form-data"
+            action="/${locale}/admin/catalog/${card.id}/images">
+        <input type="hidden" name="csrf" value="${csrf}">
+        <label class="field__label" for="image-role">${t(locale, 'studio.card.imageRole')}</label>
+        <select class="field__input" id="image-role" name="role">
+          <option value="poster">${t(locale, 'studio.card.image.poster')}</option>
+          <option value="backdrop">${t(locale, 'studio.card.image.backdrop')}</option>
+          <option value="banner">${t(locale, 'studio.card.image.banner')}</option>
+          <option value="splash">${t(locale, 'studio.card.image.splash')}</option>
+        </select>
+        <label class="field__label" for="image-file">${t(locale, 'studio.card.imageFile')}</label>
+        <input class="field__input" id="image-file" name="file" type="file"
+          accept="image/jpeg,image/png,image/webp" required>
+        <label class="studio-field__origin">
+          <input type="checkbox" name="has_text" value="1">
+          <span>${t(locale, 'studio.card.imageHasText')}</span>
+        </label>
+        <p class="studio-image__actions">
+          <button class="button button--primary" type="submit">${t(locale, 'studio.card.upload')}</button>
+        </p>
+        <p class="studio-card__note">${t(locale, 'studio.card.uploadNote')}</p>
+      </form>
+      ${when(!images || images.length === 0, () => html`
+      <p class="empty">${t(locale, 'studio.card.imagesEmpty')}</p>`)}
+      ${when(images && images.length > 0, () => html`
+      ${images.map((image) => html`
+      <div class="studio-image">
+        <div class="studio-image__preview">
+          <img class="studio-image__frame" alt=""
+               src="/${locale}/images/${card.slug}/${image.role}-${image.variantWidth ?? image.width}.webp"
+               style="object-position: ${image.focalX}% ${image.focalY}%">
+          <span class="studio-image__point"
+            style="inset-inline-start: ${image.focalX}%; inset-block-start: ${image.focalY}%"></span>
+        </div>
+        <form class="studio-image__form" method="post"
+              action="/${locale}/admin/catalog/${card.id}/images/focal">
+          <input type="hidden" name="csrf" value="${csrf}">
+          <input type="hidden" name="role" value="${image.role}">
+          <span class="studio-image__name">
+            ${t(locale, `studio.card.image.${image.role}`)} · ${image.width}×${image.height}
+          </span>
+          <label class="field__label" for="focal-x-${image.id}">${t(locale, 'studio.card.focalX')}</label>
+          <input class="field__input" id="focal-x-${image.id}" name="focal_x" type="number"
+            min="0" max="100" value="${image.focalX}">
+          <label class="field__label" for="focal-y-${image.id}">${t(locale, 'studio.card.focalY')}</label>
+          <input class="field__input" id="focal-y-${image.id}" name="focal_y" type="number"
+            min="0" max="100" value="${image.focalY}">
+          <p class="studio-image__actions">
+            <button class="button button--primary" type="submit">${t(locale, 'studio.card.saveFocal')}</button>
+            <button class="button" type="submit" name="reset" value="1"
+              formaction="/${locale}/admin/catalog/${card.id}/images/focal/reset">${t(locale, 'studio.card.resetFocal')}</button>
+          </p>
+        </form>
+      </div>`)}`)}
+    </section>`)}
 
     <aside class="studio-card__panel" aria-labelledby="h-card-panel">
       <h2 class="studio__section-title" id="h-card-panel">${t(locale, 'studio.card.panel')}</h2>

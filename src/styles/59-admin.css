@@ -595,8 +595,14 @@
   align-items: start;
 }
 
+/* Панель справа стоит в правой колонке всегда: часть вкладок вынесена из
+   формы правки (вложенной формы быть не может), и без этого панель уезжала
+   под содержимое, а содержимое сжималось до узкой колонки. */
+.studio-card__panel { grid-column: 2; grid-row: 1 / -1; }
+
 @media (max-width: 1023px) {
   .studio-card { grid-template-columns: 1fr; }
+  .studio-card__panel { grid-column: 1; grid-row: auto; }
 }
 
 .studio-card__form {

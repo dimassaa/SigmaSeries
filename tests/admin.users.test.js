@@ -156,14 +156,15 @@ test('список отдаёт администратору и прячет о�
 test('фильтр по нику находит человека, а числа у него считаются (F-09-01 §4)', { skip }, async () => {
   const admin = await user({ roles: ['admin'] });
   const target = await user({ nickname: `искомый-${crypto.randomUUID().slice(0, 6)}` });
+  const seriesId = (await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Подсчёт', 'Count fixture', $2, 'published', 'airing', 2024) RETURNING id`,
+    [`admin-count-${crypto.randomUUID().slice(0, 8)}`, 986_000_000 + Math.floor(Math.random() * 900)],
+  )).rows[0].id;
   await pool.query(
     `INSERT INTO e_rating (user_id, object_type, series_id, value, counted)
      VALUES ($1, 'series', $2, 8, TRUE)`,
-    [target.id, (await pool.query(
-      `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
-       VALUES ($1, 'Подсчёт', 'Count fixture', $2, 'published', 'airing', 2024) RETURNING id`,
-      [`admin-count-${crypto.randomUUID().slice(0, 8)}`, 986_000_000 + Math.floor(Math.random() * 900)],
-    )).rows[0].id],
+    [target.id, seriesId],
   );
 
   await withServer({
@@ -174,6 +175,11 @@ test('фильтр по нику находит человека, а числа 
       assert.match(html, /1<\/td>/, 'число его оценок показано');
     },
   });
+
+  // Фикстуры убираем: общая база — и оставленный сериал с названием
+  // «Подсчёт» попадал в выборку тестов, берущих любой сериал.
+  await pool.query('DELETE FROM e_rating WHERE user_id = $1', [target.id]);
+  await pool.query('DELETE FROM e_series WHERE id = $1', [seriesId]);
 });
 
 test('карточка человека показывает роли, ограничения и материалы (F-09-02 §4)', { skip }, async () => {
