@@ -6,6 +6,7 @@
 // демонстрации это случилось бы при худшем времени.
 
 import crypto from 'node:crypto';
+import { markActivity } from '../activity.js';
 
 import session from 'express-session';
 import connectPgSimple from 'connect-pg-simple';
@@ -61,6 +62,9 @@ export function createSessionMiddleware(pool, providedStore, { account = null } 
         // сессия без нужды не заводится.
         if (data) data.csrf = csrfToken(req.session);
         req.account = res.locals.account = data;
+        // Отметка активности: по ней считается «онлайн» (F-09-05). Гость
+        // без аккаунта тоже считается — он в сервисе.
+        markActivity(user ? `u:${user.id}` : `g:${req.sessionID ?? 'guest'}`);
         next();
       } catch (error) {
         next(error);

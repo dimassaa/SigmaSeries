@@ -29,6 +29,7 @@ import { pgRatings } from './services/rating/store.js';
 import { pgAnomalySensor } from './services/rating/anomalies.js';
 import { pgModerationBudget } from './services/moderation/budget.js';
 import { loadSettings } from './services/settings.js';
+import { pgSystemHealth } from './services/admin/health.js';
 import { pgModerationDecisions } from './services/moderation/decision.js';
 import { pgModerationClusters } from './services/moderation/cluster.js';
 import { pgModerationRestrictions } from './services/moderation/restriction.js';
@@ -136,6 +137,14 @@ const settingsReload = setInterval(() => {
 settingsReload.unref();
 loadSettings(pool).catch((e) => console.error(`[настройки] ${e.message}`));
 
+// Число людей в сети: раз в час считается и пишется в базу (F-09-05).
+// Пропущенный час — разрыв, а не ноль.
+const systemHealth = pgSystemHealth(pool);
+const onlineWorker = setInterval(() => {
+  systemHealth.sample().catch((e) => console.error(`[онлайн] ${e.message}`));
+}, 60 * 60_000);
+onlineWorker.unref();
+
 const moderationBudget = pgModerationBudget(pool);
 const auth = pgAuthStore(pool);
 
@@ -238,7 +247,7 @@ const app = createApp({
   moderationRestrictions: pgModerationRestrictions(pool, { auth, audit }),
   myMaterials: pgMyMaterials(pool),
   adminUsers: pgAdminUsers(pool),
-  adminOverview: pgAdminOverview(pool, { backups: pgBackupJobs(pool) }),
+  adminOverview: pgAdminOverview(pool, { backups: pgBackupJobs(pool), health: systemHealth }),
   backups: pgBackupJobs(pool),
   backupSchedule: () => readSchedule(pool),
   // Ручной запуск копии: тот же снимок, что и по расписанию, с проверкой

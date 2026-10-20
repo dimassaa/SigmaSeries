@@ -14,7 +14,7 @@ import { ADMIN } from '../settings.js';
  * @param {object} [deps.backups] журнал резервных копий
  * @returns {object}
  */
-export function pgAdminOverview(pool, { backups = null } = {}) {
+export function pgAdminOverview(pool, { backups = null, health = null } = {}) {
   /**
    * Люди онлайн: сейчас (окно в минутах) и в среднем (окно в часах).
    *
@@ -108,13 +108,24 @@ export function pgAdminOverview(pool, { backups = null } = {}) {
    * @returns {Promise<object>}
    */
   async function overview() {
-    const [people, queue, anomaliesList, copies] = await Promise.all([
+    const [people, queue, anomaliesList, copies, state, state2] = await Promise.all([
       online(),
       queues(),
       anomalies(),
       backupsList(),
+      health ? health.series() : Promise.resolve(null),
+      health ? health.health() : Promise.resolve(null),
     ]);
-    return { online: people, queues: queue, anomalies: anomaliesList, backups: copies };
+    return {
+      online: people,
+      queues: queue,
+      anomalies: anomaliesList,
+      backups: copies,
+      // Ряд значений: сколько людей было в сети в каждый час. Пропущенные
+      // часы — разрыв, а не ноль (F-09-05 §5).
+      onlineSeries: state,
+      health: state2,
+    };
   }
 
   return { online, queues, anomalies, backupsList, overview };

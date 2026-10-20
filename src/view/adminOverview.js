@@ -17,7 +17,9 @@ import { dayLabel } from './dates.js';
  * @returns {string}
  */
 export function adminOverviewView({ locale, data, csrf = null }) {
-  const { online = {}, queues = {}, anomalies = [], backups = [] } = data;
+  const {
+    online = {}, queues = {}, anomalies = [], backups = [], series = null, health = null,
+  } = data;
 
   return html`
 <div class="admin-overview">
@@ -63,6 +65,14 @@ export function adminOverviewView({ locale, data, csrf = null }) {
       <dd>${online.now ?? 0}</dd>
       <dt>${t(locale, 'admin.overview.online.average')}</dt>
       <dd>${online.average ?? 0}</dd>
+      <dt>${t(locale, 'admin.overview.online.peak')}</dt>
+      <dd>${when(series && series.dataPoints, () => series.peak, () => t(locale, 'admin.overview.noData'))}</dd>
+      <dt>${t(locale, 'admin.overview.online.points')}</dt>
+      <dd>${when(series && series.dataPoints, () => series.dataPoints, () => t(locale, 'admin.overview.noData'))}</dd>
+      <dt>${t(locale, 'admin.overview.health.size')}</dt>
+      <dd>${health ? sizeOf(health.databaseBytes) : t(locale, 'admin.overview.noData')}</dd>
+      <dt>${t(locale, 'admin.overview.health.failed')}</dt>
+      <dd>${health ? health.failedBackups : t(locale, 'admin.overview.noData')}</dd>
       <dt>${t(locale, 'admin.overview.queue.waiting')}</dt>
       <dd>${queues.waiting ?? 0}</dd>
       <dt>${t(locale, 'admin.overview.queue.oldest')}</dt>
@@ -83,4 +93,16 @@ export function adminOverviewView({ locale, data, csrf = null }) {
     <p class="empty">${t(locale, 'admin.overview.backups.empty')}</p>`)}
   </section>
 </div>`;
+}
+
+/**
+ * Размер — человеческим числом.
+ *
+ * @param {number|null} bytes
+ * @returns {string}
+ */
+function sizeOf(bytes) {
+  if (bytes === null || bytes === undefined) return '—';
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} КБ`;
+  return `${Math.round((bytes / (1024 * 1024)) * 10) / 10} МБ`;
 }
