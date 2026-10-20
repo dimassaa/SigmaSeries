@@ -99,7 +99,91 @@ export function pgAnomalySensor({ pool, ratings }) {
     return candidates.length;
   }
 
-  return { scan };
+  /**
+   * Решение админа по аномалии (F-04-08 §4, H-77).
+   *
+   * @param {object} args
+   * @param {number} args.id
+   * @param {'accepted'|'discarded'} args.decision
+   * @param {number} args.adminId
+   * @returns {Promise<{ok: true, decision: string, discarded: number}
+   *   |{ok: false, reason: 'bad-decision'|'missing'|'not-open'}>}
+   */
+  async function resolve({ id, decision, adminId }) {
+    if (decision !== 'accepted' && decision !== 'discarded') {
+      return { ok: false, reason: 'bad-decision' };
+    }
+    const client = await pool.connect();
+    const at = new Date();
+    try {
+      await client.query('BEGIN');
+      const { rows } = await client.query(
+        `UPDATE e_rating_anomaly
+            SET state = $2, resolved_by = $3, resolved_at = $4
+          WHERE id = $1 AND state = 'open'
+          RETURNING series_id, signal`,
+        [id, decision, adminId, at],
+      );
+      if (!rows.length) {
+        await client.query('ROLLBACK');
+        const known = await pool.query(
+          'SELECT 1 FROM e_rating_anomaly WHERE id = $1', [id],
+        );
+        return { ok: false, reason: known.rows.length ? 'not-open' : 'missing' };
+      }
+      const { series_id: seriesId, signal } = rows[0];
+      let discarded = 0;
+      if (decision === 'discarded') {
+        // Экстремумы окна от молодых аккаунтов теряют учёт (F-04-08 §8):
+        // окно читается из signal — те же числа, что высчитывал датчик.
+        const drop = await client.query(
+          `UPDATE e_rating r
+              SET counted = FALSE
+             WHERE r.object_type = 'series' AND r.episode_id IS NULL
+               AND r.series_id = $1
+               AND r.created_at >= $2
+               AND r.created_at < $2 + make_interval(hours => $3)
+               AND (r.value <= $4 OR r.value >= $5)
+               AND r.counted
+               AND r.user_id IN (
+                    SELECT u.id FROM e_user u
+                     WHERE u.registered_at > $2 - make_interval(hours => $6))`,
+          [
+            seriesId,
+            signal.window_start,
+            signal.window_hours,
+            signal.extreme_low,
+            signal.extreme_high,
+            signal.young_hours,
+          ],
+        );
+        discarded = drop.rowCount;
+        // Агрегат серии собирается из учитываемых строк: после сброса
+        // сумма и число голосов обязаны читать по новой, иначе замороженный
+        // блок ещё долго показывал бы сброшенные голоса.
+        await client.query(
+          `INSERT INTO e_series_rating_stat (series_id, sum_value, votes, recalculated_at)
+           SELECT $1, coalesce(sum(value), 0)::numeric(12,2), count(*)::int, $2
+             FROM e_rating
+            WHERE series_id = $1 AND object_type = 'series' AND episode_id IS NULL AND counted
+           GROUP BY series_id
+           ON CONFLICT (series_id) DO UPDATE
+              SET sum_value = EXCLUDED.sum_value, votes = EXCLUDED.votes,
+                  recalculated_at = EXCLUDED.recalculated_at`,
+          [seriesId, at],
+        );
+      }
+      await client.query('COMMIT');
+      return { ok: true, decision, discarded };
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  return { scan, resolve };
 }
 
 function toTimestamp(date) {
