@@ -5,6 +5,7 @@
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { tPlural } from '../i18n/plural.js';
 
 /**
  * Дата по-русски: 20.10.2026, с временем — 20.10.2026 19:41.
@@ -73,7 +74,7 @@ export function discussionsListView({ locale, series, topics, page = 1, user = n
     <li class="discussions__item">
       <a class="discussions__link" href="/${locale}/discussions/${topic.id}">${topic.title}</a>
       <span class="discussions__meta">
-        ${topic.author} · ${t(locale, 'discussions.posts', { count: topic.posts })} ·
+        ${topic.author} · ${tPlural(locale, 'discussions.posts', topic.posts, { count: topic.posts })} ·
         ${dayOf(topic.createdAt)}
       </span>
       ${when(topic.pinned, () => html`
