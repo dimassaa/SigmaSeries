@@ -144,6 +144,17 @@
 
 .admin-user__twofactor-state { margin-block-end: var(--space-3); color: var(--text-secondary); }
 
+/* Удаление аккаунта — разрушающее действие (F-09-02 §19): оно отдельно от
+   обычных действий и не первым. Рамка с предупреждением отделяет его и
+   говорит, что здесь не то же самое, что выдача роли. */
+.admin-user__delete {
+  margin-block-end: var(--space-6);
+  padding: var(--space-4);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
 .admin-user__action {
   display: flex;
   flex-wrap: wrap;

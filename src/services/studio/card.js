@@ -237,14 +237,38 @@ export function pgStudioCard(pool) {
     const cast = ['year_start', 'year_end'].includes(field)
       ? (value === '' ? null : Number(value))
       : value;
-    await pool.query(
-      `UPDATE e_series SET ${field} = $2, version = version + 1 WHERE id = $1`,
-      [seriesId, cast],
-    );
-    await pool.query(
-      'DELETE FROM e_field_lock WHERE series_id = $1 AND field = $2',
-      [seriesId, field],
-    );
+
+    const current = await read(seriesId);
+    if (!current) return false;
+    const before = current.fields[field] ?? null;
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query(
+        `UPDATE e_series SET ${field} = $2, version = version + 1 WHERE id = $1`,
+        [seriesId, cast],
+      );
+      await client.query(
+        'DELETE FROM e_field_lock WHERE series_id = $1 AND field = $2',
+        [seriesId, field],
+      );
+      // Сброс — правка человека, и в истории он должен быть: по истории
+      // иначе нельзя понять, что поле возвращали к импорту (F-10-06 §4).
+      await client.query(
+        `INSERT INTO e_catalog_version (series_id, version, author_id, source, diff)
+         VALUES ($1, $2, $3, 'manual', $4)`,
+        [seriesId, current.version + 1, byId, JSON.stringify({
+          [field]: { from: before, to: cast },
+        })],
+      );
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
     await recompute(seriesId);
     return true;
   }

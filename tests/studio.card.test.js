@@ -98,6 +98,24 @@ test('поле возвращается к импортированному зн
   assert.equal(after.origins.title_ru, 'import', 'блокировка снята');
 });
 
+test('сброс поля попадает в историю карточки (F-10-06 §4)', { skip }, async () => {
+  // Сброс — правка человека: по истории должно быть видно, что поле
+  // возвращали к импорту. Раньше сброс поднимал версию, но записи в истории
+  // не оставлял, и вернуть версию после него было нечем.
+  await card.save(seriesId, { fields: { title_ru: 'Своё название' }, byId: null });
+  const before = await card.history(seriesId);
+
+  const reset = await card.resetField(seriesId, 'title_ru', null);
+  assert.equal(reset, true, 'значение возвращено');
+
+  const after = await card.history(seriesId);
+  assert.equal(after.length, before.length + 1, 'в истории появилась запись');
+  const last = after[0];
+  assert.equal(last.source, 'manual', 'запись помечена как правка человека');
+  assert.deepEqual(Object.keys(last.diff ?? {}), ['title_ru'], 'в записи — сброшенное поле');
+  assert.equal(last.diff.title_ru.to, 'Сериал для проверки', 'вернулось импортированное значение');
+});
+
 test('без жанра опубликовать нельзя, с жанром — можно (F-10-06 §4)', { skip }, async () => {
   const blocked = await card.publish(seriesId, { byId: null });
   assert.equal(blocked.ok, false);
