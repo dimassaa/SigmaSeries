@@ -202,6 +202,21 @@ test('шаг 3 рисует сетку и правило выбора', { skip }
   });
 });
 
+test('подсказка о выборе названа числами, а не плейсхолдерами', { skip }, async () => {
+  // Проверка появилась после находки в браузере: в подсказке печаталось
+  // «Отметьте {min}–{max} сериалов» — ключ звали без параметров, и
+  // подстановка не срабатывала.
+  const user = await viewer();
+  await withServer({
+    user,
+    run: async ({ get }) => {
+      const page = await (await get('/ru/register/taste')).text();
+      assert.ok(!/\{min\}|\{max\}/.test(page), 'в подсказке нет незаполненных плейсхолдеров');
+      assert.match(page, /Отметьте 3–5 сериалов/, 'границы выбора названы числами');
+    },
+  });
+});
+
 test('выбор из трёх сохраняется и ведёт на главную', { skip }, async () => {
   const user = await viewer();
   const drama = stock.drama.slice(0, 2);

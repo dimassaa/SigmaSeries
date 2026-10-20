@@ -116,7 +116,9 @@ ${steps_(locale, 3, 3)}
   ${when(reason, () => html`<p class="form__error">${t(locale, `register.step3.error.${reason}`)}</p>`)}
 </div>
 
-<p class="form__text">${t(locale, 'register.step3.lead')}</p>
+<p class="form__text">${t(locale, 'register.step3.lead', {
+    min: TASTE.MIN_CHOICE, max: TASTE.MAX_CHOICE,
+  })}</p>
 
 <form class="form" method="get" action="/${locale}/register/taste" role="search">
   <label class="visually-hidden" for="taste-q">${t(locale, 'register.step3.search')}</label>

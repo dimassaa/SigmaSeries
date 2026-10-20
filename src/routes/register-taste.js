@@ -13,7 +13,7 @@ import express from 'express';
 import { layout } from '../view/layout.js';
 import { tasteStepView } from '../view/register.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
-import { GRID_SIZE } from '../services/recommendations/taste.js';
+import { GRID_SIZE, MAX_CHOICE, MIN_CHOICE } from '../services/recommendations/taste.js';
 import { isLocale, t } from '../i18n/strings.js';
 
 const rawHtml = (page) => page.__raw;
@@ -72,7 +72,7 @@ export function createTasteRoutes({ taste, search, auth, sessionMw }) {
         locale,
         path: '/register/taste',
         title: `${t(locale, 'register.step3.title')} — ${t(locale, 'app.title')}`,
-        description: t(locale, 'register.step3.lead'),
+        description: t(locale, 'register.step3.lead', { min: MIN_CHOICE, max: MAX_CHOICE }),
         noindex: true,
         body: tasteStepView({
           locale,
