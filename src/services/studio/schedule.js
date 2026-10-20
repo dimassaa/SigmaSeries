@@ -41,8 +41,11 @@ export function pgStudioSchedule(pool) {
                 r.state, r.locked, r.covers_season
            FROM e_episode e
            LEFT JOIN LATERAL (
+             -- Выход связан с серией через таблицу e_release_episode:
+             -- колонка episode_id есть, но импорт её не заполняет (F-12-06).
              SELECT r.* FROM e_release r
-              WHERE r.episode_id = e.id
+               JOIN e_release_episode re ON re.release_id = r.id
+              WHERE re.episode_id = e.id
               ORDER BY r.release_date LIMIT 1
            ) r ON true
           WHERE e.season_id = $1
@@ -106,10 +109,13 @@ export function pgStudioSchedule(pool) {
     );
     if (!season) return { ok: false, reason: 'not_found' };
 
+    // Выход серии ищется через таблицу связей: импорт кладёт связь туда, и
+    // колонка episode_id у выхода не заполняется.
     const existing = await pool.query(
-      `SELECT id FROM e_release
-        WHERE season_id = $1 AND (episode_id = $2 OR ($2 IS NULL AND episode_id IS NULL))
-        ORDER BY release_date LIMIT 1`,
+      `SELECT r.id FROM e_release r
+         JOIN e_release_episode re ON re.release_id = r.id
+        WHERE r.season_id = $1 AND re.episode_id = $2
+        ORDER BY r.release_date LIMIT 1`,
       [seasonId, episodeId],
     );
     const row = existing.rows[0];
@@ -136,11 +142,20 @@ export function pgStudioSchedule(pool) {
         [row.id, when, time, state, time ? 'exact' : 'date'],
       );
     } else {
-      await pool.query(
-        `INSERT INTO e_release (season_id, episode_id, release_date, release_time, precision, state, locked)
-         VALUES ($1, $2, $3, $4, $5, $6, TRUE)`,
-        [seasonId, episodeId, when, time, time ? 'exact' : 'date', state],
+      // Новый выход: строка выхода и связь с серией. Связь — в своей таблице,
+      // так же, как её пишет импорт.
+      const { rows: [created] } = await pool.query(
+        `INSERT INTO e_release (season_id, release_date, release_time, precision, state, locked)
+         VALUES ($1, $2, $3, $4, $5, TRUE) RETURNING id`,
+        [seasonId, when, time, time ? 'exact' : 'date', state],
       );
+      if (episodeId !== null) {
+        await pool.query(
+          `INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)
+           ON CONFLICT DO NOTHING`,
+          [created.id, episodeId],
+        );
+      }
     }
     await refreshExitState(seriesId);
     return { ok: true };
@@ -216,9 +231,10 @@ export function pgStudioSchedule(pool) {
       for (let i = 0; i < episodes.length && i < total; i += 1) {
         const date = dates[i];
         const { rows: existing } = await client.query(
-          `SELECT id FROM e_release
-            WHERE season_id = $1 AND episode_id = $2
-            ORDER BY release_date LIMIT 1`,
+          `SELECT r.id FROM e_release r
+             JOIN e_release_episode re ON re.release_id = r.id
+            WHERE r.season_id = $1 AND re.episode_id = $2
+            ORDER BY r.release_date LIMIT 1`,
           [season.id, episodes[i].id],
         );
         if (existing.length) {
@@ -230,10 +246,15 @@ export function pgStudioSchedule(pool) {
             [existing[0].id, date, time, time ? 'exact' : 'date'],
           );
         } else {
+          const { rows: [created] } = await client.query(
+            `INSERT INTO e_release (season_id, release_date, release_time, precision, state, locked)
+             VALUES ($1, $2, $3, $4, 'scheduled', TRUE) RETURNING id`,
+            [season.id, date, time, time ? 'exact' : 'date'],
+          );
           await client.query(
-            `INSERT INTO e_release (season_id, episode_id, release_date, release_time, precision, state, locked)
-             VALUES ($1, $2, $3, $4, $5, 'scheduled', TRUE)`,
-            [season.id, episodes[i].id, date, time, time ? 'exact' : 'date'],
+            `INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)
+             ON CONFLICT DO NOTHING`,
+            [created.id, episodes[i].id],
           );
         }
         created += 1;

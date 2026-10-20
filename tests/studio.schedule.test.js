@@ -75,7 +75,9 @@ test.after(async () => {
   if (pool && seriesId) {
     // Сначала выходы, потом сезоны, потом сериал: ограничения на удаление
     // строгие, и порядок освобождения строк важен.
-    await pool.query('DELETE FROM e_release WHERE season_id = $1', [seasonId]);
+    await pool.query(
+      `DELETE FROM e_release WHERE season_id = $1`, [seasonId],
+    );
     await pool.query('DELETE FROM e_episode WHERE season_id = $1', [seasonId]);
     await pool.query('DELETE FROM e_season WHERE id = $1', [seasonId]);
     await pool.query('DELETE FROM e_series WHERE id = $1', [seriesId]);
@@ -116,8 +118,9 @@ test('генератор считает даты по дням недели с �
   assert.equal(result.created, 1, 'одна серия в сезоне получила дату');
 
   const { rows } = await pool.query(
-    `SELECT release_date::text AS day FROM e_release
-      WHERE season_id = $1 AND episode_id = $2`,
+    `SELECT r.release_date::text AS day FROM e_release r
+       JOIN e_release_episode re ON re.release_id = r.id
+      WHERE r.season_id = $1 AND re.episode_id = $2`,
     [seasonId, episodeId],
   );
   const day = rows[0].day;
