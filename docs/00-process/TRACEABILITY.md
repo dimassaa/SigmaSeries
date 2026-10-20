@@ -31,7 +31,8 @@
 | `OP-03`, оценка и агрегат | `src/services/rating/store.js`, `routes/series.js`, `routes/season.js` | 15 (`tests/rating.store.test.js`) + 8 (`tests/http.rating.test.js`) + 10 (`tests/http.rating.episode.test.js`) | **ПРОВЕРЕНО** |
 | `OP-03`, среднее по сайту и гистограмма | `src/services/rating/store.js` (`refreshSiteAverage`), `src/view/rating.js`, `src/routes/series.js` (JSON-LD) | 3 (`tests/rating.store.test.js`: формула 7,5, среднее сайта, исключение бана) + 3 (`tests/http.rating.test.js`: состояния, гистограмма, разметка) | **ПРОВЕРЕНО** |
 | `OP-01`, отзыв: форма и публикация | `src/services/reviews/store.js`, `src/view/reviews.js`, `src/routes/series.js` | 22 (`tests/reviews.store.test.js`) + 15 (`tests/http.reviews.test.js`) | **ПРОВЕРЕНО** |
-| `OP-02`, `OP-04` | антиспам (M5), классификация и группы отзывов (M4) | — | **СПЕЦИФИЦИРОВАНО** |
+| `OP-02` | антиспам (M5) | — | **СПЕЦИФИЦИРОВАНО** |
+| `OP-04`, группы и списки отзывов | `src/services/rating/group.js`, `src/services/reviews/list.js`, `src/view/reviewList.js`, `src/routes/series.js` | 4 (`tests/rating.group.test.js`) + 13 (`tests/reviews.list.test.js`) + 10 (`tests/http.reviews.list.test.js`) | **ПРОВЕРЕНО** |
 | `OP-05`, `OP-11`, `OP-12`, `OP-14`, `OP-15`, `OP-18` | баннеры дня, рекомендации, итоги, онлайн, агрегация аналитики, подборки по правилам — все P1 | — | **СПЕЦИФИЦИРОВАНО** |
 
 Три строки без номера `OP-xx` закрывают требования Бланка, а не операции:
@@ -40,9 +41,8 @@
 (`src/services/audit/log.js`, R-SEC-29 и R-SEC-33) — все три **ПРОВЕРЕНО**.
 
 Операций семнадцать (`OP-13` снят решением DEC-024, идентификатор не
-переиспользуется). Девять из них **ПРОВЕРЕНО**, восемь остаются в статусе
-**СПЕЦИФИЦИРОВАНО**: два P0 ждут продолжения — OP-02 (антиспам, M5) и OP-04
-(классификация отзывов, M4; форма и публикация уже построены, строка выше),
+переиспользуется). Десять из них **ПРОВЕРЕНО**, семь остаются в статусе
+**СПЕЦИФИЦИРОВАНО**: один P0 ждёт продолжения — OP-02 (антиспам, M5);
 шесть P1 — своих модулей.
 
 ## 2. Требования Бланка → где реализуется
