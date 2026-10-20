@@ -16,7 +16,8 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { safeReturnTo } from '../services/auth/login.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
-import { HOUR, REVIEW } from '../config/settings.js';
+import { HOUR, DAY, REVIEW } from '../config/settings.js';
+import { REPORT_CODES } from '../services/reviews/reports.js';
 import { cooldownLeft, REASONS } from '../services/reviews/store.js';
 import { checkMaterial } from '../services/moderation/check.js';
 
@@ -58,6 +59,8 @@ export function createSeriesRoutes({
   reviewList = null,
   votes = null,
   helpfulLimiter = null,
+  reports = null,
+  reportLimiter = null,
   dictionary = null,
   reviewIpLimiter = null,
   reviewDeviceLimiter = null,
@@ -146,6 +149,9 @@ export function createSeriesRoutes({
     const voteState = votes ? await voteStateFor({
       votes, user, session, items: top, locale, slug, back: `/${locale}/series/${slug}`,
     }) : null;
+    const reportState = reports ? reportStateFor({
+      req, locale, slug, back: `/${locale}/series/${slug}`, user, session,
+    }) : null;
 
     return layout({
       account: req.account,
@@ -165,6 +171,7 @@ export function createSeriesRoutes({
         reviewBlock: review,
         reviewTop: top,
         votesById: voteState,
+        report: top.length > 0 ? reportState : null,
         notice: String(req.query.subs ?? '') || null,
         timezone: timezoneOf(req),
       }),
@@ -264,10 +271,12 @@ export function createSeriesRoutes({
         const summary = await ratings.summary(found.id);
         const ownRating = user ? await ratings.ownRating(user.id, found.id) : null;
         const action = await reviewActionFor({ reviews, user, seriesId: found.id, locale, slug });
+        const back = reviewsHref(locale, slug, { ...page.applied, page: page.page });
         const voteState = await voteStateFor({
           votes, user, session, items: page.items, locale, slug,
-          back: reviewsHref(locale, slug, { ...page.applied, page: page.page }),
+          back,
         });
+        const reportState = reports ? reportStateFor({ req, locale, slug, back, user, session }) : null;
 
         // Индексируется только первая страница с фильтрами и сортировкой по
         // умолчанию (M4 §8г); EN-страница без русского описания не индексируется
@@ -292,6 +301,7 @@ export function createSeriesRoutes({
             timezone: timezoneOf(req),
             page,
             votesById: voteState,
+            report: reportState,
           }),
         })));
       } catch (error) {
@@ -586,6 +596,85 @@ export function createSeriesRoutes({
     });
   }
 
+  /**
+   * Жалоба на отзыв (F-04-07).
+   *
+   * Права проверяет сервис: меню — удобство, а не защита (M4 §15-11).
+   * Форма работает и без скрипта: состояния («отправлено», «уже подано»)
+   * и ошибки полей приходят адресом возврата, где диалог открывается
+   * на месте — человеку не показывается текстовая страница ради ошибки
+   * в одном поле. Скрипт берёт JSON: 200 при успехе, 409 «уже подано»,
+   * 400 с названной ошибкой поля.
+   */
+  if (reports) {
+    router.post('/:locale/series/:slug/reviews/:reviewId/report', async (req, res, next) => {
+      const { locale, slug, reviewId } = req.params;
+      if (!isLocale(locale)) return next('route');
+
+      const user = req.session?.user ?? null;
+      if (!user) {
+        return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(safeReturnTo(req.body?.back))}`);
+      }
+      if (!csrfValid(req.session, req.body?.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'review.error.csrf'));
+      }
+      // Потолок — сутки на аккаунт (M4 §0): жалоба — решение, а не поток.
+      // Отсекает запись, но не портит её: спрос спрашивается раньше правды.
+      if (reportLimiter && !reportLimiter.allow(String(user.id))) {
+        return res.status(429)
+          .set('Retry-After', String(Math.ceil((reportLimiter.windowMs ?? DAY) / 1000)))
+          .type('text/plain; charset=utf-8')
+          .send(t(locale, 'review.error.rate'));
+      }
+
+      const reason = String(req.body?.reason ?? '');
+      // Хвост длиннее 400 знаков всё равно сверх лимита: срез защищает адрес
+      // возврата от гигантских тел, не меняя вердикт проверки.
+      const comment = String(req.body?.comment ?? '').slice(0, 400).trim();
+      const materialId = voteNumber(reviewId);
+      if (materialId === null) {
+        return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.report.missing'));
+      }
+      const back = safeReturnTo(req.body?.back) ?? `/${locale}`;
+      const withState = (marker) => `${back}${back.includes('?') ? '&' : '?'}${marker}`;
+      const wantsJson = req.accepts(['html', 'json']) === 'json';
+
+      if (!REPORT_CODES.includes(reason)) {
+        if (wantsJson) return res.status(400).json({ error: 'reason' });
+        return res.redirect(303, withState(`report=${materialId}&err=reason&c=${encodeURIComponent(comment)}`));
+      }
+      if (comment.length > REVIEW.reportCommentMax) {
+        if (wantsJson) return res.status(400).json({ error: 'comment' });
+        return res.redirect(303, withState(`report=${materialId}&err=comment&c=${encodeURIComponent(comment)}`));
+      }
+
+      try {
+        // Соседи проверяют сериал с адреса раньше сервиса: отзыв чужой
+        // витрины из адреса обязан называться 404, как и у голоса.
+        const header = await series.lite(slug);
+        if (!header) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.error.missing'));
+
+        const result = await reports.submit({
+          userId: user.id, materialId, seriesId: header.id, reason, comment,
+        });
+        if (!result.ok) {
+          if (result.reason === 'already') {
+            if (wantsJson) return res.status(409).json({ already: true });
+            return res.redirect(303, withState(`reported=${materialId}&again=1`));
+          }
+          const missing = result.reason === 'missing' || result.reason === 'kind';
+          return res.status(missing ? 404 : 403)
+            .type('text/plain; charset=utf-8')
+            .send(t(locale, missing ? 'review.report.missing' : `review.report.${result.reason ?? ''}`));
+        }
+        if (wantsJson) return res.status(200).json({ reported: true });
+        return res.redirect(303, withState(`reported=${materialId}`));
+      } catch (error) {
+        return next(error);
+      }
+    });
+  }
+
   return router;
 }
 
@@ -836,4 +925,65 @@ async function voteStateFor({ votes, user, session, items, locale, slug, back })
 function voteNumber(value) {
   const parsed = Number(value);
   return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
+}
+
+/**
+ * Состояние жалобы для страниц S-06 и S-09 (F-04-07 §6).
+ *
+ * Диалог открывается состоянием адреса (`?report=`, `?reported=`): форма
+ * работает без скрипта, а скрипту адрес не нужён — он открывает нативный
+ * диалог по пункту меню. Мусор в состоянии (не число, неизвестная ошибка)
+ * молча игнорируется тем же правилом, что фильтры F-04-05 §8: адрес
+ * собирают руками, и «`?report=zzz`» — закрытый диалог, а не 400.
+ *
+ * Право показывается, но не проверяется здесь: сервис пересчитает всё
+ * сам на отправке (M4 §15-11), а меню — удобство, не защита.
+ *
+ * @param {object} args
+ * @param {object} args.req
+ * @param {string} args.locale
+ * @param {string} args.slug
+ * @param {string} args.back полный адрес страницы, с фильтрами
+ * @param {object|null} args.user сессия пользователя
+ * @param {object|null} args.session
+ * @returns {object|null} null — жалобы на странице быть не должно
+ */
+function reportStateFor({ req, locale, slug, back, user, session }) {
+  const refNumber = voteNumber;
+  let dialog = null;
+  const reportRef = refNumber(req.query.report);
+  const sentRef = refNumber(req.query.reported);
+  if (reportRef !== null) {
+    const err = req.query.err === 'reason' || req.query.err === 'comment' ? req.query.err : null;
+    dialog = { mode: 'form', ref: reportRef, err, comment: String(req.query.c ?? '').slice(0, 400) };
+  } else if (sentRef !== null) {
+    // Повтор подачи приходит с тем же маркером «отправлено» и пометкой
+    // again: одна точка возврата, два состояния диалога (EC-V16).
+    dialog = { mode: req.query.again ? 'already' : 'sent', ref: sentRef, err: null, comment: '' };
+  }
+
+  if (!user) {
+    return {
+      userId: null,
+      confirmed: false,
+      slug,
+      back,
+      signInHref: `/${locale}/login?next=${encodeURIComponent(back)}`,
+      csrf: '',
+      reasons: [...REPORT_CODES],
+      // Состояние гостю не рисуется: его путь — вход, форма придёт после
+      // входа; POST и так уводит на вход (стадия C).
+      dialog: null,
+    };
+  }
+  return {
+    userId: Number(user.id),
+    confirmed: Boolean(user.confirmed),
+    slug,
+    back,
+    signInHref: null,
+    csrf: csrfToken(session ?? req.session),
+    reasons: [...REPORT_CODES],
+    dialog,
+  };
 }

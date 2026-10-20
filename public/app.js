@@ -663,6 +663,99 @@
     }
   }
 
+  /**
+   * Жалоба на отзыв (F-04-07).
+   *
+   * Работает поверх серверного сценария: без скрипта диалог открывается
+   * состоянием адреса и отправляется обычным POST. Со скриптом пункт меню
+   * открывает нативный диалог на месте, отправка идёт fetch-ом, и ответы
+   * («отправлено», «уже подано», ошибка поля) рисуются внутри диалога.
+   * Ответы прочих статусов (403, 404, 429) не переводятся скриптом —
+   * обычная отправка покажет страницу с причиной, как у голоса.
+   */
+  function initReviewReports() {
+    var dialog = document.getElementById('review-report');
+    var form = dialog ? dialog.querySelector('form[data-review-report]') : null;
+    if (!dialog || !form) return;
+
+    document.querySelectorAll('a[data-report-open]').forEach(function (link) {
+      link.addEventListener('click', function (event) {
+        event.preventDefault();
+        // Адрес действия подставляет пункт меню: диалог один, отзывов много.
+        var action = link.getAttribute('data-report-action');
+        if (action) form.setAttribute('action', action);
+        // Прошлые вводы не чужой сессии: каждое открытие начинается с чистой.
+        form.reset();
+        if (!dialog.open) dialog.showModal();
+      });
+    });
+
+    document.querySelectorAll('[data-review-close]').forEach(function (button) {
+      button.addEventListener('click', function () { dialog.close(); });
+    });
+
+    form.addEventListener('submit', function (event) {
+      event.preventDefault();
+      fetch(form.getAttribute('action') || form.action, {
+        method: 'POST',
+        body: new FormData(form),
+        credentials: 'same-origin',
+        headers: { Accept: 'application/json' },
+      })
+        .then(function (res) {
+          if (res.status === 200) { showDone(dialog.dataset.sentText); return null; }
+          if (res.status === 409) { showDone(dialog.dataset.alreadyText); return null; }
+          if (res.status === 400) return res.json();
+          throw new Error('not-expected:' + res.status);
+        })
+        .then(function (data) {
+          if (!data) return;
+          // Ошибка поля названа текстом от сервера: строки для клиента
+          // собирает разметка, скрипт ничего не переводит сам.
+          var why = data.error === 'comment'
+            ? form.getAttribute('data-error-comment')
+            : form.getAttribute('data-error-reason');
+          showError(why);
+        })
+        .catch(function () { form.submit(); });
+    });
+
+    function showResult(text, kind) {
+      var body = dialog.querySelector('.reviews__report-body');
+      if (!body) { dialog.close(); return; }
+      var label = document.createElement('p');
+      label.className = kind;
+      label.textContent = text;
+      var actions = document.createElement('p');
+      actions.className = 'reviews__report-actions';
+      var close = document.createElement('button');
+      close.type = 'button';
+      close.className = 'button button--quiet';
+      close.setAttribute('data-review-close', '');
+      close.textContent = dialog.dataset.closeLabel;
+      close.addEventListener('click', function () { dialog.close(); });
+      actions.appendChild(close);
+      body.replaceChildren(label, actions);
+      // Фокус на результат: чтение ответа не требует обхода вкладкой заново.
+      label.setAttribute('tabindex', '-1');
+      label.focus();
+    }
+
+    function showDone(text) { showResult(text, 'reviews__report-done'); }
+
+    function showError(text) {
+      var old = document.getElementById('review-report-err');
+      if (old) old.remove();
+      var label = document.createElement('p');
+      label.className = 'reviews__report-err';
+      label.id = 'review-report-err';
+      label.setAttribute('role', 'alert');
+      label.textContent = text;
+      form.setAttribute('aria-describedby', 'review-report-err');
+      form.insertBefore(label, form.firstChild);
+    }
+  }
+
   /** Письменность текста: кириллицы не меньше латиницы — русский (R-I18N-08). */
   function scriptLang(text) {
     var cyrillic = 0;
@@ -777,6 +870,7 @@
     initReviews();
     initReviewFilters();
     initReviewVotes();
+    initReviewReports();
     initConfirmations();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {

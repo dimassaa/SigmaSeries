@@ -70,7 +70,7 @@ test('схема содержит все таблицы, названные в D
   for (const t of [
     'e_user', 'e_session', 'e_role_assignment', 'e_restriction', 'e_audit_log',
     'e_series', 'e_season', 'e_episode', 'e_release', 'e_genre', 'e_image',
-    'e_image_variant', 'e_material', 'e_rating', 'e_helpful_vote',
+    'e_image_variant', 'e_material', 'e_rating', 'e_helpful_vote', 'e_report',
     'e_watch_mark', 'e_watch_status', 'e_notification', 'e_dictionary_word',
     'e_backup_job', 'e_audit_log', 'e_auth_token', 'e_consent',
   ]) {

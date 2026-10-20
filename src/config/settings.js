@@ -220,6 +220,11 @@ export const REVIEW = {
   readMoreChars: 600,
   /** `review.helpful_rate_per_hour` — голосов «Полезно» в час (F-04-06 §9). */
   helpfulRatePerHour: 60,
+  /** `review.report_rate_per_day` — жалоб в сутки на аккаунт (F-04-07 §9). */
+  reportRatePerDay: 20,
+  /** F-04-07 §4: комментарий к жалобе — до 300 знаков. Ключа в таблице
+   * настроек M4 нет, число берётся из фичи — отмечено в находках. */
+  reportCommentMax: 300,
   /** `review.short_max_chars` — короче — «Короткие» (DEC-015). */
   shortMaxChars: 300,
   /** `review.long_min_chars` — от этого числа — «Длинные» (DEC-015). */
@@ -232,6 +237,9 @@ export const MODERATION = {
   /** R-MOD-10: аккаунт младше суток — 3 в час. */
   materialsPerHourYoung: 3,
   youngAccountH: 24,
+  /** R-MOD-16: столько разных пользователей должны пожаловаться, чтобы
+   * материал скрылся до решения редактора (MODERATION §3 «Порог жалоб»). */
+  reportHideThreshold: 3,
   /**
    * R-MOD-10: отдельные потолки по IP и устройству. В документах чисел нет —
    * это стартовые значения, согласованные с автором (H-24, находка #151).

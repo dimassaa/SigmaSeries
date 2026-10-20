@@ -23,6 +23,7 @@ import { pgRatings } from '../src/services/rating/store.js';
 import { pgReviews } from '../src/services/reviews/store.js';
 import { pgReviewList } from '../src/services/reviews/list.js';
 import { pgReviewVotes } from '../src/services/reviews/votes.js';
+import { pgReviewReports } from '../src/services/reviews/reports.js';
 
 process.env.BLIND_INDEX_SECRET ??= 'test-blind-index-secret';
 process.env.ADDRESS_SECRET ??= 'test-address-secret';
@@ -196,6 +197,7 @@ async function withServer({ user = null, run }) {
     reviews: pgReviews(counting),
     reviewList: pgReviewList(counting),
     votes: pgReviewVotes(counting),
+    reports: pgReviewReports(counting),
     dictionary: { load: async () => CLEAN },
     sessionMw: createSessionMiddleware(pool, createMemorySessionStore(), {
       account: async (u) => ({ nickname: u.nickname, unread: 0, pollSeconds: 0 }),
@@ -691,6 +693,159 @@ test('S-06: у «Лучших» гостю тоже счётчик с «Войд
       assert.match(top, /href="\/ru\/login\?next=%2Fru%2Fseries%2F[^"]*"/,
         'возврат — на страницу сериала, не на список');
       assert.ok(!top.includes('data-review-vote'), 'формы у гостя нет');
+    },
+  });
+});
+
+test('жалоба: меню «Пожаловаться» у чужих карточек, у своего — нет (F-04-07 §3)', { skip }, async () => {
+  const series = await seriesWith(47);
+  const author = await viewer();
+  const reader = await viewer();
+  await write({ user: author, series, text: 'Отзыв автора, на который можно пожаловаться' });
+  await write({ user: reader, series, text: 'Отзыв читателя со своим меню жалобы' });
+  const authorReviewId = await materialId(author, series);
+  const readerReviewId = await materialId(reader, series);
+
+  await withServer({
+    user: reader,
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}/reviews`);
+      const cards = cardsOf(html);
+      const foreign = cards.find((card) => card.id === authorReviewId);
+      const own = cards.find((card) => card.id === readerReviewId);
+      assert.notEqual(foreign, undefined, 'чужая карточка на месте');
+      assert.match(foreign.html, /reviews__menu/);
+      assert.match(foreign.html, /Пожаловаться/);
+      assert.match(foreign.html, new RegExp(`report=${authorReviewId}#review-report`),
+        'пункт ведёт в состояние адреса, читаемый и без скрипта');
+      assert.notEqual(own, undefined, 'своя карточка на месте');
+      assert.ok(!own.html.includes('reviews__menu'),
+        'у собственного отзыва пункта нет («не на свой отзыв», §2)');
+      assert.equal(cards.length, 2, 'меню не ломает счётчик карточек и data-review-id');
+    },
+  });
+});
+
+test('жалоба гостю: пункт ведёт на вход, диалога в разметке нет', { skip }, async () => {
+  const series = await seriesWith(48);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Отзыв, на который гость пожалуется после входа' });
+
+  await withServer({
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}/reviews`);
+      const card = cardsOf(html)[0];
+      assert.match(card.html, /reviews__menu/);
+      assert.match(card.html, /href="\/ru\/login\?next=[^"]*"/, '§5: меню гостя — на вход');
+      assert.ok(!html.includes('reviews__report'), 'диалога у гостя нет: вход раньше формы');
+    },
+  });
+});
+
+test('диалог жалобы: причина из списка, csrf и возврат скрыты, комментарий до 300', { skip }, async () => {
+  const series = await seriesWith(49);
+  const author = await viewer();
+  const reader = await viewer();
+  await write({ user: author, series, text: 'Отзыв под жалобу в диалоге' });
+  const reviewId = await materialId(author, series);
+
+  await withServer({
+    user: reader,
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}/reviews?report=${reviewId}`);
+      assert.match(html, /<dialog class="reviews__report"[^>]*open/, 'состояние адреса открывает диалог и без скрипта');
+      assert.match(html, new RegExp(`action="/ru/series/${series.slug}/reviews/${reviewId}/report"`),
+        'действие формы — маршрут жалобы');
+      assert.match(html, /name="csrf"/);
+      assert.match(html, /name="back"/);
+      assert.equal((html.match(/name="reason"/g) ?? []).length, 5, 'причин пять (F-04-07 §4)');
+      for (const code of ['spam', 'harassment', 'spoiler', 'offtopic', 'other']) {
+        assert.match(html, new RegExp(`value="${code}"`), `причина ${code} в списке`);
+      }
+      assert.match(html, /maxlength="300"/);
+    },
+  });
+});
+
+test('ошибка формы возвращается в диалог: текст назван, текст комментария с собой', { skip }, async () => {
+  const series = await seriesWith(50);
+  const author = await viewer();
+  const reader = await viewer();
+  await write({ user: author, series, text: 'Отзыв под ошибку формы жалобы' });
+  const reviewId = await materialId(author, series);
+
+  await withServer({
+    user: reader,
+    run: async ({ get }) => {
+      const res = await get(`/ru/series/${series.slug}/reviews?report=${reviewId}&err=reason&c=${encodeURIComponent('текст с собой')}`);
+      assert.equal(res.status, 200, 'мусорную ошибку сервер перепишет, страницу не ломает');
+      const html = await res.text();
+      assert.match(html, /Выберите причину из списка\./);
+      assert.match(html, /id="review-report-err"/);
+      assert.match(html, /aria-describedby="review-report-err"/, 'ошибка связана с формой (R-A11Y-11)');
+      assert.match(html, /текст с собой/, 'введённое не теряется при возврате в диалог');
+    },
+  });
+});
+
+test('состояния ответа: «Спасибо, мы проверим» и «уже подано» вместо формы', { skip }, async () => {
+  const series = await seriesWith(51);
+  const author = await viewer();
+  const reader = await viewer();
+  await write({ user: author, series, text: 'Отзыв под состояние отправленной жалобы' });
+  const reviewId = await materialId(author, series);
+
+  await withServer({
+    user: reader,
+    run: async ({ htmlGet }) => {
+      const sent = await htmlGet(`/ru/series/${series.slug}/reviews?reported=${reviewId}`);
+      assert.match(sent, /Спасибо, мы проверим\./);
+      assert.ok(!sent.includes('data-review-report'), 'формы в состоянии «отправлено» нет');
+
+      const again = await htmlGet(`/ru/series/${series.slug}/reviews?reported=${reviewId}&again=1`);
+      assert.match(again, /Вы уже пожаловались\./, 'EC-V16 повтор — вежливое состояние');
+    },
+  });
+});
+
+test('у мусорного состояния диалог закрыт, а у гостя разметки диалога нет вовсе', { skip }, async () => {
+  const series = await seriesWith(52);
+  const author = await viewer();
+  const reader = await viewer();
+  await write({ user: author, series, text: 'Отзыв под закрытый список состояний' });
+
+  await withServer({
+    user: reader,
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}/reviews?report=не-число&err=zzz`);
+      assert.ok(!/<dialog class="reviews__report"[^>]*open/.test(html),
+        'мусор в адресе не открывает диалог (правило фильтров F-04-05 §8)');
+    },
+  });
+
+  await withServer({
+    run: async ({ htmlGet }) => {
+      const welcome = await htmlGet(`/ru/series/${series.slug}/reviews?report=999`);
+      assert.ok(!welcome.includes('reviews__report'), 'гостю диалог не рисуется');
+    },
+  });
+});
+
+test('S-06: у «Лучших» меню жалобы и тот же диалог на странице сериала', { skip }, async () => {
+  const series = await seriesWith(53);
+  const author = await viewer();
+  const reader = await viewer();
+  await write({ user: author, series, text: 'Лучший отзыв с меню жалобы на странице сериала' });
+  const reviewId = await materialId(author, series);
+
+  await withServer({
+    user: reader,
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}?report=${reviewId}`);
+      const top = sectionOf(html, 'reviews-top');
+      assert.match(top, /reviews__menu/, 'меню на карточке «Лучших»');
+      assert.match(top, /<dialog class="reviews__report"[^>]*open/, 'диалог общий и для S-06');
+      assert.match(top, new RegExp(`action="/ru/series/${series.slug}/reviews/${reviewId}/report"`));
     },
   });
 });

@@ -3,7 +3,7 @@
    Источник: src/styles/*.css, порядок по имени файла.
    Сборка:   node tools/build-css.mjs
    Проверка: npm run css:check
-   Частей: 16
+   Частей: 17
 */
 
 /* ─── 00-tokens.css ─── */
@@ -3440,4 +3440,180 @@ a:hover { color: var(--accent-hover); }
 
 @media (prefers-reduced-motion: reduce) {
   .reviews__vote-button { transition: none; }
+}
+
+/* ─── 55-review-report.css ─── */
+/* --- Жалоба на отзыв (F-04-07) -------------------------------------------
+ *
+ * Меню «⋯» в футере карточки и один диалог на страницу: причина из списка
+ * и необязательный комментарий. Диалог — тот же нативный `<dialog>`, что
+ * у отзыва (52-reviews): работает без скрипта через состояние адреса,
+ * скрипт лишь открывает с места (см. `public/app.js`).
+ *
+ * Цвета и отступы — только токены (PRINCIPLES §1); движется только то,
+ * что можно (`transform`, `opacity`). Два размытых слоя на экран не
+ * превышаются: у диалога стекло нет — подложка затемнена, не размыта.
+ *
+ * Пункт меню — цель касания 44 px и видимый фокус; состояние `details`
+ * открыто/закрыт дублируется разворотом списка целиком, цвет не
+ * единственный носитель (R-A11Y-19).
+ */
+
+/* ─── Меню «⋯» в футере карточки ────────────────────────────────────────── */
+
+.reviews__menu {
+  position: relative;
+  margin-inline-start: auto;
+}
+
+.reviews__menu-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-inline-size: 44px;
+  min-block-size: 44px;
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  font-size: var(--text-lg);
+  line-height: 1;
+  cursor: pointer;
+  /* Хвост снимает у summary встроенный маркер раскрытия: состояние
+     выдаёт сам popup, маркер дублировал бы его. */
+  list-style: none;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.reviews__menu-toggle::-webkit-details-marker { display: none; }
+
+.reviews__menu-toggle:hover,
+.reviews__menu[open] .reviews__menu-toggle { background: var(--surface-hover); }
+
+.reviews__menu-pop {
+  position: absolute;
+  inset-block-end: calc(100% + 4px);
+  inset-inline-end: 0;
+  z-index: 10;
+  min-inline-size: 180px;
+  padding: var(--space-1);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+  /* Тени-токенов нет: выпадающие Popup соседних частей (47, 51)
+     рисуют ее значением напрямую — тем же правилом. */
+  box-shadow: 0 8px 24px rgb(0 0 0 / 0.24);
+}
+
+.reviews__menu-item {
+  display: block;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.reviews__menu-item:hover { background: var(--surface-hover); }
+
+/* ─── Диалог жалобы ─────────────────────────────────────────────────────── */
+
+.reviews__report {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+  width: min(480px, calc(100vw - 32px));
+  max-height: min(80vh, 720px);
+  padding: 0;
+  overflow: auto;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+}
+
+/* Сервер открывает диалог атрибутом `open` (состояние адреса), но после
+   сброса стилей `display` у закрытого диалога обязан остаться `none`,
+   а у открытого — блок. */
+.reviews__report[open] { display: block; }
+
+.reviews__report:not([open]) { display: none; }
+
+.reviews__report::backdrop { background: rgb(0 0 0 / 0.55); }
+
+.reviews__report-body { padding: var(--space-5); }
+
+.reviews__report-title {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-lg);
+}
+
+.reviews__report-form {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.reviews__report-reasons {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.reviews__report-legend {
+  display: block;
+  margin-block-end: var(--space-2);
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.reviews__report-reason {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-block-size: 44px;
+  cursor: pointer;
+}
+
+.reviews__report-comment-label {
+  margin-block-start: var(--space-2);
+  font-weight: 600;
+}
+
+.reviews__report-text {
+  min-block-size: 88px;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font: inherit;
+  resize: vertical;
+}
+
+.reviews__report-hint {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+/* Ошибка поля названа текстом и объявляется `role="alert"`; цвет — не
+   единственный носитель (R-A11Y-19). */
+.reviews__report-err {
+  margin: 0;
+  color: var(--danger);
+  font-size: var(--text-sm);
+  font-weight: 600;
+}
+
+.reviews__report-done {
+  margin: 0 0 var(--space-4);
+  font-size: var(--text-base);
+  color: var(--text-primary);
+}
+
+.reviews__report-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
 }

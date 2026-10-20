@@ -29,6 +29,7 @@ import { pgRatings } from './services/rating/store.js';
 import { pgReviews } from './services/reviews/store.js';
 import { pgReviewList } from './services/reviews/list.js';
 import { pgReviewVotes } from './services/reviews/votes.js';
+import { pgReviewReports } from './services/reviews/reports.js';
 import { pgDictionary } from './services/moderation/dictionary.js';
 import { pgBackupJobs } from './services/backup/store.js';
 import { pgTaste } from './services/recommendations/taste.js';
@@ -46,7 +47,7 @@ import { createImportStore } from './services/import/store.js';
 import { createScheduler } from './services/import/scheduler.js';
 import { createImportTasks } from './services/import/tasks.js';
 import { createTmdbClient } from './services/import/tmdb.js';
-import { MAIL_SETTINGS, RATING, MODERATION, REVIEW, HOUR } from './config/settings.js';
+import { MAIL_SETTINGS, RATING, MODERATION, REVIEW, HOUR, DAY } from './config/settings.js';
 import cron from 'node-cron';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -198,6 +199,10 @@ const app = createApp({
   // есть владелец, сети и устройство не ограничиваются.
   votes: pgReviewVotes(pool),
   helpfulLimiter: createRateLimiter({ limit: REVIEW.helpfulRatePerHour, windowMs: HOUR }),
+  // Жалобы на отзывы (F-04-07). Потолок — сутки на аккаунт (M4 §0):
+  // жалоба — решение, а не привычка; окно шире, чем у голоса.
+  reports: pgReviewReports(pool),
+  reportLimiter: createRateLimiter({ limit: REVIEW.reportRatePerDay, windowMs: DAY }),
   dictionary: pgDictionary(pool),
   reviewIpLimiter: createRateLimiter({ limit: MODERATION.materialsPerHourIp, windowMs: HOUR }),
   reviewDeviceLimiter: createRateLimiter({ limit: MODERATION.materialsPerHourDevice, windowMs: HOUR }),

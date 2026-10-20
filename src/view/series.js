@@ -52,6 +52,7 @@ function yearRange(series) {
 export function seriesView({
   locale, series, status = null, progress = null, subscribe = null, ratingBlock = null,
   reviewBlock = null, reviewTop = null, votesById = null, notice = null, timezone = null,
+  report = null,
 }) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
@@ -178,7 +179,7 @@ export function seriesView({
 
   ${when(reviewBlock, () => reviewSection({ locale, slug: series.slug, timezone, ...reviewBlock }))}
 
-  ${when(reviewTop?.length > 0, () => topReviews({ locale, series, items: reviewTop, timezone, votesById }))}
+  ${when(reviewTop?.length > 0, () => topReviews({ locale, series, items: reviewTop, timezone, votesById, report }))}
 </article>`;
 }
 

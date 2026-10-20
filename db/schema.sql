@@ -776,6 +776,24 @@ CREATE TABLE e_helpful_vote (
 );
 CREATE INDEX ix_helpful_material ON e_helpful_vote (material_id);
 
+-- ---------- Жалоба на отзыв ----------
+
+-- Пара пользователь–материал уникальна и первичным ключом: повторная жалоба
+-- того же человека — «Уже пожаловались» (EC-V16), не вторая строка. Состояние
+-- принадлежит редакторской очереди M5 (F-05-05): жалобу читает решение, не
+-- подача. УДАЛЕНИЕ: жалоба — пометка читателя к материалу и человеку;
+-- исчезновение одной из сторон делает её бессмысленной.
+CREATE TABLE e_report (
+  user_id     BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  material_id BIGINT NOT NULL REFERENCES e_material(id) ON DELETE CASCADE,
+  reason      TEXT   NOT NULL CHECK (reason IN ('spam','harassment','spoiler','offtopic','other')),
+  comment     TEXT   NOT NULL DEFAULT '',
+  state       TEXT   NOT NULL DEFAULT 'open' CHECK (state IN ('open','resolved')),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, material_id)
+);
+CREATE INDEX ix_report_material ON e_report (material_id);
+
 -- ---------- Сессии ----------
 -- Таблица для connect-pg-simple. Схема Store, а не наша: менять её нельзя,
 -- пока установлена эта библиотека, иначе сессии перестанут читаться.
