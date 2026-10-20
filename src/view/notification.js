@@ -51,6 +51,15 @@ export function notificationText(locale, row) {
   };
 
   switch (row.kind) {
+    case 'rating_anomaly':
+      return {
+        title: t(locale, 'notify.rating_anomaly.title'),
+        body: t(locale, 'notify.rating_anomaly.body', {
+          series: params.seriesTitle ?? params.seriesSlug ?? '',
+          count: params.countWindow ?? 0,
+          share: params.extremeShare ?? 100,
+        }),
+      };
     case 'release_changed':
       return {
         title: t(locale, 'notify.release_changed.title'),

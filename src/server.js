@@ -26,6 +26,8 @@ import { pgSubscriptions } from './services/tracking/subscription.js';
 import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
+import { pgAnomalySensor } from './services/rating/anomalies.js';
+import { pgAuditLog } from './services/audit/log.js';
 import { pgReviews } from './services/reviews/store.js';
 import { pgReviewList } from './services/reviews/list.js';
 import { pgReviewVotes } from './services/reviews/votes.js';
@@ -151,6 +153,10 @@ sweepNotifications();
 // проходе, а не в следующем. Таймер один, а не два: место, где об этом
 // забывают, должно быть одно.
 const ratings = pgRatings(pool);
+// Датчик аномалий работает с тем же хранилищем оценок, что и показ:
+// снимок заморозки обязан читаться без пересчётов (F-04-08).
+const anomalies = pgAnomalySensor({ pool, ratings });
+const audit = pgAuditLog(pool);
 
 const countMatured = () => ratings.countMaturedRatings(new Date())
   .then((count) => {
@@ -178,6 +184,8 @@ const app = createApp({
   catalogue: pgCatalogueList(pool),
   search: pgSearch(pool),
   searchRatePerIp,
+  anomalies,
+  audit,
   seasons: pgSeasons(pool),
   collections: pgCollections(pool),
   person: pgPerson(pool),

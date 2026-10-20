@@ -57,10 +57,11 @@ export function pgAnomalySensor({ pool, ratings }) {
             AND r.created_at >= $6 AND r.created_at < $4
           GROUP BY r.series_id
        )
-       SELECT s.series_id, s.count_window, s.count_extreme,
+       SELECT s.series_id, s.count_window, s.count_extreme, es.title_ru, es.slug,
               coalesce(b.count_baseline, 0) AS count_baseline
          FROM recent s
          LEFT JOIN baseline b ON b.series_id = s.series_id
+         LEFT JOIN e_series es ON es.id = s.series_id
         WHERE NOT EXISTS (
               SELECT 1 FROM e_rating_anomaly a
                WHERE a.series_id = s.series_id AND a.state = 'open')
@@ -94,7 +95,7 @@ export function pgAnomalySensor({ pool, ratings }) {
           JSON.stringify({ summary: freezeSummary(summary) }),
         ],
       );
-      await notifyAdmins({ pool, anomaly, at });
+      await notifyAdmins({ pool, anomaly, at, row });
     }
     return candidates.length;
   }
@@ -247,7 +248,12 @@ function freezeSummary(summary) {
 }
 
 /** Служебное уведомление каждому активному админу (M3, kind `rating_anomaly`). */
-async function notifyAdmins({ pool, anomaly, at }) {
+async function notifyAdmins({ pool, anomaly, at, row }) {
+  // Пары вида «серия → аномалия» собираются при срабатывании: админ должен
+  // прочитать уведомление без захода в базу, и re-look тут был бы заходом.
+  const share = Math.round(
+    (row.count_extreme * 100.0 / Math.max(1, row.count_window)) * 10,
+  ) / 10;
   await pool.query(
     `INSERT INTO e_notification (user_id, kind, category, params, dedup_key)
      SELECT u.id, 'rating_anomaly', 'service', $1, $2
@@ -260,6 +266,10 @@ async function notifyAdmins({ pool, anomaly, at }) {
       JSON.stringify({
         anomaly_id: anomaly.id,
         created_at: toTimestamp(anomaly.created),
+        series_title: row.title_ru,
+        series_slug: row.slug,
+        count_window: row.count_window,
+        extreme_share: share,
       }),
       `rating-anomaly:${anomaly.id}`,
       toTimestamp(at),

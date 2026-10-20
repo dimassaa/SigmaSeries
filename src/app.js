@@ -18,6 +18,7 @@ import { createResetRoutes } from './routes/reset.js';
 import { createTwoFactorRoutes } from './routes/twofactor.js';
 import { createSettingsRoutes } from './routes/settings.js';
 import { createMailboxRoutes } from './routes/mailbox.js';
+import { createAdminRoutes } from './routes/admin.js';
 import { createSeriesRoutes } from './routes/series.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
@@ -67,6 +68,8 @@ export function createApp({
   ratings = null,
   taste = null,
   ratingLimiter = null,
+  anomalies = null,
+  audit = null,
   reviews = null,
   reviewList = null,
   votes = null,
@@ -143,6 +146,9 @@ export function createApp({
     reviews, reviewList, votes, helpfulLimiter, reports, reportLimiter,
     dictionary, reviewIpLimiter, reviewDeviceLimiter,
   }));
+  // Решение по аномалии — служебный POST только для админа; без альтернатив
+  // (страницы нет до M9), поэтому монтируется только вместе с журналом.
+  if (anomalies && audit) app.use(createAdminRoutes({ anomalies, audit, sessionMw }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
   if (calendar) app.use(createCalendarRoutes({ calendar, sessionMw }));
