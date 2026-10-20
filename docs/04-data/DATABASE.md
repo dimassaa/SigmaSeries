@@ -516,6 +516,30 @@ CREATE TABLE e_series_rating_stat (
   prior_mean   NUMERIC(3,1) NOT NULL DEFAULT 7.0,
   recalculated_at TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+-- Аномалия оценок (F-04-08, H-77): всплеск, датчик которого вычислен на
+-- часовой проверке. signal держит числа детекции (окна, пороги, счётчики) —
+-- их не вычислять заново при разборе; frozen — снимок блока рейтинга на
+-- момент срабатывания, им читатели питаются до решения редактора.
+-- Решений всегда два: принять (оценки остаются) или отбросить (экстремумы
+-- окна помечаются «не учитывается»); обе ветки идут через audit_log.
+CREATE TABLE e_rating_anomaly (
+  id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+  series_id BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  state     TEXT NOT NULL DEFAULT 'open'
+            CHECK (state IN ('open','accepted','discarded')),
+  signal    JSONB NOT NULL,
+  frozen    JSONB NOT NULL,
+  resolved_by BIGINT REFERENCES e_user(id) ON DELETE SET NULL,
+  resolved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  -- Открытая аномалия не может носить дату решения, решённая не может её
+  -- не иметь: это индикатор целостности для ручных правок таблицы.
+  CONSTRAINT ck_anomaly_resolution CHECK ((state = 'open') = (resolved_at IS NULL))
+);
+-- Пока редактор не разобрал событие, вторая строка по сериалу не
+-- заводится: заморозка одна, повторный въезд датчика её не дублирует.
+CREATE UNIQUE INDEX uq_anomaly_open ON e_rating_anomaly (series_id) WHERE state = 'open';
+CREATE INDEX ix_anomaly_series ON e_rating_anomaly (series_id, state);
 CREATE TABLE e_material (
   id           BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
   author_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE RESTRICT,

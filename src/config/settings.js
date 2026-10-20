@@ -203,6 +203,22 @@ export const RATING = {
   minAccountAgeH: 24,
   /** `rating.rate_per_hour` — сколько изменений оценки в час на аккаунт. */
   ratePerHour: 30,
+  /**
+   * Пороги датчика аномалий (H-77, F-04-08): стартовые значения приняты
+   * документом дословно — окно всплеска 24 ч, минимум 20 оценок, порог
+   * шума max(20, 5 × среднее дневное), 70 % экстремумов (≤ 2 и ≥ 9) от
+   * аккаунтов младше 7 дней (168 ч). Базовую линию шума считаем за
+   * предыдущие 7 дней (решение автора, DEC): у новинок полной истории
+   * нет, и весь-life окно сделало бы порог недостижимым.
+   */
+  anomalyWindowH: 24,
+  anomalyMinVotes: 20,
+  anomalyAvgMultiplier: 5,
+  anomalyExtremeShare: 70,
+  anomalyExtremeLow: 2,
+  anomalyExtremeHigh: 9,
+  anomalyYoungHours: 168,
+  anomalyBaselineDays: 7,
 };
 
 export const REVIEW = {
