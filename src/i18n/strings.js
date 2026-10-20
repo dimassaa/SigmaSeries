@@ -393,6 +393,14 @@ const MESSAGES = {
     'review.count.few': '{count} отзыва',
     'review.count.many': '{count} отзывов',
     'review.count.other': '{count} отзыва',
+
+    // Голос «Полезно» (F-04-06).
+    'review.vote.label': 'Полезно',
+    'review.vote.signIn': 'Войдите',
+    'review.vote.own': 'Свой отзыв не оценивают.',
+    'review.vote.not-confirmed': 'Подтвердите email, чтобы голосовать.',
+    'review.vote.missing': 'Отзыв не найден',
+    'review.vote.error.to': 'Неизвестная цель голоса.',
     'ugc.flagged': 'Предположительно содержит недопустимый контент.',
     'ugc.check.unavailable': 'Проверка сейчас недоступна. Текст сохранён и будет проверен.',
     'ugc.rejected.empty': 'В тексте нет значимых символов.',
@@ -1183,6 +1191,14 @@ const MESSAGES = {
     'review.count.few': '{count} reviews',
     'review.count.many': '{count} reviews',
     'review.count.other': '{count} reviews',
+
+    // Голос «Полезно» (F-04-06).
+    'review.vote.label': 'Helpful',
+    'review.vote.signIn': 'Sign in',
+    'review.vote.own': "You can't vote for your own review.",
+    'review.vote.not-confirmed': 'Confirm your email to vote.',
+    'review.vote.missing': 'Review not found',
+    'review.vote.error.to': 'Unknown vote target.',
     'ugc.flagged': 'It may contain unacceptable content.',
     'ugc.check.unavailable': 'Checking is unavailable right now. The text is saved and will be checked.',
     'ugc.rejected.empty': 'The text has no meaningful characters.',

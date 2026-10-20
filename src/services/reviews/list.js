@@ -31,8 +31,12 @@ const VISIBLE_BODY = `CASE WHEN m.state IN ('checking', 'flagged') AND m.visible
 const VISIBLE_SPOILER = `CASE WHEN m.state IN ('checking', 'flagged') AND m.visible_body IS NOT NULL
     THEN m.visible_spoiler ELSE m.spoiler END`;
 
-/** Строка видна читателю: опубликована или имеет снимок; автор не под баном. */
-const VISIBLE = `(m.state IN ('published', 'approved')
+/** Строка видна читателю: опубликована или имеет снимок; автор не под баном.
+ *
+ * Фрагмент условия об алиасе `m`; его же принимает сервис голосов — счётчик
+ * кнопки и порядок «Полезных» считаются по одному правилу (F-04-06 §8).
+ */
+export const READABLE = `(m.state IN ('published', 'approved')
     OR (m.state IN ('checking', 'flagged') AND m.visible_body IS NOT NULL))
   AND NOT EXISTS (SELECT 1 FROM e_restriction ban
                    WHERE ban.user_id = m.author_id AND ban.kind = 'ban'
@@ -44,11 +48,13 @@ const FROM = `FROM e_material m
   JOIN e_rating r
     ON r.user_id = m.author_id AND r.object_type = 'series' AND r.series_id = m.series_id`;
 
-const COLUMNS = `m.id, u.nickname, u.status AS author_status, r.value AS author_rating,
-    m.created_at, m.lang, ${VISIBLE_SPOILER} AS spoiler, ${VISIBLE_BODY} AS body`;
-
-/** Число голосов «полезно» у строки — ключ сортировки по умолчанию. */
+/** Число голосов «полезно» у строки — ключ сортировки по умолчанию и число
+ * в кнопке «Полезно» (F-04-06 §19): одна и та же величина в обоих местах. */
 const VOTES = '(SELECT count(*) FROM e_helpful_vote v WHERE v.material_id = m.id)';
+
+const COLUMNS = `m.id, u.nickname, u.status AS author_status, r.value AS author_rating,
+    m.author_id, m.created_at, m.lang, ${VISIBLE_SPOILER} AS spoiler, ${VISIBLE_BODY} AS body,
+    ${VOTES} AS helpful_count`;
 
 const SORTS = {
   helpful: `${VOTES} DESC, m.created_at DESC, m.id DESC`,
@@ -85,6 +91,7 @@ function groupCondition(group, params) {
 function itemOf(row) {
   return {
     id: Number(row.id),
+    authorId: Number(row.author_id),
     authorNickname: row.nickname,
     authorStatus: row.author_status,
     authorRating: row.author_rating,
@@ -92,6 +99,7 @@ function itemOf(row) {
     lang: row.lang,
     spoiler: row.spoiler,
     body: row.body,
+    helpfulCount: Number(row.helpful_count),
   };
 }
 
@@ -126,7 +134,7 @@ export function pgReviewList(pool) {
       // Область длины и языка — общая у ленты и счётчиков; группа сужает
       // только total и ленту, но не числа на вкладках.
       const params = [seriesId];
-      const where = [`m.kind = 'review'`, 'm.series_id = $1', VISIBLE];
+      const where = [`m.kind = 'review'`, 'm.series_id = $1', READABLE];
       if (length === 'short') {
         params.push(REVIEW.shortMaxChars);
         where.push(`char_length(btrim(${VISIBLE_BODY})) < $${params.length}`);
@@ -197,7 +205,7 @@ export function pgReviewList(pool) {
       const { rows } = await pool.query(
         `SELECT ${COLUMNS}
            ${FROM}
-          WHERE m.kind = 'review' AND m.series_id = $1 AND ${VISIBLE}
+          WHERE m.kind = 'review' AND m.series_id = $1 AND ${READABLE}
           ORDER BY ${SORTS.helpful}
           LIMIT $2`,
         [seriesId, size],

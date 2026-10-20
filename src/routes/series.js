@@ -13,6 +13,7 @@ import { notFound } from './home.js';
 import { seriesView, goneView } from '../view/series.js';
 import { reviewListView, topReviews as topReviewsView, reviewsHref } from '../view/reviewList.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
+import { safeReturnTo } from '../services/auth/login.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
 import { HOUR, REVIEW } from '../config/settings.js';
@@ -55,6 +56,8 @@ export function createSeriesRoutes({
   ratingLimiter = null,
   reviews = null,
   reviewList = null,
+  votes = null,
+  helpfulLimiter = null,
   dictionary = null,
   reviewIpLimiter = null,
   reviewDeviceLimiter = null,
@@ -140,6 +143,9 @@ export function createSeriesRoutes({
     // на S-09. Пусто — блок не рисуется вовсе: приглашение написать отзыв уже
     // стоит в блоке «Ваш отзыв».
     const top = reviewList ? await reviewList.top({ seriesId: found.id }) : [];
+    const voteState = votes ? await voteStateFor({
+      votes, user, session, items: top, locale, slug, back: `/${locale}/series/${slug}`,
+    }) : null;
 
     return layout({
       account: req.account,
@@ -158,6 +164,7 @@ export function createSeriesRoutes({
         ratingBlock: rating,
         reviewBlock: review,
         reviewTop: top,
+        votesById: voteState,
         notice: String(req.query.subs ?? '') || null,
         timezone: timezoneOf(req),
       }),
@@ -257,6 +264,10 @@ export function createSeriesRoutes({
         const summary = await ratings.summary(found.id);
         const ownRating = user ? await ratings.ownRating(user.id, found.id) : null;
         const action = await reviewActionFor({ reviews, user, seriesId: found.id, locale, slug });
+        const voteState = await voteStateFor({
+          votes, user, session, items: page.items, locale, slug,
+          back: reviewsHref(locale, slug, { ...page.applied, page: page.page }),
+        });
 
         // Индексируется только первая страница с фильтрами и сортировкой по
         // умолчанию (M4 §8г); EN-страница без русского описания не индексируется
@@ -280,6 +291,7 @@ export function createSeriesRoutes({
             action,
             timezone: timezoneOf(req),
             page,
+            votesById: voteState,
           }),
         })));
       } catch (error) {
@@ -507,6 +519,73 @@ export function createSeriesRoutes({
     });
   }
 
+  /**
+   * Голос «Полезно» (F-04-06).
+   *
+   * Цель (`set`/`unset`) объявляет кнопка, а не угадывается на сервере:
+   * примитивы идемпотентны (F-04-06 §8), двойная отправка формы безопасна.
+   * Адрес возврата собирает вид страницы (вместе с фильтрами списка) и идёт
+   * через `safeReturnTo` — внутренний и без схемы, как возврат после
+   * входа (R-SEC-08). Скрипту отдаётся JSON: следовать за редиректом ради
+   * обновления одной кнопки не требуется.
+   */
+  if (votes) {
+    router.post('/:locale/series/:slug/reviews/:reviewId/helpful', async (req, res, next) => {
+      const { locale, slug, reviewId } = req.params;
+      if (!isLocale(locale)) return next('route');
+
+      const user = req.session?.user ?? null;
+      if (!user) {
+        return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(safeReturnTo(req.body?.back))}`);
+      }
+      if (!csrfValid(req.session, req.body?.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'review.error.csrf'));
+      }
+      // Потолок один и по пользователю (M4 §0): голос без владельца — не голос.
+      if (helpfulLimiter && !helpfulLimiter.allow(String(user.id))) {
+        return res.status(429)
+          .set('Retry-After', String(Math.ceil((helpfulLimiter.windowMs ?? HOUR) / 1000)))
+          .type('text/plain; charset=utf-8')
+          .send(t(locale, 'review.error.rate'));
+      }
+
+      const to = String(req.body?.to ?? '');
+      if (to !== 'set' && to !== 'unset') {
+        return res.status(400).type('text/plain; charset=utf-8').send(t(locale, 'review.vote.error.to'));
+      }
+      const back = safeReturnTo(req.body?.back);
+      const materialId = voteNumber(reviewId);
+      if (materialId === null) {
+        return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.vote.missing'));
+      }
+
+      try {
+        // Соседние маршруты сверяются с данными страницы: адрес с чужим
+        // именем («сериала нет») обязан называться 404, даже если найдётся
+        // отзыв по id.
+        const header = await series.lite(slug);
+        if (!header) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.error.missing'));
+
+        const result = to === 'set'
+          ? await votes.set({ userId: user.id, materialId, seriesId: header.id })
+          : await votes.unset({ userId: user.id, materialId, seriesId: header.id });
+        if (!result.ok) {
+          const missing = result.reason === 'missing' || result.reason === 'kind';
+          return res.status(missing ? 404 : 403)
+            .type('text/plain; charset=utf-8')
+            .send(t(locale, missing ? 'review.vote.missing' : `review.vote.${result.reason ?? ''}`));
+        }
+
+        if (req.accepts(['html', 'json']) === 'json') {
+          return res.status(200).json({ voted: result.voted, count: result.count });
+        }
+        return res.redirect(303, back);
+      } catch (error) {
+        return next(error);
+      }
+    });
+  }
+
   return router;
 }
 
@@ -691,4 +770,70 @@ function seriesJsonLd({ locale, series: found, rating = null }) {
   }
 
   return data;
+}
+
+/**
+ * Данные кнопки «Полезно» для списка карточек (F-04-06).
+ *
+ * Карта `id отзыва → { signedIn, own, voted, count, action, back, csrf }`.
+ * Гость получает счётчик и «Войдите»; подтвержённый читатель — форму;
+ * автор — неактивную кнопку с пояснением (EC-V15); неподтверждённому
+ * (`confirmed === false`) кнопка не рисуется вовсе — он не зритель, право
+ * всё равно проверит сервис. Голоса списка читаются одним запросом, а не по
+ * каждой карточке — бюджет страницы (M4 §14) важнее простоты.
+ *
+ * @param {object} deps
+ * @param {object|null} deps.votes сервис голосов; без него футера нет
+ * @param {object|null} deps.user сессия
+ * @param {object|null} deps.session
+ * @param {object[]} deps.items строки списка (`id`, `helpfulCount`, `authorId`)
+ * @param {string} deps.locale
+ * @param {string} deps.slug
+ * @param {string} deps.back адрес страницы для возврата и «Войдите»
+ * @returns {Promise<Map|null>}
+ */
+async function voteStateFor({ votes, user, session, items, locale, slug, back }) {
+  if (!votes || items.length === 0) return null;
+  const csrf = session ? csrfToken(session) : '';
+  const state = new Map();
+
+  // Гостю — счётчик и приглашение; неподтверждённому — ничего.
+  if (!user || user.confirmed === false) {
+    for (const item of items) {
+      if (!user) {
+        state.set(Number(item.id), {
+          signedIn: false, own: false, voted: false,
+          count: item.helpfulCount, action: null, back, csrf: '',
+        });
+      }
+    }
+    return state;
+  }
+
+  const voters = new Set(await votes.mine({ userId: user.id, materialIds: items.map((item) => item.id) }));
+  for (const item of items) {
+    const own = Number(item.authorId) === Number(user.id);
+    state.set(Number(item.id), {
+      signedIn: true,
+      own,
+      voted: voters.has(Number(item.id)),
+      count: item.helpfulCount,
+      action: own ? null : `/${locale}/series/${slug}/reviews/${item.id}/helpful`,
+      back,
+      csrf,
+    });
+  }
+  return state;
+}
+
+/**
+ * Идентификатор отзыва из адреса: целое ≥ 1, иначе `null` — адресу с мусором
+ * отвечает 404, а не сбой парсинга.
+ *
+ * @param {string} value
+ * @returns {number|null}
+ */
+function voteNumber(value) {
+  const parsed = Number(value);
+  return Number.isInteger(parsed) && parsed >= 1 ? parsed : null;
 }

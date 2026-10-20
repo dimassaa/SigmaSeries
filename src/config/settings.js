@@ -218,6 +218,8 @@ export const REVIEW = {
   topOnSeriesPage: 3,
   /** `review.read_more_chars` — длиннее сворачивается до «Читать далее». */
   readMoreChars: 600,
+  /** `review.helpful_rate_per_hour` — голосов «Полезно» в час (F-04-06 §9). */
+  helpfulRatePerHour: 60,
   /** `review.short_max_chars` — короче — «Короткие» (DEC-015). */
   shortMaxChars: 300,
   /** `review.long_min_chars` — от этого числа — «Длинные» (DEC-015). */

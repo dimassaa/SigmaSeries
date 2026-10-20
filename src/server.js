@@ -28,6 +28,7 @@ import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
 import { pgReviews } from './services/reviews/store.js';
 import { pgReviewList } from './services/reviews/list.js';
+import { pgReviewVotes } from './services/reviews/votes.js';
 import { pgDictionary } from './services/moderation/dictionary.js';
 import { pgBackupJobs } from './services/backup/store.js';
 import { pgTaste } from './services/recommendations/taste.js';
@@ -45,7 +46,7 @@ import { createImportStore } from './services/import/store.js';
 import { createScheduler } from './services/import/scheduler.js';
 import { createImportTasks } from './services/import/tasks.js';
 import { createTmdbClient } from './services/import/tmdb.js';
-import { MAIL_SETTINGS, RATING, MODERATION, HOUR } from './config/settings.js';
+import { MAIL_SETTINGS, RATING, MODERATION, REVIEW, HOUR } from './config/settings.js';
 import cron from 'node-cron';
 
 const PORT = Number(process.env.PORT ?? 3000);
@@ -193,6 +194,10 @@ const app = createApp({
   reviews: pgReviews(pool),
   // Список отзывов (F-04-05): выборка страницы и «лучшие» для S-06.
   reviewList: pgReviewList(pool),
+  // Голоса «Полезно» (F-04-06). Потолок частоты — по пользователю: у голоса
+  // есть владелец, сети и устройство не ограничиваются.
+  votes: pgReviewVotes(pool),
+  helpfulLimiter: createRateLimiter({ limit: REVIEW.helpfulRatePerHour, windowMs: HOUR }),
   dictionary: pgDictionary(pool),
   reviewIpLimiter: createRateLimiter({ limit: MODERATION.materialsPerHourIp, windowMs: HOUR }),
   reviewDeviceLimiter: createRateLimiter({ limit: MODERATION.materialsPerHourDevice, windowMs: HOUR }),

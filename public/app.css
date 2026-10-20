@@ -3,7 +3,7 @@
    Источник: src/styles/*.css, порядок по имени файла.
    Сборка:   node tools/build-css.mjs
    Проверка: npm run css:check
-   Частей: 15
+   Частей: 16
 */
 
 /* ─── 00-tokens.css ─── */
@@ -3345,4 +3345,81 @@ a:hover { color: var(--accent-hover); }
 
 @media (max-width: 639px) {
   .reviews-top { padding: 0 20px; }
+}
+
+/* ─── 54-review-vote.css ─── */
+/* --- Голос «Полезно» (F-04-06) -------------------------------------------
+ *
+ * Кнопка-переключатель под отзывом: состояние видно и цветом, и числом
+ * нажатий, и значением `aria-pressed`; цвет не единственный носитель
+ * (R-A11Y-19). Цель касания не меньше 44 px. Футер один на карточку,
+ * кнопка не растягивается во всю строку.
+ *
+ * Цвета и отступы — только токены (PRINCIPLES §1); движется только то,
+ * что можно (`transform`, `opacity`).
+ */
+
+.reviews__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  margin-block-start: var(--space-3);
+}
+
+.reviews__vote-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-block-size: 44px;
+  padding: var(--space-2) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 14px;
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+
+.reviews__vote-button:hover { background: var(--surface-hover); }
+
+/* Голос поставлен: та же кнопка, иначе широкая разрядка от смены текста
+   дёргает карточку (содержимое меняет ширину на символ). Смысл состояния
+   несёт и `aria-pressed`, поэтому looked-класс здесь про цвет подложки. */
+.reviews__vote-button--on {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-contrast);
+  font-weight: 500;
+}
+
+/* На время запроса из скрипта: это то самое «сохраняется» (F-04-06 §6);
+   без скрипта отправка уходит сразу, состояние и не успевает погаснуть.
+   Притушённость — число, как у неактивных кнопок статуса (`50-tracking.css`). */
+.reviews__vote-button[aria-busy='true'],
+.reviews__vote-button:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.reviews__vote-count,
+.reviews__vote-hint {
+  color: var(--text-secondary);
+  font-size: 14px;
+}
+
+.reviews__vote-hint { margin: 0; }
+
+.reviews__vote-link {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: 44px;
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .reviews__vote-button { transition: none; }
 }

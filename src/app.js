@@ -69,6 +69,8 @@ export function createApp({
   ratingLimiter = null,
   reviews = null,
   reviewList = null,
+  votes = null,
+  helpfulLimiter = null,
   dictionary = null,
   reviewIpLimiter = null,
   reviewDeviceLimiter = null,
@@ -136,7 +138,7 @@ export function createApp({
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series, ratings, ratingLimiter }));
   if (series) app.use(createSeriesRoutes({
     series, watchStatus, sessionMw, progress, subscriptions, ratings, ratingLimiter,
-    reviews, reviewList, dictionary, reviewIpLimiter, reviewDeviceLimiter,
+    reviews, reviewList, votes, helpfulLimiter, dictionary, reviewIpLimiter, reviewDeviceLimiter,
   }));
   if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.

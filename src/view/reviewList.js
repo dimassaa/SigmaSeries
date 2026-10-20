@@ -82,7 +82,54 @@ const machineDate = (date) => new Date(date).toISOString().slice(0, 10);
  * @param {object} args.item строка из `pgReviewList`
  * @param {string|null} [args.timezone] пояс посетителя для подписи даты
  */
-export function reviewCard({ locale, item, timezone = null }) {
+/**
+ * Футер карточки: голос «Полезно» (F-04-06).
+ *
+ * Состояния (F-04-06 §6): без голоса — обычная кнопка; с голосом —
+ * `aria-pressed` и число; «сохраняется» даёт скрипт, отключая кнопку на
+ * время запроса (без скрипта отправка мгновенна); ошибка — обычный POST,
+ * который отвечает текстом. Автору кнопка неактивна с пояснением (EC-V15),
+ * гостю — счётчик и «Войдите», неподтверждённому футер не рисуется:
+ * кнопка зрителя, а он ещё не зритель.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {object|null} args.vote данные кнопки; `null` — футера нет
+ */
+function voteRow({ locale, vote }) {
+  if (!vote) return '';
+  const label = t(locale, 'review.vote.label');
+
+  if (!vote.signedIn) {
+    return html`
+  <div class="reviews__foot">
+    <span class="reviews__vote-count">${label} · ${vote.count}</span>
+    <a class="reviews__vote-link" href="/${locale}/login?next=${encodeURIComponent(vote.back)}"
+      >${t(locale, 'review.vote.signIn')}</a>
+  </div>`;
+  }
+
+  if (vote.own) {
+    return html`
+  <div class="reviews__foot">
+    <button class="reviews__vote-button" type="button" disabled
+      aria-disabled="true">${label} <span class="reviews__vote-num">· ${vote.count}</span></button>
+    <span class="reviews__vote-hint">${t(locale, 'review.vote.own')}</span>
+  </div>`;
+  }
+
+  return html`
+  <form class="reviews__vote" method="post" action="${vote.action}" data-review-vote>
+    <input type="hidden" name="csrf" value="${vote.csrf}">
+    <input type="hidden" name="back" value="${vote.back}">
+    <button class="reviews__vote-button${vote.voted ? ' reviews__vote-button--on' : ''}" type="submit"
+      name="to" value="${vote.voted ? 'unset' : 'set'}"
+      aria-pressed="${vote.voted ? 'true' : 'false'}"
+      >${label} <span class="reviews__vote-num">· ${vote.count}</span></button>
+  </form>`;
+}
+
+export function reviewCard({ locale, item, timezone = null, vote = null }) {
   const deleted = item.authorStatus === 'deleted';
   const { lead, tail } = splitText(item.body, REVIEW.readMoreChars);
 
@@ -113,6 +160,7 @@ export function reviewCard({ locale, item, timezone = null }) {
     </summary>
     <div class="reviews__text" data-nosnippet>${body}</div>
   </details>`)}
+  ${voteRow({ locale, vote })}
 </li>`;
 }
 
@@ -235,7 +283,7 @@ function actionView({ locale, action }) {
  * @param {object} args.page результат `pgReviewList.page`
  */
 export function reviewListView({
-  locale, series, summary, ownRating = null, action = null, timezone = null, page,
+  locale, series, summary, ownRating = null, action = null, timezone = null, page, votesById = null,
 }) {
   const { applied, counts } = page;
   const state = { group: applied.group, length: applied.length, lang: applied.lang, sort: applied.sort };
@@ -303,7 +351,7 @@ export function reviewListView({
     ${when(page.total > 0, () => html`
     <p class="reviews__total">${tPlural(locale, 'review.count', page.total)}</p>
     <ol class="reviews__list" role="list">
-      ${page.items.map((item) => reviewCard({ locale, item, timezone }))}
+      ${page.items.map((item) => reviewCard({ locale, item, timezone, vote: votesById?.get(item.id) ?? null }))}
     </ol>`)}
 
     ${when(page.total === 0, () => emptyView({
@@ -326,14 +374,15 @@ export function reviewListView({
  * @param {object} args.series
  * @param {object[]} args.items не больше `review.top_on_series_page`
  * @param {string|null} [args.timezone]
+ * @param {Map|null} [args.votesById] id отзыва → данные кнопки «Полезно»
  */
-export function topReviews({ locale, series, items, timezone = null }) {
+export function topReviews({ locale, series, items, timezone = null, votesById = null }) {
   if (items.length === 0) return raw('');
   return html`
 <section class="reviews-top" aria-labelledby="h-top-reviews">
   <h2 class="series__section-title" id="h-top-reviews">${t(locale, 'review.top.title')}</h2>
   <ol class="reviews__list reviews__list--top" role="list">
-    ${items.map((item) => reviewCard({ locale, item, timezone }))}
+    ${items.map((item) => reviewCard({ locale, item, timezone, vote: votesById?.get(item.id) ?? null }))}
   </ol>
   <p class="reviews-top__more">
     <a class="button button--quiet" href="/${locale}/series/${series.slug}/reviews"

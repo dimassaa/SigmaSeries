@@ -391,6 +391,9 @@ export function createRegisterRoutes({
       // оба входа — вход и регистрацию. Ровно его отсутствия не хватило,
       // чтобы вовремя заметить дыру со служебной ролью.
       kind: 'viewer',
+      // Адрес только что подтверждён: граница «Зрителя» пройдена, кнопки
+      // зрителя показываются сразу, без повторного входа.
+      confirmed: true,
     };
     req.session.createdAt = Date.now();
     if (pending) req.session.pendingUser = pending;

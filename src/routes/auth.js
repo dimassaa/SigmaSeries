@@ -158,6 +158,9 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
           theme: user.theme,
           roles,
           kind,
+          // Та же форма объекта сессии, что при простом входе: граница
+          // «Зритель» — подтверждение адреса (M2 §2).
+          confirmed: Boolean(user.email_confirmed),
         },
       };
       return res.redirect(303, `/${locale}${state ? '/2fa' : '/2fa/setup'}`);
@@ -176,6 +179,9 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
       theme: user.theme,
       roles,
       kind,
+      // Подтверждение адреса — граница «Зритель» (M2 §2): интерфейс решает по
+      // нему, показывать ли кнопки зрителя, а право всё равно проверяет сервис.
+      confirmed: Boolean(user.email_confirmed),
     };
     req.session.createdAt = Date.now();
     req.session.cookie.maxAge = durations.absolute;

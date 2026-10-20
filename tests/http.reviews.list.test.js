@@ -22,6 +22,7 @@ import { pgSeries } from '../src/services/catalogue/series.js';
 import { pgRatings } from '../src/services/rating/store.js';
 import { pgReviews } from '../src/services/reviews/store.js';
 import { pgReviewList } from '../src/services/reviews/list.js';
+import { pgReviewVotes } from '../src/services/reviews/votes.js';
 
 process.env.BLIND_INDEX_SECRET ??= 'test-blind-index-secret';
 process.env.ADDRESS_SECRET ??= 'test-address-secret';
@@ -194,6 +195,7 @@ async function withServer({ user = null, run }) {
     ratings: pgRatings(counting),
     reviews: pgReviews(counting),
     reviewList: pgReviewList(counting),
+    votes: pgReviewVotes(counting),
     dictionary: { load: async () => CLEAN },
     sessionMw: createSessionMiddleware(pool, createMemorySessionStore(), {
       account: async (u) => ({ nickname: u.nickname, unread: 0, pollSeconds: 0 }),
@@ -579,6 +581,116 @@ test('страница списка укладывается в бюджет з�
       assert.equal(res.status, 200);
       const used = queries() - before;
       assert.ok(used <= 15, `страница списка сделала ${used} запросов (бюджет 15)`);
+    },
+  });
+});
+
+test('голос «Полезно» гостю: счётчик и «Войдите», формы нет (F-04-06 §5)', { skip }, async () => {
+  const series = await seriesWith(42);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Отзыв, под которым гость видит счётчик' });
+
+  await withServer({
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}/reviews`);
+      const card = cardsOf(html).find((c) => true);
+      assert.ok(card, 'карточка есть');
+      assert.match(card.html, /<span class="reviews__vote-count">Полезно · 0<\/span>/,
+        'счётчик виден и без права голосовать');
+      assert.match(card.html, /href="\/ru\/login\?next=%2Fru%2Fseries%2F[^"]*"/, 'вход с возвратом');
+      assert.ok(!card.html.includes('data-review-vote'), 'формы у гостя нет');
+    },
+  });
+});
+
+test('голос «Полезно» вошедшему: форма с состоянием; голос меняет разметку', { skip }, async () => {
+  const series = await seriesWith(43);
+  const author = await viewer();
+  const reader = await viewer();
+  await write({ user: author, series, text: 'Отзыв, который читатель оценит как полезный' });
+
+  await withServer({
+    user: reader,
+    run: async ({ htmlGet, post, csrfOf }) => {
+      const url = `/ru/series/${series.slug}/reviews`;
+      const html = await htmlGet(url);
+      const card = cardsOf(html).find((c) => true);
+      assert.match(card.html, /<form class="reviews__vote" method="post" action="\/ru\/series\/[^"]+\/reviews\/\d+\/helpful" data-review-vote>/);
+      assert.match(card.html, /aria-pressed="false"/);
+      assert.match(card.html, /name="to" value="set"/);
+      assert.match(card.html, /Полезно <span class="reviews__vote-num">· 0<\/span>/);
+      assert.match(card.html, /name="back" value="\/ru\/series\/[^"]*\/reviews[^"]*"/,
+        'адрес возврата собран видом, с фильтрами');
+
+      // Круг через маршрут: голос поставлен — страница показывает нажатой.
+      const csrf = csrfOf(html);
+      const id = card.id;
+      const res = await post(`/ru/series/${series.slug}/reviews/${id}/helpful`, {
+        csrf, to: 'set', back: `/ru/series/${series.slug}/reviews`,
+      });
+      assert.equal(res.status, 303);
+
+      const again = await htmlGet(url);
+      const voted = cardsOf(again).find((c) => c.id === id);
+      assert.match(voted.html, /aria-pressed="true"/, 'состояние читается с сервера');
+      assert.match(voted.html, /name="to" value="unset"/, 'повторный клик снимает');
+      assert.match(voted.html, /reviews__vote-button--on/, 'подложка нажатой кнопки');
+      assert.match(voted.html, /· 1<\/span>/);
+    },
+  });
+});
+
+test('свой отзыв: кнопка неактивна с пояснением (EC-V15)', { skip }, async () => {
+  const series = await seriesWith(44);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Свой отзыв не оценивают, кнопка неактивна' });
+
+  await withServer({
+    user: author,
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}/reviews`);
+      const card = cardsOf(html).find((c) => true);
+      assert.match(card.html, /<button class="reviews__vote-button" type="button" disabled/);
+      assert.match(card.html, /Свой отзыв не оценивают\./);
+      assert.ok(!card.html.includes('data-review-vote'), 'формы отправки нет');
+    },
+  });
+});
+
+test('неподтверждённому кнопки голоса нет (не «Зритель»)', { skip }, async () => {
+  const series = await seriesWith(45);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Отзыв, который неподтверждённый не оценит кнопкой' });
+
+  // Адрес не подтверждён: вход проходит, но сессия знает `confirmed: false`,
+  // и интерфейс не рисует кнопку зрителя. Право всё равно проверит сервис.
+  const newcomer = await viewer();
+  await pool.query('UPDATE e_user SET email_confirmed = FALSE WHERE id = $1', [newcomer.id]);
+  newcomer.email_confirmed = false;
+
+  await withServer({
+    user: newcomer,
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}/reviews`);
+      const card = cardsOf(html).find((c) => true);
+      assert.ok(!card.html.includes('reviews__foot'), 'футера голоса нет');
+    },
+  });
+});
+
+test('S-06: у «Лучших» гостю тоже счётчик с «Войдите», возврат на страницу сериала', { skip }, async () => {
+  const series = await seriesWith(46);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Лучший отзыв с голосом в блоке сериала' });
+
+  await withServer({
+    run: async ({ htmlGet }) => {
+      const html = await htmlGet(`/ru/series/${series.slug}`);
+      const top = sectionOf(html, 'reviews-top');
+      assert.match(top, /reviews__vote-count/);
+      assert.match(top, /href="\/ru\/login\?next=%2Fru%2Fseries%2F[^"]*"/,
+        'возврат — на страницу сериала, не на список');
+      assert.ok(!top.includes('data-review-vote'), 'формы у гостя нет');
     },
   });
 });

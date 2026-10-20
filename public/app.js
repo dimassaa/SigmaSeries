@@ -566,6 +566,70 @@
     });
   }
 
+  /**
+   * Голос «Полезно» (F-04-06): отправка без перезагрузки страницы.
+   *
+   * Форма работает и без скрипта — обычный POST с возвратом на страницу.
+   * Скрипт добавляет то самое состояние «сохраняется» (кнопка гаснет на
+   * время запроса) и обновляет кнопку сразу. Любой отказ возвращает
+   * управление браузеру: строки ошибок рисует сервер, а не скрипт.
+   */
+  function initReviewVotes() {
+    document.querySelectorAll('form[data-review-vote]').forEach(function (form) {
+      var button = form.querySelector('button');
+      if (!button) return;
+
+      form.addEventListener('submit', function (event) {
+        if (button.disabled) return event.preventDefault();
+        event.preventDefault();
+        button.disabled = true;
+        button.setAttribute('aria-busy', 'true');
+        var text = button.textContent;
+        // Кнопка в FormData не попадает (вкатывается только submitter), а
+        // её имя и значение — сама цель (`to`): добавляю вручную.
+        var data = new FormData(form);
+        data.append('to', button.value);
+        fetch(form.action, {
+          method: 'POST',
+          body: data,
+          credentials: 'same-origin',
+          headers: { Accept: 'application/json' },
+        })
+          .then(function (res) {
+            // Ответ, но не JSON (устаревшая сессия, 429): скрипт не поладил —
+            // обычная отправка покажет причину страницей.
+            if (!res.ok) fail(form, button, text);
+            return res.ok ? res.json() : null;
+          })
+          .then(function (data) {
+            if (!data) return;
+            apply(button, data);
+          })
+          .catch(function () { fail(form, button, text); });
+      });
+    });
+
+    function apply(button, data) {
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      button.setAttribute('aria-pressed', data.voted ? 'true' : 'false');
+      // Цель следующего клика объявляет сам сервер: реверс кнопки не угадывается.
+      button.setAttribute('value', data.voted ? 'unset' : 'set');
+      button.classList.toggle('reviews__vote-button--on', Boolean(data.voted));
+      var num = button.querySelector('.reviews__vote-num');
+      if (num) num.textContent = '· ' + data.count;
+    }
+
+    function fail(form, button, text, why) {
+      // Обычная отправка: страница ответит или своим текстом ошибки, или
+      // обновлённым состоянием кнопки. Значение уже в разметке формы.
+      button.disabled = false;
+      button.removeAttribute('aria-busy');
+      button.textContent = text;
+      form.submit();
+    }
+  }
+
   /** Письменность текста: кириллицы не меньше латиницы — русский (R-I18N-08). */
   function scriptLang(text) {
     var cyrillic = 0;
@@ -678,6 +742,7 @@
     initUnreadPoll();
     initReviews();
     initReviewFilters();
+    initReviewVotes();
     initConfirmations();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {

@@ -44,12 +44,14 @@ function yearRange(series) {
  *   `own`, `gate`, `review`, `rating`, `values`, `error`, `editing`
  * @param {object[]|null} [page.reviewTop] «Лучшие отзывы» (F-02-01 §4); пусто —
  *   блока нет
+ * @param {Map|null} [page.votesById] id отзыва → данные кнопки «Полезно»
+ *   (F-04-06) для карточек блока «Лучшие»
  * @param {string|null} [page.timezone] пояс посетителя: по нему подписывается
  *   день, с которого голос войдёт в рейтинг (EC-V4)
  */
 export function seriesView({
   locale, series, status = null, progress = null, subscribe = null, ratingBlock = null,
-  reviewBlock = null, reviewTop = null, notice = null, timezone = null,
+  reviewBlock = null, reviewTop = null, votesById = null, notice = null, timezone = null,
 }) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
@@ -176,7 +178,7 @@ export function seriesView({
 
   ${when(reviewBlock, () => reviewSection({ locale, slug: series.slug, timezone, ...reviewBlock }))}
 
-  ${when(reviewTop?.length > 0, () => topReviews({ locale, series, items: reviewTop, timezone }))}
+  ${when(reviewTop?.length > 0, () => topReviews({ locale, series, items: reviewTop, timezone, votesById }))}
 </article>`;
 }
 
