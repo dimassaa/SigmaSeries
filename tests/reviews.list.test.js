@@ -476,3 +476,105 @@ test('«Лучшие» на сериале без отзывов — пусто�
     applied: { group: null, length: null, lang: null, sort: 'helpful' },
   });
 });
+
+// ─── Один отзыв: страница отзыва (F-04-09, S-10) ───
+
+/** Идентификатор записанного отзыва: сервис отправки его не отдаёт. */
+async function materialIdOf(userId, seriesId) {
+  const { rows: [row] } = await pool.query(
+    `SELECT id FROM e_material WHERE author_id = $1 AND series_id = $2 ORDER BY id DESC LIMIT 1`,
+    [userId, seriesId],
+  );
+  return row?.id ?? null;
+}
+
+test('отзыв читается по id: текст, автор, оценка и сериал (F-04-09)', { skip }, async () => {
+  const series = await seriesWith(14);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Отзыв для страницы, он виден читателю' });
+  const id = await materialIdOf(author.id, series.id);
+
+  const found = await list.one({ id });
+  assert.equal(found.ok, true, 'опубликованный отзыв обязан читаться');
+  assert.equal(found.review.id, id);
+  assert.equal(found.review.body, 'Отзыв для страницы, он виден читателю');
+  assert.equal(found.review.authorNickname, author.nickname);
+  assert.equal(found.review.authorRating, 8);
+  assert.equal(found.review.lang, 'ru');
+  assert.equal(found.review.spoiler, false);
+  assert.equal(found.review.helpfulCount, 0);
+  assert.equal(found.series.id, series.id);
+  assert.equal(found.series.slug, series.slug);
+  assert.equal(found.series.archived, false);
+});
+
+test('нет отзыва — «missing», неопубликованный — «hidden» (F-04-09 §5)', { skip }, async () => {
+  const series = await seriesWith(15);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Отзыв, который ждёт проверки словаря', dictionary: down });
+  const id = await materialIdOf(author.id, series.id);
+
+  assert.deepEqual(await list.one({ id: 987_654_321 }), { ok: false, reason: 'missing' });
+  assert.deepEqual(await list.one({ id }), { ok: false, reason: 'hidden' });
+});
+
+test('отзыв под баном «скрыть материалы» не читается (M4 §8в)', { skip }, async () => {
+  const series = await seriesWith(16);
+  const author = await viewer();
+  const moderator = await viewer();
+  await write({ user: author, series, text: 'Отзыв человека, которого забанили' });
+  const id = await materialIdOf(author.id, series.id);
+
+  await pool.query(
+    `INSERT INTO e_restriction (user_id, kind, reason, hide_materials, set_by, expires_at)
+     VALUES ($1, 'ban', 'тест', TRUE, $2, NULL)`,
+    [author.id, moderator.id],
+  );
+
+  assert.deepEqual(await list.one({ id }), { ok: false, reason: 'hidden' });
+});
+
+test('снятый с публикации сериал виден в отзыве: флаг архива (EC-V14)', { skip }, async () => {
+  const series = await seriesWith(17);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Отзыв о сериале, который сняли' });
+  const id = await materialIdOf(author.id, series.id);
+
+  await pool.query(`UPDATE e_series SET archived_at = now() WHERE id = $1`, [series.id]);
+
+  const found = await list.one({ id });
+  assert.equal(found.ok, true, 'отзыв читается, решение об архиве принимает страница');
+  assert.equal(found.series.archived, true);
+});
+
+test('у правки на проверке видна прежняя версия текста (R-MOD-21)', { skip }, async () => {
+  const series = await seriesWith(18);
+  const author = await viewer();
+  await write({ user: author, series, text: 'Прежний текст, он виден читателю' });
+  const id = await materialIdOf(author.id, series.id);
+
+  const edited = await write({
+    user: author, series, text: 'Изменённый текст, он ждёт проверки', dictionary: down,
+  });
+  assert.equal(edited.state, 'checking');
+
+  const found = await list.one({ id });
+  assert.equal(found.review.body, 'Прежний текст, он виден читателю');
+});
+
+test('счётчик «Полезно» в отзыве совпадает с числом голосов (F-04-06 §8)', { skip }, async () => {
+  const series = await seriesWith(19);
+  const author = await viewer();
+  const first = await viewer();
+  const second = await viewer();
+  await write({ user: author, series, text: 'Отзыв, которому помогли два человека' });
+  const id = await materialIdOf(author.id, series.id);
+
+  await pool.query(
+    `INSERT INTO e_helpful_vote (user_id, material_id) VALUES ($1, $2), ($3, $4)`,
+    [first.id, id, second.id, id],
+  );
+
+  const found = await list.one({ id });
+  assert.equal(found.review.helpfulCount, 2);
+});

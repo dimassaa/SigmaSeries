@@ -48,6 +48,9 @@ const FROM = `FROM e_material m
   JOIN e_rating r
     ON r.user_id = m.author_id AND r.object_type = 'series' AND r.series_id = m.series_id`;
 
+/** Сериал отзыва: странице отзыва нужен его адрес и признак снятия с публикации. */
+const JOIN_SERIES = 'JOIN e_series s ON s.id = m.series_id';
+
 /** Число голосов «полезно» у строки — ключ сортировки по умолчанию и число
  * в кнопке «Полезно» (F-04-06 §19): одна и та же величина в обоих местах. */
 const VOTES = '(SELECT count(*) FROM e_helpful_vote v WHERE v.material_id = m.id)';
@@ -211,6 +214,55 @@ export function pgReviewList(pool) {
         [seriesId, size],
       );
       return rows.map(itemOf);
+    },
+
+    /**
+     * Один отзыв для страницы отзыва (F-04-09, S-10).
+     *
+     * Правило видимости — то же, что у ленты: иначе список и страница
+     * показывали бы разное, а счётчик «Полезно» и порядок считаются по
+     * одному правилу (F-04-06 §8). Поэтому строка читается всегда, а
+     * «читаема ли она» приезжает флагом: неопубликованный отзыв и отзыв
+     * под баном отличаются от отсутствующего (у первых двух — «hidden»,
+     * у третьего — «missing»), и страница отвечает на оба одинаково.
+     *
+     * Снятый с публикации сериал отзыву не мешает: решение «410 или
+     * страница» принимает страница, а не данные (EC-V14).
+     *
+     * @param {{id: number}} input
+     * @returns {Promise<{ok: true, review: object, series: object}
+     *   | {ok: false, reason: 'missing'|'hidden'}>}
+     */
+    async one({ id }) {
+      const materialId = Number(id);
+      if (!Number.isInteger(materialId) || materialId <= 0) {
+        return { ok: false, reason: 'missing' };
+      }
+
+      const { rows } = await pool.query(
+        `SELECT ${COLUMNS}, (${READABLE}) AS readable,
+                s.id AS series_id, s.slug AS series_slug,
+                coalesce(nullif(s.title_ru, ''), s.title_original) AS series_title,
+                s.archived_at AS series_archived
+           ${FROM}
+           ${JOIN_SERIES}
+          WHERE m.id = $1 AND m.kind = 'review'`,
+        [materialId],
+      );
+      const row = rows[0];
+      if (!row) return { ok: false, reason: 'missing' };
+      if (!row.readable) return { ok: false, reason: 'hidden' };
+
+      return {
+        ok: true,
+        review: itemOf(row),
+        series: {
+          id: Number(row.series_id),
+          slug: row.series_slug,
+          title: row.series_title,
+          archived: row.series_archived !== null,
+        },
+      };
     },
   };
 }
