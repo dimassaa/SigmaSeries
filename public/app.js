@@ -172,6 +172,39 @@
     });
   }
 
+  // ─── Переключатель языка: адрес с состоянием и полоса прокрутки ───────────
+
+  function initLocaleLinks() {
+    var links = document.querySelectorAll('a.topbar__lang');
+    var i;
+    for (i = 0; i < links.length; i += 1) {
+      links[i].addEventListener('click', function () {
+        var href = this.getAttribute('href');
+        // Фильтры и страница списка живут в запросе, а не в пути (F-04-05):
+        // без дописывания переключение сбрасывало бы вид на первый экран.
+        if (location.search && href.indexOf('?') === -1) {
+          href += location.search;
+          this.setAttribute('href', href);
+        }
+        // Вернуть прокрутку может только следующий переход, поэтому позиция
+        // уезжает в хранилище вместе с адресом назначения: восстановление
+        // сверяет адрес и не срабатывает, если страница оказалась другой.
+        try {
+          sessionStorage.setItem('locale-scroll', href + '\n' + String(window.scrollY));
+        } catch (e) { /* приватный режим — переключение вернёт к началу */ }
+      });
+    }
+    try {
+      var saved = sessionStorage.getItem('locale-scroll');
+      sessionStorage.removeItem('locale-scroll');
+      var sep = saved === null ? -1 : saved.indexOf('\n');
+      var y = sep === -1 ? NaN : parseInt(saved.slice(sep + 1), 10);
+      if (sep !== -1 && saved.slice(0, sep) === location.pathname + location.search && y > 0) {
+        requestAnimationFrame(function () { window.scrollTo(0, y); });
+      }
+    } catch (e) { /* приватный режим */ }
+  }
+
   // ─── Проверка занятости ника ───────────────────────────────────────────────
 
   function initNicknameCheck() {
@@ -734,6 +767,7 @@
     var path = location.pathname;
     initTimezone();
     initTheme();
+    initLocaleLinks();
     initPasswordReveal();
     initBackupCodes();
     initSearch();
