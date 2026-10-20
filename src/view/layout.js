@@ -43,6 +43,19 @@ const ASSET_VERSION = (() => {
  * @param {string} middle середина заголовка из таблицы шаблонов
  * @returns {string}
  */
+/**
+ * Текст JSON-LD для вставки в `<script>`.
+ *
+ * `<` заменяется на `\u003c`: иначе данные с `</script>` закрывают тег раньше
+ * времени, и дальше идёт уже не разметка, а код (R-SEC-15).
+ *
+ * @param {object} data
+ * @returns {string}
+ */
+function jsonLdText(data) {
+  return JSON.stringify(data).replace(/</g, '\\u003c');
+}
+
 export function pageTitle(locale, middle) {
   return `${middle} · ${t(locale, 'app.title')}`;
 }
@@ -87,7 +100,7 @@ ${noindex ? html`<meta name="robots" content="noindex, follow">` : ''}
 <link rel="canonical" href="${canonical}">
 ${LOCALES.map((l) => html`<link rel="alternate" hreflang="${l}" href="/${l}${path === '/' ? '/' : path}">`)}
 <link rel="alternate" hreflang="x-default" href="/${DEFAULT_ROUTE(path)}">
-${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))}</script>` : ''}
+${jsonLd ? html`<script type="application/ld+json">${raw(jsonLdText(jsonLd))}</script>` : ''}
 ${raw(styleLinks)}
 <!-- Клиентский скрипт — на каждой странице: без него не работают переключатель
      темы, «Полезно» без перезагрузки, диалог жалобы, показ пароля и

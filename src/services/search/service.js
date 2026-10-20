@@ -293,7 +293,9 @@ async function searchTarget(pool, target, words, needles) {
   if (byText.rows.length) return rank(byText.rows, needles, target.titleOf);
 
   const parts = words.filter((word) => word.length >= MIN_PARTIAL_WORD);
-  if (!parts.length) return [];
+  // Форма ответа — та же, что у других ветвей: пустой список здесь означал бы
+  // «нет items», и разрезка выдачи падала бы на запросе из коротких слов.
+  if (!parts.length) return { items: [], found: 0 };
 
   const byLike = await pool.query(
     `SELECT ${target.columns}

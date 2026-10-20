@@ -101,18 +101,23 @@ test('русское и английское название находят о�
 });
 
 test('по первому слову названия сериал находится и стоит первым', { skip }, async () => {
+  // Свой сериал с неповторимым первым словом: чужой сериал с тем же первым
+  // словом перебивал выдачу, и проверка падала без связи с кодом.
+  const word = `Проверка${Math.random().toString(36).slice(2, 8)}`;
+  const slug = `search-first-word-${Math.random().toString(36).slice(2, 10)}`;
   const { rows } = await pool.query(
-    `SELECT s.slug, s.title_ru FROM e_series s
-      WHERE s.publication_state = 'published' AND s.archived_at IS NULL
-        AND s.title_ru IS NOT NULL AND length(s.title_ru) > 12
-      LIMIT 1`,
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, $3, 'First word fixture', 2022, 'ended', 'published', '{}', 'minimum') RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`, `${word} название`],
   );
-  assert.ok(rows.length, 'есть длинное название');
-  const { slug, title_ru: title } = rows[0];
 
-  const result = await search.find({ query: title.split(' ')[0] });
-  assert.equal(result.series[0]?.slug, slug,
-    `«${title.split(' ')[0]}» должен привести «${title}» первым, а привело «${result.series[0]?.title}»`);
+  try {
+    const result = await search.find({ query: word });
+    assert.equal(result.series[0]?.slug, slug,
+      `«${word}» должен привести свой сериал первым, а привело «${result.series[0]?.title}»`);
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [rows[0].id]);
+  }
 });
 
 test('поиск не находит выдуманное, а не выбрасывает половину каталога', { skip }, async () => {

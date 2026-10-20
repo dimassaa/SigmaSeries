@@ -128,8 +128,20 @@ test('русская страница индексируется', { skip }, asy
 });
 
 test('описание экранируется, разметка из источника не исполняется (R-SEC-15)', { skip }, async () => {
-  const slug = await anySlug();
-  const body = await (await get(`/ru/series/${slug}`)).text();
-  const { rows } = await pool.query('SELECT title_original FROM e_series WHERE slug = $1', [slug]);
-  assert.ok(body.includes(rows[0].title_original), 'название показано как есть');
+  // Свой сериал с разметкой в описании: выборка «любого сериала» зависела
+  // от чужих остатков в общей базе, и проверка падала без связи с кодом.
+  const slug = `escaped-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_original, description_ru, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Сериал с разметкой', '<script>alert(1)</script>', 2021, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`],
+  );
+  try {
+    const body = await (await get(`/ru/series/${slug}`)).text();
+    assert.ok(body.includes('Сериал с разметкой'), 'название показано как есть');
+    assert.ok(!body.includes('<script>alert(1)'), 'разметка из источника не исполнена');
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [rows[0].id]);
+  }
 });
