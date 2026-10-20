@@ -19,6 +19,43 @@ const EPISODES_LIMIT = 50;
 export function pgSeries(pool) {
   return {
     /**
+     * Шапка сериала для вторичных страниц: строка серии без содержимого.
+     *
+     * Список отзывов (S-09) показывает название, описание и признак «снят с
+     * публикации» — ни людей, ни эпизодов, ни картинок он не рендерит, и тянуть
+     * их десятком запросов значило бы вылететь за бюджет страницы (F-04-05
+     * §14). Отказы те же, что у `bySlug`: нет строки или источник не
+     * опубликован — `null`, опубликован и снят — строка с `archived: true`.
+     *
+     * @param {string} slug
+     * @returns {Promise<object|null>}
+     */
+    async lite(slug) {
+      const { rows } = await pool.query(
+        `SELECT id, slug, title_ru, title_en, title_original,
+                description_ru, description_en,
+                publication_state, archived_at
+           FROM e_series
+          WHERE slug = $1`,
+        [slug],
+      );
+      const series = rows[0];
+      if (!series) return null;
+      if (series.publication_state === 'imported') return null;
+
+      return {
+        id: series.id,
+        slug: series.slug,
+        title: series.title_ru || series.title_original,
+        titleOriginal: series.title_original,
+        titleEn: series.title_en,
+        description: series.description_ru || series.description_en || '',
+        descriptionRu: series.description_ru,
+        archived: series.archived_at !== null,
+      };
+    },
+
+    /**
      * Сериал по адресу.
      *
      * `archived_at IS NOT NULL` НЕ исключается здесь: страница архивного
@@ -43,8 +80,7 @@ export function pgSeries(pool) {
       if (series.publication_state === 'imported') return null;
 
       const images = await imagesOf(pool, series.id);
-      const [genres, people, seasons, ratings, nextRelease] = await Promise.all([
-        genresOf(pool, series.id),
+      const [genres, people, seasons, ratings, nextRelease] = await Promise.all([        genresOf(pool, series.id),
         peopleOf(pool, series.id),
         seasonsOf(pool, series.id),
         ratingsOf(pool, series.id),

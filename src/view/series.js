@@ -13,6 +13,7 @@ import { progressView } from './progress.js';
 import { subscribeBell } from './subscribe.js';
 import { seriesRatingBlock, number } from './rating.js';
 import { reviewSection } from './reviews.js';
+import { topReviews } from './reviewList.js';
 
 /** Подписи состояний выхода (`exit_state` → ключ интерфейса). */
 const STATE_KEY = {
@@ -41,12 +42,14 @@ function yearRange(series) {
  * @param {string|null} [page.notice] отказ после действия: `limit`
  * @param {object|null} [page.reviewBlock] данные блока «Ваш отзыв» (F-04-04):
  *   `own`, `gate`, `review`, `rating`, `values`, `error`, `editing`
+ * @param {object[]|null} [page.reviewTop] «Лучшие отзывы» (F-02-01 §4); пусто —
+ *   блока нет
  * @param {string|null} [page.timezone] пояс посетителя: по нему подписывается
  *   день, с которого голос войдёт в рейтинг (EC-V4)
  */
 export function seriesView({
   locale, series, status = null, progress = null, subscribe = null, ratingBlock = null,
-  reviewBlock = null, notice = null, timezone = null,
+  reviewBlock = null, reviewTop = null, notice = null, timezone = null,
 }) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
@@ -172,6 +175,8 @@ export function seriesView({
   </section>`)}
 
   ${when(reviewBlock, () => reviewSection({ locale, slug: series.slug, timezone, ...reviewBlock }))}
+
+  ${when(reviewTop?.length > 0, () => topReviews({ locale, series, items: reviewTop, timezone }))}
 </article>`;
 }
 

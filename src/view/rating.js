@@ -115,7 +115,7 @@ function scaleForm({
  * @param {string|null} args.none текст состояния «нет оценок» или `null`
  * @param {string|null} [args.label] подпись числа: «Сайт» у рейтинга сайта
  */
-function averageLine({ locale, summary, low, none = null, label = null }) {
+export function averageLine({ locale, summary, low, none = null, label = null }) {
   return html`
   ${when(summary.shown && summary.votes > 0, () => html`
   <p class="rating__average">
@@ -144,7 +144,7 @@ function averageLine({ locale, summary, low, none = null, label = null }) {
  * @param {string} args.locale
  * @param {object} args.summary
  */
-function histogram({ locale, summary }) {
+export function histogram({ locale, summary }) {
   const maxVotes = Math.max(1, ...SCALE.map((value) => summary.histogram.get(value) ?? 0));
   const bars = SCALE_DESC.map((value) => ({ value, count: summary.histogram.get(value) ?? 0 }));
 
@@ -187,7 +187,7 @@ function histogram({ locale, summary }) {
  * Человек, поставивший оценку сразу после регистрации, видит своё число и
  * должен понимать, почему оно не сдвинуло рейтинг.
  */
-function ownLine({ locale, own, timezone }) {
+export function ownLine({ locale, own, timezone }) {
   return when(own, () => html`
   <p class="rating__own">${t(locale, 'rating.own', { value: own.value })}${
     when(own.counted === false, () => html`

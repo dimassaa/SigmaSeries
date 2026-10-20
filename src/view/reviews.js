@@ -57,7 +57,7 @@ export function highlight(text, spans) {
  * @param {string} text
  * @returns {string[]}
  */
-function paragraphs(text) {
+export function paragraphs(text) {
   return String(text ?? '').split(/\n{2,}/).map((part) => part.trim()).filter(Boolean);
 }
 

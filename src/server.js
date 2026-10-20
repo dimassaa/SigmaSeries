@@ -27,6 +27,7 @@ import { pgLibrary } from './services/tracking/library.js';
 import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
 import { pgReviews } from './services/reviews/store.js';
+import { pgReviewList } from './services/reviews/list.js';
 import { pgDictionary } from './services/moderation/dictionary.js';
 import { pgBackupJobs } from './services/backup/store.js';
 import { pgTaste } from './services/recommendations/taste.js';
@@ -190,6 +191,8 @@ const app = createApp({
   // базе, иначе перезапуск процесса обнулял бы право писать. Потолки сети и
   // устройства (R-MOD-10) — счётчики в памяти, как у прочих лимитов частоты.
   reviews: pgReviews(pool),
+  // Список отзывов (F-04-05): выборка страницы и «лучшие» для S-06.
+  reviewList: pgReviewList(pool),
   dictionary: pgDictionary(pool),
   reviewIpLimiter: createRateLimiter({ limit: MODERATION.materialsPerHourIp, windowMs: HOUR }),
   reviewDeviceLimiter: createRateLimiter({ limit: MODERATION.materialsPerHourDevice, windowMs: HOUR }),

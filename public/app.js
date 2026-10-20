@@ -548,6 +548,24 @@
   // модальное открытие формы. Без скрипта страница работает: форма
   // открывается якорем `#review-dialog` (стиль `:target`).
 
+  // Панель фильтров списка отзывов (F-04-05, S-09). Сервер рисует панель
+  // раскрытой: ширину экрана он не знает (H-72). Скрипт сворачивает её на
+  // телефоне и держит раскрытой на широком экране, где строка-кнопка спрятана
+  // стилем. Без скрипта панель остаётся раскрытой — это рабочее состояние,
+  // а не поломка.
+  function initReviewFilters() {
+    var wide = window.matchMedia('(min-width: 1024px)');
+    document.querySelectorAll('details.reviews__filters').forEach(function (panel) {
+      var sync = function () { panel.open = wide.matches; };
+      if (typeof wide.addEventListener === 'function') {
+        wide.addEventListener('change', sync);
+      } else if (typeof wide.addListener === 'function') {
+        wide.addListener(sync); // Safari 13.1: старый слушатель вместо change.
+      }
+      sync();
+    });
+  }
+
   /** Письменность текста: кириллицы не меньше латиницы — русский (R-I18N-08). */
   function scriptLang(text) {
     var cyrillic = 0;
@@ -659,6 +677,7 @@
     initUndoWindow();
     initUnreadPoll();
     initReviews();
+    initReviewFilters();
     initConfirmations();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {

@@ -11,6 +11,7 @@ import express from 'express';
 import { layout } from '../view/layout.js';
 import { notFound } from './home.js';
 import { seriesView, goneView } from '../view/series.js';
+import { reviewListView, topReviews as topReviewsView, reviewsHref } from '../view/reviewList.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
@@ -53,6 +54,7 @@ export function createSeriesRoutes({
   ratings = null,
   ratingLimiter = null,
   reviews = null,
+  reviewList = null,
   dictionary = null,
   reviewIpLimiter = null,
   reviewDeviceLimiter = null,
@@ -134,6 +136,11 @@ export function createSeriesRoutes({
       })
       : null;
 
+    // «Лучшие отзывы» (F-02-01 §4): три карточки тем же порядком, что у ленты
+    // на S-09. Пусто — блок не рисуется вовсе: приглашение написать отзыв уже
+    // стоит в блоке «Ваш отзыв».
+    const top = reviewList ? await reviewList.top({ seriesId: found.id }) : [];
+
     return layout({
       account: req.account,
       locale,
@@ -150,6 +157,7 @@ export function createSeriesRoutes({
         subscribe: bell,
         ratingBlock: rating,
         reviewBlock: review,
+        reviewTop: top,
         notice: String(req.query.subs ?? '') || null,
         timezone: timezoneOf(req),
       }),
@@ -189,6 +197,96 @@ export function createSeriesRoutes({
       return next(error);
     }
   });
+
+  /**
+   * Список отзывов сериала (F-04-05, S-09).
+   *
+   * Адрес — единственный носитель состояния: группа, длина, язык, сортировка
+   * и страница читаются из строки запроса, и ответ можно переслать ссылкой
+   * (M4 §8г). Недопустимое значение не ошибка: адрес собирают руками, и
+   * «`?group=zzz`» показывает базовый список, а не 400 — тем же правилом, что
+   * у каталога (F-02-03 §4).
+   */
+  if (reviewList && reviews && ratings) {
+    router.get('/:locale/series/:slug/reviews', async (req, res, next) => {
+      const { locale, slug } = req.params;
+      if (!isLocale(locale)) return next('route');
+
+      try {
+        // Шапка без содержимого: людям, эпизодам и картинкам списка невыгодно
+        // тратить запросы (F-04-05 §14).
+        const found = await series.lite(slug);
+        if (!found) {
+          return res.status(404).type('html').send(notFound(locale, req.account).__raw);
+        }
+
+        // Снятый с публикации сериал — 410: список без сериала смысла не имеет,
+        // а человек должен узнать, что случилось (EC-C1).
+        if (found.archived) {
+          return res.status(410).type('html').send(rawHtml(layout({
+            account: req.account,
+            locale,
+            path: `/series/${slug}/reviews`,
+            title: t(locale, 'series.gone.title'),
+            description: t(locale, 'series.gone.text'),
+            noindex: true,
+            body: goneView({ locale, slug }),
+          })));
+        }
+
+        const requested = Number(req.query.page);
+        const page = await reviewList.page({
+          seriesId: found.id,
+          filters: {
+            group: String(req.query.group ?? ''),
+            length: String(req.query.length ?? ''),
+            lang: String(req.query.lang ?? ''),
+            sort: String(req.query.sort ?? ''),
+          },
+          page: Number.isInteger(requested) && requested >= 1 ? requested : 1,
+        });
+
+        // Страница за концом списка — не пустой экран, а последняя: адрес
+        // остаётся живым, и «?page=999» не плодит одинаковых страниц.
+        if (page.page > page.pages) {
+          return res.redirect(301, reviewsHref(locale, slug, { ...page.applied, page: page.pages }));
+        }
+
+        const session = req.session ?? null;
+        const user = session?.user ?? null;
+        const summary = await ratings.summary(found.id);
+        const ownRating = user ? await ratings.ownRating(user.id, found.id) : null;
+        const action = await reviewActionFor({ reviews, user, seriesId: found.id, locale, slug });
+
+        // Индексируется только первая страница с фильтрами и сортировкой по
+        // умолчанию (M4 §8г); EN-страница без русского описания не индексируется
+        // и здесь — тем же правилом, что S-06 (R-SEO-04).
+        const defaults = !page.applied.group && !page.applied.length && !page.applied.lang
+          && page.applied.sort === 'helpful';
+        const noindex = !(page.page === 1 && defaults) || (locale === 'en' && !found.descriptionRu);
+
+        return res.status(200).type('html').send(rawHtml(layout({
+          account: req.account,
+          locale,
+          path: `/series/${slug}/reviews`,
+          title: t(locale, 'review.list.title', { title: found.title }),
+          description: found.description.slice(0, 160),
+          noindex,
+          body: reviewListView({
+            locale,
+            series: found,
+            summary,
+            ownRating,
+            action,
+            timezone: timezoneOf(req),
+            page,
+          }),
+        })));
+      } catch (error) {
+        return next(error);
+      }
+    });
+  }
 
   /**
    * Оценка сериала (F-04-01, OP-03).
@@ -480,6 +578,40 @@ async function reviewDataFor({
     values: state?.values ?? null,
     error: state?.error ?? null,
     editing: state?.editing ?? false,
+  };
+}
+
+/**
+ * Кнопка у сводки списка отзывов (F-04-05 §4).
+ *
+ * Своей формы у списка нет: обе кнопки ведут к форме на странице сериала, к
+ * тому же диалогу, что и у блока «Ваш отзыв». Пока идёт повторная проверка
+ * правки, кнопки нет — как и на S-06: вести к форме, которая откажет по
+ * кулдауну, значило бы показывать работающую кнопку и отказ после неё.
+ *
+ * @param {object} deps
+ * @param {object} deps.reviews сервис отзывов
+ * @param {object|null} deps.user
+ * @param {number} deps.seriesId
+ * @param {string} deps.locale
+ * @param {string} deps.slug
+ * @returns {Promise<{kind: 'write'|'edit', href: string}|null>}
+ */
+async function reviewActionFor({
+  reviews, user, seriesId, locale, slug,
+}) {
+  if (!user) return null;
+  const own = await reviews.ownReview(user.id, seriesId);
+  const mute = await reviews.muteOf(user.id);
+  if (mute) return null;
+  if (!own) {
+    const right = await reviews.rightToWrite(user.id, seriesId);
+    if (!right.ok) return null;
+  }
+  if (own && cooldownLeft(own) > 0) return null;
+  return {
+    kind: own ? 'edit' : 'write',
+    href: `/${locale}/series/${slug}#review-dialog`,
   };
 }
 

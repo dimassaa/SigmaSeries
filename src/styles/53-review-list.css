@@ -1,0 +1,220 @@
+/* --- S-09 — список отзывов (F-04-05) и блок «Лучшие» на S-06 ---
+ *
+ * Раскладка: слева сводка и фильтры, справа лента карточек. Карточка общая
+ * с блоком «Лучшие отзывы», поэтому здесь только список; формы отзыва живут
+ * в `52-reviews.css`.
+ *
+ * Цвета, отступы и радиусы — только токены: своё значение здесь означало бы,
+ * что тема перестанет переключаться (PRINCIPLES §1). Текст держит меру
+ * строкой (`70ch`): длинная строка читается хуже.
+ */
+
+.reviews__title { margin-block-end: var(--space-5); }
+
+.reviews {
+  display: grid;
+  gap: var(--space-5);
+  grid-template-columns: 1fr;
+  align-items: start;
+  margin-block-end: var(--space-7);
+}
+
+@media (min-width: 1024px) {
+  .reviews { grid-template-columns: minmax(260px, 340px) minmax(0, 1fr); }
+
+  /* Сводка и фильтры следуют за прокруткой, пока лента длиннее их самих:
+     панель «Как в каталоге», без слоя поверх страницы. */
+  .reviews__side { position: sticky; top: var(--space-3); }
+}
+
+.reviews__summary { margin-block-end: var(--space-5); }
+
+/* --- Фильтры --- */
+
+/* Панель — `<details>`: на телефоне она свёрнута за строкой «Фильтры · N»,
+   на широком экране строка прячется, а тело видно всегда. Скрипт только
+   закрывает панель на телефоне, но не является условием работы. */
+.reviews__filters {
+  padding: var(--space-4);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.reviews__filters-summary {
+  color: var(--text-primary);
+  font-weight: 600;
+  cursor: pointer;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+}
+
+.reviews__filters-body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* Широкий экран: свёртка не показывает состояние, поэтому строка-кнопка
+   прячется целиком, а тело видно при любом состоянии `open`: вертикальный
+   телефон, поставленный набок, не должен потерять фильтры. У скрытого тела
+   у `<details>` свои механики (`display: none` и `content-visibility`),
+   поэтому обнуляются обе. */
+@media (min-width: 1024px) {
+  .reviews__filters > summary { display: none; }
+  .reviews__filters > .reviews__filters-body {
+    display: block;
+    content-visibility: visible;
+  }
+}
+
+.reviews__filter + .reviews__filter { margin-block-start: var(--space-3); }
+
+.reviews__filter-label {
+  margin: 0 0 var(--space-2);
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.reviews__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviews__chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  color: var(--text-secondary);
+  text-decoration: none;
+}
+
+.reviews__chip:hover {
+  color: var(--text-primary);
+  border-color: var(--border-strong);
+}
+
+/* Активная метка названа цветом, положением и `aria-current` в разметке. */
+.reviews__chip[aria-current] {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 600;
+}
+
+.reviews__chip-count { color: var(--text-secondary); font-size: 13px; }
+.reviews__chip[aria-current] .reviews__chip-count { color: var(--accent-contrast); }
+
+/* --- Лента --- */
+
+.reviews__total {
+  margin: 0 0 var(--space-3);
+  color: var(--text-secondary);
+}
+
+.reviews__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.reviews__item { padding-block: var(--space-4); }
+
+/* Разделитель между карточками, а не рамка вокруг каждой: лента — один
+   поток текста, а не набор «коробок». */
+.reviews__item + .reviews__item {
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.reviews__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-2);
+}
+
+.reviews__nick { font-weight: 600; }
+
+/* Обезличенный отзыв (EC-V6): слово вместо ника, без выделения. */
+.reviews__nick--deleted {
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+/* Оценка автора — моноширинная цифра, как в самом чате оценок (H-71):
+   разряды никуда не «прыгают». Для слуха число названо словами рядом. */
+.reviews__card-rating {
+  font-family: var(--font-mono);
+  font-size: 14px;
+  color: var(--text-primary);
+}
+
+.reviews__date,
+.reviews__lang {
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.reviews__text { max-width: 70ch; }
+.reviews__text p { margin: 0 0 var(--space-3); }
+.reviews__text p:last-child { margin: 0; }
+
+/* «Читать далее» и спойлер — две свёртки `<details>`. Их собственные
+   маркеры убраны: состояние названо словами «Показать»/«Скрыть», а стрелка
+   была бы вторым носителем того же смысла. */
+.reviews__more summary,
+.reviews__spoiler summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.reviews__spoiler {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  padding: var(--space-3);
+}
+
+/* До раскрытия видна только надпись «Показать»: два сообщения, а не оба
+   сразу — показывается нужное. */
+.reviews__spoiler-hide { display: none; }
+
+.reviews__spoiler[open] summary .reviews__spoiler-show { display: none; }
+.reviews__spoiler[open] summary .reviews__spoiler-hide { display: inline; }
+
+.reviews__spoiler summary { color: var(--text-primary); }
+
+.reviews__more { margin-block-start: var(--space-2); }
+.reviews__more summary:hover { color: var(--text-primary); }
+
+/* --- Пустое состояние --- */
+
+.reviews__empty {
+  padding: var(--space-6);
+  border: 1px dashed var(--border-subtle);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.reviews__empty-title { margin: 0 0 var(--space-3); font-size: 18px; }
+.reviews__empty-path { margin: 0; }
+
+/* --- Блок «Лучшие отзывы» на S-06 --- */
+
+.reviews-top { padding: 0 32px; margin-block-end: var(--space-6); }
+.reviews-top__more { margin-block-start: var(--space-4); }
+
+@media (max-width: 639px) {
+  .reviews-top { padding: 0 20px; }
+}

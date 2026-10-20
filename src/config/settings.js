@@ -212,6 +212,16 @@ export const REVIEW = {
   lenMax: 5000,
   /** `review.recheck_min` — правка после пометки не чаще раза в 5 минут (R-MOD-09). */
   recheckMin: 5,
+  /** `review.page_size` — сколько отзывов на странице S-09. */
+  pageSize: 20,
+  /** `review.top_on_series_page` — сколько отзывов показывает блок S-06. */
+  topOnSeriesPage: 3,
+  /** `review.read_more_chars` — длиннее сворачивается до «Читать далее». */
+  readMoreChars: 600,
+  /** `review.short_max_chars` — короче — «Короткие» (DEC-015). */
+  shortMaxChars: 300,
+  /** `review.long_min_chars` — от этого числа — «Длинные» (DEC-015). */
+  longMinChars: 1000,
 };
 
 export const MODERATION = {
