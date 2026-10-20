@@ -42,7 +42,10 @@ import { pgReviewReports } from './services/reviews/reports.js';
 import { pgDictionary } from './services/moderation/dictionary.js';
 import { pgBackupJobs } from './services/backup/store.js';
 import { pgTaste } from './services/recommendations/taste.js';
-import { createBackupTask, TICK_MS as BACKUP_TICK_MS } from './services/backup/schedule.js';
+import {
+  createBackupTask, readSchedule, TICK_MS as BACKUP_TICK_MS,
+} from './services/backup/schedule.js';
+import { createSnapshotBackup } from './services/backup/snapshot.js';
 import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { createSessionMiddleware } from './services/auth/session.js';
@@ -227,6 +230,19 @@ const app = createApp({
   myMaterials: pgMyMaterials(pool),
   adminUsers: pgAdminUsers(pool),
   adminOverview: pgAdminOverview(pool, { backups: pgBackupJobs(pool) }),
+  backups: pgBackupJobs(pool),
+  backupSchedule: () => readSchedule(pool),
+  // Ручной запуск копии: тот же снимок, что и по расписанию, с проверкой
+  // восстановления во временную базу (F-09-04 §8а).
+  backupRunner: async () => {
+    const result = await createSnapshotBackup({ pool, keepFile: true });
+    await pgBackupJobs(pool).record({
+      status: result.status,
+      sizeBytes: result.bytes,
+      filePath: result.file ?? null,
+    });
+    return result;
+  },
   // Голоса «Полезно» (F-04-06). Потолок частоты — по пользователю: у голоса
   // есть владелец, сети и устройство не ограничиваются.
   votes: pgReviewVotes(pool),

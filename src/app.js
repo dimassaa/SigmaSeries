@@ -27,6 +27,7 @@ import { createMyContentRoutes } from './routes/myContent.js';
 import { createAdminUsersRoutes } from './routes/adminUsers.js';
 import { createAuditRoutes } from './routes/auditLog.js';
 import { createOverviewRoutes } from './routes/adminOverview.js';
+import { createBackupRoutes } from './routes/backups.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
 import { createSeasonRoutes } from './routes/season.js';
@@ -87,6 +88,9 @@ export function createApp({
   myMaterials = null,
   adminUsers = null,
   adminOverview = null,
+  backups = null,
+  backupRunner = null,
+  backupSchedule = null,
   votes = null,
   helpfulLimiter = null,
   reports = null,
@@ -180,6 +184,10 @@ export function createApp({
   if (auth) app.use(createThemeRoutes({ auth, sessionMw }));
   // Решения редактора по материалам (F-05-04): служебный POST, экран — S-50.
   // Раздел администрирования: пользователи и карточка человека (S-71, S-72).
+  // Резервные копии (S-82): журнал, расписание, ручной запуск.
+  if (backups) app.use(createBackupRoutes({
+    backups, readSchedule: backupSchedule, runBackup: backupRunner, audit, sessionMw,
+  }));
   // Системный обзор (S-70): онлайн, очереди, аномалии, копии.
   if (adminOverview) app.use(createOverviewRoutes({ overview: adminOverview, sessionMw }));
   // Журнал аудита (S-81): только чтение, фильтры.

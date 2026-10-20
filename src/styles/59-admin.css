@@ -254,3 +254,35 @@
 }
 
 .admin-overview__facts dt { color: var(--text-secondary); }
+
+/* --- Резервные копии (S-82) --- */
+
+.admin-backups__title { margin-block-end: var(--space-4); }
+
+.admin-backups__schedule { color: var(--text-secondary); margin-block-end: var(--space-3); }
+
+.admin-backups__run { margin-block-end: var(--space-5); }
+
+.admin-backups__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.admin-backups__table th,
+.admin-backups__table td {
+  padding: var(--space-3) var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+  vertical-align: top;
+  text-align: start;
+}
+
+.admin-backups__table thead th {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.admin-backups__when,
+.admin-backups__size,
+.admin-backups__checked { color: var(--text-secondary); white-space: nowrap; }
