@@ -105,10 +105,50 @@ export function createSplashRoutes({ splash, audit = null, sessionMw = null }) {
         return res.status(403).type('text/plain; charset=utf-8')
           .send(t(locale, 'admin.users.csrf'));
       }
+      const where = ['up', 'down', 'first', 'last', 'position'].includes(body.where)
+        ? body.where
+        : 'up';
       await splash.reorder({
         frameId: Number(body.frame_id),
-        where: ['up', 'down', 'first', 'last'].includes(body.where) ? body.where : 'up',
+        where,
+        position: Number(body.position ?? 0),
       });
+      return res.status(303).set('Location', `/${locale}/admin/splash`).end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  // Точка кадрирования кадра (F-10-09 §4, F-10-04): своя у кадра, а не у
+  // картинки — одна картинка может стоять в двух кадрах.
+  router.post('/:locale/admin/splash/focal', adminOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+    const body = req.body ?? {};
+    try {
+      if (!req.session || !csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.csrf'));
+      }
+      const done = await splash.setFocal({
+        frameId: Number(body.frame_id),
+        focalX: Number(body.focal_x),
+        focalY: Number(body.focal_y),
+      });
+      if (!done) {
+        return res.status(404).type('text/plain; charset=utf-8')
+          .send(t(locale, 'studio.splash.frameMissing'));
+      }
+      if (audit) {
+        await audit.write({
+          actorId: req.session.user.id,
+          action: 'splash.focal',
+          objectType: 'splash_frame',
+          objectId: Number(body.frame_id),
+          result: 'ok',
+          reason: `x=${body.focal_x}; y=${body.focal_y}`,
+        });
+      }
       return res.status(303).set('Location', `/${locale}/admin/splash`).end();
     } catch (error) {
       return next(error);

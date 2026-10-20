@@ -1139,7 +1139,11 @@ CREATE TABLE e_splash_frame (
   series_id   BIGINT REFERENCES e_series(id) ON DELETE SET NULL,
   image_id    BIGINT NOT NULL REFERENCES e_image(id) ON DELETE RESTRICT,
   ordinal     SMALLINT NOT NULL,
-  active      BOOLEAN NOT NULL DEFAULT TRUE
+  active      BOOLEAN NOT NULL DEFAULT TRUE,
+  -- Точка кадрирования кадра своя (F-10-09 §4, F-10-04): одна картинка может
+  -- стоять в двух кадрах, и кадры кадрируются по-разному.
+  focal_x     REAL NOT NULL DEFAULT 0.5,
+  focal_y     REAL NOT NULL DEFAULT 0.5
 );
 -- Порядковый номер уникален только среди активных кадров: снятый кадр
 -- не должен мешать поставить другой на его место. Частичная уникальность

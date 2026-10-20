@@ -106,6 +106,54 @@ test('порядок меняется кнопками (F-10-09 §4)', { skip },
   assert.ok(after < before, 'кадр поднялся выше по ленте');
 });
 
+test('точка кадрирования кадра своя и сохраняется (F-10-09 §4, F-10-04)', { skip }, async () => {
+  await splash.add({ imageId, seriesId, byId: null });
+  const state = await splash.frames();
+  const mine = state.frames.filter((frame) => frame.seriesId === Number(seriesId));
+  const frame = mine[0];
+
+  const done = await splash.setFocal({ frameId: frame.id, focalX: 30, focalY: 70 });
+  assert.equal(done, true, 'точка поставлена');
+
+  const after = await splash.frames();
+  const changed = after.frames.find((item) => item.id === frame.id);
+  assert.equal(changed.focalX, 30, 'X сохранён');
+  assert.equal(changed.focalY, 70, 'Y сохранён');
+});
+
+test('перетаскивание ставит кадр на указанное место (F-10-09 §4)', { skip }, async () => {
+  await splash.add({ imageId, seriesId, byId: null });
+  const state = await splash.frames();
+  const mine = state.frames.filter((frame) => frame.seriesId === Number(seriesId));
+  const last = mine[mine.length - 1];
+
+  const moved = await splash.reorder({ frameId: last.id, where: 'position', position: 0 });
+  assert.equal(moved, true, 'кадр переставлен');
+
+  const after = await splash.frames();
+  const first = after.frames.find((frame) => frame.seriesId === Number(seriesId));
+  assert.equal(first.id, last.id, 'кадр оказался первым среди своих');
+});
+
+test('кадр из архивного сериала отключён и в счёт не идёт (F-10-09 §5)', { skip }, async () => {
+  await splash.add({ imageId, seriesId, byId: null });
+  const before = await splash.frames();
+  const usableBefore = before.usable;
+
+  await pool.query('UPDATE e_series SET archived_at = now() WHERE id = $1', [seriesId]);
+  try {
+    const after = await splash.frames();
+    const mine = after.frames.filter((frame) => frame.seriesId === Number(seriesId));
+    assert.equal(mine[0].disabled, true, 'кадр отключён');
+    // Все кадры этого сериала (их несколько — по одному на проверку) выпадают
+    // из счёта разом.
+    assert.equal(after.usable, usableBefore - mine.length, 'в счёт кадры не идут');
+    assert.equal(after.ready, after.usable >= MIN_FRAMES, 'готовность считается по годным кадрам');
+  } finally {
+    await pool.query('UPDATE e_series SET archived_at = NULL WHERE id = $1', [seriesId]);
+  }
+});
+
 test('кадр убирается, и кадров меньше нормы — заставка выключена (F-10-09 §5)', { skip }, async () => {
   // Убираем только свои кадры: чужие в общей ленте трогать нельзя.
   const state = await splash.frames();

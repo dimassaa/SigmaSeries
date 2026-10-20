@@ -1005,11 +1005,135 @@
   function initSplash() {
     var select = document.querySelector('#splash-series');
     var hidden = document.querySelector('#splash-image');
-    if (!select || !hidden) return;
-    select.addEventListener('change', function () {
-      var option = select.options[select.selectedIndex];
-      hidden.value = option ? (option.getAttribute('data-image') || '') : '';
+    if (select && hidden) {
+      select.addEventListener('change', function () {
+        var option = select.options[select.selectedIndex];
+        hidden.value = option ? (option.getAttribute('data-image') || '') : '';
+      });
+    }
+    initSplashOrder();
+    initSplashPlayer();
+  }
+
+  // Перетаскивание кадра меняет порядок (F-10-09 §4). С клавиатуры порядок
+  // меняется кнопками: перетаскивание для мыши, кнопки — для всего.
+  function initSplashOrder() {
+    var list = document.querySelector('.studio-splash__list');
+    if (!list) return;
+    var dragged = null;
+
+    list.addEventListener('dragstart', function (event) {
+      var item = event.target.closest('.studio-splash__frame');
+      if (!item) return;
+      dragged = item;
+      item.classList.add('is-dragging');
+      event.dataTransfer.effectAllowed = 'move';
+      // Firefox без данных перетаскивание не начинает.
+      event.dataTransfer.setData('text/plain', item.getAttribute('data-frame-id') || '');
     });
+
+    list.addEventListener('dragend', function () {
+      if (dragged) dragged.classList.remove('is-dragging');
+      dragged = null;
+    });
+
+    list.addEventListener('dragover', function (event) {
+      if (!dragged) return;
+      event.preventDefault();
+      event.dataTransfer.dropEffect = 'move';
+    });
+
+    list.addEventListener('drop', function (event) {
+      if (!dragged) return;
+      event.preventDefault();
+      var target = event.target.closest('.studio-splash__frame');
+      if (!target || target === dragged) return;
+      var items = Array.prototype.slice.call(list.querySelectorAll('.studio-splash__frame'));
+      var from = items.indexOf(dragged);
+      var to = items.indexOf(target);
+      if (from < 0 || to < 0) return;
+      if (from < to) target.parentNode.insertBefore(dragged, target.nextSibling);
+      else target.parentNode.insertBefore(dragged, target);
+      // Позиция считается после перестановки: до неё кадр стоял на старом
+      // месте, и сервер получил бы прежний номер.
+      var moved = Array.prototype.slice.call(list.querySelectorAll('.studio-splash__frame'));
+      saveSplashOrder(list, dragged, moved.indexOf(dragged));
+    });
+  }
+
+  // Порядок сохраняется сразу: перетащенный кадр не должен возвращаться на
+  // место после перезагрузки страницы.
+  function saveSplashOrder(list, item, position) {
+    var url = list.getAttribute('data-order-url');
+    var csrf = document.querySelector('input[name=csrf]');
+    if (!url || !csrf) return;
+    var body = new URLSearchParams({
+      csrf: csrf.value,
+      frame_id: item.getAttribute('data-frame-id') || '',
+      where: 'position',
+      position: String(position),
+    });
+    fetch(url, {
+      method: 'POST',
+      headers: { 'content-type': 'application/x-www-form-urlencoded' },
+      body: body,
+    });
+  }
+
+  // Предпросмотр проигрывает заставку: кадры сменяются не чаще четырёх раз в
+  // секунду (F-10-09 §4), счёт идёт от 1 до 25. Смена кадра — подмена
+  // картинки без анимации: при выключенном движении она и не нужна.
+  function initSplashPlayer() {
+    var player = document.querySelector('[data-splash-player]');
+    if (!player) return;
+    var image = player.querySelector('[data-splash-preview]');
+    var counter = player.querySelector('[data-splash-current]');
+    var button = player.querySelector('[data-splash-play]');
+    var frames = Array.prototype.slice.call(document.querySelectorAll('.studio-splash__frame'));
+    if (!image || !button || !frames.length) return;
+
+    var total = Number(player.querySelector('[data-splash-counter]')
+      && player.querySelector('[data-splash-counter]').getAttribute('data-total')) || 25;
+    var current = 0;
+    var timer = null;
+
+    function show(index) {
+      var frame = frames[index];
+      if (!frame) return;
+      var src = frame.getAttribute('data-preview-src');
+      if (src) image.src = src;
+      image.style.objectPosition =
+        (frame.getAttribute('data-preview-x') || '50') + '% '
+        + (frame.getAttribute('data-preview-y') || '50') + '%';
+      if (counter) counter.textContent = String(current + 1);
+    }
+
+    function stop() {
+      if (timer) clearInterval(timer);
+      timer = null;
+      button.textContent = button.getAttribute('data-label-play');
+    }
+
+    function tick() {
+      current += 1;
+      if (current >= total) {
+        stop();
+        current = 0;
+        return;
+      }
+      show(current % frames.length);
+    }
+
+    button.addEventListener('click', function () {
+      if (timer) {
+        stop();
+        return;
+      }
+      button.textContent = button.getAttribute('data-label-stop');
+      timer = setInterval(tick, 250);
+    });
+
+    show(0);
   }
 
   function boot() {

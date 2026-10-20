@@ -952,8 +952,27 @@
   aspect-ratio: 16 / 9;
   object-fit: cover;
   border-radius: var(--radius-sm);
-  filter: blur(3px);
 }
+
+/* Точка кадра — в своей строке под кадром: значения рядом с кнопками
+   порядка путались бы. */
+.studio-splash__focal {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+  margin-block-start: var(--space-2);
+}
+
+.studio-splash__focal .field__input { inline-size: 5rem; }
+
+.studio-splash__frame.is-dragging { opacity: 0.6; }
+
+.studio-splash__frame.is-disabled .studio-splash__title { text-decoration: line-through; }
+
+.studio-splash__player { display: grid; gap: var(--space-2); margin-block-end: var(--space-3); }
+
+.studio-splash__counter { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); }
 
 .studio-splash__preview-item .studio-splash__number {
   position: absolute;

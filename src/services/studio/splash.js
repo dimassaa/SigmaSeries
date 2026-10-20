@@ -19,8 +19,11 @@ export const MAX_FRAMES = 16;
 /** Насколько соседние кадры могут отличаться по яркости. */
 export const MAX_BRIGHTNESS_DIFF = 0.2;
 
+/** Сколько кадров показывает счёт предпросмотра (F-10-09 §4: счёт 1→25). */
+export const PREVIEW_TICKS = 25;
+
 /** Ширина размытой копии: её и показывает заставка. */
-const BLURRED_WIDTH = 32;
+export const BLURRED_WIDTH = 32;
 
 /**
  * Кадры заставки.
@@ -35,10 +38,10 @@ export function pgStudioSplash(pool) {
    */
   async function frames() {
     const { rows } = await pool.query(
-      `SELECT f.id, f.ordinal, f.active, f.image_id,
-              s.id AS series_id, s.slug AS series_slug,
+      `SELECT f.id, f.ordinal, f.active, f.image_id, f.focal_x, f.focal_y,
+              s.id AS series_id, s.slug AS series_slug, s.archived_at AS series_archived,
               coalesce(s.title_ru, s.title_original) AS series_title,
-              i.width, i.height, i.focal_x, i.focal_y
+              i.width, i.height
          FROM e_splash_frame f
          JOIN e_image i ON i.id = f.image_id
          LEFT JOIN e_series s ON s.id = f.series_id
@@ -48,6 +51,9 @@ export function pgStudioSplash(pool) {
       id: Number(row.id),
       ordinal: Number(row.ordinal),
       active: Boolean(row.active),
+      // Кадр из архивного сериала в заставку не годится: сериал убрали с
+      // главной и из карточек, а кадр остался бы на экране (F-10-09 §5).
+      disabled: row.series_archived !== null && row.series_archived !== undefined,
       imageId: Number(row.image_id),
       seriesId: row.series_id === null ? null : Number(row.series_id),
       seriesSlug: row.series_slug,
@@ -76,7 +82,17 @@ export function pgStudioSplash(pool) {
         });
       }
     }
-    return { frames: list, warnings, ready: list.length >= MIN_FRAMES };
+    // В заставку идут только включённые кадры годных сериалов: счётчик
+    // «двенадцать кадров» считает именно их (F-10-09 §5, §9).
+    const usable = list.filter((frame) => frame.active && !frame.disabled);
+    return {
+      frames: list,
+      warnings,
+      usable: usable.length,
+      ready: usable.length >= MIN_FRAMES,
+      previewWidth: BLURRED_WIDTH,
+      ticks: PREVIEW_TICKS,
+    };
   }
 
   /**
@@ -165,7 +181,7 @@ export function pgStudioSplash(pool) {
    * @param {{frameId: number, where: string}} input
    * @returns {Promise<boolean>}
    */
-  async function reorder({ frameId, where = 'up' }) {
+  async function reorder({ frameId, where = 'up', position = 0 }) {
     const { rows } = await pool.query(
       'SELECT id, ordinal FROM e_splash_frame ORDER BY ordinal, id',
     );
@@ -177,13 +193,56 @@ export function pgStudioSplash(pool) {
     else if (where === 'down') target = index + 1;
     else if (where === 'first') target = 0;
     else if (where === 'last') target = items.length - 1;
+    else if (where === 'position') target = Math.min(items.length - 1, Math.max(0, Number(position) || 0));
     if (target < 0 || target >= items.length || target === index) return false;
     const moved = items.splice(index, 1)[0];
     items.splice(target, 0, moved);
-    for (let i = 0; i < items.length; i += 1) {
-      await pool.query('UPDATE e_splash_frame SET ordinal = $2 WHERE id = $1', [items[i].id, i]);
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      // Сначала отрицательные номера: порядковые номера уникальны, и если
+      // присваивать новые по очереди, кадр столкнётся с тем, чей номер ещё
+      // не снят. Раньше это проходило только для соседних кадров.
+      for (let i = 0; i < items.length; i += 1) {
+        await client.query(
+          'UPDATE e_splash_frame SET ordinal = $2 WHERE id = $1',
+          [items[i].id, -(i + 1)],
+        );
+      }
+      for (let i = 0; i < items.length; i += 1) {
+        await client.query(
+          'UPDATE e_splash_frame SET ordinal = $2 WHERE id = $1',
+          [items[i].id, i],
+        );
+      }
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
     }
     return true;
+  }
+
+  /**
+   * Поставить точку кадрирования кадру.
+   *
+   * Точка своя у кадра, а не у картинки: одна картинка может стоять в двух
+   * кадрах (F-10-09 §4, F-10-04).
+   *
+   * @param {{frameId: number, focalX: number, focalY: number}} input
+   * @returns {Promise<boolean>}
+   */
+  async function setFocal({ frameId, focalX, focalY }) {
+    const x = Math.min(1, Math.max(0, Number(focalX) / 100));
+    const y = Math.min(1, Math.max(0, Number(focalY) / 100));
+    const { rowCount } = await pool.query(
+      `UPDATE e_splash_frame SET focal_x = $2, focal_y = $3 WHERE id = $1`,
+      [frameId, x, y],
+    );
+    return (rowCount ?? 0) > 0;
   }
 
   /**
@@ -261,5 +320,5 @@ export function pgStudioSplash(pool) {
     }
   }
 
-  return { frames, candidates, add, remove, reorder, brightnessOf };
+  return { frames, candidates, add, remove, reorder, setFocal, brightnessOf };
 }
