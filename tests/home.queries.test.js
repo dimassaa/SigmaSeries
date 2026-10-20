@@ -83,6 +83,48 @@ test('запросы используют только поля, существ�
   assert.deepEqual(absent, [], `в схеме нет: ${absent.join(', ')}`);
 });
 
+test('гость получает популярное, а вошедший — свой ряд (F-06-06 §18)', { skip }, async () => {
+  const guest = await data.forYou(null);
+  assert.equal(guest.personalized, false, 'гость получает популярное');
+  assert.ok(guest.items.length <= 6, 'не больше шести постеров');
+
+  // Свой ряд: человек с оценкой сериала получает похожие жанры.
+  // Пользователь создаётся через хранилище: адрес в базе вслепую, вручную его
+  // не вставить.
+  const { pgAuthStore } = await import('../src/services/auth/store.js');
+  const name = `foryou-${crypto.randomUUID().slice(0, 8)}`;
+  const account = await pgAuthStore(pool).createUser({
+    email: `${name}@example.com`,
+    nickname: name,
+    passwordHash: 'x',
+    tokenHash: crypto.randomUUID(),
+    timezone: 'Europe/Minsk',
+    locale: 'ru',
+    theme: 'dark',
+    confirmed: true,
+  });
+  const user = { id: account.id };
+  // Сериал с жанром: без жанра ряд не собрать — по жанрам и подбирается.
+  const { rows: [series] } = await pool.query(
+    `SELECT s.id FROM e_series s
+       JOIN e_series_genre sg ON sg.series_id = s.id
+      WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+      GROUP BY s.id LIMIT 1`,
+  );
+  await pool.query(
+    `INSERT INTO e_rating (user_id, object_type, series_id, value, counted)
+     VALUES ($1, 'series', $2, 9, TRUE) ON CONFLICT DO NOTHING`,
+    [user.id, series.id],
+  );
+
+  const own = await data.forYou(user.id);
+  assert.equal(own.personalized, true, 'вошедший получает свой ряд');
+  assert.ok(own.items.length > 0, 'ряд не пуст');
+
+  await pool.query('DELETE FROM e_rating WHERE user_id = $1', [user.id]);
+  await pool.query('DELETE FROM e_user WHERE id = $1', [user.id]);
+});
+
 test('пустой каталог даёт пустые массивы, а не ошибку', { skip }, async () => {
   // Свежая установка без импорта — обычное состояние, и главная обязана
   // открываться: иначе первый запуск упирается в 500.

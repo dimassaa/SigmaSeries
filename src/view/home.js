@@ -23,6 +23,9 @@ const imageUrl = (locale, slug, role, width) => (width ? `/${locale}/images/${sl
  * @param {object} page.data результат data.js
  */
 export function homeView({ locale, data }) {
+  // Ряд «Для вас» для вошедшего и «Популярное» для гостя — одна и та же
+  // геометрия, разный только заголовок (F-06-06 §19).
+  const forYou = data.forYou ?? { items: [], personalized: false };
   // Интервал бегущей строки — из настроек: он меняется администратором, а
   // значение в разметке осталось бы прежним.
   const marqueeInterval = Number(data.marqueeIntervalMs) > 0 ? Number(data.marqueeIntervalMs) : 4000;
@@ -52,6 +55,28 @@ export function homeView({ locale, data }) {
     </li>`)}
   </ul>`)}
   ${when(data.banners.length === 0, () => html`<p class="empty">${t(locale, 'home.banners.empty')}</p>`)}
+</section>
+
+<section class="block block--foryou" aria-labelledby="h-foryou">
+  <h2 class="block__title" id="h-foryou">
+    ${t(locale, forYou.personalized ? 'home.foryou.heading' : 'home.foryou.popular')}
+  </h2>
+  ${when(forYou.items.length > 0, () => html`
+  <ol class="posters" role="list">
+    ${forYou.items.map((s) => html`
+    <li class="posters__item">
+      <a class="poster" href="/${locale}/series/${s.slug}"
+         aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
+        <span class="poster__frame">
+          ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
+             alt="" width="185" height="278" loading="lazy" decoding="async">`)}
+          ${when(!s.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
+        </span>
+        <span class="poster__title">${s.title}</span>
+        <span class="poster__meta">${s.year}</span>
+      </a>
+    </li>`)}
+  </ol>`)}
 </section>
 
 <section class="block block--fresh" aria-labelledby="h-fresh">

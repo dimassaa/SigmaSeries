@@ -166,6 +166,80 @@ export function pgData(pool) {
       }));
     },
 
+    /**
+     * Ряд «Для вас»: вошедшему — по его жанрам, гостю — популярное.
+     *
+     * Персонализация опирается на то, чем человек уже показал интерес:
+     * оценки, отметки и «любимые», выбранные при регистрации (F-06-06 §8б).
+     * Если данных нет или рекомендации выключены в настройках, показывается
+     * популярное — без сообщения об ошибке (F-06-06 §5).
+     *
+     * @param {number|null} userId
+     * @returns {Promise<{items: object[], personalized: boolean}>}
+     */
+    async forYou(userId) {
+      const popular = async () => {
+        const { rows } = await pool.query(`
+          SELECT s.slug, coalesce(s.title_ru, s.title_original) AS title, s.year_start,
+                 r.value::float AS imdb,
+                 pv.width AS poster_width
+            FROM e_series s
+            LEFT JOIN e_external_rating r ON r.series_id = s.id AND r.platform = 'imdb'
+            LEFT JOIN LATERAL (
+              SELECT iv.width FROM e_image_variant iv
+              JOIN e_image i2 ON i2.id = iv.image_id
+              WHERE i2.series_id = s.id AND i2.role = 'poster'
+              ORDER BY iv.width LIMIT 1
+            ) pv ON true
+           WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+           ORDER BY r.value DESC NULLS LAST, s.year_start DESC
+           LIMIT 6`);
+        return rows.map(decorateSeries);
+      };
+
+      if (!userId) return { items: await popular(), personalized: false };
+
+      const { rows: [flag] } = await pool.query(
+        'SELECT recs_enabled FROM e_user WHERE id = $1', [userId],
+      );
+      if (!flag?.recs_enabled) return { items: await popular(), personalized: false };
+
+      const { rows } = await pool.query(`
+        WITH my_genres AS (
+          SELECT DISTINCT sg.genre_code
+            FROM e_series_genre sg
+            JOIN e_rating r ON r.series_id = sg.series_id
+           WHERE r.user_id = $1
+          UNION
+          SELECT DISTINCT sg.genre_code
+            FROM e_series_genre sg
+            JOIN e_taste_seed ts ON ts.series_id = sg.series_id
+           WHERE ts.user_id = $1
+        )
+        SELECT s.slug, coalesce(s.title_ru, s.title_original) AS title, s.year_start,
+               r.value::float AS imdb,
+               pv.width AS poster_width
+          FROM e_series s
+          JOIN e_series_genre sg ON sg.series_id = s.id
+          JOIN my_genres g ON g.genre_code = sg.genre_code
+          LEFT JOIN e_external_rating r ON r.series_id = s.id AND r.platform = 'imdb'
+          LEFT JOIN LATERAL (
+            SELECT iv.width FROM e_image_variant iv
+            JOIN e_image i2 ON i2.id = iv.image_id
+            WHERE i2.series_id = s.id AND i2.role = 'poster'
+            ORDER BY iv.width LIMIT 1
+          ) pv ON true
+         WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+           AND NOT EXISTS (SELECT 1 FROM e_watch_status w
+                            WHERE w.user_id = $1 AND w.series_id = s.id)
+         GROUP BY s.id, r.value, pv.width
+         ORDER BY r.value DESC NULLS LAST, s.year_start DESC
+         LIMIT 6`, [userId]);
+
+      if (!rows.length) return { items: await popular(), personalized: false };
+      return { items: rows.map(decorateSeries), personalized: true };
+    },
+
     async genres() {
       const { genresPerRow } = await current();
       const { rows } = await pool.query(`
@@ -258,17 +332,18 @@ export function stubData(over = {}) {
  * посетитель увидел бы «ничего не выходит» вместо «сервис сломался».
  * Разница между «нет данных» и «не удалось получить» обязана быть видна.
  */
-export async function collectHomeData(data, locale) {
-  const [banners, fresh, collections, genres, settings] = await Promise.all([
+export async function collectHomeData(data, locale, userId = null) {
+  const [banners, fresh, collections, genres, settings, forYou] = await Promise.all([
     data.banners(),
     data.fresh(locale),
     data.collections(),
     data.genres(locale),
     // Интервал бегущей строки нужен в разметке: значение из базы, а не из кода.
     data.settings ? data.settings() : Promise.resolve(null),
+    data.forYou ? data.forYou(userId) : Promise.resolve({ items: [], personalized: false }),
   ]);
   return {
-    banners, fresh, collections, genres,
+    banners, fresh, collections, genres, forYou,
     marqueeIntervalMs: settings ? settings.marqueeIntervalMs : 4000,
   };
 }

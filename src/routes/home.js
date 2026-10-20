@@ -42,7 +42,7 @@ export function createHomeRoutes({ data, sessionMw = null, panel = null }) {
     if (!isLocale(locale)) return next('route');
 
     try {
-      const homeData = await collectHomeData(data, locale);
+      const homeData = await collectHomeData(data, locale, req.session?.user?.id ?? null);
       const page = layout({
         styles: STYLES,
         account: req.account,
