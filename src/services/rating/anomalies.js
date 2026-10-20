@@ -1,0 +1,183 @@
+// Датчик аномалий оценок (F-04-08, H-77).
+//
+// Часовой проход по всем сериалам: где за окно всплеска набралось больше
+// оценок, чем max(минимум, множитель × среднее дневное по базовой линии),
+// и не меньше заданной доли из них — экстремумы от молодых аккаунтов,
+// серия помечается аномалией: строка с числами детекции и снимком блока
+// рейтинга, снимком читатели и пользуются до решения админа.
+//
+// Пороги — стартовые значения H-77 из настроек (RATING.anomaly*).
+// Базовая линия — предыдущие N дней (DEC-066): по всей жизни сериала
+// пенял бы новинкам, у которых истории нет.
+//
+// Повторный вход не дублирует: уникальный индекс по открытой аномалии
+// в базе, и проход их исключает условием NOT EXISTS. Решения админа
+// (принять/отбросить) живут в маршрутах M9; здесь — только находка.
+
+import { RATING } from '../../config/settings.js';
+
+/**
+ * Работает с настоящей таблицей аномалий: возьмите этот конструктор, если
+ * ДБ-доступ через pg.Pool.
+ *
+ * @param {object} deps
+ * @param {pg.Pool} deps.pool
+ * @param {object} deps.ratings хранилище оценок: его `summary(seriesId)`
+ *   даёт снимок блока «последнее стабильное» на момент срабатывания
+ * @returns {{scan: (at?: Date) => Promise<number>}}
+ */
+export function pgAnomalySensor({ pool, ratings }) {
+  /**
+   * Часовой проход.
+   *
+   * @param {Date} [at] момент прохода; тесты подставляют фиксированные даты
+   * @returns {Promise<number>} сколько аномалий открыто этим проходом
+   */
+  async function scan(at = new Date()) {
+    const windowStart = windowStartDate(at);
+    const baselineStart = baselineStartDate(at, windowStart);
+    const { rows: candidates } = await pool.query(
+      `WITH recent AS (
+         SELECT r.series_id,
+                count(*)::int AS count_window,
+                count(*) FILTER (
+                  WHERE (r.value <= $1 OR r.value >= $2)
+                    AND u.registered_at > $3
+                )::int AS count_extreme
+           FROM e_rating r
+           JOIN e_user u ON u.id = r.user_id
+          WHERE r.object_type = 'series' AND r.episode_id IS NULL
+            AND r.created_at >= $4 AND r.created_at < $5
+          GROUP BY r.series_id
+       ),
+       baseline AS (
+         SELECT r.series_id, count(*)::float8 AS count_baseline
+           FROM e_rating r
+          WHERE r.object_type = 'series' AND r.episode_id IS NULL
+            AND r.created_at >= $6 AND r.created_at < $4
+          GROUP BY r.series_id
+       )
+       SELECT s.series_id, s.count_window, s.count_extreme,
+              coalesce(b.count_baseline, 0) AS count_baseline
+         FROM recent s
+         LEFT JOIN baseline b ON b.series_id = s.series_id
+        WHERE NOT EXISTS (
+              SELECT 1 FROM e_rating_anomaly a
+               WHERE a.series_id = s.series_id AND a.state = 'open')
+          AND s.count_window > GREATEST(
+                $7,
+                $8 * coalesce(b.count_baseline, 0.0) / $9)
+          AND s.count_extreme::float8 / s.count_window >= $10::float8 / 100`,
+      [
+        RATING.anomalyExtremeLow,
+        RATING.anomalyExtremeHigh,
+        toTimestamp(youngerDate(at)),
+        windowStart,
+        toTimestamp(at),
+        baselineStart,
+        RATING.anomalyMinVotes,
+        RATING.anomalyAvgMultiplier,
+        RATING.anomalyBaselineDays,
+        RATING.anomalyExtremeShare,
+      ],
+    );
+
+    for (const row of candidates) {
+      const summary = await ratings.summary(row.series_id);
+      const { rows: [anomaly] } = await pool.query(
+        `INSERT INTO e_rating_anomaly (series_id, signal, frozen)
+         VALUES ($1, $2, $3)
+         RETURNING id, created_at AS created`,
+        [
+          row.series_id,
+          JSON.stringify(signal({ at, row })),
+          JSON.stringify({ summary: freezeSummary(summary) }),
+        ],
+      );
+      await notifyAdmins({ pool, anomaly, at });
+    }
+    return candidates.length;
+  }
+
+  return { scan };
+}
+
+function toTimestamp(date) {
+  return date.toISOString();
+}
+
+/** Начало окна всплеска: `anomalyWindowH` часов до прохода. */
+function windowStartDate(at) {
+  return toTimestamp(new Date(at.getTime() - RATING.anomalyWindowH * 3600_000));
+}
+
+/** Начало базовой линии: сразу перед окном всплеска, длиной N дней. */
+function baselineStartDate(at, windowStart) {
+  return toTimestamp(
+    new Date(new Date(windowStart).getTime() - RATING.anomalyBaselineDays * 86_400_000),
+  );
+}
+
+/** «Молодой аккаунт»: зарегистрирован позже этого момента. */
+function youngerDate(at) {
+  return new Date(at.getTime() - RATING.anomalyYoungHours * 3600_000);
+}
+
+/**
+ * Числа детекции: редактор разбора не должен вычислять их заново по
+ * волатильным таблицам — всё, на что смотрел датчик, лежит здесь.
+ *
+ * @param {{at: Date, row: object}} args
+ */
+function signal({ at, row }) {
+  return {
+    window_hours: RATING.anomalyWindowH,
+    window_start: windowStartDate(at),
+    baseline_days: RATING.anomalyBaselineDays,
+    count_window: row.count_window,
+    count_extreme: row.count_extreme,
+    extreme_share: Math.round((row.count_extreme * 100.0 / row.count_window) * 100) / 100,
+    count_baseline: Number(row.count_baseline),
+    min_votes: RATING.anomalyMinVotes,
+    avg_multiplier: RATING.anomalyAvgMultiplier,
+    extreme_low: RATING.anomalyExtremeLow,
+    extreme_high: RATING.anomalyExtremeHigh,
+    young_hours: RATING.anomalyYoungHours,
+  };
+}
+
+/**
+ * Снимок блока рейтинга:(src Map не JSON-сериализуется, гистограмма
+ * превращается в объект со строковыми ключами `1..10`.
+ */
+function freezeSummary(summary) {
+  return {
+    average: summary.average ?? null,
+    votes: summary.votes,
+    shown: summary.shown,
+    histogram: Object.fromEntries([...summary.histogram ?? new Map()].map(
+      ([value, n]) => [String(value), n],
+    )),
+  };
+}
+
+/** Служебное уведомление каждому активному админу (M3, kind `rating_anomaly`). */
+async function notifyAdmins({ pool, anomaly, at }) {
+  await pool.query(
+    `INSERT INTO e_notification (user_id, kind, category, params, dedup_key)
+     SELECT u.id, 'rating_anomaly', 'service', $1, $2
+       FROM e_user u
+       JOIN e_role_assignment a ON a.user_id = u.id
+      WHERE a.role = 'admin'
+        AND (a.expires_at IS NULL OR a.expires_at > $3)
+      ON CONFLICT (user_id, dedup_key) DO NOTHING`,
+    [
+      JSON.stringify({
+        anomaly_id: anomaly.id,
+        created_at: toTimestamp(anomaly.created),
+      }),
+      `rating-anomaly:${anomaly.id}`,
+      toTimestamp(at),
+    ],
+  );
+}
