@@ -29,6 +29,7 @@ import { createAuditRoutes } from './routes/auditLog.js';
 import { createOverviewRoutes } from './routes/adminOverview.js';
 import { createBackupRoutes } from './routes/backups.js';
 import { createStudioRoutes } from './routes/studio.js';
+import { createStudioCardRoutes } from './routes/studioCard.js';
 import { createSystemSettingsRoutes } from './routes/systemSettings.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
 import { createSearchRoutes } from './routes/search.js';
@@ -92,6 +93,7 @@ export function createApp({
   adminOverview = null,
   backups = null,
   studio = null,
+  studioCard = null,
   picks = null,
   backupRunner = null,
   backupSchedule = null,
@@ -196,6 +198,8 @@ export function createApp({
   }));
   // Студия (S-73, S-74): каталог сериалов и очередь неполных карточек.
   if (studio) app.use(createStudioRoutes({ pool, studio, picks, audit, sessionMw }));
+  // Карточка сериала (S-75): правка, публикация, архив.
+  if (studioCard) app.use(createStudioCardRoutes({ card: studioCard, audit, sessionMw }));
   // Системный обзор (S-70): онлайн, очереди, аномалии, копии.
   if (adminOverview) app.use(createOverviewRoutes({ overview: adminOverview, sessionMw }));
   // Журнал аудита (S-81): только чтение, фильтры.
