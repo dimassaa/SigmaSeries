@@ -91,7 +91,7 @@
 }
 
 .panel__title {
-  font-size: 15px;
+  font-size: var(--text-sm);
   margin-block-end: var(--space-3);
   color: var(--text-secondary);
 }
@@ -114,7 +114,7 @@
 .panel__link:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 .panel__series {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 600;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -123,7 +123,7 @@
 
 /* Сериалы «Смотрю» и «В планах» помечены точкой: человек узнаёт свои закладки
    в общем списке (H-71). Точка не единственный признак — рядом стоит подпись
-   даты и название (R-A11Y-19). */
+   даты и название (R-A11Y-19). Размер — глиф, а не текст: вне шкалы TOKENS. */
 .panel__row--mine .panel__series::before {
   content: '●';
   margin-inline-end: var(--space-1);
@@ -135,13 +135,13 @@
 .panel__meta {
   display: flex;
   gap: var(--space-2);
-  font-size: 13px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 }
 
 .panel__label { color: var(--text-primary); }
 
-.panel__empty { font-size: 14px; color: var(--text-secondary); }
+.panel__empty { font-size: var(--text-sm); color: var(--text-secondary); }
 
 .panel__all {
   display: inline-flex;
@@ -149,7 +149,7 @@
   min-height: 44px;
   margin-block-start: var(--space-2);
   color: var(--accent);
-  font-size: 14px;
+  font-size: var(--text-sm);
   text-decoration: none;
 }
 .panel__all:hover { text-decoration: underline; }

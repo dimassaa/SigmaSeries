@@ -58,7 +58,7 @@
 
 .collection__section-title,
 .person__section-title {
-  font-size: 18px;
+  font-size: var(--text-lg);
   margin: 0;
 }
 
@@ -88,7 +88,7 @@
   background: var(--surface-raised);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  font-size: 24px;
+  font-size: var(--text-xl);
   font-weight: 500;
   letter-spacing: 0.02em;
 }

@@ -94,11 +94,11 @@
 
 .series__rating-label {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 .series__rating-value {
-  font-size: 24px;
+  font-size: var(--text-xl);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -124,18 +124,18 @@
 /* Подпись числа — «Сайт»: имя рейтинга видно и в шапке, и в блоке (F-04-03 §4). */
 .rating__label {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 /* Состояния без числа — «Мало оценок (3)» и «Нет оценок»: место числа занято
    текстом, а не пустотой, которую читают как «сломалось» (F-04-03 §5). */
 .rating__low {
   color: var(--text-secondary);
-  font-size: 16px;
+  font-size: var(--text-base);
 }
 
 .rating__value {
-  font-size: 24px;
+  font-size: var(--text-xl);
   font-weight: 600;
   font-variant-numeric: tabular-nums;
 }
@@ -144,7 +144,7 @@
 .rating__hint,
 .rating__own {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
   margin: 0;
 }
 
@@ -214,7 +214,7 @@
 .rating__bars-title {
   margin: var(--space-3) 0 0;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 400;
 }
 
@@ -244,7 +244,7 @@
 .rating__bar-label,
 .rating__bar-share {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
@@ -258,7 +258,7 @@
 
 /* Подпись «когда голос войдёт в рейтинг» (EC-V4): человек должен понимать,
    почему поставленная им оценка не сдвинула число. */
-.rating__mature { color: var(--text-secondary); font-size: 14px; }
+.rating__mature { color: var(--text-secondary); font-size: var(--text-sm); }
 
 /* Оценка серии в строке списка (S-07). Шкала та же, но компактная: серия
    стоит в списке из двух десятков строк, и крупные клетки превратили бы
@@ -269,11 +269,11 @@
   gap: 4px;
   margin: 0;
 }
-.rating__form--compact .rating__scale .rating__value { min-height: 32px; font-size: 13px; }
+.rating__form--compact .rating__scale .rating__value { min-height: 32px; font-size: var(--text-xs); }
 .rating__form--compact .button {
   min-height: 32px;
   padding: var(--space-1) var(--space-2);
-  font-size: 13px;
+  font-size: var(--text-xs);
 }
 
 /* Телефон: десять клеток в строку не помещаются — ряд переносится по пять, а
@@ -305,13 +305,13 @@
   align-items: baseline;
   gap: var(--space-1);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-variant-numeric: tabular-nums;
 }
 
 .rating__cell-value { color: var(--text-primary); font-weight: 600; }
 .rating__cell-dot { color: var(--text-secondary); }
-.rating__cell--few { font-size: 13px; }
+.rating__cell--few { font-size: var(--text-xs); }
 
 /* Якорное меню. */
 .series__menu {
@@ -342,7 +342,7 @@
 
 .series__section-title {
   margin: 0 0 12px;
-  font-size: 22px;
+  font-size: var(--text-xl);
 }
 
 .series__description {
@@ -408,7 +408,7 @@
 
 .gone__slug {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 @media (max-width: 639px) {

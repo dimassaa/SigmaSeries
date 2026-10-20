@@ -22,7 +22,7 @@
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 
@@ -92,7 +92,7 @@
 
 .status--readonly {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 /* S-30 — закладки (F-03-04).
    Вкладки — горизонтальная строка, на телефоне прокручивается: шесть вкладок с
@@ -126,7 +126,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-pill);
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
   text-decoration: none;
 }
 
@@ -199,7 +199,7 @@
 
 .library__name {
   margin: 0;
-  font-size: 16px;
+  font-size: var(--text-base);
 }
 
 .library__year {
@@ -229,7 +229,7 @@
   border: 1px solid var(--accent);
   border-radius: var(--radius-pill);
   color: var(--accent);
-  font-size: 12px;
+  font-size: var(--text-xs);
 }
 
 .library__progress-percent {
@@ -239,7 +239,7 @@
 
 .library__skipped {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-xs);
   color: var(--warning);
 }
 
@@ -248,7 +248,7 @@
 .library__next,
 .library__archived {
   margin: 0;
-  font-size: 13px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 }
 
@@ -307,7 +307,7 @@
 }
 
 .mark--bulk .button {
-  font-size: 13px;
+  font-size: var(--text-xs);
 }
 
 .season__episode {
@@ -333,7 +333,7 @@
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-sm);
   background: var(--surface-raised);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 .mark-notice--warn {
@@ -360,7 +360,7 @@
 
 .progress--empty {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 .progress__bar {
@@ -378,7 +378,7 @@
 
 .progress__numbers {
   font-variant-numeric: tabular-nums;
-  font-size: 15px;
+  font-size: var(--text-sm);
 }
 
 .progress__percent,
@@ -386,7 +386,7 @@
 .progress__awaiting,
 .progress__skipped {
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--text-xs);
 }
 
 .progress__next {
@@ -430,7 +430,7 @@
   background: transparent;
   color: var(--text-primary);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-sm);
   cursor: pointer;
 }
 
@@ -446,14 +446,14 @@
 .subs__note {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--text-xs);
 }
 
 .subs--archived,
 .subs--guest {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 13px;
+  font-size: var(--text-xs);
 }
 
 .subs-notice {
@@ -462,7 +462,7 @@
   border: 1px solid var(--warning);
   border-radius: var(--radius-sm);
   color: var(--warning);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 /* Плотный список закладок (#127, F-03-04 §4).
@@ -506,9 +506,9 @@
 }
 
 .library__row-body { min-width: 0; }
-.library__row-name { font-size: 16px; margin: 0; }
+.library__row-name { font-size: var(--text-base); margin: 0; }
 .library__row-progress { margin-block-start: var(--space-1); }
-.library__row-next { margin-block-start: var(--space-1); font-size: 13px; color: var(--text-secondary); }
+.library__row-next { margin-block-start: var(--space-1); font-size: var(--text-xs); color: var(--text-secondary); }
 
 .library__row-actions { display: flex; align-items: center; gap: var(--space-2); }
 
@@ -528,5 +528,4 @@
     width: 48px; height: 72px; border-radius: var(--radius-sm);
   }
   .library__poster-fallback { width: 48px; height: 72px; }
-  .library__name { font-size: 16px; }
 }

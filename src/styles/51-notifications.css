@@ -23,7 +23,7 @@
 
 .account__letter {
   font-weight: 600;
-  font-size: 15px;
+  font-size: var(--text-sm);
   text-transform: uppercase;
 }
 
@@ -94,7 +94,7 @@
   border-radius: var(--radius-pill);
   color: var(--text-secondary);
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 .notifications__filter:hover { color: var(--text-primary); border-color: var(--border-strong); }
 /* Выбранный фильтр помечен не только цветом, но и подчёркиванием. */
@@ -110,7 +110,7 @@
 .notifications__day + .notifications__day { margin-block-start: var(--space-6); }
 
 .notifications__day-title {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text-secondary);
   margin-block-end: var(--space-2);
@@ -138,6 +138,7 @@
   background: var(--surface-raised);
 }
 
+/* Размер — глиф значка, а не текст: вне шкалы TOKENS сознательно. */
 .notifications__icon { font-size: 20px; line-height: 1.4; }
 
 .notifications__body { min-width: 0; }
@@ -150,7 +151,7 @@
 
 .notifications__item-meta {
   margin: var(--space-1) 0 0;
-  font-size: 13px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   display: flex; gap: var(--space-2);
 }
@@ -171,7 +172,7 @@
   padding: 0 var(--space-3);
   color: var(--accent);
   text-decoration: none;
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 .notifications__open:hover { text-decoration: underline; }
 
@@ -179,7 +180,7 @@
 
 .notifications__hint {
   margin-block-start: var(--space-6);
-  font-size: 13px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 }
 

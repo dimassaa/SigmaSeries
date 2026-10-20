@@ -1,7 +1,7 @@
 /* Сообщения: 404, ошибка, кнопка. */
 
 .block--message { padding-block: var(--space-9); text-align: center; }
-.message__title { font-size: 28px; margin-block-end: var(--space-3); }
+.message__title { font-size: var(--text-2xl); margin-block-end: var(--space-3); }
 .message__text { color: var(--text-secondary); margin-block-end: var(--space-5); }
 
 .button {

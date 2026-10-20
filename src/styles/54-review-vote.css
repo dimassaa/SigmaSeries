@@ -28,7 +28,7 @@
   background: var(--surface-overlay);
   color: var(--text-primary);
   font: inherit;
-  font-size: 14px;
+  font-size: var(--text-sm);
   cursor: pointer;
   transition: background-color var(--dur-fast) var(--ease-out);
 }
@@ -57,7 +57,7 @@
 .reviews__vote-count,
 .reviews__vote-hint {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 .reviews__vote-hint { margin: 0; }

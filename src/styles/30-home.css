@@ -3,7 +3,7 @@
 .block { margin-block-end: var(--space-8); }
 
 .block__title {
-  font-size: 20px;
+  font-size: var(--text-lg);
   margin-block-end: var(--space-4);
   color: var(--text-primary);
 }
@@ -57,19 +57,19 @@
 .banner__meta { position: relative; }
 
 .banner__reason {
-  font-size: 12px;
+  font-size: var(--text-xs);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--text-secondary);
 }
 
 .banner__title {
-  font-size: 24px;
+  font-size: var(--text-xl);
   font-weight: 700;
   line-height: 1.2;
 }
 
-.banner__meta { font-size: 14px; color: var(--text-secondary); }
+.banner__meta { font-size: var(--text-sm); color: var(--text-secondary); }
 
 .banner:hover { border-color: var(--border-strong); }
 .banner:hover .banner__title { color: var(--accent); }
@@ -105,7 +105,7 @@
 .taste__count {
   margin: 0;
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 .poster { text-decoration: none; color: inherit; display: block; }
@@ -131,12 +131,12 @@
 .poster__title {
   display: block;
   margin-block-start: var(--space-2);
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 500;
   color: var(--text-primary);
 }
 
-.poster__meta { display: block; font-size: 12px; color: var(--text-secondary); }
+.poster__meta { display: block; font-size: var(--text-xs); color: var(--text-secondary); }
 
 .poster:hover .poster__frame { border-color: var(--border-strong); }
 
@@ -167,7 +167,7 @@
 }
 .collection:hover { border-color: var(--border-strong); }
 .collection__title { font-weight: 600; }
-.collection__count { font-size: 13px; color: var(--text-secondary); }
+.collection__count { font-size: var(--text-xs); color: var(--text-secondary); }
 
 /* --- Жанры --- */
 

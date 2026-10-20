@@ -16,7 +16,7 @@
   width: 32px; height: 32px; border-radius: var(--radius-pill);
   background: var(--surface-sunken); color: var(--text-secondary);
   border: 1px solid var(--border-subtle);
-  font-size: 14px; font-weight: 600;
+  font-size: var(--text-sm); font-weight: 600;
 }
 
 /* Текущий шаг отмечен не только цветом: кольцо и жирная цифра читаются
@@ -27,19 +27,19 @@
   box-shadow: 0 0 0 2px var(--surface-canvas), 0 0 0 4px var(--accent);
 }
 
-.steps__label { margin: 0 0 var(--space-5); color: var(--text-secondary); font-size: 14px; }
+.steps__label { margin: 0 0 var(--space-5); color: var(--text-secondary); font-size: var(--text-sm); }
 
 /* ─── Форма ─────────────────────────────────────────────────────────────────── */
 
 .form { display: grid; gap: var(--space-4); max-width: 420px; }
 
-.form__title { font-size: 28px; margin-block: 0 var(--space-2); }
+.form__title { font-size: var(--text-2xl); margin-block: 0 var(--space-2); }
 
-.form__links { color: var(--text-secondary); font-size: 15px; margin-block: var(--space-4) 0; }
+.form__links { color: var(--text-secondary); font-size: var(--text-sm); margin-block: var(--space-4) 0; }
 .form__links a { color: var(--accent); }
 
 .form__note { color: var(--positive); margin-block: 0; }
-.form__pow { color: var(--text-secondary); font-size: 14px; margin-block: var(--space-3) 0; }
+.form__pow { color: var(--text-secondary); font-size: var(--text-sm); margin-block: var(--space-3) 0; }
 
 /* Пояснение под заголовком: вторичный цвет, чтобы не спорить с самим
    заголовком и с кнопкой. */
@@ -59,13 +59,13 @@
 
 .field { display: grid; gap: var(--space-2); }
 
-.field__label { font-weight: 600; font-size: 15px; }
+.field__label { font-weight: 600; font-size: var(--text-sm); }
 
 .field__input {
   min-height: 44px; padding: 0 var(--space-4);
   background: var(--surface-sunken); color: var(--text-primary);
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  font: inherit; font-size: 16px;
+  font: inherit; font-size: var(--text-base);
 }
 
 /* 16px, а не 14: меньший размер поля на телефоне включает зум при фокусе
@@ -74,7 +74,7 @@
   outline: 2px solid var(--accent); outline-offset: 2px;
 }
 
-.field__hint { color: var(--text-secondary); font-size: 14px; margin-block: 0; }
+.field__hint { color: var(--text-secondary); font-size: var(--text-sm); margin-block: 0; }
 
 /* Строка «поле + кнопка Показать».
 
@@ -87,7 +87,7 @@
   flex: 0 0 auto; min-height: 44px; padding: 0 var(--space-3);
   background: var(--surface-sunken); color: var(--text-secondary);
   border: 1px solid var(--border-strong); border-radius: var(--radius-sm);
-  font: inherit; font-size: 15px; cursor: pointer;
+  font: inherit; font-size: var(--text-sm); cursor: pointer;
 }
 
 .field__reveal:hover { color: var(--text-primary); }
@@ -113,7 +113,7 @@
   border: 1px solid var(--border-strong);
   border-radius: var(--radius-sm);
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: var(--text-sm);
   letter-spacing: 0.08em;
   word-break: break-all;
   /* Цвет текста, а не заливки: ключ читают в обеих темах, и фон здесь
@@ -156,13 +156,13 @@
 .settings__body { flex: 1 1 320px; min-width: 0; }
 .settings__form { max-width: 520px; margin-block-end: var(--space-6); }
 .settings__group { margin: 0 0 var(--space-4); padding: 0; border: 0; }
-.settings__legend { padding: 0; color: var(--text-secondary); font-size: 14px; }
+.settings__legend { padding: 0; color: var(--text-secondary); font-size: var(--text-sm); }
 
 /* Заголовок формы внутри раздела: на странице три формы, и без него не видно,
    где кончается одна и начинается другая. */
 .settings__subhead {
   margin: 0 0 var(--space-3);
-  font-size: 17px;
+  font-size: var(--text-lg);
   color: var(--text-primary);
 }
 
@@ -184,7 +184,7 @@
   background: var(--surface-sunken);
   border: 1px solid var(--border-subtle);
   color: var(--text-secondary);
-  font-size: 24px;
+  font-size: var(--text-xl);
   /* Инициалы — всегда прописными: строчные в кружке читаются хуже. */
   text-transform: uppercase;
   letter-spacing: 0.02em;
@@ -200,7 +200,7 @@
   color: var(--text-secondary);
 }
 
-.settings__history-date { color: var(--text-secondary); font-size: 14px; }
+.settings__history-date { color: var(--text-secondary); font-size: var(--text-sm); }
 .settings__devices { margin: 0; padding: 0; list-style: none; }
 
 .settings__device {
@@ -228,12 +228,12 @@
   color: var(--text-secondary);
   /* 14px, а не `--text-sm`: токен размера из `TOKENS` в стилях пока не задан,
      и вводить его ради двух правил — это правка половины таблицы стилей. */
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 .settings__device-meta {
   color: var(--text-secondary);
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 /* Последствия удаления: перечисление того, что исчезнет. Список, а не
@@ -244,7 +244,7 @@
 .settings__consequence {
   padding-block: var(--space-1);
   color: var(--text-secondary);
-  font-size: 15px;
+  font-size: var(--text-sm);
 }
 
 .settings__actions { display: flex; flex-wrap: wrap; gap: var(--space-2); }
@@ -285,7 +285,7 @@
   padding: 0;
   list-style: none;
   font-family: var(--font-mono);
-  font-size: 15px;
+  font-size: var(--text-sm);
   /* Сетка в два столбца: десять кодов одним столбиком занимают весь экран,
      и человек прокручивает, теряя строку. */
   columns: 2;
@@ -306,21 +306,21 @@
    состояния (R-DES-27). */
 .field--invalid .field__input { border-color: var(--danger); }
 
-.field__error { color: var(--danger); font-size: 14px; margin-block: 0; }
+.field__error { color: var(--danger); font-size: var(--text-sm); margin-block: 0; }
 
-.field__status { margin-block: 0; font-size: 14px; min-height: 20px; }
+.field__status { margin-block: 0; font-size: var(--text-sm); min-height: 20px; }
 .field__status[data-state='free'] { color: var(--positive); }
 
 /* Чекбокс согласия: подпись кликабельна целиком, иначе мелкая цель. */
 .field--check { grid-template-columns: auto 1fr; align-items: start; gap: var(--space-3); }
 .field--check input { width: 20px; height: 20px; margin: 2px 0 0; accent-color: var(--accent); }
-.field--check label { font-size: 15px; line-height: 1.4; }
+.field--check label { font-size: var(--text-sm); line-height: 1.4; }
 
 /* ─── Шаг «Проверьте почту» ─────────────────────────────────────────────────── */
 
 /* Адрес выводится крупным: человек сверяет его с тем, что написал, и по
    мелкому тексту это не делается. */
-.message__lead { font-size: 19px; margin-block: 0 var(--space-4); overflow-wrap: anywhere; }
+.message__lead { font-size: var(--text-lg); margin-block: 0 var(--space-4); overflow-wrap: anywhere; }
 
 #verify-poll { margin-block-end: 0; }
 
@@ -360,8 +360,8 @@
   padding-inline-start: var(--space-2);
 }
 
-.mailbox__meta { display: block; color: var(--text-secondary); font-size: 13px; }
-.mailbox__date { display: block; color: var(--text-secondary); font-size: 12px; }
+.mailbox__meta { display: block; color: var(--text-secondary); font-size: var(--text-xs); }
+.mailbox__date { display: block; color: var(--text-secondary); font-size: var(--text-xs); }
 
 /* Тело письма показывается как есть: это то, что человек получит по почте, и
    переформатирование сбивало бы при сверке. */
@@ -373,7 +373,7 @@
   border-radius: var(--radius-md);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-  font-size: 14px;
+  font-size: var(--text-sm);
 }
 
 /* Матрица настроек уведомлений (F-03-10 §19).
@@ -392,7 +392,7 @@
   vertical-align: top;
 }
 .notify-matrix thead th {
-  font-size: 13px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
   font-weight: 600;
 }
@@ -403,7 +403,7 @@
   padding: 0 var(--space-2);
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-pill);
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text-secondary);
 }
 .notify-matrix__form { margin: 0; }
