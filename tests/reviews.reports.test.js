@@ -247,6 +247,34 @@ test('третий человек жалуется: материал помеч�
   assert.equal(state.visible_spoiler, false);
 });
 
+test('разрешённая редактором жалоба не двигает порог: нужны три новые (решение автора)', { skip }, async () => {
+  const series = await seriesWith(12);
+  const author = await viewer();
+  const a = await viewer();
+  const b = await viewer();
+  const fresh = await viewer();
+  const review = await write({ user: author, series });
+
+  // Разрешённые жалобы вносятся прямо в таблицу: разбор жалоб построит M5,
+  // а правило порога проверяется уже сейчас — проверка решает и за M5.
+  for (const who of [a, b]) {
+    await pool.query(
+      `INSERT INTO e_report (user_id, material_id, reason, state)
+       VALUES ($1, $2, 'spam', 'resolved')`,
+      [who.id, review.id],
+    );
+  }
+
+  const only = await reports.submit({
+    userId: fresh.id, materialId: review.id, seriesId: series.id, reason: 'spam',
+  });
+  assert.equal(only.ok, true);
+  assert.equal(only.hidden, false, 'две разрешённые + одна открытая порога не закрывают');
+  const state = await materialState(review.id);
+  assert.equal(state.state, 'published', 'материал остаётся видимым');
+  assert.equal(await countReports(review.id), 3, 'строки разрешённых лежат, скоростных скрытий нет');
+});
+
 test('повторная жалоба после порога молчит вежливо и не переходит дважды', { skip }, async () => {
   const series = await seriesWith(5);
   const author = await viewer();
