@@ -168,9 +168,16 @@ const refreshSite = () => ratings.refreshSiteAverage(new Date())
     if (votes) console.log(`[оценки] среднее по сайту: ${average.toFixed(1)} по ${votes} голосам`);
   });
 
-/** Ежечасная работа с оценками: сначала дозревают голоса, потом считается C. */
+const scanAnomalies = () => anomalies.scan(new Date())
+  .then((found) => {
+    if (found) console.log(`[аномалии] открыто событий: ${found}`);
+  })
+  .catch((error) => console.error(`[аномалии] ${error.message}`));
+
+/** Ежечасная работа с оценками: дозревание, среднее по сайту C, датчик аномалий. */
 const hourlyRatings = () => countMatured()
   .then(refreshSite)
+  .then(scanAnomalies)
   .catch((error) => console.error(`[оценки] ${error.message}`));
 
 const maturedWorker = setInterval(hourlyRatings, NOTIFY_SWEEP_MS);
