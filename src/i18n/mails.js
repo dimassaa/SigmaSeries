@@ -23,6 +23,7 @@ export const MAIL_KINDS = [
   'two_factor_enabled',
   'deletion_requested',
   'data_export_ready',
+  'data_export_failed',
 ];
 
 /**
@@ -218,6 +219,21 @@ const TEXTS = {
       needsLink: true,
       subject: 'Your data export is ready',
       body: 'Hello!\n\nThe file with all your data has been built. The link lives for 24 hours and stops working after that:\n{link}\n\nIf you did not request an export, ignore this message and change your password.',
+    },
+  },
+
+  // Выгрузка не собралась: человек закрыл вкладку и узнал бы о неудаче
+  // только вернувшись. Письмо говорит, что произошло, и куда смотреть.
+  data_export_failed: {
+    ru: {
+      needsLink: false,
+      subject: 'Файл с вашими данными не собрался',
+      body: 'Здравствуйте!\n\nСобрать файл с вашими данными не получилось: данные не выгрузились. Попробуйте заказать выгрузку ещё раз — если не получится, напишите нам.\n\nЕсли вы не заказывали выгрузку, просто проигнорируйте письмо и смените пароль.',
+    },
+    en: {
+      needsLink: false,
+      subject: 'Your data export could not be built',
+      body: 'Hello!\n\nThe file with all your data could not be built: the data did not go out. Please request the export again — and write to us if it fails again.\n\nIf you did not request an export, ignore this message and change your password.',
     },
   },
 

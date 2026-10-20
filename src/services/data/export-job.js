@@ -43,6 +43,8 @@ export async function runExportSweep({ auth, mailQueue, journal, baseUrl = '', n
       await auth.markExportFailed(job.id, at);
       journal?.security({ event: 'export_failed', user_id: job.user_id, requestId: 'задача' });
       console.error(`[экспорт] сборка ${job.id}: ${e.message}`);
+      // eslint-disable-next-line no-await-in-loop
+      await notifyFailed(job, at);
       failed += 1;
       continue;
     }
@@ -50,6 +52,8 @@ export async function runExportSweep({ auth, mailQueue, journal, baseUrl = '', n
     if (tooBigToExport(built.json)) {
       await auth.markExportFailed(job.id, at);
       journal?.security({ event: 'export_failed', user_id: job.user_id, requestId: 'задача' });
+      // eslint-disable-next-line no-await-in-loop
+      await notifyFailed(job, at);
       failed += 1;
       continue;
     }
@@ -69,6 +73,22 @@ export async function runExportSweep({ auth, mailQueue, journal, baseUrl = '', n
       await mailQueue?.enqueue({ kind: 'data_export_ready', to, locale: job.locale, link });
     }
     ready += 1;
+  }
+
+  /**
+   * Сказать человеку, что выгрузка не собралась.
+   *
+   * Молчаливая неудача — худший вид: человек закрыл вкладку и узнал бы о
+   * неудаче, лишь вернувшись за файлом.
+   *
+   * @param {object} job
+   * @param {Date} at
+   * @returns {Promise<void>}
+   */
+  async function notifyFailed(job, at) {
+    const to = await auth.addressOf(job.user_id);
+    if (!to) return;
+    await mailQueue?.enqueue({ kind: 'data_export_failed', to, locale: job.locale });
   }
 
   return { ready, failed };
