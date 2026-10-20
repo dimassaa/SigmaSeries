@@ -9,6 +9,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 
 import { createApp } from '../src/app.js';
 import { stubData } from '../src/services/home/data.js';
@@ -45,6 +46,29 @@ test('путь без слеша закрывается слешем', async () 
     const res = await get('/ru', { headers: { 'accept-language': 'en' } });
     assert.equal(res.status, 301);
     assert.equal(res.headers.get('location'), '/ru/');
+  });
+});
+
+test('клиентский скрипт отправляет формы urlencoded, а не multipart', async () => {
+  // Проверка появилась после находки в браузере: тело уходило multipart'ом,
+  // а сервер разбирает только urlencoded — из-за этого голос «Полезно»
+  // отвечал «Неизвестная цель голоса», а жалоба — «Нет причины». Всё
+  // выглядело рабочим: серверные тесты отправляли формы как urlencoded.
+  const script = await readFile(new URL('../public/app.js', import.meta.url), 'utf8');
+  assert.ok(!/body:\s*new FormData\(/.test(script), 'тела запросов не отправляются multipart\'ом');
+  assert.match(script, /application\/x-www-form-urlencoded/, 'форма отправляется urlencoded');
+});
+
+test('клиентский скрипт подключается на каждой странице', async () => {
+  // Проверка появилась после находки в браузере: скрипт был написан, но
+  // подключался только на странице подтверждения регистрации. Из-за этого
+  // переключатель темы, голос «Полезно» без перезагрузки и диалог жалобы
+  // не работали нигде — а тесты этого не видели, потому что проверяли
+  // разметку, а не поведение в браузере.
+  await withApp(stubData(), async (get) => {
+    const html = await (await get('/ru/')).text();
+    assert.match(html, /<script src="\/app\.js" defer><\/script>/,
+      'клиентский скрипт подключён к странице');
   });
 });
 

@@ -55,6 +55,11 @@ ${LOCALES.map((l) => html`<link rel="alternate" hreflang="${l}" href="/${l}${pat
 <link rel="alternate" hreflang="x-default" href="/${DEFAULT_ROUTE(path)}">
 ${jsonLd ? html`<script type="application/ld+json">${raw(JSON.stringify(jsonLd))}</script>` : ''}
 <link rel="stylesheet" href="/app.css">
+<!-- Клиентский скрипт — на каждой странице: без него не работают переключатель
+     темы, «Полезно» без перезагрузки, диалог жалобы, показ пароля и
+     сохранение прокрутки при смене языка. Атрибут defer не блокирует
+     отрисовку, а ранняя подстановка темы остаётся инлайном ниже. -->
+<script src="/app.js" defer></script>
 <script>
   // Тема ставится до первой отрисовки, иначе на тёмной теме виден белый
   // кадр. Ранний скрипт — единственное место, где JS в <head> оправдан.

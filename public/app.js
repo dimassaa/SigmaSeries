@@ -142,6 +142,23 @@
     return undefined;
   }
 
+  // ─── Тело запроса ───────────────────────────────────────────────────────────
+
+  // Формы отправляются urlencoded, а не multipart: сервер разбирает только
+  // `application/x-www-form-urlencoded`, и multipart-тело приходило ему пустым
+  // — голос «Полезно» отвечал «Неизвестная цель голоса», а жалоба — «Нет
+  // причины». Собираем строку вручную: `URLSearchParams` из `FormData`
+  // зависит от версии браузера, а здесь это одна строка.
+  function urlencoded(form, extra) {
+    var data = new FormData(form);
+    if (extra) data.append(extra[0], extra[1]);
+    var pairs = [];
+    data.forEach(function (value, key) {
+      pairs.push(encodeURIComponent(key) + '=' + encodeURIComponent(value));
+    });
+    return pairs.join('&');
+  }
+
   // ─── Невидимая проверка на страницах входа и регистрации ───────────────────
 
   function initProofOfWork() {
@@ -620,13 +637,14 @@
         var text = button.textContent;
         // Кнопка в FormData не попадает (вкатывается только submitter), а
         // её имя и значение — сама цель (`to`): добавляю вручную.
-        var data = new FormData(form);
-        data.append('to', button.value);
         fetch(form.action, {
           method: 'POST',
-          body: data,
+          body: urlencoded(form, ['to', button.value]),
           credentials: 'same-origin',
-          headers: { Accept: 'application/json' },
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            Accept: 'application/json',
+          },
         })
           .then(function (res) {
             // Ответ, но не JSON (устаревшая сессия, 429): скрипт не поладил —
@@ -698,9 +716,12 @@
       event.preventDefault();
       fetch(form.getAttribute('action') || form.action, {
         method: 'POST',
-        body: new FormData(form),
+        body: urlencoded(form),
         credentials: 'same-origin',
-        headers: { Accept: 'application/json' },
+        headers: {
+          'Content-Type': 'application/x-www-form-urlencoded',
+          Accept: 'application/json',
+        },
       })
         .then(function (res) {
           if (res.status === 200) { showDone(dialog.dataset.sentText); return null; }
