@@ -38,7 +38,10 @@ export function pgSeasons(pool) {
       return {
         series: {
           slug: series.slug,
-          title: series.title,
+          // Название берётся из той же строки, что и остальные страницы:
+          // `title_ru` с запасным оригиналом. Поле `title` у строки нет,
+          // и подстановка undefined печатала в заголовке «undefined».
+          title: series.title_ru || series.title_original,
           titleOriginal: series.title_original,
         },
         season: {

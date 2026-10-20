@@ -50,11 +50,11 @@ const get = (path) => fetch(`${baseUrl}${path}`);
 
 async function anySeason() {
   const { rows } = await pool.query(
-    `SELECT s.slug, se.number FROM e_season se
+    `SELECT s.slug, s.title_ru AS title, se.number FROM e_season se
        JOIN e_series s ON s.id = se.series_id
        JOIN e_episode e ON e.season_id = se.id
       WHERE s.publication_state = 'published' AND s.archived_at IS NULL AND se.number > 0
-      GROUP BY s.slug, se.number LIMIT 1`,
+      GROUP BY s.slug, s.title_ru, se.number LIMIT 1`,
   );
   return rows[0];
 }
@@ -91,6 +91,21 @@ test('серия без описания или с будущей датой н�
   assert.equal(response.status, 200);
   assert.match(body, /<meta name="robots" content="noindex, follow">/,
     'тонкая страница серии в индексе не нужна');
+});
+
+test('страница сезона называет сериал, а не «undefined» (F-02-02)', { skip }, async () => {
+  // Проверка появилась после находки в браузере: заголовок печатал
+  // «undefined: сезон 1» — у строки сериала нет поля `title`, а сервис
+  // брал именно его. Тесты разметку смотрели, а заголовок никто не
+  // проверял.
+  const { slug, number, title } = await anySeason();
+  const res = await get(`/ru/series/${slug}/seasons/${number}`);
+  assert.equal(res.status, 200);
+
+  const html = await res.text();
+  const heading = html.match(/<h1 class="season__title">([^<]*)</)?.[1] ?? '';
+  assert.ok(!heading.includes('undefined'), `в заголовке нет «undefined»: ${heading}`);
+  assert.ok(heading.includes(title), `заголовок называет сериал «${title}»: ${heading}`);
 });
 
 test('снятый с публикации сериал не отдаёт ни сезон, ни серию (410, EC-C1)', { skip }, async () => {
