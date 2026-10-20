@@ -30,6 +30,7 @@
     "import:schedule": "node --env-file-if-exists=.env src/cli/import-schedule.js",
     "import:freeze": "node --env-file-if-exists=.env src/cli/import-freeze.js",
     "role": "node src/cli/role.js",
+    "auth:reset-2fa": "node --env-file-if-exists=.env src/cli/reset-two-factor.js",
     "demo:db": "node src/cli/demo-db.js"
   },
   "dependencies": {

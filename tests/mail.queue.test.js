@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 
 import { createPool } from '../src/db/pool.js';
 import { createMailQueue } from '../src/services/mail/queue.js';
+import { MAIL_KINDS } from '../src/i18n/mails.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -48,6 +49,22 @@ function resetJob(over = {}) {
     ...over,
   };
 }
+
+test('каждый вид письма ложится в очередь: ограничение базы не отстаёт от кода', { skip }, async () => {
+  // Вид письма, которого нет в ограничении базы, падает уже на вставке — и
+  // обрушивает страницу, с которой его отправляли. Такое уже случалось:
+  // письмо «2FA выключена» было в коде, но не в базе.
+  const { queue } = queueWith();
+  for (const kind of MAIL_KINDS) {
+    const id = await queue.enqueue({
+      kind,
+      to: 'kinds@example.com',
+      locale: 'ru',
+      link: 'http://127.0.0.1:3000/ru/password/reset?token=abc123',
+    });
+    assert.ok(id > 0, `«${kind}»: письмо не поставлено в очередь`);
+  }
+});
 
 test.before(async () => {
   if (!available) return;

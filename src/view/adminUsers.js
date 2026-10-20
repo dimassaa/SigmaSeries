@@ -126,7 +126,7 @@ export function adminUsersView({ locale, list, query = {} }) {
  * @param {object} args.user
  * @returns {string}
  */
-export function adminUserView({ locale, user, csrf = null }) {
+export function adminUserView({ locale, user, csrf = null, twoFactor = false, isSelf = false }) {
   return html`
 <div class="admin-user">
   <h1 class="admin-user__title">${user.nickname}</h1>
@@ -216,6 +216,31 @@ export function adminUserView({ locale, user, csrf = null }) {
           >${t(locale, 'admin.user.lift')}</button>`)}
       </p>
     </form>
+  </section>
+
+  <section class="admin-user__twofactor">
+    <h2 class="admin-user__section-title">${t(locale, 'admin.user.twoFactor.title')}</h2>
+    <p class="admin-user__twofactor-state">
+      ${t(locale, twoFactor ? 'admin.user.twoFactor.on' : 'admin.user.twoFactor.off')}
+    </p>
+    ${when(isSelf, () => html`
+    <p class="admin-user__delete-note">${t(locale, 'admin.user.twoFactor.selfNote')}</p>`)}
+    ${when(twoFactor && !isSelf, () => html`
+    <form class="admin-user__action" method="post"
+          action="/${locale}/admin/users/${user.id}/2fa/reset">
+      <input type="hidden" name="csrf" value="${csrf ?? ''}">
+      <input type="hidden" name="back" value="/${locale}/admin/users/${user.id}">
+      <p class="admin-user__delete-note">${t(locale, 'admin.user.twoFactor.note')}</p>
+      <label class="field__label" for="admin-2fa-reason">${t(locale, 'admin.user.reason')}</label>
+      <input class="field__input" id="admin-2fa-reason" name="reason" type="text" required
+        maxlength="500">
+      <label class="field__label" for="admin-2fa-password">${t(locale, 'admin.user.twoFactor.password')}</label>
+      <input class="field__input" id="admin-2fa-password" name="password" type="password"
+        autocomplete="current-password" required>
+      <p class="admin-user__action-buttons">
+        <button class="button button--danger" type="submit">${t(locale, 'admin.user.twoFactor.submit')}</button>
+      </p>
+    </form>`)}
   </section>
 
   <section class="admin-user__delete">

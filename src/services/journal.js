@@ -26,6 +26,9 @@ const VALUE_LIMIT = 120;
  */
 const FIELDS = {
   user_id: 'number',
+  // Кто именно сбросил проверку: в журнале безопасности первый вопрос —
+  // «кто это сделал», и он не должен ждать журнала администратора.
+  actor_id: 'number',
   sessions_revoked: 'number',
 };
 
@@ -45,6 +48,7 @@ export function createJournal({ sink = defaultSink } = {}) {
      * @param {string} entry.event название события, латиницей
      * @param {string} entry.requestId идентификатор запроса из middleware
      * @param {number} [entry.user_id]
+     * @param {number} [entry.actor_id]
      * @param {number} [entry.sessions_revoked]
      * @throws если нет события или идентификатора, либо поле не в списке:
      *   ошибка громче потерянной записи, но молча терять нельзя

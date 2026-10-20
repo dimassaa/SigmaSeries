@@ -964,7 +964,8 @@ CREATE TABLE e_mail (
   kind            TEXT   NOT NULL
                   CHECK (kind IN ('email_verify','email_taken','password_reset','password_changed',
                                   'email_change','email_change_requested','email_changed',
-                                  'two_factor_enabled','deletion_requested','data_export_ready',
+                                  'two_factor_enabled','two_factor_disabled','two_factor_reset',
+                                  'deletion_requested','data_export_ready',
                                   'data_export_failed')),
   -- Адрес получателя шифруется ключом писем (MAIL_SECRET), а не общим с
   -- адресом пользователя: утечка одного ключа не раскрывает другое

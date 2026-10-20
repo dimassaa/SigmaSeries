@@ -30,6 +30,7 @@ const rawHtml = (page) => page.__raw;
  */
 export function createAdminUsersRoutes({
   users, auth = null, restrictions = null, audit = null, pool = null, sessionMw = null,
+  journal = null, mailQueue = null,
 }) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
@@ -268,6 +269,79 @@ export function createAdminUsersRoutes({
     }
   });
 
+  // Сброс чужой двухфакторной проверки (F-01-05 §4, EC-A8). Действие
+  // опасное: повторный пароль администратора, причина и запись в аудит
+  // (R-SEC-12). Сессии человека отзываются вместе со сбросом — иначе старый
+  // вход обходил бы второй фактор (решение автора, 21.10).
+  router.post(`/:locale${BASE}/:id/2fa/reset`, adminOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+
+    const id = Number(req.params.id);
+    const body = req.body ?? {};
+    const reason = String(body.reason ?? '').trim();
+    const password = String(body.password ?? '');
+
+    try {
+      if (!csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.csrf'));
+      }
+      if (!reason || reason.length > 500) {
+        return res.status(400).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.reason'));
+      }
+      // Свою проверку через карточку сбросить нельзя: для администратора
+      // есть аварийный скрипт на сервере (H-60).
+      if (id === req.session.user.id) {
+        return res.status(409).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.user.twoFactor.self'));
+      }
+      if (!(await auth.verifyCurrent(req.session.user.id, password))) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.password'));
+      }
+      const state = await auth.twoFactor(id);
+      if (!state) {
+        return res.status(409).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.user.twoFactor.notEnabled'));
+      }
+
+      const result = await auth.resetTwoFactor(id);
+
+      await audit.write({
+        actorId: req.session.user.id,
+        action: 'user.two_factor_reset',
+        objectType: 'user',
+        objectId: id,
+        result: 'ok',
+        reason: `${reason}; сессий отозвано: ${result.sessions}`,
+        after: { sessions_revoked: result.sessions },
+      });
+      journal?.security({
+        event: 'two_factor_reset_by_admin',
+        requestId: req.requestId,
+        user_id: id,
+        actor_id: req.session.user.id,
+      });
+      // Человек должен узнать, что второй фактор сняли: иначе он удивится,
+      // что вход спрашивает только пароль (F-01-05 §17).
+      const target = await users.one(id);
+      if (target?.address && mailQueue) {
+        await mailQueue.enqueue({
+          kind: 'two_factor_reset',
+          to: target.address,
+          locale: target.locale ?? locale,
+        });
+      }
+
+      const back = body.back ? safeReturnTo(body.back) : `/${locale}${BASE}/${id}`;
+      return res.status(303).set('Location', back).end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.get(`/:locale${BASE}/:id`, adminOnly, async (req, res, next) => {
     const { locale } = req.params;
     if (!isLocale(locale)) return next('route');
@@ -284,6 +358,9 @@ export function createAdminUsersRoutes({
         return res.status(404).type('text/plain; charset=utf-8')
           .send(t(locale, 'admin.users.missing'));
       }
+      // Настроена ли проверка у человека: без этого админ не видит, что
+      // именно сбрасывает.
+      const state = auth ? await auth.twoFactor(id) : null;
       return res.status(200).type('html').send(rawHtml(layout({
         account: req.account,
         locale,
@@ -292,7 +369,13 @@ export function createAdminUsersRoutes({
         description: t(locale, 'admin.user.description'),
         noindex: true,
         styles: STYLES,
-        body: adminUserView({ locale, user, csrf: csrfToken(req.session) }),
+        body: adminUserView({
+          locale,
+          user,
+          csrf: csrfToken(req.session),
+          twoFactor: Boolean(state),
+          isSelf: req.session.user.id === id,
+        }),
       })));
     } catch (error) {
       return next(error);

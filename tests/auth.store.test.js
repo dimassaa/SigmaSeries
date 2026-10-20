@@ -533,6 +533,30 @@ test('лишние сессии закрываются, текущая оста�
   await pool.query('DELETE FROM session WHERE sid = ANY($1::text[])', [sids]);
 });
 
+test('сброс 2FA выключает проверку и отзывает сессии человека (F-01-05 §4)', { skip }, async () => {
+  const owner = await confirmedUser();
+  await store.enableTwoFactor(owner.user.id, 'JBSWY3DPEHPK3PXP', []);
+  const sid = `test-reset-2fa-${uniq()}`;
+  await pool.query(
+    `INSERT INTO session (sid, sess, expire)
+     VALUES ($1, json_build_object('cookie', json_build_object('path','/'),
+                                   'user', json_build_object('id', $2::text))::json,
+             now() + interval '1 day')`,
+    [sid, owner.user.id],
+  );
+
+  const result = await store.resetTwoFactor(owner.user.id);
+
+  assert.equal(result.reset, true, 'проверка была и выключена');
+  assert.equal(result.sessions, 1, 'сессия отозвана');
+  assert.equal(await store.twoFactor(owner.user.id), null, 'проверки больше нет');
+  const { rows } = await pool.query(
+    'SELECT count(*)::int AS n FROM session WHERE sid = $1', [sid],
+  );
+  assert.equal(rows[0].n, 0, 'сессии человека нет');
+  await pool.query('DELETE FROM session WHERE sid = $1', [sid]);
+});
+
 test('отзыв сессий удаляет сессии только одного пользователя (EC-A9)', { skip }, async () => {
   const mine = await confirmedUser();
   const other = await confirmedUser();

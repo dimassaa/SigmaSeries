@@ -952,6 +952,37 @@ export function pgAuthStore(pool) {
     },
 
     /**
+     * Сбросить двухфакторную проверку и отозвать сессии человека.
+     *
+     * Обе операции — в одной транзакции: сброшенная проверка при живых
+     * сессиях обходила бы второй фактор (решение автора, 21.10).
+     *
+     * @param {number} userId
+     * @returns {Promise<{reset: boolean, sessions: number}>}
+     */
+    async resetTwoFactor(userId) {
+      const client = await pool.connect();
+      try {
+        await client.query('BEGIN');
+        const { rowCount } = await client.query(
+          'DELETE FROM e_two_factor WHERE user_id = $1',
+          [userId],
+        );
+        const sessions = await client.query(
+          `DELETE FROM session WHERE (sess -> 'user' ->> 'id')::bigint = $1`,
+          [userId],
+        );
+        await client.query('COMMIT');
+        return { reset: (rowCount ?? 0) > 0, sessions: sessions.rowCount ?? 0 };
+      } catch (error) {
+        await client.query('ROLLBACK');
+        throw error;
+      } finally {
+        client.release();
+      }
+    },
+
+    /**
      * Когда ник меняли последний раз; null, если никогда.
      *
      * @returns {Promise<Date|null>}
@@ -1493,6 +1524,17 @@ export function stubAuthStore(users = {}, roles = {}) {
       if (!found?.twoFactor) return false;
       delete found.twoFactor;
       return true;
+    },
+
+    /**
+     * Заглушка: сброс проверки вместе с отзывом сессий.
+     */
+    async resetTwoFactor(userId) {
+      const found = Object.values(users).find((u) => u.id === userId);
+      const reset = Boolean(found?.twoFactor);
+      if (found) delete found.twoFactor;
+      calls.revokeSessions.push([userId]);
+      return { reset, sessions: 1 };
     },
 
     /** Гасит код: ищется по хешу, как в базе. */

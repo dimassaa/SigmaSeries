@@ -62,6 +62,7 @@ async function user({ roles = [], nickname = null } = {}) {
 
 async function withServer({ user: viewer = null, run }) {
   const audit = pgAuditLog(pool);
+  const mail = [];
   const app = createApp({
     data: stubData(),
     auth,
@@ -69,6 +70,10 @@ async function withServer({ user: viewer = null, run }) {
     moderationRestrictions: pgModerationRestrictions(pool, { auth, audit }),
     audit,
     pool,
+    mailQueue: {
+      async enqueue(job) { mail.push(job); return mail.length; },
+      async listing() { return []; },
+    },
     sessionMw: createSessionMiddleware(pool, createMemorySessionStore(), {
       account: async (u) => ({ nickname: u.nickname, unread: 0, pollSeconds: 0 }),
     }),
@@ -110,7 +115,7 @@ async function withServer({ user: viewer = null, run }) {
   }
 
   try {
-    await run({ get, post, csrfOf });
+    await run({ get, post, csrfOf, mail });
   } finally {
     await new Promise((r) => server.close(r));
   }
@@ -125,7 +130,7 @@ test.before(async () => {
 
 test.after(async () => {
   if (!pool) return;
-  await pool.query("DELETE FROM e_audit_log WHERE action IN ('role_grant', 'role_revoke')");
+  await pool.query("DELETE FROM e_audit_log WHERE action IN ('role_grant', 'role_revoke', 'user.two_factor_reset')");
   await pool.query("DELETE FROM e_role_assignment WHERE note = 'тест карточки'");
   await pool.query('DELETE FROM e_user WHERE id = ANY($1::bigint[])', [created]);
   await pool.end();
@@ -152,6 +157,122 @@ test('роль выдаётся с причиной и попадает в жу�
       );
       assert.equal(rows[0].action, 'role_grant');
       assert.match(rows[0].reason, /проверка выдачи роли/, 'причина в журнале');
+    },
+  });
+});
+
+test('админ сбрасывает чужую 2FA: проверка выключена, сессии отозваны, есть запись и письмо (F-01-05 §4, §17, EC-A8)', { skip }, async () => {
+  const admin = await user({ roles: ['admin'] });
+  const target = await user();
+  await auth.enableTwoFactor(target.id, generateSecret(), []);
+
+  // Живая сессия человека: после сброса она должна быть отозвана.
+  const sid = `test-2fa-${crypto.randomUUID().slice(0, 8)}`;
+  await pool.query(
+    `INSERT INTO session (sid, sess, expire)
+     VALUES ($1, json_build_object('cookie', json_build_object('path','/'),
+                                   'user', json_build_object('id', $2::text))::json,
+             now() + interval '1 day')`,
+    [sid, target.id],
+  );
+
+  await withServer({
+    user: admin,
+    run: async ({ get, post, csrfOf, mail }) => {
+      const page = await (await get(`/ru/admin/users/${target.id}`)).text();
+      const res = await post(`/ru/admin/users/${target.id}/2fa/reset`, {
+        reason: 'потеряно устройство', password: 'правильный-пароль-из-десяти',
+        csrf: csrfOf(page),
+      });
+      assert.equal(res.status, 303, 'сброс выполнен');
+
+      assert.equal(await auth.twoFactor(target.id), null, 'двухфакторная проверка выключена');
+      const { rows: sessions } = await pool.query(
+        'SELECT count(*)::int AS n FROM session WHERE sid = $1', [sid],
+      );
+      assert.equal(sessions[0].n, 0, 'сессия человека отозвана');
+
+      const { rows } = await pool.query(
+        `SELECT action, reason FROM e_audit_log WHERE action = 'user.two_factor_reset'
+          ORDER BY id DESC LIMIT 1`,
+      );
+      assert.ok(rows.length, 'запись в журнале есть');
+      assert.match(rows[0].reason, /потеряно устройство/, 'причина в журнале');
+
+      assert.ok(mail.some((job) => job.kind === 'two_factor_reset'), 'человеку написали письмо');
+    },
+  });
+
+  await pool.query('DELETE FROM session WHERE sid = $1', [sid]);
+});
+
+test('без повторного пароля чужую 2FA не сбросить (R-SEC-12)', { skip }, async () => {
+  const admin = await user({ roles: ['admin'] });
+  const target = await user();
+  await auth.enableTwoFactor(target.id, generateSecret(), []);
+
+  await withServer({
+    user: admin,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/admin/users/${target.id}`)).text();
+      const res = await post(`/ru/admin/users/${target.id}/2fa/reset`, {
+        reason: 'проверка без пароля', password: 'неправильный-пароль',
+        csrf: csrfOf(page),
+      });
+      assert.equal(res.status, 403, 'чужая проверка не выполнена');
+      assert.ok(await auth.twoFactor(target.id), 'двухфакторная проверка на месте');
+    },
+  });
+});
+
+test('без причины чужую 2FA не сбросить (F-09-02 §8а)', { skip }, async () => {
+  const admin = await user({ roles: ['admin'] });
+  const target = await user();
+  await auth.enableTwoFactor(target.id, generateSecret(), []);
+
+  await withServer({
+    user: admin,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/admin/users/${target.id}`)).text();
+      const res = await post(`/ru/admin/users/${target.id}/2fa/reset`, {
+        reason: '', password: 'правильный-пароль-из-десяти', csrf: csrfOf(page),
+      });
+      assert.equal(res.status, 400, 'причина обязательна');
+      assert.ok(await auth.twoFactor(target.id), 'двухфакторная проверка на месте');
+    },
+  });
+});
+
+test('свою 2FA админ через карточку не сбрасывает — для этого скрипт (H-60)', { skip }, async () => {
+  const admin = await user({ roles: ['admin'] });
+
+  await withServer({
+    user: admin,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/admin/users/${admin.id}`)).text();
+      const res = await post(`/ru/admin/users/${admin.id}/2fa/reset`, {
+        reason: 'проверка на себя', password: 'правильный-пароль-из-десяти',
+        csrf: csrfOf(page),
+      });
+      assert.equal(res.status, 409, 'свою проверку сбросить нельзя');
+      assert.ok(await auth.twoFactor(admin.id), 'двухфакторная проверка на месте');
+    },
+  });
+});
+
+test('у кого 2FA не настроена, сброс не выполняется (F-01-05 §4)', { skip }, async () => {
+  const admin = await user({ roles: ['admin'] });
+  const target = await user();
+
+  await withServer({
+    user: admin,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/admin/users/${target.id}`)).text();
+      const res = await post(`/ru/admin/users/${target.id}/2fa/reset`, {
+        reason: 'проверка без настройки', password: 'правильный-пароль-из-десяти',
+        csrf: csrfOf(page),
+      });
+      assert.equal(res.status, 409, 'сбрасывать нечего');
     },
   });
 });

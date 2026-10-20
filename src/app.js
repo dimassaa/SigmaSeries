@@ -241,6 +241,8 @@ export function createApp({
     audit,
     pool,
     sessionMw,
+    journal,
+    mailQueue,
   }));
   // «Мои материалы» (S-35): автор видит состояния своих материалов.
   if (myMaterials) app.use(createMyContentRoutes({ materials: myMaterials, sessionMw }));

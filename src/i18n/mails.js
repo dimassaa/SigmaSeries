@@ -21,6 +21,8 @@ export const MAIL_KINDS = [
   'email_change_requested',
   'email_changed',
   'two_factor_enabled',
+  'two_factor_disabled',
+  'two_factor_reset',
   'deletion_requested',
   'data_export_ready',
   'data_export_failed',
@@ -204,6 +206,35 @@ const TEXTS = {
       needsLink: false,
       subject: 'Two-factor verification is on',
       body: 'Hello!\n\nTwo-factor verification is now on for the account: signing in will need a code from an app or a backup code.\n\nIf this was not you, turn it off in security settings — that needs your current password.',
+    },
+  },
+
+  // Отключение 2FA самим человеком (F-01-05 §17).
+  two_factor_disabled: {
+    ru: {
+      needsLink: false,
+      subject: 'Двухфакторная проверка выключена',
+      body: 'Здравствуйте!\n\nДвухфакторная проверка аккаунта выключена: при входе теперь нужен только пароль.\n\nЕсли это были не вы, настройте проверку заново в настройках безопасности.',
+    },
+    en: {
+      needsLink: false,
+      subject: 'Two-factor verification is off',
+      body: 'Hello!\n\nTwo-factor verification is now off for the account: signing in needs only the password.\n\nIf this was not you, set it up again in security settings.',
+    },
+  },
+
+  // Сброс 2FA администратором (F-01-05 §4, §17): человек должен узнать, что
+  // второй фактор сняли не он.
+  two_factor_reset: {
+    ru: {
+      needsLink: false,
+      subject: 'Двухфакторная проверка сброшена администратором',
+      body: 'Здравствуйте!\n\nДвухфакторная проверка вашего аккаунта была выключена администратором, а активные сессии — отозваны. При следующем входе настройте проверку заново.\n\nЕсли вы этого не ожидали, напишите администрации.',
+    },
+    en: {
+      needsLink: false,
+      subject: 'Two-factor verification was reset by an administrator',
+      body: 'Hello!\n\nYour account\'s two-factor verification was turned off by an administrator, and your active sessions were revoked. Set it up again after your next sign-in.\n\nIf you did not expect this, contact the administration.',
     },
   },
 

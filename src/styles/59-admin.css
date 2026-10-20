@@ -122,6 +122,19 @@
 
 .admin-user__actions { margin-block-end: var(--space-6); }
 
+/* Двухфакторная проверка на карточке человека (F-01-05 §4). Блок отдельный:
+   сброс второго фактора — опасное действие, и прятать его среди ролей и
+   ограничений нельзя. */
+.admin-user__twofactor {
+  margin-block-end: var(--space-6);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+.admin-user__twofactor-state { margin-block-end: var(--space-3); color: var(--text-secondary); }
+
 .admin-user__action {
   display: flex;
   flex-wrap: wrap;
