@@ -152,6 +152,7 @@ function signal({ at, row }) {
  */
 function freezeSummary(summary) {
   return {
+    sum: summary.sum,
     average: summary.average ?? null,
     votes: summary.votes,
     shown: summary.shown,

@@ -192,11 +192,30 @@ export function pgRatings(pool) {
      */
     async summary(seriesId) {
       const { rows } = await pool.query(
-        `SELECT sum_value::float AS sum, votes, prior_weight, prior_mean
-           FROM e_series_rating_stat WHERE series_id = $1`,
+        `SELECT s.sum_value::float AS sum, s.votes, s.prior_weight, s.prior_mean,
+                (SELECT a.frozen FROM e_rating_anomaly a
+                  WHERE a.series_id = s.series_id AND a.state = 'open' LIMIT 1) AS frozen
+           FROM e_series_rating_stat s
+          WHERE s.series_id = $1`,
         [seriesId],
       );
       const row = rows[0] ?? { sum: 0, votes: 0, prior_weight: RATING.priorWeight, prior_mean: RATING.priorMeanDefault };
+      // Открытая аномалия (F-04-08, DEC-065) держит снимок блока на момент
+      // срабатывания — показ формулы из «учитываемых» строк заморожен до
+      // решения админа. Подзапрос в том же чтении: лишний маршрут на каждую
+      // страницу сериала для нормального большинства недопустим.
+      if (row.frozen && typeof row.frozen === 'object') {
+        const snapshot = row.frozen.summary ?? {};
+        return {
+          votes: Number(snapshot.votes ?? 0),
+          sum: Number(snapshot.sum ?? 0),
+          average: snapshot.average ?? null,
+          shown: Boolean(snapshot.shown),
+          histogram: new Map(Object.entries(snapshot.histogram ?? {}).map(
+            ([value, n]) => [Number(value), Number(n)],
+          )),
+        };
+      }
       const votes = Number(row.votes ?? 0);
       const sum = Number(row.sum ?? 0);
       const weight = Number(row.prior_weight ?? RATING.priorWeight);

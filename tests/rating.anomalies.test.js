@@ -28,12 +28,14 @@ const skip = available
 
 let pool;
 let sensor;
+let ratings;
 const fixtures = { series: [] };
 
 test.before(async () => {
   if (!available) return;
   pool = createPool();
-  sensor = pgAnomalySensor({ pool, ratings: pgRatings(pool) });
+  ratings = pgRatings(pool);
+  sensor = pgAnomalySensor({ pool, ratings });
 });
 
 test.after(async () => {
@@ -210,4 +212,31 @@ test('после решения датчик снова ловит новый в
     [seriesId],
   );
   assert.equal(rows[0].n, 2, 'решённая осталась в истории, открыта новая');
+});
+
+test('заморозка: summary отдаёт снимок блока, пока аномалия открыта', { skip }, async () => {
+  const seriesId = await seriesWith();
+  const recent = new Date(Date.now() - 10 * 60_000);
+  // 19 экстремумов + 4 считаемых: доля 19/23 ≈ 82.6% ≥ 70%, счёт 23 > 20.
+  for (let i = 0; i < 19; i += 1) await fare(seriesId, await young(), 1, recent);
+  for (let i = 0; i < 4; i += 1) await fare(seriesId, await viewer(), 8, recent, { counted: true });
+  await syncStat(seriesId);
+  await sensor.scan(new Date());
+  const before = await ratings.summary(seriesId);
+  assert.equal(before.votes, 4);
+
+  // Голос после заморозки меняет живой расчёт, но не замороженный показ.
+  for (let i = 0; i < 3; i += 1) await fare(seriesId, await viewer(), 9, new Date(), { counted: true });
+  await syncStat(seriesId);
+  const frozen = await ratings.summary(seriesId);
+  assert.equal(frozen.votes, 4, 'голоса после срабатывания не меняют показ');
+  assert.equal(frozen.average, before.average, 'замороженное среднее неизменно');
+
+  await pool.query(
+    `UPDATE e_rating_anomaly SET state = 'accepted', resolved_at = now(),
+        resolved_by = (SELECT id FROM e_user ORDER BY id LIMIT 1) WHERE series_id = $1`,
+    [seriesId],
+  );
+  const live = await ratings.summary(seriesId);
+  assert.equal(live.votes, 7, 'после решения блок читает живой агрегат');
 });
