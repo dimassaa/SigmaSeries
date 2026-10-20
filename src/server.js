@@ -144,6 +144,9 @@ const onlineWorker = setInterval(() => {
   systemHealth.sample().catch((e) => console.error(`[онлайн] ${e.message}`));
 }, 60 * 60_000);
 onlineWorker.unref();
+// Первый замер — сразу: час пустого ряда перед первым значением был бы
+// разрывом, которого никто не видел бы.
+systemHealth.sample().catch((e) => console.error(`[онлайн] ${e.message}`));
 
 const moderationBudget = pgModerationBudget(pool);
 const auth = pgAuthStore(pool);
