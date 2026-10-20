@@ -9,6 +9,7 @@ import express from 'express';
 import { isLocale, t } from '../i18n/strings.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { adminOverviewView } from '../view/adminOverview.js';
+import { csrfToken } from '../services/auth/session.js';
 
 const BASE = '/admin';
 
@@ -47,7 +48,7 @@ export function createOverviewRoutes({ overview, sessionMw = null }) {
         description: t(locale, 'admin.overview.description'),
         noindex: true,
         styles: STYLES,
-        body: adminOverviewView({ locale, data, csrf: req.session?.csrf ?? null }),
+        body: adminOverviewView({ locale, data, csrf: csrfToken(req.session) }),
       })));
     } catch (error) {
       return next(error);

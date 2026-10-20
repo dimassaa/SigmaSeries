@@ -28,6 +28,7 @@ import { searchSettings } from './services/search/limits.js';
 import { pgRatings } from './services/rating/store.js';
 import { pgAnomalySensor } from './services/rating/anomalies.js';
 import { pgModerationBudget } from './services/moderation/budget.js';
+import { loadSettings } from './services/settings.js';
 import { pgModerationDecisions } from './services/moderation/decision.js';
 import { pgModerationClusters } from './services/moderation/cluster.js';
 import { pgModerationRestrictions } from './services/moderation/restriction.js';
@@ -127,6 +128,14 @@ const mailQueue = createMailQueue({
 // как две разные копии учётных записей — и расхождение было бы не видно.
 // Бюджет модерации нужен и сборке приложения (режим читается при отправке),
 // и работнику (он режим пересчитывает) — значит, создаётся раньше обоих.
+// Настройки из базы поверх стартовых констант: сервисы читают живые значения,
+// и без перезапуска (см. `src/services/settings.js`).
+const settingsReload = setInterval(() => {
+  loadSettings(pool).catch((e) => console.error(`[настройки] ${e.message}`));
+}, 60_000);
+settingsReload.unref();
+loadSettings(pool).catch((e) => console.error(`[настройки] ${e.message}`));
+
 const moderationBudget = pgModerationBudget(pool);
 const auth = pgAuthStore(pool);
 

@@ -17,7 +17,7 @@
 //     голосов нет, лента свежая, а не пустая. Добор по `id` — чтобы страницы
 //     не пересекались при равных ключах.
 
-import { REVIEW } from '../../config/settings.js';
+import { REVIEW } from '../settings.js';
 import { POSITIVE_FROM, MIXED_FROM, RATING_FILTERS, LENGTH_FILTERS } from '../rating/group.js';
 
 /** Значения сортировки — значения адреса; первый — умолчание (F-04-05 §4). */

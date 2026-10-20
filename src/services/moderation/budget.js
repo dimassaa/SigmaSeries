@@ -11,7 +11,7 @@
 //   · давление очереди — самый старый материал ждёт дольше
 //     `mod.queue_target_min` минут: очередь растёт быстрее, чем её разбирают.
 
-import { MODERATION } from '../../config/settings.js';
+import { MODERATION } from '../settings.js';
 
 /** Окно, за которое считается доля помеченных. */
 const SHARE_WINDOW_H = MODERATION.clusterWindowH;

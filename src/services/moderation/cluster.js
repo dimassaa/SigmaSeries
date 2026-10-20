@@ -18,7 +18,7 @@
 import crypto from 'node:crypto';
 
 import { normalize } from './check.js';
-import { MODERATION } from '../../config/settings.js';
+import { MODERATION } from '../settings.js';
 
 /** Состояния материала, в которых он ждёт решения. */
 export const QUEUE_STATES = ['flagged', 'checking'];

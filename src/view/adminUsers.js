@@ -7,7 +7,7 @@
 import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { dayLabel } from './dates.js';
-import { MODERATION } from '../config/settings.js';
+import { ADMIN, MODERATION } from '../services/settings.js';
 
 const ROLE_KEYS = ['admin', 'editor', 'analyst'];
 
@@ -214,6 +214,28 @@ export function adminUserView({ locale, user, csrf = null }) {
         ${when(user.restrictions.length, () => html`
         <button class="button button--quiet" type="submit" name="action" value="revoke"
           >${t(locale, 'admin.user.lift')}</button>`)}
+      </p>
+    </form>
+  </section>
+
+  <section class="admin-user__delete">
+    <h2 class="admin-user__section-title">${t(locale, 'admin.user.delete.title')}</h2>
+    <p class="admin-user__delete-note">${t(locale, 'admin.user.delete.note', { days: ADMIN.deleteGraceDays })}</p>
+    <form class="admin-user__action" method="post" action="/${locale}/admin/users/${user.id}/delete">
+      <input type="hidden" name="csrf" value="${csrf ?? ''}">
+      <input type="hidden" name="back" value="/${locale}/admin/users/${user.id}">
+      <label class="field__label" for="admin-delete-reason">${t(locale, 'admin.user.reason')}</label>
+      <input class="field__input" id="admin-delete-reason" name="reason" type="text" required
+        maxlength="500">
+      <label class="field__label" for="admin-delete-password">${t(locale, 'admin.user.delete.password')}</label>
+      <input class="field__input" id="admin-delete-password" name="password" type="password"
+        autocomplete="current-password" required>
+      <label class="admin-user__checkbox">
+        <input type="checkbox" name="delete_materials" value="1">
+        <span>${t(locale, 'admin.user.delete.materials')}</span>
+      </label>
+      <p class="admin-user__action-buttons">
+        <button class="button button--danger" type="submit">${t(locale, 'admin.user.delete.submit')}</button>
       </p>
     </form>
   </section>

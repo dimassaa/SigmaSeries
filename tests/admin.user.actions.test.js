@@ -216,6 +216,62 @@ test('себя ограничить нельзя (F-09-02 §5)', { skip }, async
   });
 });
 
+test('удаление окончательное: пароль спрашивается, срок назначается (F-09-02 §8б)', { skip }, async () => {
+  const admin = await user({ roles: ['admin'] });
+  const target = await user();
+
+  await withServer({
+    user: admin,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/admin/users/${target.id}`)).text();
+
+      // Неверный пароль — удаление не запрашивается.
+      const wrong = await post(`/ru/admin/users/${target.id}/delete`, {
+        reason: 'проверка удаления', password: 'неправильный', csrf: csrfOf(page),
+      });
+      assert.equal(wrong.status, 403, 'с чужим паролем удаление не запрашивается');
+      const { rows: [untouched] } = await pool.query(
+        'SELECT status FROM e_user WHERE id = $1', [target.id],
+      );
+      assert.equal(untouched.status, 'active', 'аккаунт не тронут');
+
+      // Верный пароль — удаление запрошено, срок назначен, материалы остаются.
+      const res = await post(`/ru/admin/users/${target.id}/delete`, {
+        reason: 'проверка удаления', password: 'правильный-пароль-из-десяти', csrf: csrfOf(page),
+      });
+      assert.equal(res.status, 303, 'удаление запрошено');
+      const { rows: [row] } = await pool.query(
+        'SELECT status, anonymize_after, delete_materials FROM e_user WHERE id = $1', [target.id],
+      );
+      assert.equal(row.status, 'deleting');
+      assert.ok(row.anonymize_after !== null, 'срок обезличивания назначен');
+      assert.equal(row.delete_materials, false, 'материалы остаются обезличенными');
+      const days = Math.round((new Date(row.anonymize_after) - Date.now()) / 86_400_000);
+      assert.ok(days >= 13 && days <= 14, `срок около 14 дней: ${days}`);
+
+      await pool.query(
+        `UPDATE e_user SET status = 'active', delete_requested_at = NULL, anonymize_after = NULL
+          WHERE id = $1`, [target.id],
+      );
+    },
+  });
+});
+
+test('себя удалить нельзя (F-09-02 §5)', { skip }, async () => {
+  const admin = await user({ roles: ['admin'] });
+
+  await withServer({
+    user: admin,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/admin/users/${admin.id}`)).text();
+      const res = await post(`/ru/admin/users/${admin.id}/delete`, {
+        reason: 'себя', password: 'правильный-пароль-из-десяти', csrf: csrfOf(page),
+      });
+      assert.equal(res.status, 409, 'себя удалить нельзя');
+    },
+  });
+});
+
 test('мьют выдаётся и снимается (F-05-08)', { skip }, async () => {
   const admin = await user({ roles: ['admin'] });
   const target = await user();

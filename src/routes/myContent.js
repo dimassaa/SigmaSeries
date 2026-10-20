@@ -7,7 +7,7 @@
 import express from 'express';
 
 import { isLocale, t } from '../i18n/strings.js';
-import { csrfValid } from '../services/auth/session.js';
+import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { myContentView } from '../view/myContent.js';
 import { safeReturnTo } from '../services/auth/login.js';
@@ -59,7 +59,7 @@ export function createMyContentRoutes({ materials, sessionMw = null }) {
         body: myContentView({
           locale,
           list,
-          csrf: req.session.csrf ?? null,
+          csrf: csrfToken(req.session),
         }),
       })));
     } catch (error) {

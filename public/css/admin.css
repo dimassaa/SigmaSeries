@@ -295,3 +295,44 @@
 .admin-backups__when,
 .admin-backups__size,
 .admin-backups__checked { color: var(--text-secondary); white-space: nowrap; }
+
+/* --- Настройки системы (S-83) --- */
+
+.admin-settings__title { margin-block-end: var(--space-3); }
+
+.admin-settings__note { color: var(--text-secondary); margin-block-end: var(--space-5); }
+
+.admin-settings__group { margin-block-end: var(--space-6); }
+
+.admin-settings__group-title { font-size: var(--text-lg); margin-block-end: var(--space-3); }
+
+.admin-settings__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.admin-settings__table th,
+.admin-settings__table td {
+  padding: var(--space-3) var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+  vertical-align: top;
+  text-align: start;
+}
+
+.admin-settings__table thead th {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.admin-settings__key { font-weight: 400; }
+.admin-settings__key code { font-family: var(--font-mono); font-size: var(--text-sm); }
+
+.admin-settings__label { display: block; color: var(--text-secondary); font-size: var(--text-sm); }
+
+.admin-settings__value { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+.admin-settings__form { display: flex; flex-wrap: wrap; gap: var(--space-2); align-items: center; }
+
+.admin-settings__form .field__input { min-block-size: 44px; }

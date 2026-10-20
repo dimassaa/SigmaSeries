@@ -7,7 +7,7 @@
 // Решение всегда с причиной и сроком, и всегда попадает в аудит (F-05-08 §8г):
 // автор видит срок и причину, а не код правила.
 
-import { MODERATION } from '../../config/settings.js';
+import { MODERATION } from '../settings.js';
 
 /** Кто может кого ограничивать: роли, которым это нельзя (EC-R4). */
 const STAFF_ROLES = ['editor', 'analyst', 'admin'];

@@ -6,7 +6,7 @@
 // отдельно — как и положено источнику, который не знает про разметку.
 
 import { importSettings } from './settings.js';
-import { RATING } from '../../config/settings.js';
+import { RATING } from '../settings.js';
 
 /** Сколько сериалов в списке одного сезона показываем сразу. */
 const EPISODES_LIMIT = 50;

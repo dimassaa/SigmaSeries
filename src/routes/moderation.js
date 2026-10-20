@@ -12,7 +12,7 @@ import { moderationView } from '../view/moderation.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { csrfToken } from '../services/auth/session.js';
 import { safeReturnTo } from '../services/auth/login.js';
-import { MODERATION } from '../config/settings.js';
+import { MODERATION } from '../services/settings.js';
 import { STYLE_GROUPS } from '../config/styles.js';
 
 /** Таблицы стилей экрана: общая плюс его собственная. */

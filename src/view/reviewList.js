@@ -14,7 +14,7 @@ import { tPlural } from '../i18n/plural.js';
 import { dayLabel } from './dates.js';
 import { paragraphs } from './reviews.js';
 import { averageLine, histogram, ownLine } from './rating.js';
-import { REVIEW } from '../config/settings.js';
+import { REVIEW } from '../services/settings.js';
 
 /** Сортировка по умолчанию — в адрес не попадает (F-04-05 §4). */
 const DEFAULT_SORT = 'helpful';

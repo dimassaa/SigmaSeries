@@ -7,7 +7,7 @@
 import express from 'express';
 
 import { isLocale, t } from '../i18n/strings.js';
-import { csrfValid } from '../services/auth/session.js';
+import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { backupsView } from '../view/backups.js';
 
@@ -54,7 +54,7 @@ export function createBackupRoutes({
         description: t(locale, 'admin.backups.description'),
         noindex: true,
         styles: STYLES,
-        body: backupsView({ locale, copies, schedule, csrf: req.session?.csrf ?? null }),
+        body: backupsView({ locale, copies, schedule, csrf: csrfToken(req.session) }),
       })));
     } catch (error) {
       return next(error);

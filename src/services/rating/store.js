@@ -29,7 +29,7 @@
 
 import pg from 'pg';
 
-import { RATING } from '../../config/settings.js';
+import { RATING } from '../settings.js';
 import { HOUR } from '../../config/settings.js';
 
 /** Причина отказа — короткая строка, по ней маршрут выбирает текст. */

@@ -22,7 +22,8 @@
 //  6. Мьют читается из `e_restriction` (M1 F-01-08) и отклоняет отправку с
 //     датой окончания — чтение и оценка при этом работают.
 
-import { REVIEW, MODERATION, HOUR } from '../../config/settings.js';
+import { HOUR } from '../../config/settings.js';
+import { REVIEW, MODERATION } from '../settings.js';
 import { pgModerationBudget } from '../moderation/budget.js';
 
 /** Причина отказа — короткая строка, по ней маршрут выбирает текст. */

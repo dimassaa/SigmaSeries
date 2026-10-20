@@ -17,7 +17,7 @@
 import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { dayLabel } from './dates.js';
-import { REVIEW } from '../config/settings.js';
+import { REVIEW } from '../services/settings.js';
 import { detectLang } from '../services/reviews/store.js';
 
 /** Предел длины — из настроек, а не из разметки: счётчик и проверка об одном. */

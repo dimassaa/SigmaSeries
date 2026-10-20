@@ -168,12 +168,13 @@ test('оценки забаненного не входят в среднее п
     [`ban-${crypto.randomUUID().slice(0, 8)}`, 979_000_000 + Math.floor(Math.random() * 900)],
   );
 
-  // Счётчик C общий для всей базы, а параллельные проверки в это же время
-  // пишут и убирают свои голоса. Поэтому у автора не один голос, а десять:
-  // разница видна даже на фоне шума, а допуск ловит параллельные записи.
+  // Счётчик голосов общий для всей базы, а параллельные проверки в это же
+  // время пишут и убирают свои голоса пачками — на счётчике это ловится
+  // как чужое падение. Среднее устойчиво: чужой голос двигает его на
+  // thousandths, а голоса автора — на десятые. Поэтому проверяем среднее.
   const base = await ratings.refreshSiteAverage();
   const more = [];
-  for (let i = 0; i < 9; i += 1) {
+  for (let i = 0; i < 40; i += 1) {
     const { rows: [another] } = await pool.query(
       `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
        VALUES ($1, 'Серия для бана', 'Ban fixture', $2, 'published', 'airing', 2024) RETURNING id`,
@@ -182,19 +183,19 @@ test('оценки забаненного не входят в среднее п
     more.push(another.id);
     await pool.query(
       `INSERT INTO e_rating (user_id, object_type, series_id, value, counted)
-       VALUES ($1, 'series', $2, 10, TRUE)`,
+       VALUES ($1, 'series', $2, 1, TRUE)`,
       [author, another.id],
     );
   }
 
   const withVote = await ratings.refreshSiteAverage();
-  assert.ok(withVote.votes - base.votes >= 9, 'до бана голоса автора входят в C');
+  assert.ok(withVote.average < base.average - 0.05,
+    `до бана голоса автора входят в C: ${withVote.average} против ${base.average}`);
 
   await restrictions.ban({ userId: author, reason: 'тест', byId: admin });
   const after = await ratings.refreshSiteAverage();
-  // Допуск — на параллельные записи других проверок; без него упало бы
-  // сравнение двух снимков одного и того же счётчика.
-  assert.ok(withVote.votes - after.votes >= 9, 'после бана голоса автора ушли из C');
+  assert.ok(after.average > withVote.average + 0.05,
+    `после бана голоса автора ушли из C: ${after.average} против ${withVote.average}`);
 
   for (const id of more) {
     await pool.query('DELETE FROM e_rating WHERE series_id = $1', [id]);

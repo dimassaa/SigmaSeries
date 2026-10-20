@@ -11,7 +11,7 @@ import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { dayLabel } from './dates.js';
 import { paragraphs } from './reviews.js';
-import { MODERATION } from '../config/settings.js';
+import { MODERATION } from '../services/settings.js';
 
 /**
  * Очередь модерации и разбор материала.

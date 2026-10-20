@@ -7,13 +7,13 @@
 import express from 'express';
 
 import { isLocale, t } from '../i18n/strings.js';
-import { csrfValid } from '../services/auth/session.js';
+import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { safeReturnTo } from '../services/auth/login.js';
 import { MODERATION } from '../config/settings.js';
+import { ADMIN } from '../services/settings.js';
 import { leavesNoAdmin } from '../services/admin/users.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { adminUsersView, adminUserView } from '../view/adminUsers.js';
-import { ADMIN } from '../config/settings.js';
 
 const BASE = '/admin/users';
 
@@ -65,7 +65,7 @@ export function createAdminUsersRoutes({
         description: t(locale, 'admin.users.description'),
         noindex: true,
         styles: STYLES,
-        body: adminUsersView({ locale, list, query }),
+        body: adminUsersView({ locale, list, query, csrf: csrfToken(req.session) }),
       })));
     } catch (error) {
       return next(error);
@@ -205,6 +205,69 @@ export function createAdminUsersRoutes({
     }
   });
 
+  // Удаление окончательное: срок между запросом и обезличиванием, повторный
+  // пароль в момент запроса (F-09-02 §8б), материалы и оценки остаются
+  // обезличенными, если админ не выбрал удалять их вместе с аккаунтом
+  // (EC-R6, H-61).
+  router.post(`/:locale${BASE}/:id/delete`, adminOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+
+    const id = Number(req.params.id);
+    const body = req.body ?? {};
+    const reason = String(body.reason ?? '').trim();
+    const password = String(body.password ?? '');
+
+    try {
+      if (!csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.csrf'));
+      }
+      if (!reason || reason.length > 500) {
+        return res.status(400).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.reason'));
+      }
+      // Удалить себя нельзя: администратор ушёл бы из-под собственного решения
+      // (F-09-02 §5).
+      if (id === req.session.user.id) {
+        return res.status(409).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.self'));
+      }
+      // Пароль спрашивается здесь, а не в момент обезличивания: через срок
+      // никто его не вспомнит (F-09-02 §8б).
+      const ok = await auth.verifyCurrent(req.session.user.id, password);
+      if (!ok) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.password'));
+      }
+
+      const requestedAt = new Date();
+      const anonymizeAfter = new Date(requestedAt.getTime() + ADMIN.deleteGraceDays * 86_400_000);
+      const deleteMaterials = body.delete_materials === '1' || body.delete_materials === 'on';
+      const removed = await auth.requestDeletion(id, { requestedAt, anonymizeAfter, deleteMaterials });
+
+      if (!removed) {
+        return res.status(409).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.deleteState'));
+      }
+
+      await audit.write({
+        actorId: req.session.user.id,
+        action: 'user.delete_request',
+        objectType: 'user',
+        objectId: id,
+        result: 'ok',
+        reason: `materials=${deleteMaterials}; ${reason}`,
+        after: { anonymize_after: anonymizeAfter.toISOString() },
+      });
+
+      const back = body.back ? safeReturnTo(body.back) : `/${locale}${BASE}/${id}`;
+      return res.status(303).set('Location', back).end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.get(`/:locale${BASE}/:id`, adminOnly, async (req, res, next) => {
     const { locale } = req.params;
     if (!isLocale(locale)) return next('route');
@@ -229,7 +292,7 @@ export function createAdminUsersRoutes({
         description: t(locale, 'admin.user.description'),
         noindex: true,
         styles: STYLES,
-        body: adminUserView({ locale, user, csrf: req.session?.csrf ?? null }),
+        body: adminUserView({ locale, user, csrf: csrfToken(req.session) }),
       })));
     } catch (error) {
       return next(error);
