@@ -373,6 +373,93 @@ export function pgStudioCard(pool) {
   }
 
   /**
+   * Откатить карточку к прежней версии.
+   *
+   * Откат — это новая версия с прежними значениями, а не отмена правки: история
+   * остаётся честной, и поля, к которым вернулись значения, закрываются от
+   * импорта (F-10-06 §4).
+   *
+   * @param {{seriesId: number, version: number, byId: number|null}} input
+   * @returns {Promise<{ok: boolean, reason?: string, restored?: string[]}>}
+   */
+  async function restoreVersion({ seriesId, version, byId = null }) {
+    const { rows } = await pool.query(
+      `SELECT version, diff FROM e_catalog_version
+        WHERE series_id = $1 AND version >= $2
+        ORDER BY version DESC`,
+      [seriesId, version],
+    );
+    if (!rows.length) return { ok: false, reason: 'no_version' };
+    if (!rows.some((row) => Number(row.version) === Number(version))) {
+      return { ok: false, reason: 'no_version' };
+    }
+
+    // Откат — это отмена всех правок после выбранной версии, сделанная
+    // в обратном порядке: у каждого поля берётся значение до последней
+    // правки, а в итоге получается то, чем поле было в выбранной версии.
+    const wanted = {};
+    for (const row of rows) {
+      for (const [field, change] of Object.entries(row.diff ?? {})) {
+        if (!EDITABLE_FIELDS.includes(field)) continue;
+        if (!(field in wanted)) wanted[field] = change?.from ?? null;
+      }
+    }
+    const fields = Object.keys(wanted);
+    if (!fields.length) return { ok: false, reason: 'nothing_to_restore' };
+
+    const current = await read(seriesId);
+    if (!current) return { ok: false, reason: 'not_found' };
+
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const sets = ['version = version + 1'];
+      const params = [];
+      for (const field of fields) {
+        params.push(wanted[field]);
+        sets.push(`${field} = $${params.length}`);
+      }
+      params.push(seriesId);
+      await client.query(
+        `UPDATE e_series SET ${sets.join(', ')} WHERE id = $${params.length}`,
+        params,
+      );
+
+      // Поля, к которым вернулись значения, закрываются от импорта: иначе
+      // следующий прогон перепишет откат.
+      for (const field of fields) {
+        await client.query(
+          `INSERT INTO e_field_lock (series_id, field, set_by, imported_value)
+           VALUES ($1, $2, $3, $4)
+           ON CONFLICT (series_id, field) DO UPDATE
+             SET set_by = EXCLUDED.set_by, set_at = now()`,
+          [seriesId, field, byId, Buffer.from(String(current.fields[field] ?? ''), 'utf8')],
+        );
+      }
+
+      // Откат — новая версия: в истории видно, что было и что стало.
+      const restoredDiff = {};
+      for (const field of fields) {
+        restoredDiff[field] = { from: current.fields[field] ?? null, to: wanted[field] ?? null };
+      }
+      await client.query(
+        `INSERT INTO e_catalog_version (series_id, version, author_id, source, diff)
+         VALUES ($1, $2, $3, 'manual', $4)`,
+        [seriesId, current.version + 1, byId, JSON.stringify(restoredDiff)],
+      );
+      await client.query("UPDATE e_series SET source = 'manual' WHERE id = $1", [seriesId]);
+      await client.query('COMMIT');
+      await recompute(seriesId);
+      return { ok: true, restored: fields };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * Поставить фокальную точку изображения.
    *
    * Точка задаётся в процентах (0–100), а хранится долей: интерфейс считает
@@ -493,7 +580,7 @@ export function pgStudioCard(pool) {
 
   return {
     read, save, resetField, publish, archive, restore, dependencies: dependentCounts,
-    history, recompute, genres, setFocal, images,
+    history, recompute, genres, setFocal, images, restoreVersion,
   };
 }
 

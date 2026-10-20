@@ -247,6 +247,44 @@ export function createStudioCardRoutes({
       });
   }
 
+  // Откат карточки к прежней версии (F-10-06 §4).
+  router.post(`/:locale${BASE}/:id/versions/:version/restore`, adminOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+    const id = Number(req.params.id);
+    const version = Number(req.params.version);
+    const body = req.body ?? {};
+    try {
+      if (!csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.csrf'));
+      }
+      const result = await card.restoreVersion({
+        seriesId: id, version, byId: req.session.user.id,
+      });
+      if (!result.ok) {
+        return res.status(400).type('text/plain; charset=utf-8')
+          .send(t(locale, `studio.card.restoreError.${result.reason}`));
+      }
+      if (audit) {
+        await audit.write({
+          actorId: req.session.user.id,
+          action: 'series.restore_version',
+          objectType: 'series',
+          objectId: id,
+          result: 'ok',
+          reason: `версия ${version}: ${(result.restored ?? []).join(', ')}`,
+          after: { version, restored: result.restored ?? [] },
+        });
+      }
+      return res.status(303)
+        .set('Location', `/${locale}${BASE}/${id}?tab=service`)
+        .end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   // Фокальная точка изображения (F-10-04): как кадрировать кадр.
   router.post(`/:locale${BASE}/:id/images/focal`, adminOnly, async (req, res, next) => {
     const { locale } = req.params;

@@ -128,6 +128,34 @@ test('архив и возврат меняют состояние (F-10-06 §4)
   assert.equal(after.archived, false);
 });
 
+test('откат к прежней версии возвращает значения и закрывает поля (F-10-06 §4)', { skip }, async () => {
+  const first = await card.save(seriesId, {
+    fields: { title_ru: 'Название для отката' }, byId: null,
+  });
+  assert.equal(first.ok, true, 'первая правка сохранена');
+
+  const second = await card.save(seriesId, {
+    fields: { title_ru: 'Другое название' }, byId: null,
+  });
+  assert.equal(second.ok, true, 'вторая правка сохранена');
+
+  const after = await card.read(seriesId);
+  assert.equal(after.fields.title_ru, 'Другое название');
+
+  const restored = await card.restoreVersion({ seriesId, version: first.version, byId: null });
+  assert.equal(restored.ok, true, 'откат выполнен');
+  assert.deepEqual(restored.restored, ['title_ru'], 'вернулось нужное поле');
+
+  const back = await card.read(seriesId);
+  assert.equal(back.fields.title_ru, 'Название для отката', 'значение прежнее');
+  assert.equal(back.origins.title_ru, 'manual', 'поле закрыто от импорта');
+  assert.equal(back.version, first.version + 2, 'откат — это новая версия');
+
+  const history = await card.history(seriesId);
+  assert.ok(history.length >= 3, 'в истории три версии');
+  assert.equal(history[0].version, first.version + 2, 'последняя версия — откат');
+});
+
 test('фокальная точка ставится и сбрасывается (F-10-04, H-33)', { skip }, async () => {
   const { rows: [image] } = await pool.query(
     `INSERT INTO e_image (role, source, mime, width, height, focal_x, focal_y)

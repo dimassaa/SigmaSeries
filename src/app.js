@@ -32,6 +32,7 @@ import { createStudioRoutes } from './routes/studio.js';
 import { createDiscussionRoutes } from './routes/discussions.js';
 import { createGuideRoutes } from './routes/guides.js';
 import { createStudioLibraryRoutes } from './routes/studioCollections.js';
+import { createSplashRoutes } from './routes/studioSplash.js';
 import { createStudioCardRoutes } from './routes/studioCard.js';
 import { createSystemSettingsRoutes } from './routes/systemSettings.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
@@ -97,6 +98,7 @@ export function createApp({
   backups = null,
   studio = null,
   studioCollections = null,
+  splash = null,
   bulk = null,
   studioDictionaries = null,
   discussions = null,
@@ -222,6 +224,7 @@ export function createApp({
     collections: studioCollections, dictionaries: studioDictionaries,
     series, audit, sessionMw,
   }));
+  if (splash) app.use(createSplashRoutes({ splash, audit, sessionMw }));
   if (studio) app.use(createStudioRoutes({ pool, studio, picks, bulk, audit, sessionMw }));
   // Карточка сериала (S-75): правка, публикация, архив.
   if (studioCard) app.use(createStudioCardRoutes({

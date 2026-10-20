@@ -249,6 +249,13 @@ export function studioCardView({
             <span class="studio-history__at">${String(item.at).slice(0, 16).replace('T', ' ')}</span>
             ${when(Object.keys(item.diff ?? {}).length, () => html`
             <span class="studio-history__reason">${Object.keys(item.diff).join(', ')}</span>`)}
+            ${when(Object.keys(item.diff ?? {}).length, () => html`
+            <form class="studio-history__restore" method="post"
+                  action="/${locale}/admin/catalog/${card.id}/versions/${item.version}/restore"
+                  data-confirm="${t(locale, 'studio.card.restoreConfirm')}">
+              <input type="hidden" name="csrf" value="${csrf}">
+              <button class="button button--quiet" type="submit">${t(locale, 'studio.card.restore')}</button>
+            </form>`)}
           </li>`)}
         </ul>`, () => html`<p class="empty">${t(locale, 'studio.card.historyEmpty')}</p>`)}
       </section>`)}

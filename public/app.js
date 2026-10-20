@@ -997,6 +997,21 @@
     }
   }
 
+  // ─── Кадры заставки (F-10-09) ──────────────────────────────────────────────
+  //
+  // У сериала в списке — и сериал, и картинка; в форму уходит только
+  // идентификатор картинки, а он меняется вместе с выбором.
+
+  function initSplash() {
+    var select = document.querySelector('#splash-series');
+    var hidden = document.querySelector('#splash-image');
+    if (!select || !hidden) return;
+    select.addEventListener('change', function () {
+      var option = select.options[select.selectedIndex];
+      hidden.value = option ? (option.getAttribute('data-image') || '') : '';
+    });
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -1015,6 +1030,7 @@
     initConfirmations();
     initCarousel();
     initMarquee();
+    initSplash();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();
