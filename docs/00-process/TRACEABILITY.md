@@ -33,7 +33,7 @@
 | `OP-01`, отзыв: форма и публикация | `src/services/reviews/store.js`, `src/view/reviews.js`, `src/routes/series.js` | 22 (`tests/reviews.store.test.js`) + 15 (`tests/http.reviews.test.js`) | **ПРОВЕРЕНО** |
 | `OP-02` | антиспам (M5): `src/services/moderation/budget.js` (осторожный режим, давление очереди, бюджет помеченных с авто-мьютом, потолок очереди), `cluster.js` (кластеры, разделение, распространение решения), `decision.js` | 4 + 8 (`tests/moderation.budget.test.js`, `tests/moderation.flagged-budget.test.js`, `tests/moderation.queue-ceiling.test.js`, `tests/moderation.split.test.js`) + 7 (`tests/moderation.cluster.test.js`) | **ПРОВЕРЕНО** |
 | `OP-04`, группы и списки отзывов | `src/services/rating/group.js`, `src/services/reviews/list.js`, `src/view/reviewList.js`, `src/routes/series.js` | 4 (`tests/rating.group.test.js`) + 13 (`tests/reviews.list.test.js`) + 10 (`tests/http.reviews.list.test.js`) | **ПРОВЕРЕНО** |
-| `OP-05`, `OP-11`, `OP-12`, `OP-14`, `OP-15`, `OP-18` | баннеры дня, рекомендации, итоги, онлайн, агрегация аналитики, подборки по правилам — все P1 | — | **СПЕЦИФИЦИРОВАНО** |
+| `OP-05`, `OP-11`, `OP-14`, `OP-15`, `OP-18` | баннеры дня, рекомендации, онлайн, агрегация аналитики, подборки по правилам — все P1 | — | **СПЕЦИФИЦИРОВАНО** |
 
 Три строки без номера `OP-xx` закрывают требования Бланка, а не операции:
 пароли и токены (`src/services/auth/password.js`, R-SEC-21…24), вход и лимиты
@@ -89,7 +89,7 @@
 | `OP-09` | Рассылка уведомлений | M3 | `notify/dispatch` | дедупликация; тихие часы откладывают, не отменяют |
 | `OP-10` | Прогресс и следующая серия | M3 | `tracking/progress` | ретро-отметки не входят; двойной клик безопасен |
 | `OP-11` | Рекомендации | M11 | `reco/rank` | у каждой рекомендации есть причина; отмеченное не рекомендуется |
-| `OP-12` | Итоги | M7 | `insights/build` | только точные отметки; порог 50 |
+| `OP-12` | Итоги | M7 | `insights/recap` | только точные отметки; порог 50 или 10 сериалов; картинка без ника |
 | `OP-15` | Агрегация аналитики | M8 | `analytics/aggregate` | текст запроса не попадает в агрегат |
 | `OP-14` | Онлайн, средний и пик | M9 | `metrics/online` | уникальные, не сессии; разрыв, а не ноль |
 | `OP-16` | Анонимизация | M1·M9 | `users/anonymize` | ключи целы; материалы обезличены; запись в аудите |

@@ -21,6 +21,7 @@ import { createMailboxRoutes } from './routes/mailbox.js';
 import { createAdminRoutes } from './routes/admin.js';
 import { createReviewRoutes } from './routes/review.js';
 import { createProfileRoutes } from './routes/profile.js';
+import { createRecapRoutes } from './routes/recap.js';
 import { createSeriesRoutes } from './routes/series.js';
 import { createPosterCardRoutes } from './routes/posterCard.js';
 import { createPageRoutes } from './routes/pages.js';
@@ -93,6 +94,8 @@ export function createApp({
   audit = null,
   // Публичный профиль пользователя (S-18, F-01-07).
   profile = null,
+  // Персональные итоги (M7, F-07-01).
+  recap = null,
   // Очередь тяжёлого хеширования пароля (EC-A16). Без неё маршруты входа и
   // регистрации считают хеши без ограничения, и всплеск съедает машину.
   hashQueue = null,
@@ -215,6 +218,8 @@ export function createApp({
   }));
   // Публичный профиль (S-18). Ник ведёт сюда из отзывов, руководств и тем.
   if (profile) app.use(createProfileRoutes({ profile, sessionMw }));
+  // Персональные итоги (M7, S-33): свои — на /recap, чужие — под профилем.
+  if (recap && profile && data) app.use(createRecapRoutes({ recap, profile, data, sessionMw }));
   // Решение по аномалии — служебный POST только для админа; без альтернатив
   // (страницы нет до M9), поэтому монтируется только вместе с журналом.
   // Переключатель темы в шапке: выбор уходит в профиль (F-01-06 §8).

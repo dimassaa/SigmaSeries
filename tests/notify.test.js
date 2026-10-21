@@ -173,7 +173,8 @@ test('тип уведомления знает категорию, а неизв
   assert.equal(categoryOf('import_key_rejected'), 'service');
   assert.equal(categoryOf('import_partial'), 'service');
   assert.equal(categoryOf('spam_budget_hit'), 'service');
-  assert.equal(Object.keys(KINDS).length, 15, 'в реестре пятнадцать типов, лишних нет');
+  assert.equal(categoryOf('recap_ready'), 'service');
+  assert.equal(Object.keys(KINDS).length, 16, 'в реестре шестнадцать типов, лишних нет');
   assert.throws(() => categoryOf('что-то новое'), /неизвестный тип/,
     'уведомление без категории нельзя ни показать, ни отключить — это ошибка кода');
 });

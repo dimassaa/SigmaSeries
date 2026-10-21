@@ -29,6 +29,8 @@ export const KINDS = {
   spam_budget_hit: { category: 'service', channel: 'staff' },
   queue_threshold: { category: 'service', channel: 'staff' },
   rating_anomaly: { category: 'service', channel: 'staff' },
+  // Приглашение к персональным итогам (M7, F-07-01 §3).
+  recap_ready: { category: 'service', channel: 'in_service' },
 };
 
 /**

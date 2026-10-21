@@ -53,6 +53,30 @@ export function pgProfile(pool) {
     },
 
     /**
+     * Пользователь по идентификатору.
+     *
+     * @param {number} userId
+     * @returns {Promise<object|null>}
+     */
+    async byId(userId) {
+      const { rows } = await pool.query(
+        `SELECT id, nickname, status, registered_at, stats_public, profile_public
+           FROM e_user WHERE id = $1`,
+        [userId],
+      );
+      const row = rows[0];
+      if (!row) return null;
+      return {
+        id: Number(row.id),
+        nickname: row.nickname,
+        status: row.status,
+        registeredAt: row.registered_at,
+        statsPublic: row.stats_public === true,
+        profilePublic: row.profile_public === true,
+      };
+    },
+
+    /**
      * Счётчики опубликованных работ: отзывы и руководства.
      *
      * @param {number} userId

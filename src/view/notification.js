@@ -26,6 +26,7 @@ const ICON = {
   spam_budget_hit: '🛑',
   queue_threshold: '⏳',
   rating_anomaly: '⭐',
+  recap_ready: '🎞',
 };
 
 /**
@@ -54,6 +55,11 @@ export function notificationText(locale, row) {
   };
 
   switch (row.kind) {
+    case 'recap_ready':
+      return {
+        title: t(locale, 'notify.recap_ready.title'),
+        body: t(locale, 'notify.recap_ready.body', { year: params.year ?? '' }),
+      };
     case 'import_key_rejected':
       return {
         title: t(locale, 'notify.import_key_rejected.title'),

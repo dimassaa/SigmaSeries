@@ -67,6 +67,8 @@ import { createSnapshotBackup } from './services/backup/snapshot.js';
 import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { pgProfile } from './services/profile/service.js';
+import { pgRecap } from './services/insights/recap.js';
+import { runRecapInvites } from './services/insights/invite.js';
 import { createHashQueue } from './services/auth/hashQueue.js';
 import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
@@ -247,6 +249,15 @@ notificationWorker.unref();
 
 sweepNotifications();
 
+// Приглашение к персональным итогам (M7, F-07-01 §3): раз в год, и только
+// тем, у кого уже есть точные отметки и кто ещё не получал приглашения.
+const recapInviteWorker = setInterval(() => {
+  runRecapInvites(pool).catch(() => {});
+}, 24 * HOUR);
+recapInviteWorker.unref();
+
+runRecapInvites(pool).catch(() => {});
+
 // Оценки аккаунтов, дожидающих возраста, вводятся в агрегат (EC-V4), и тем же
 // ежечасным проходом пересчитывается среднее по сайту C (F-04-03): C — среднее
 // учитываемых голосов, и голос, вошедший сейчас, обязан войти в него в этом же
@@ -293,6 +304,8 @@ const app = createApp({
   hashQueue,
   // Публичный профиль пользователя (S-18, F-01-07).
   profile: pgProfile(pool),
+  // Персональные итоги (M7, F-07-01).
+  recap: pgRecap(pool),
   series: pgSeries(pool),
   posterCard: pgPosterCard(pool),
   catalogue: pgCatalogueList(pool),

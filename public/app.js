@@ -1331,11 +1331,149 @@
     initCarousel();
     initMarquee();
     initSplash();
+    initRecap();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();
       initNicknameCheck();
     }
+  }
+
+  // ─── Итоги (M7, F-07-02) ────────────────────────────────────────────────────
+  //
+  // Слайды приходят одним ответом, листает их браузер. Автопереход
+  // останавливается, когда фокус стоит на элементе слайда (F-07-02 §8б), и не
+  // включается вовсе, если человек просил меньше движения.
+
+  function initRecap() {
+    var root = document.querySelector('[data-recap]');
+    if (!root) return;
+    var slides = Array.prototype.slice.call(root.querySelectorAll('[data-slide]'));
+    if (!slides.length) return;
+
+    var progress = root.querySelector('[data-progress]');
+    var template = progress ? progress.getAttribute('data-template') : '';
+    var advance = Number(root.getAttribute('data-advance')) || 0;
+    var reduced = !!(window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+    var index = 0;
+    var timer = null;
+
+    function paint() {
+      slides.forEach(function (slide, i) {
+        if (i === index) slide.removeAttribute('hidden');
+        else slide.setAttribute('hidden', '');
+      });
+      if (progress && template) {
+        progress.textContent = template
+          .replace('{page}', String(index + 1))
+          .replace('{pages}', String(slides.length));
+      }
+    }
+
+    function stop() {
+      if (timer) { clearTimeout(timer); timer = null; }
+    }
+
+    function schedule() {
+      stop();
+      if (reduced || !advance) return;
+      if (index >= slides.length - 1) return;
+      var active = document.activeElement;
+      if (active && slides[index] && slides[index].contains(active)) return;
+      timer = setTimeout(function () { go(index + 1); }, advance);
+    }
+
+    function go(next) {
+      index = Math.max(0, Math.min(slides.length - 1, next));
+      paint();
+      schedule();
+    }
+
+    root.addEventListener('click', function (event) {
+      var target = event.target;
+      if (target && target.hasAttribute('data-next')) go(index + 1);
+      if (target && target.hasAttribute('data-prev')) go(index - 1);
+    });
+
+    root.addEventListener('focusin', stop);
+    root.addEventListener('focusout', schedule);
+
+    document.addEventListener('keydown', function (event) {
+      if (!root.contains(document.activeElement) && document.activeElement !== document.body) return;
+      if (event.key === 'ArrowRight') go(index + 1);
+      if (event.key === 'ArrowLeft') go(index - 1);
+      if (event.key === 'Escape' && dialog && dialog.open) dialog.close();
+    });
+
+    // Свайп: палец ведёт влево — слайд вперёд.
+    var touchX = null;
+    root.addEventListener('touchstart', function (event) {
+      touchX = event.changedTouches[0].clientX;
+    }, { passive: true });
+    root.addEventListener('touchend', function (event) {
+      if (touchX === null) return;
+      var delta = event.changedTouches[0].clientX - touchX;
+      touchX = null;
+      if (Math.abs(delta) < 40) return;
+      go(delta < 0 ? index + 1 : index - 1);
+    }, { passive: true });
+
+    // ─── Картинка для шеринга (F-07-03) ─────────────────────────────────────
+    var dialog = root.querySelector('[data-share-dialog]');
+    var body = root.querySelector('[data-share-body]');
+    var download = root.querySelector('[data-share-download]');
+    var copy = root.querySelector('[data-share-copy]');
+    var form = root.querySelector('form[action$="/recap/share"]');
+
+    function fail(text) {
+      if (body) body.textContent = text;
+    }
+
+    if (dialog && form && body) {
+      root.addEventListener('click', function (event) {
+        var target = event.target;
+        if (!target || !target.hasAttribute('data-share')) return;
+        event.preventDefault();
+        if (dialog.open) return;
+        dialog.showModal();
+        var data = new URLSearchParams(new FormData(form));
+        fetch(form.action, {
+          method: 'POST',
+          headers: { 'content-type': 'application/x-www-form-urlencoded' },
+          body: data,
+          credentials: 'same-origin',
+        }).then(function (response) {
+          if (!response.ok) throw new Error('сборка не удалась');
+          return response.blob();
+        }).then(function (blob) {
+          var url = URL.createObjectURL(blob);
+          body.innerHTML = '';
+          var image = document.createElement('img');
+          image.className = 'recap__share-preview';
+          image.alt = '';
+          image.src = url;
+          body.appendChild(image);
+          if (download) {
+            download.href = url;
+            download.removeAttribute('hidden');
+          }
+        }).catch(function () {
+          fail(body.getAttribute('data-error') || '');
+        });
+      });
+
+      if (copy) {
+        copy.addEventListener('click', function () {
+          var link = window.location.origin + window.location.pathname;
+          if (navigator.clipboard) navigator.clipboard.writeText(link);
+          copy.textContent = copy.getAttribute('data-copied') || copy.textContent;
+        });
+      }
+    }
+
+    paint();
+    schedule();
   }
 
   if (document.readyState === 'loading') {
