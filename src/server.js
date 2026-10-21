@@ -304,7 +304,9 @@ const app = createApp({
   // Отзывы (F-04-04). Часовой лимит автора ведёт сам сервис: он считается по
   // базе, иначе перезапуск процесса обнулял бы право писать. Потолки сети и
   // устройства (R-MOD-10) — счётчики в памяти, как у прочих лимитов частоты.
-  reviews: pgReviews(pool),
+  // Бюджеты и ограничения модерации — те же, что и у остальных видов
+  // материалов: «осторожный» режим один на сервис (F-05-03).
+  reviews: pgReviews(pool, { budget: moderationBudget, restrictions: moderationRestrictions }),
   // Список отзывов (F-04-05): выборка страницы и «лучшие» для S-06.
   reviewList: pgReviewList(pool),
   decisions: pgModerationDecisions(pool),

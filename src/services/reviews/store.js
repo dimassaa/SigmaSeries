@@ -100,7 +100,7 @@ function reviewOf(row) {
  *
  * @param {import('pg').Pool} pool
  */
-export function pgReviews(pool, { budget = null } = {}) {
+export function pgReviews(pool, { budget = null, restrictions = null } = {}) {
   // Бюджеты модерации живут здесь же: они считают по той же таблице
   // материалов, что и отзывы, и спрашивать их должен тот же код, что и
   // отправляет материал (F-05-03). Бюджет подставляется снаружи: «осторожный»
@@ -255,6 +255,17 @@ export function pgReviews(pool, { budget = null } = {}) {
          RETURNING id, version`,
         [userId, seriesId, text, spoiler, chosen, state, at, matches],
       );
+      // Бюджет помеченных попыток (R-MOD-08): пятый помеченный материал за
+      // час — автоматический мьют на час, повтор — на сутки. Мьют ставит
+      // система, поэтому у него нет автора.
+      if (state === 'flagged' && restrictions) {
+        const budget = await limits.flaggedBudget(userId, at);
+        if (budget.mute) {
+          await restrictions.mute({
+            userId, hours: budget.hours, reason: budget.reason, byId: null,
+          });
+        }
+      }
       return { ok: true, state, matched: result.matched, version: Number(rows[0].version) };
     },
 

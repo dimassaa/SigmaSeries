@@ -33,6 +33,42 @@ export function cautiousFrom({ flagged, total, threshold = MODERATION.autoBlockS
 }
 
 /**
+ * Бюджет помеченных попыток (R-MOD-08).
+ *
+ * Пять помеченных материалов за час — автоматический мьют на час; повтор —
+ * на сутки. Числа взяты из правила, а не придуманы: порог и сроки заданы
+ * стандартом.
+ */
+export const FLAGGED_BUDGET = {
+  limit: 5,
+  firstHours: 1,
+  repeatHours: 24,
+};
+
+/**
+ * Что делать с автором, у которого помеченных попыток больше бюджета.
+ *
+ * Правило вынесено отдельно от запроса: считать надо на живых данных, а
+ * решать — по числам, и проверка решения не должна зависеть от наполнения
+ * общей базы.
+ *
+ * @param {{flaggedInHour: number, alreadyMuted?: boolean}} input
+ * @returns {{mute: boolean, hours: number|null, reason: string|null}}
+ */
+export function flaggedBudgetFrom({ flaggedInHour, alreadyMuted = false }) {
+  if (flaggedInHour < FLAGGED_BUDGET.limit) {
+    return { mute: false, hours: null, reason: null };
+  }
+  return {
+    mute: true,
+    hours: alreadyMuted ? FLAGGED_BUDGET.repeatHours : FLAGGED_BUDGET.firstHours,
+    reason: alreadyMuted
+      ? 'превышен бюджет помеченных материалов, повтор'
+      : 'превышен бюджет помеченных материалов',
+  };
+}
+
+/**
  * Состояние «осторожного» режима сервиса.
  *
  * Живёт в процессе, а не в базе: решение о режиме принимает система, и оно
@@ -135,7 +171,38 @@ export function pgModerationBudget(pool) {
     };
   }
 
-  return { submissionsInMinute, cautiousState, refresh, queuePressure };
+  /**
+   * Бюджет помеченных попыток автора (R-MOD-08).
+   *
+   * Считаются материалы в состоянии ожидания решения: именно они «помечены».
+   * Прежний автомьют виден по тому, что у него нет автора: мьют редактора
+   * всегда чей-то, а автоматический — ничей.
+   *
+   * @param {number} userId
+   * @param {Date} [at]
+   * @returns {Promise<{flaggedInHour: number, mute: boolean, hours: number|null, reason: string|null}>}
+   */
+  async function flaggedBudget(userId, at = new Date()) {
+    const { rows } = await pool.query(
+      `SELECT count(*)::int AS n FROM e_material
+        WHERE author_id = $1 AND state IN ('flagged', 'checking')
+          AND submitted_at > $2`,
+      [userId, new Date(at.getTime() - 3600_000)],
+    );
+    const flaggedInHour = Number(rows[0].n);
+    const { rows: mutes } = await pool.query(
+      `SELECT count(*)::int AS n FROM e_restriction
+        WHERE user_id = $1 AND kind = 'mute' AND set_by IS NULL`,
+      [userId],
+    );
+    const decision = flaggedBudgetFrom({
+      flaggedInHour,
+      alreadyMuted: Number(mutes[0].n) > 0,
+    });
+    return { flaggedInHour, ...decision };
+  }
+
+  return { submissionsInMinute, cautiousState, refresh, queuePressure, flaggedBudget };
 }
 
 /** Сбросить состояние режима: им пользуются проверки и перезапуск. */
