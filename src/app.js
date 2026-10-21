@@ -100,8 +100,9 @@ export function createApp({
   recap = null,
   // Персональные рекомендации (M11, F-11-01).
   recommendations = null,
-  // Приём событий аналитики (M8, F-08-01).
+  // Приём событий аналитики (M8, F-08-01) и метрики (F-08-02…05).
   analytics = null,
+  analyticsMetrics = null,
   // Очередь тяжёлого хеширования пароля (EC-A16). Без неё маршруты входа и
   // регистрации считают хеши без ограничения, и всплеск съедает машину.
   hashQueue = null,
@@ -230,7 +231,9 @@ export function createApp({
   // «похожих».
   if (recommendations) app.use(createRecommendationRoutes({ recommendations, sessionMw }));
   // Приём событий и согласие на аналитику (M8, F-08-01).
-  if (analytics) app.use(createAnalyticsRoutes({ analytics, sessionMw }));
+  if (analytics && analyticsMetrics) {
+    app.use(createAnalyticsRoutes({ analytics, metrics: analyticsMetrics, sessionMw }));
+  }
   // Решение по аномалии — служебный POST только для админа; без альтернатив
   // (страницы нет до M9), поэтому монтируется только вместе с журналом.
   // Переключатель темы в шапке: выбор уходит в профиль (F-01-06 §8).

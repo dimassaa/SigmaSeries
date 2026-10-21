@@ -70,6 +70,7 @@ import { pgProfile } from './services/profile/service.js';
 import { pgRecap } from './services/insights/recap.js';
 import { pgRecommendations } from './services/recommendations/reco.js';
 import { pgAnalytics } from './services/analytics/events.js';
+import { pgAnalyticsMetrics } from './services/analytics/metrics.js';
 import { runRecapInvites } from './services/insights/invite.js';
 import { createHashQueue } from './services/auth/hashQueue.js';
 import { createSessionMiddleware } from './services/auth/session.js';
@@ -227,6 +228,7 @@ const recommendations = pgRecommendations(pool);
 
 // Приём событий аналитики (M8, F-08-01).
 const analytics = pgAnalytics(pool);
+const analyticsMetrics = pgAnalyticsMetrics(pool);
 
 // Лимит читается один раз при старте: см. services/search/limits.js.
 const { ratePerIp: searchRatePerIp } = await searchSettings(pool);
@@ -319,6 +321,7 @@ const app = createApp({
   recommendations,
   // Аналитика (M8, F-08-01).
   analytics,
+  analyticsMetrics,
   series: pgSeries(pool),
   posterCard: pgPosterCard(pool),
   catalogue: pgCatalogueList(pool),

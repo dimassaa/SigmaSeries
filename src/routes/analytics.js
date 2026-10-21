@@ -13,6 +13,14 @@ import { t, isLocale } from '../i18n/strings.js';
 import { clientIp } from '../http/helpers.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { userPseudoId } from '../services/analytics/events.js';
+import {
+  analyticsOverviewView,
+  analyticsRetentionView,
+  analyticsContentView,
+  analyticsModerationView,
+  analyticsPerformanceView,
+} from '../view/analytics.js';
+import { layout, pageTitle } from '../view/layout.js';
 
 /**
  * Маршруты аналитики.
@@ -22,7 +30,7 @@ import { userPseudoId } from '../services/analytics/events.js';
  * @param {object|null} [deps.sessionMw]
  * @returns {import('express').Router}
  */
-export function createAnalyticsRoutes({ analytics, sessionMw = null }) {
+export function createAnalyticsRoutes({ analytics, metrics = null, sessionMw = null }) {
   const router = express.Router({ strict: true });
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
 
@@ -99,6 +107,90 @@ export function createAnalyticsRoutes({ analytics, sessionMw = null }) {
       return next(error);
     }
   });
+
+  // ─── Дашборды (M8, F-08-03…F-08-05) ───────────────────────────────────────
+  //
+  // Аналитика и администратор: данные продукта — не публичное знание.
+  const staffOnly = (req, res, next) => {
+    const roles = req.session?.user?.roles ?? [];
+    if (!roles.includes('analyst') && !roles.includes('admin')) return next('router');
+    return next();
+  };
+
+  /** Период: сутки, неделя или месяц. */
+  function hoursOf(req) {
+    const raw = String(req.query.period ?? '24h');
+    if (raw === '7d') return 168;
+    if (raw === '30d') return 720;
+    return 24;
+  }
+
+  /** Демо-данные исключаются по умолчанию (R-AN-11). */
+  function demoExcluded(req) {
+    return req.query.demo !== '1';
+  }
+
+  /**
+   * Страница дашборда.
+   *
+   * @param {object} req
+   * @param {object} res
+   * @param {Function} view
+   * @param {Function} load данные дашборда
+   * @param {string} titleKey
+   */
+  async function page(req, res, view, load, titleKey) {
+    const locale = req.params.locale;
+    try {
+      const hours = hoursOf(req);
+      const data = await load({ hours, excludeDemo: demoExcluded(req) });
+      return res.status(200).type('html').send(layout({
+        account: req.account,
+        locale,
+        path: '/analytics',
+        title: pageTitle(locale, t(locale, titleKey)),
+        description: t(locale, 'analytics.description'),
+        noindex: true,
+        styles: ['analytics'],
+        body: view({ locale, data }),
+      }).__raw);
+    } catch (error) {
+      return next(error);
+    }
+  }
+
+  router.get('/:locale/analytics', staffOnly, (req, res, next) => page(
+    req, res, analyticsOverviewView,
+    async (options) => {
+      const overview = await metrics.overview(options);
+      return { ...overview, rejects: await metrics.rejects() };
+    },
+    'analytics.overview.title',
+  ));
+
+  router.get('/:locale/analytics/retention', staffOnly, (req, res, next) => page(
+    req, res, analyticsRetentionView,
+    async (options) => ({ ...options, funnel: await metrics.funnel(options) }),
+    'analytics.retention.title',
+  ));
+
+  router.get('/:locale/analytics/content', staffOnly, (req, res, next) => page(
+    req, res, analyticsContentView,
+    async (options) => ({ ...options, search: await metrics.search(options) }),
+    'analytics.content.title',
+  ));
+
+  router.get('/:locale/analytics/moderation', staffOnly, (req, res, next) => page(
+    req, res, analyticsModerationView,
+    async (options) => ({ ...options, moderation: await metrics.moderation(options) }),
+    'analytics.moderation.title',
+  ));
+
+  router.get('/:locale/analytics/performance', staffOnly, (req, res, next) => page(
+    req, res, analyticsPerformanceView,
+    async (options) => ({ ...options, vitals: await metrics.vitals(options) }),
+    'analytics.performance.title',
+  ));
 
   return router;
 }

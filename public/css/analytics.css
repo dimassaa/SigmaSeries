@@ -1,0 +1,222 @@
+/* SigmaSeries — таблица стилей «analytics».
+   Этот файл НЕ ПРАВИТСЯ РУКАМИ.
+   Источник: src/styles/*.css, состав — src/config/styles.js.
+   Сборка:   node tools/build-css.mjs
+   Проверка: npm run css:check
+   Частей: 1
+*/
+
+/* ─── 38-analytics.css ─── */
+/* Дашборды аналитики (M8, S-60…S-64).
+ *
+ * Пять крупных чисел и графики. Число без периода — не число, поэтому
+ * период подписан всегда, а у каждого числа есть определение. */
+
+.dash {
+  display: grid;
+  gap: var(--space-4);
+  max-inline-size: 72rem;
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-3);
+}
+
+.dash__head {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.dash__title {
+  margin: 0;
+  font-size: var(--text-xl);
+}
+
+.dash__period {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.dash__demo {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--warning);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+}
+
+.dash__numbers {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+  gap: var(--space-3);
+}
+
+.dash__number {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.dash__value {
+  margin: 0;
+  font-size: var(--text-2xl);
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.dash__label {
+  margin: 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.dash__graphs {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
+  gap: var(--space-3);
+}
+
+.dash__section {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+}
+
+.dash__pairs {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+}
+
+.dash__pair {
+  display: flex;
+  gap: var(--space-3);
+  align-items: baseline;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.dash__pair dt {
+  color: var(--text-secondary);
+}
+
+.dash__pair dd {
+  margin: 0;
+  font-weight: 600;
+}
+
+.dash__note,
+.chart__summary {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.chart {
+  padding: var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+}
+
+.chart__title {
+  margin: 0 0 var(--space-2);
+  font-size: var(--text-lg);
+  font-weight: 400;
+}
+
+.chart__svg {
+  inline-size: 100%;
+  block-size: auto;
+}
+
+.chart__bar {
+  fill: var(--accent);
+}
+
+.chart__label {
+  fill: var(--text-secondary);
+  font-size: 4px;
+}
+
+.metric {
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  padding: var(--space-2);
+}
+
+.metric__summary {
+  cursor: pointer;
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
+
+.metric__body {
+  margin-block-start: var(--space-2);
+  font-size: var(--text-sm);
+}
+
+.metric__definition,
+.metric__example {
+  margin: 0 0 var(--space-2);
+}
+
+.metric__line {
+  margin: 0 0 var(--space-1);
+}
+
+.metric__distortions-title {
+  margin: var(--space-2) 0 var(--space-1);
+  font-weight: 600;
+}
+
+.metric__distortions {
+  margin: 0;
+  padding-inline-start: var(--space-4);
+}
+
+.metric__version {
+  margin: var(--space-2) 0 0;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.funnel__list {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.funnel__step {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.funnel__label {
+  color: var(--text-secondary);
+}
+
+.funnel__value {
+  font-weight: 600;
+}
+
+.funnel__bar {
+  /* Ширина полосы приходит из разметки: своё значение переменной объявлено
+   * здесь, чтобы правило не было отброшено как незаданное. */
+  --funnel-width: 0%;
+  grid-column: 1 / -1;
+  block-size: 6px;
+  inline-size: var(--funnel-width, 0%);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
