@@ -288,6 +288,12 @@ const MESSAGES = {
     'series.season': 'Сезон {number}',
     'series.episode.untitled': 'Без названия',
     'series.rating.site': 'Сайт',
+    'poster.card.director': 'Режиссёр',
+    'poster.card.cast': 'в ролях',
+    'poster.card.open': 'Открыть',
+    'poster.card.close': 'Закрыть',
+    'poster.card.info': 'Подробнее о сериале',
+    'poster.card.notfound': 'Сериал не найден',
 
     // ─── Оценка сериала (F-04-01, OP-03) и серии (F-04-02) ────────────────
     'rating.title': 'Ваша оценка',
@@ -1819,6 +1825,12 @@ const MESSAGES = {
     'series.season': 'Season {number}',
     'series.episode.untitled': 'Untitled',
     'series.rating.site': 'Site',
+    'poster.card.director': 'Director',
+    'poster.card.cast': 'Starring',
+    'poster.card.open': 'Open',
+    'poster.card.close': 'Close',
+    'poster.card.info': 'More about the series',
+    'poster.card.notfound': 'Series not found',
 
     // ─── Series rating (F-04-01, OP-03) and episode rating (F-04-02) ──────
     'rating.title': 'Your rating',

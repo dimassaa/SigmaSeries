@@ -204,7 +204,7 @@ export function catalogueView({ locale, page, bounds, filters, sorts, states }) 
         const poster = imageUrl(locale, item);
         return html`
       <li class="posters__item">
-        <a class="poster" href="/${locale}/series/${item.slug}">
+        <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}" data-poster-info="${t(locale, 'poster.card.info')}"">
           <span class="poster__frame">
             ${when(poster, () => html`<img class="poster__img" src="${poster}"
                alt="" width="185" height="278" loading="lazy" decoding="async">`)}

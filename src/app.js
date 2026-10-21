@@ -21,6 +21,7 @@ import { createMailboxRoutes } from './routes/mailbox.js';
 import { createAdminRoutes } from './routes/admin.js';
 import { createReviewRoutes } from './routes/review.js';
 import { createSeriesRoutes } from './routes/series.js';
+import { createPosterCardRoutes } from './routes/posterCard.js';
 import { createThemeRoutes } from './routes/theme.js';
 import { createModerationRoutes } from './routes/moderation.js';
 import { createMyContentRoutes } from './routes/myContent.js';
@@ -65,6 +66,7 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
 export function createApp({
   data,
   series = null,
+  posterCard = null,
   catalogue = null,
   search = null,
   searchRatePerIp = null,
@@ -189,6 +191,8 @@ export function createApp({
     search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined,
   }));
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series, ratings, ratingLimiter }));
+  // Слой подробной карточки постера (F-02-07): спрашивается по намерению.
+  if (posterCard) app.use(createPosterCardRoutes({ card: posterCard, sessionMw }));
   if (series) app.use(createSeriesRoutes({
     series, watchStatus, sessionMw, progress, subscriptions, ratings, ratingLimiter,
     reviews, reviewList, votes, helpfulLimiter, reports, reportLimiter,

@@ -1136,6 +1136,151 @@
     show(0);
   }
 
+  // ─── Слой подробной карточки постера (F-02-07, UI-10) ─────────────────────
+  //
+  // Данные слоя спрашиваются по намерению (R-PERF-11): наведение с задержкой
+  // 150 мс, фокус — с задержкой 300 мс. Ответ кэшируется пять минут: один и
+  // тот же сериал открывается подряд много раз.
+  //
+  // Слой открыт один за раз, закрывается Esc и прокруткой (EC-K11) и не
+  // исчезает, когда курсор переходит на него (R-A11Y-05). Сбой запроса —
+  // слой не показывается, карточка остаётся на месте.
+  function initPosterCards() {
+    var posters = document.querySelectorAll('[data-poster-card]');
+    if (!posters.length) return;
+
+    var locale = (location.pathname.split('/')[1] || 'ru');
+    var HOVER_DELAY = 150;
+    var FOCUS_DELAY = 300;
+    var CLOSE_DELAY = 150;
+    var CACHE_TTL = 5 * 60 * 1000;
+    var cache = {};
+    var layer = null;
+    var owner = null;
+    var timer = null;
+
+    var closeLayer = function () {
+      if (timer) { clearTimeout(timer); timer = null; }
+      if (layer) { layer.remove(); layer = null; }
+      owner = null;
+    };
+
+    /** Куда поставить слой: справа от постера, а если не влезает — слева. */
+    var place = function (node, poster) {
+      var rect = poster.getBoundingClientRect();
+      var width = node.offsetWidth || 320;
+      var height = node.offsetHeight || 200;
+      var left = rect.right + 8;
+      if (left + width > window.innerWidth - 8) left = rect.left - width - 8;
+      if (left < 8) left = 8;
+      var top = rect.top;
+      if (top + height > window.innerHeight - 8) {
+        top = Math.max(8, window.innerHeight - height - 8);
+      }
+      node.style.left = Math.round(left) + 'px';
+      node.style.top = Math.round(top) + 'px';
+    };
+
+    var show = function (markup, poster, method, panel) {
+      closeLayer();
+      owner = poster;
+      var node = document.createElement('div');
+      node.className = panel ? 'poster-card-panel' : 'poster-card-layer';
+      node.innerHTML = markup;
+      document.body.appendChild(node);
+      layer = node;
+      place(node, poster);
+      node.setAttribute('data-poster-open', method);
+    };
+
+    var open = function (poster, method, panel) {
+      var slug = poster.getAttribute('data-poster-card');
+      if (!slug) return;
+      // Ключ кэша — с видом слоя: у нижней панели есть кнопка «Открыть», у
+      // наведённого слоя её нет, и путать их нельзя.
+      var key = slug + (panel ? ':panel' : '');
+      var cached = cache[key];
+      if (cached && Date.now() - cached.at < CACHE_TTL) {
+        show(cached.html, poster, method, panel);
+        return;
+      }
+      var url = '/' + locale + '/series/' + slug + '/card' + (panel ? '?panel=1' : '');
+      fetch(url)
+        .then(function (response) { return response.ok ? response.text() : null; })
+        .then(function (markup) {
+          if (!markup) return;
+          cache[key] = { at: Date.now(), html: markup };
+          // Пока грузили, курсор мог уйти: слой показываем тому, кто его ждёт.
+          if (owner !== poster) return;
+          show(markup, poster, method, panel);
+        })
+        .catch(function () { /* слой не показывается, карточка остаётся на месте */ });
+    };
+
+    /** Закрытие с задержкой: курсор мог перейти на слой (R-A11Y-05). */
+    var scheduleClose = function () {
+      if (timer) clearTimeout(timer);
+      timer = setTimeout(function () {
+        timer = null;
+        if (layer && layer.matches(':hover')) return;
+        closeLayer();
+      }, CLOSE_DELAY);
+    };
+
+    Array.prototype.forEach.call(posters, function (poster) {
+      var pending = null;
+      var later = function (delay, fn) {
+        if (pending) clearTimeout(pending);
+        pending = setTimeout(fn, delay);
+      };
+      poster.addEventListener('mouseenter', function () {
+        later(HOVER_DELAY, function () { open(poster, 'hover', false); });
+      });
+      poster.addEventListener('mouseleave', function () {
+        if (pending) clearTimeout(pending);
+        scheduleClose();
+      });
+      poster.addEventListener('focus', function () {
+        later(FOCUS_DELAY, function () { open(poster, 'focus', false); });
+      });
+      poster.addEventListener('blur', function () {
+        if (pending) clearTimeout(pending);
+        scheduleClose();
+      });
+    });
+
+    // Кнопка «ⓘ» — только на touch-устройствах: там постер ведёт на страницу,
+    // а карточка открывается нижней панелью. На устройствах с курсором кнопку
+    // прячут стили, и в порядок обхода она не попадает.
+    Array.prototype.forEach.call(posters, function (poster) {
+      var button = document.createElement('button');
+      button.className = 'poster__info';
+      button.type = 'button';
+      button.setAttribute('aria-label', poster.getAttribute('data-poster-info') || '');
+      button.textContent = '\u24d8';
+      if (poster.parentNode) poster.parentNode.insertBefore(button, poster.nextSibling);
+      button.addEventListener('click', function (event) {
+        event.preventDefault();
+        event.stopPropagation();
+        open(poster, 'tap', true);
+      });
+    });
+
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape') closeLayer();
+    });
+    window.addEventListener('scroll', function () { if (layer) closeLayer(); }, { passive: true });
+    document.addEventListener('click', function (event) {
+      if (!layer) return;
+      if (layer.contains(event.target)) return;
+      if (owner && owner.contains(event.target)) return;
+      // Кнопка «ⓘ» лежит рядом с постером, а не внутри него: без этой
+      // оговорки нажатие открывало бы панель и тут же закрывало бы её.
+      if (event.target.closest && event.target.closest('.poster__info')) return;
+      closeLayer();
+    });
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -1144,6 +1289,7 @@
     initPasswordReveal();
     initBackupCodes();
     initSearch();
+    initPosterCards();
     initCalendarDefaultView();
     initUndoWindow();
     initUnreadPoll();

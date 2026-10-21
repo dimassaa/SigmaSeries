@@ -946,3 +946,117 @@ a:hover { color: var(--accent-hover); }
   border: 1px solid var(--border-subtle);
   border-radius: var(--radius-md);
 }
+
+/* --- Слой подробной карточки постера (F-02-07, UI-10) ---
+ *
+ * Слой не стеклянный: он лежит поверх страницы, а не поверх картинки, а
+ * стекло разрешено только над изображением (R-DES-20). Подложка плотная —
+ * контраст текста держится сам собой (R-DES-23).
+ *
+ * Движение — только прозрачность и сдвиг: всё остальное пересчитывает
+ * раскладку (R-DES-25).
+ */
+
+.posters__item { position: relative; }
+
+.poster-card-layer {
+  position: fixed;
+  z-index: 30;
+  inline-size: min(360px, calc(100vw - 16px));
+  max-block-size: calc(100vh - 16px);
+  overflow-y: auto;
+  padding: var(--space-3);
+  background: var(--surface-overlay);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+  animation: poster-card-in var(--dur-fast) var(--ease-out);
+}
+
+.poster-card-panel {
+  position: fixed;
+  inset-inline: 0;
+  inset-block-end: 0;
+  z-index: 30;
+  max-block-size: 80vh;
+  overflow-y: auto;
+  padding: var(--space-4);
+  background: var(--surface-overlay);
+  border-block-start: 1px solid var(--border-subtle);
+  border-start-start-radius: var(--radius-lg);
+  border-start-end-radius: var(--radius-lg);
+  box-shadow: var(--shadow-float);
+  animation: poster-card-in var(--dur-fast) var(--ease-out);
+}
+
+@keyframes poster-card-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
+}
+
+.poster-card__head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: baseline;
+  margin: 0 0 var(--space-2);
+}
+
+.poster-card__title { font-weight: 600; color: var(--text-primary); }
+.poster-card__year,
+.poster-card__country { color: var(--text-secondary); font-size: var(--text-sm); }
+.poster-card__genres { margin: 0 0 var(--space-2); color: var(--text-secondary); font-size: var(--text-sm); }
+
+.poster-card__ratings {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin: 0 0 var(--space-2);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+}
+
+.poster-card__rating-label { color: var(--text-secondary); }
+.poster-card__rating-value { color: var(--text-primary); font-weight: 600; }
+
+.poster-card__description {
+  margin: 0 0 var(--space-2);
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  display: -webkit-box;
+  -webkit-line-clamp: 4;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.poster-card__people { margin: 0 0 var(--space-2); font-size: var(--text-sm); }
+.poster-card__director { display: block; color: var(--text-primary); }
+.poster-card__cast { display: block; color: var(--text-secondary); }
+
+.poster-card__state { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); }
+.poster-card__open { margin: var(--space-3) 0 0; }
+
+/* Кнопка «ⓘ» — только на touch-устройствах: там постер ведёт на страницу, а
+ * карточка открывается нажатием. На устройствах с курсором она скрыта и в
+ * порядке обхода не стоит. */
+.poster__info {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  inline-size: 44px;
+  block-size: 44px;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+  background: var(--surface-overlay);
+  color: var(--text-primary);
+  font-size: var(--text-lg);
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .poster__info { display: none; }
+}

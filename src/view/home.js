@@ -65,7 +65,7 @@ export function homeView({ locale, data }) {
   <ol class="posters" role="list">
     ${forYou.items.map((s) => html`
     <li class="posters__item">
-      <a class="poster" href="/${locale}/series/${s.slug}"
+      <a class="poster" href="/${locale}/series/${s.slug}" data-poster-card="${s.slug}" data-poster-info="${t(locale, 'poster.card.info')}"
          aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
         <span class="poster__frame">
           ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
@@ -91,7 +91,7 @@ export function homeView({ locale, data }) {
          ${index === 0 ? '' : 'hidden'}>
         ${circle.map((s) => html`
         <li class="posters__item">
-          <a class="poster" href="/${locale}/series/${s.slug}"
+          <a class="poster" href="/${locale}/series/${s.slug}" data-poster-card="${s.slug}" data-poster-info="${t(locale, 'poster.card.info')}"
              aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
             <span class="poster__frame">
               ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"

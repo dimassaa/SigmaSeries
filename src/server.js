@@ -8,6 +8,7 @@ import { createApp } from './app.js';
 import { createPool, checkConnection } from './db/pool.js';
 import { pgData } from './services/home/data.js';
 import { pgSeries } from './services/catalogue/series.js';
+import { pgPosterCard } from './services/catalogue/card.js';
 import { pgCatalogueList } from './services/catalogue/list.js';
 import { pgSearch } from './services/search/service.js';
 import { pgSeasons } from './services/catalogue/season.js';
@@ -283,6 +284,7 @@ hourlyRatings();
 const app = createApp({
   data: pgData(pool),
   series: pgSeries(pool),
+  posterCard: pgPosterCard(pool),
   catalogue: pgCatalogueList(pool),
   search: pgSearch(pool),
   searchRatePerIp,
