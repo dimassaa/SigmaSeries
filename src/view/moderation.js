@@ -103,15 +103,12 @@ export function moderationView({ locale, queue = [], clusters = [], material = n
       <li class="mod__item${isCurrent ? ' mod__item--current' : ''}">
         <a class="mod__item-link" href="/${locale}/mod?material=${item.id}">
           <span class="mod__item-title">${t(locale, 'mod.item.title', { id: item.id })}</span>
-          ${when(cluster, () => html`
-          <span class="mod__item-cluster">
-            <a href="/${locale}/mod/cluster?material=${item.id}"
-              >${t(locale, 'mod.item.cluster', { count: cluster.size })}</a>
-          </span>`)}
           ${when(item.complaints > 0, () => html`
           <span class="mod__item-complaints">${t(locale, 'mod.item.complaints', { count: item.complaints })}</span>`)}
           <span class="mod__item-waiting">${t(locale, 'mod.item.waiting', { minutes: item.waitingMinutes })}</span>
         </a>
+        ${when(cluster, () => html`
+        <a class="mod__item-cluster" href="/${locale}/mod/cluster?material=${item.id}">${t(locale, 'mod.item.cluster', { count: cluster.size })}</a>`)}
       </li>`;
       })}
     </ol>
