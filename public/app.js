@@ -1332,11 +1332,178 @@
     initMarquee();
     initSplash();
     initRecap();
+    initAnalytics();
+    initConsentBanner();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();
       initNicknameCheck();
     }
+  }
+
+  // ─── Аналитика (M8, F-08-01) ───────────────────────────────────────────────
+  //
+  // События копятся в браузере и уходят пачкой при смене видимости и раз в
+  // тридцать секунд (R-AN-07). До согласия аналитика не загружается вовсе:
+  // без согласия ни одного запроса к аналитике быть не должно (F-08-01 §8г).
+  //
+  // Очередь ограничена пятьюста событиями, и при переполнении отбрасываются
+  // самые старые (EC-N2): новое интереснее старого.
+
+  var ANALYTICS_QUEUE_MAX = 500;
+  var ANALYTICS_SEND_EVERY_MS = 30000;
+  var analyticsQueue = [];
+  var analyticsToken = null;
+  var analyticsTimer = null;
+
+  /** Согласие дано: без него события не собираются вовсе. */
+  function analyticsAllowed() {
+    return document.cookie.indexOf('sigma_analytics=1') !== -1;
+  }
+
+  /**
+   * Кладёт событие в очередь.
+   *
+   * @param {string} name имя события из таксономии
+   * @param {object} [props] свойства события
+   */
+  function track(name, props) {
+    if (!analyticsAllowed()) return;
+    if (analyticsQueue.length >= ANALYTICS_QUEUE_MAX) analyticsQueue.shift();
+    analyticsQueue.push({
+      name: name,
+      event_id: uuid(),
+      ts_client: new Date().toISOString(),
+      props: props || {},
+    });
+  }
+
+  /** Идентификатор события: повтор с тем же безопасен (R-AN-07). */
+  function uuid() {
+    if (window.crypto && window.crypto.randomUUID) return window.crypto.randomUUID();
+    var bytes = new Uint8Array(16);
+    if (window.crypto && window.crypto.getRandomValues) window.crypto.getRandomValues(bytes);
+    else for (var i = 0; i < 16; i += 1) bytes[i] = Math.floor(Math.random() * 256);
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    var hex = [];
+    for (var j = 0; j < bytes.length; j += 1) hex.push((bytes[j] + 0x100).toString(16).slice(1));
+    return hex.join('') ;
+  }
+
+  /** Уходит ли пачка событий. */
+  function flushAnalytics() {
+    if (!analyticsQueue.length || !analyticsAllowed()) return;
+    var batch = analyticsQueue.splice(0, ANALYTICS_QUEUE_MAX);
+    var send = function (token) {
+      if (!token) return;
+      var body = JSON.stringify({ events: batch, token: token });
+      var url = '/' + localeOf() + '/analytics/events';
+      if (navigator.sendBeacon) {
+        navigator.sendBeacon(url, new Blob([body], { type: 'application/json' }));
+        return;
+      }
+      fetch(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: body,
+        credentials: 'same-origin',
+      }).catch(function () { /* потеря события не должна ломать страницу */ });
+    };
+    if (analyticsToken) { send(analyticsToken); return; }
+    fetch('/' + localeOf() + '/analytics/token', { credentials: 'same-origin' })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (data) {
+        analyticsToken = data ? data.token : null;
+        send(analyticsToken);
+      })
+      .catch(function () { /* сети нет — события подождут */ });
+  }
+
+  /** Планировщик: пачка уходит раз в тридцать секунд и при уходе со страницы. */
+  function initAnalytics() {
+    if (!analyticsAllowed()) return;
+    track('page_view', { page_type: pageTypeOf() });
+    if (analyticsTimer) clearInterval(analyticsTimer);
+    analyticsTimer = setInterval(flushAnalytics, ANALYTICS_SEND_EVERY_MS);
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') flushAnalytics();
+    });
+    window.addEventListener('pagehide', flushAnalytics);
+  }
+
+  /** Тип страницы: по нему считаются просмотры. */
+  function pageTypeOf() {
+    var body = document.body;
+    return (body && body.getAttribute('data-page-type')) || 'unknown';
+  }
+
+  /** Текущая локаль: из атрибута языка документа. */
+  function localeOf() {
+    var lang = document.documentElement.getAttribute('lang') || 'ru';
+    return lang === 'en' ? 'en' : 'ru';
+  }
+
+  // ─── Согласие на аналитику (M8, F-08-01) ─────────────────────────────────
+  //
+  // Пока согласия нет, аналитика не грузится вовсе (F-08-01 §8г). Вопрос
+  // задаётся один раз: отказ запоминается, и баннер больше не появляется.
+
+  function initConsentBanner() {
+    if (document.cookie.indexOf('sigma_analytics=') !== -1) return;
+    var root = document.documentElement;
+    var banner = document.createElement('div');
+    banner.className = 'consent';
+    banner.setAttribute('role', 'dialog');
+    banner.setAttribute('aria-label', root.getAttribute('data-consent-title') || 'Аналитика');
+
+    var text = document.createElement('p');
+    text.className = 'consent__text';
+    text.textContent = root.getAttribute('data-consent-text') || '';
+    banner.appendChild(text);
+
+    var actions = document.createElement('p');
+    actions.className = 'consent__actions';
+
+    var decide = function (granted) {
+      fetch('/' + localeOf() + '/analytics/token', { credentials: 'same-origin' })
+        .then(function (response) { return response.ok ? response.json() : null; })
+        .then(function (data) {
+          var body = new URLSearchParams();
+          body.set('csrf', data ? data.csrf : '');
+          body.set('granted', granted ? 'on' : 'off');
+          return fetch('/' + localeOf() + '/analytics/consent', {
+            method: 'POST',
+            headers: { 'content-type': 'application/x-www-form-urlencoded' },
+            body: body.toString(),
+            credentials: 'same-origin',
+          });
+        })
+        .then(function () {
+          document.cookie = 'sigma_analytics=' + (granted ? '1' : '0')
+            + '; path=/; max-age=' + (granted ? 31536000 : 86400) + '; samesite=lax';
+          if (banner.parentNode) banner.parentNode.removeChild(banner);
+          if (granted && window.initAnalytics) window.initAnalytics();
+        })
+        .catch(function () { /* сети нет — спросим при следующем открытии */ });
+    };
+
+    var allow = document.createElement('button');
+    allow.className = 'button button--primary';
+    allow.type = 'button';
+    allow.textContent = root.getAttribute('data-consent-allow') || 'Разрешить';
+    allow.addEventListener('click', function () { decide(true); });
+
+    var decline = document.createElement('button');
+    decline.className = 'button button--quiet';
+    decline.type = 'button';
+    decline.textContent = root.getAttribute('data-consent-decline') || 'Отказаться';
+    decline.addEventListener('click', function () { decide(false); });
+
+    actions.appendChild(allow);
+    actions.appendChild(decline);
+    banner.appendChild(actions);
+    document.body.appendChild(banner);
   }
 
   // ─── Итоги (M7, F-07-02) ────────────────────────────────────────────────────

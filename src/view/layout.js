@@ -155,7 +155,7 @@ ${raw(styleLinks)}
     ${l === locale ? raw('aria-current="true"') : ''}
     aria-label="${t(locale, 'app.locale.switchTo', { language: LOCALE_NAMES[l] })}">${LOCALE_NAMES[l]}</a>`);
 
-  const bodyHtml = html`<body class="page">
+  const bodyHtml = html`<body class="page" data-page-type="${page.pageType ?? 'other'}">
 <a class="skip-link" href="#main">${t(locale, 'app.skipToContent')}</a>
 
 <header class="topbar">
@@ -176,6 +176,10 @@ ${raw(styleLinks)}
   <div class="topbar__controls">
     <button type="button" class="topbar__theme" data-theme-toggle
             data-theme-csrf="${page.account?.csrf ?? ''}"
+            data-consent-title="${t(locale, 'analytics.consent.title')}"
+            data-consent-text="${t(locale, 'analytics.consent.text')}"
+            data-consent-allow="${t(locale, 'analytics.consent.allow')}"
+            data-consent-decline="${t(locale, 'analytics.consent.decline')}"
             aria-label="${t(locale, 'app.theme.toggle')}">◐</button>
     <div class="topbar__locales">${localeLinks}</div>
     ${when(page.account, () => accountMenu({ locale, account: page.account, poll: page.account.pollSeconds ?? 0 }),

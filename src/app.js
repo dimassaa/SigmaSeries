@@ -23,6 +23,7 @@ import { createReviewRoutes } from './routes/review.js';
 import { createProfileRoutes } from './routes/profile.js';
 import { createRecapRoutes } from './routes/recap.js';
 import { createRecommendationRoutes } from './routes/recommendations.js';
+import { createAnalyticsRoutes } from './routes/analytics.js';
 import { createSeriesRoutes } from './routes/series.js';
 import { createPosterCardRoutes } from './routes/posterCard.js';
 import { createPageRoutes } from './routes/pages.js';
@@ -99,6 +100,8 @@ export function createApp({
   recap = null,
   // Персональные рекомендации (M11, F-11-01).
   recommendations = null,
+  // Приём событий аналитики (M8, F-08-01).
+  analytics = null,
   // Очередь тяжёлого хеширования пароля (EC-A16). Без неё маршруты входа и
   // регистрации считают хеши без ограничения, и всплеск съедает машину.
   hashQueue = null,
@@ -226,6 +229,8 @@ export function createApp({
   // «Не интересно» (M11, F-11-03): список скрытых общий для «для вас» и
   // «похожих».
   if (recommendations) app.use(createRecommendationRoutes({ recommendations, sessionMw }));
+  // Приём событий и согласие на аналитику (M8, F-08-01).
+  if (analytics) app.use(createAnalyticsRoutes({ analytics, sessionMw }));
   // Решение по аномалии — служебный POST только для админа; без альтернатив
   // (страницы нет до M9), поэтому монтируется только вместе с журналом.
   // Переключатель темы в шапке: выбор уходит в профиль (F-01-06 §8).

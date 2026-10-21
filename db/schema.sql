@@ -1195,6 +1195,20 @@ CREATE TABLE e_reco_dismiss (
 );
 CREATE INDEX ix_reco_dismiss_recent ON e_reco_dismiss (user_id, created_at DESC);
 
+--- ---------- Отказы приёма событий (M8, F-08-01) ----------
+
+--- Отказ приёма считается и виден: метрика «доля отбракованных» есть на
+--- обзоре (F-08-01 §8д). Само отброшенное событие не хранится — оно
+--- отброшено именно потому, что не соответствует правилам, и хранить его
+--- было бы тем же, что принять.
+CREATE TABLE e_event_reject (
+  name    TEXT NOT NULL,
+  reason  TEXT NOT NULL,
+  day     DATE NOT NULL DEFAULT current_date,
+  count   INTEGER NOT NULL DEFAULT 0,
+  PRIMARY KEY (name, reason, day)
+);
+
 -- ---------- Согласие на cookies ----------
 
 CREATE TABLE e_consent (
