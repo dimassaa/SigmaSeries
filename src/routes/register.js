@@ -21,6 +21,7 @@ import {
   verifyToken,
   resendAllowed,
 } from '../services/auth/register.js';
+import { HashQueueBusyError } from '../services/auth/hashQueue.js';
 import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
 import * as limits from '../services/auth/limits.js';
 import { t, isLocale } from '../i18n/strings.js';
@@ -41,6 +42,7 @@ const STYLES = ['identity'];
  */
 export function createRegisterRoutes({
   auth, sessionMw, mailQueue, mailMode = null, limitsApi = limits, baseUrl = '', tasteStep = false,
+  hashQueue = null,
 }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
@@ -168,9 +170,27 @@ export function createRegisterRoutes({
         {
           nicknameFree: (n) => auth.nicknameFree(n),
           emailFree: (e) => auth.emailFree(e),
+          // Хеш пароля считается через очередь (EC-A16): тяжёлое считание не
+          // должно занимать машину целиком, иначе страница перестаёт отвечать
+          // на всё остальное.
+          hashPassword: hashQueue
+            ? async (plain) => {
+              const { hashPassword } = await import('../services/auth/password.js');
+              return hashQueue.run(() => hashPassword(plain));
+            }
+            : undefined,
         },
       );
     } catch (e) {
+      // Очередь хеширования не справилась: ответ «сервис занят» и 429, а не
+      //500. Форма при этом остаётся с введёнными полями, чтобы человек не
+      // набирал пароль заново.
+      if (e instanceof HashQueueBusyError) {
+        res.set('Retry-After', '60');
+        return respond(res, 429, renderStep1(req, {
+          error: t(locale, 'register.error.busy'), values: pick(body), pow,
+        }));
+      }
       return next(e);
     }
 

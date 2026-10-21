@@ -66,6 +66,7 @@ import {
 import { createSnapshotBackup } from './services/backup/snapshot.js';
 import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
+import { createHashQueue } from './services/auth/hashQueue.js';
 import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
 import { createMailQueue } from './services/mail/queue.js';
@@ -210,6 +211,11 @@ systemHealth.sample().catch((e) => console.error(`[онлайн] ${e.message}`))
 const moderationBudget = pgModerationBudget(pool);
 const auth = pgAuthStore(pool);
 
+// Очередь хеширования пароля (EC-A16, F-01-11 §8б): не больше двух
+// одновременных хешей, остальные ждут. Создаётся один раз на процесс —
+// счётчик занятых слотов должен быть общим, иначе ограничения нет.
+const hashQueue = createHashQueue();
+
 // Лимит читается один раз при старте: см. services/search/limits.js.
 const { ratePerIp: searchRatePerIp } = await searchSettings(pool);
 
@@ -283,6 +289,7 @@ hourlyRatings();
 
 const app = createApp({
   data: pgData(pool),
+  hashQueue,
   series: pgSeries(pool),
   posterCard: pgPosterCard(pool),
   catalogue: pgCatalogueList(pool),

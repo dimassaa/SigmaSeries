@@ -11,6 +11,8 @@ import { respond, clientIp } from '../http/helpers.js';
 import { layout } from '../view/layout.js';
 import { signinView } from '../view/signin.js';
 import { authenticate, decideAfterCredentials, safeReturnTo, sessionKind, sessionDurations } from '../services/auth/login.js';
+import { verifyPassword } from '../services/auth/password.js';
+import { HashQueueBusyError } from '../services/auth/hashQueue.js';
 import { csrfToken, csrfValid, noteSession } from '../services/auth/session.js';
 import * as limits from '../services/auth/limits.js';
 import { t, isLocale } from '../i18n/strings.js';
@@ -56,7 +58,7 @@ async function beginTwoFactor(req, { user, email, roles, kind, configured }) {
   };
 }
 
-export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
+export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueue = null }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -140,7 +142,29 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw }) {
     }
 
     const user = await auth.byEmail(email);
-    const { ok } = await authenticate(email, password, user);
+
+    // Проверка пароля идёт через очередь хеширования (EC-A16): argon2 стоит
+    // десятки миллисекунд, и всплеск входов не должен съесть машину.
+    const verify = hashQueue
+      ? (plain, hash) => hashQueue.run(() => verifyPassword(plain, hash))
+      : verifyPassword;
+    let ok;
+    try {
+      ({ ok } = await authenticate(email, password, user, verify));
+    } catch (e) {
+      // Очередь переполнена или ждать пришлось дольше срока: это не поломка,
+      // а занятость. Ответ тот же для обоих случаев и ничего не говорит о
+      // том, есть ли такой аккаунт (R-SEC-06).
+      if (e instanceof HashQueueBusyError) {
+        res.set('Retry-After', '60');
+        return respond(res, 429, renderForm({
+          account: req.account,
+          locale, csrf: csrfToken(req.session), values: { email },
+          error: t(locale, 'signin.error.busy'), returnTo,
+        }));
+      }
+      return next(e);
+    }
 
     if (!ok) {
       limitsApi.recordFailure(email, clientIp(req));

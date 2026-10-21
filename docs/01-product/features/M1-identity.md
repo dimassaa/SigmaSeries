@@ -21,6 +21,7 @@
 | `auth.unverified_ttl_days` | 7 (`STATES`) |
 | `auth.delete_grace_days` | 14 (`STATES`) |
 | `auth.nickname_change_days` | 30 |
+| `auth.hash_parallel` / `auth.hash_queue_max` / `auth.hash_wait_ms` | 2 / 100 / 10 с (`EC-A16`, `F-01-11 §8б`; ёмкость очереди и время ожидания выбраны автором 21.10, DEC-071) |
 | `mail.mode` | `smtp` или `devbox` (F-01-12) |
 
 **Сквозное качество (измерения 11–16):**

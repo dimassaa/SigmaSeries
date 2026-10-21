@@ -82,15 +82,24 @@ export function decideAfterCredentials(user, passwordOk) {
  *
  * R-SEC-06 и F-01-03: для неизвестного email сравнивается заглушка, иначе
  * по времени ответа перебираются существующие учётки.
+ *
+ * Проверку можно подменить: маршрут входа отдаёт её в очередь хеширования
+ * (EC-A16), и подтверждение пароля занимает один из двух слотов, а не
+ * обходит очередь стороной.
+ *
+ * @param {string} email
+ * @param {string} password
+ * @param {object|null} user
+ * @param {(plain: string, hash: string|null) => Promise<boolean>} [verify]
  */
-export async function authenticate(email, password, user) {
+export async function authenticate(email, password, user, verify = verifyPassword) {
   // Длина проверяется до хеширования: R-SEC-31 и F-01-03 §9, иначе
   // длинная строка съедает процессор и обслуживает DoS.
   if (typeof password !== 'string' || password.length > AUTH.passwordMax) {
-    await verifyPassword(password ?? '', null); // заглушка — время выравнивается
+    await verify(password ?? '', null); // заглушка — время выравнивается
     return { ok: false, reason: 'credentials' };
   }
-  const ok = await verifyPassword(password, user?.password_hash ?? null);
+  const ok = await verify(password, user?.password_hash ?? null);
   return { ok, user };
 }
 

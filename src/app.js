@@ -90,6 +90,9 @@ export function createApp({
   ratingLimiter = null,
   anomalies = null,
   audit = null,
+  // Очередь тяжёлого хеширования пароля (EC-A16). Без неё маршруты входа и
+  // регистрации считают хеши без ограничения, и всплеск съедает машину.
+  hashQueue = null,
   reviews = null,
   reviewList = null,
   decisions = null,
@@ -303,9 +306,9 @@ export function createApp({
   if (auth && sessionMw) {
     // Маршруты входа подключаются только если есть и хранилище, и middleware:
     // страница без работающей сессии опаснее, чем её отсутствие.
-    app.use(createAuthRoutes({ auth, sessionMw }));
+    app.use(createAuthRoutes({ auth, sessionMw, hashQueue }));
     app.use(createRegisterRoutes({
-      auth, sessionMw, mailQueue, mailMode, baseUrl,
+      auth, sessionMw, mailQueue, mailMode, baseUrl, hashQueue,
       // Шаг 3 включается вместе со своим маршрутом: иначе после подтверждения
       // адреса человек попадал бы на страницу, которой нет.
       tasteStep: Boolean(taste && search),

@@ -1245,6 +1245,7 @@ const MESSAGES = {
     'signin.error.email': 'Проверьте адрес: похоже на опечатку',
     'signin.error.credentials': 'Неверный email или пароль',
     'signin.error.tooMany': 'Слишком много попыток. Попробуйте через {seconds} с',
+    'signin.error.busy': 'Сервис занят, попробуйте через минуту.',
     'signin.error.csrf': 'Форма устарела. Обновите страницу.',
     'signin.error.blocked': 'Аккаунт заблокирован. {reason}',
     'signin.error.deleteCancel': 'Отменить удаление',
@@ -1288,6 +1289,7 @@ const MESSAGES = {
 
     'register.error.csrf': 'Форма устарела. Обновите страницу.',
     'register.error.tooMany': 'Слишком много регистраций с этого адреса. Попробуйте через час.',
+    'register.error.busy': 'Сервис занят, попробуйте через минуту.',
     'register.error.consent': 'Без согласия с правилами аккаунт создать нельзя',
     'register.error.consent_required': 'Отметьте согласие с правилами и политикой',
     'register.error.fields': 'Проверьте отмеченные поля',
@@ -2818,6 +2820,7 @@ const MESSAGES = {
     'signin.error.email': 'Check the address: it looks like a typo',
     'signin.error.credentials': 'Wrong email or password',
     'signin.error.tooMany': 'Too many attempts. Try again in {seconds} s',
+    'signin.error.busy': 'The service is busy, try again in a minute.',
     'signin.error.csrf': 'The form has expired. Reload the page.',
     'signin.error.blocked': 'Account is blocked. {reason}',
     'signin.error.deleteCancel': 'Cancel the deletion',
@@ -2861,6 +2864,7 @@ const MESSAGES = {
 
     'register.error.csrf': 'The form has expired. Reload the page.',
     'register.error.tooMany': 'Too many sign-ups from this address. Try again in an hour.',
+    'register.error.busy': 'The service is busy, try again in a minute.',
     'register.error.consent': 'The account cannot be created without accepting the rules',
     'register.error.consent_required': 'Tick the box to accept the rules and the policy',
     'register.error.fields': 'Check the marked fields',
