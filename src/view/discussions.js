@@ -4,6 +4,7 @@
 // сверху: закреплённый пост и есть ответ на вопрос «с чего начать читать».
 
 import { html, when } from './render.js';
+import { authorLink } from './profile.js';
 import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
 
@@ -74,7 +75,7 @@ export function discussionsListView({ locale, series, topics, page = 1, user = n
     <li class="discussions__item">
       <a class="discussions__link" href="/${locale}/discussions/${topic.id}">${topic.title}</a>
       <span class="discussions__meta">
-        ${topic.author} · ${tPlural(locale, 'discussions.posts', topic.posts, { count: topic.posts })} ·
+        ${authorLink({ locale, nickname: topic.author, status: topic.authorStatus })} · ${tPlural(locale, 'discussions.posts', topic.posts, { count: topic.posts })} ·
         ${dayOf(topic.createdAt)}
       </span>
       ${when(topic.pinned, () => html`
@@ -99,7 +100,7 @@ export function discussionTopicView({ locale, topic, user = null, csrf = '' }) {
 <div class="discussion">
   <h1 class="discussion__title">${topic.title}</h1>
   <p class="discussion__meta">
-    ${topic.author} · ${dayOf(topic.createdAt)} ·
+    ${authorLink({ locale, nickname: topic.author, status: topic.authorStatus })} · ${dayOf(topic.createdAt)} ·
     <a class="discussion__back" href="/${locale}/series/${topic.seriesSlug}/discussions">${t(locale, 'discussions.all')}</a>
   </p>
 
@@ -117,7 +118,7 @@ export function discussionTopicView({ locale, topic, user = null, csrf = '' }) {
       <span class="discussion__pinned">${t(locale, 'discussions.pinnedByEditor')}</span>`)}
       <p class="discussion__body">${post.body}</p>
       <p class="discussion__meta">
-        ${post.author} · ${dayOf(post.createdAt, true)}
+        ${authorLink({ locale, nickname: post.author, status: post.authorStatus })} · ${dayOf(post.createdAt, true)}
         ${when(user && (user.roles ?? []).includes('admin'), () => html`
         <form class="discussion__pin" method="post" action="/${locale}/discussions/${topic.id}/pin">
           <input type="hidden" name="csrf" value="${csrf}">

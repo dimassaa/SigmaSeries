@@ -35,7 +35,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
   async function listForSeries(seriesId, { page = 1, perPage = 20 } = {}) {
     const { rows } = await pool.query(
       `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.state,
-              u.nickname, u.id AS author_id,
+              u.nickname, u.id AS author_id, u.status AS author_status,
               (SELECT count(*)::int FROM e_material p
                 WHERE p.parent_id = m.id AND p.kind = 'post'
                   AND p.state = ANY($2::text[])) AS posts,
@@ -69,7 +69,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
   async function topic(topicId, { page = 1, perPage = 50, userId = null } = {}) {
     const { rows: [head] } = await pool.query(
       `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.state, m.series_id,
-              u.nickname, u.id AS author_id, s.slug AS series_slug
+              u.nickname, u.id AS author_id, u.status AS author_status, s.slug AS series_slug
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
          JOIN e_series s ON s.id = m.series_id
@@ -86,7 +86,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
 
     const { rows: posts } = await pool.query(
       `SELECT m.id, m.body, m.spoiler, m.created_at, m.pinned, m.state,
-              u.nickname, u.id AS author_id
+              u.nickname, u.id AS author_id, u.status AS author_status
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
         WHERE m.parent_id = $1 AND m.kind = 'post'
@@ -112,6 +112,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
         createdAt: post.created_at,
         author: post.nickname,
         authorId: post.author_id,
+        authorStatus: post.author_status,
         pinned: Boolean(post.pinned),
       })),
       totalPosts: total.n,
@@ -234,7 +235,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
   async function comments(reviewId, { page = 1, perPage = 50 } = {}) {
     const { rows } = await pool.query(
       `SELECT m.id, m.body, m.spoiler, m.created_at, m.state,
-              u.nickname, u.id AS author_id
+              u.nickname, u.id AS author_id, u.status AS author_status
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
         WHERE m.kind = 'comment' AND m.parent_id = $1
@@ -250,6 +251,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
       createdAt: row.created_at,
       author: row.nickname,
       authorId: row.author_id,
+      authorStatus: row.author_status,
     }));
   }
 
@@ -366,6 +368,7 @@ function decorateTopic(row) {
     createdAt: row.created_at,
     author: row.nickname,
     authorId: row.author_id,
+    authorStatus: row.author_status,
     posts: Number(row.posts ?? 0),
     pinned: Number(row.pinned ?? 0) > 0,
   };

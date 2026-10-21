@@ -11,6 +11,7 @@
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { dateTime } from './dates.js';
+import { initialsOf } from './avatar.js';
 import { backupCodesList } from './twofactor-backup.js';
 
 /**
@@ -114,12 +115,6 @@ ${when(history.length, () => html`
     </li>`)}
   </ul>
 </details>`)}`;
-}
-
-/** Две буквы от ника; одна, когда он односимвольный. */
-function initialsOf(nickname) {
-  const letters = String(nickname ?? '').replace(/[^\p{L}\p{N}]/gu, '');
-  return (letters.slice(0, 2) || '?').toUpperCase();
 }
 
 /**

@@ -4,6 +4,7 @@
 // на разделе прячет этот раздел, но не всю статью (F-05-06 §8б).
 
 import { html, when } from './render.js';
+import { authorLink } from './profile.js';
 import { t } from '../i18n/strings.js';
 
 /**
@@ -76,7 +77,7 @@ export function guidesListView({ locale, list = { rows: [], total: 0 }, series =
     <li class="guides__item">
       <a class="guides__link" href="/${locale}/guides/${guide.slug}">${guide.title}</a>
       <span class="guides__meta">
-        ${guide.author} · ${dayOf(guide.createdAt)}
+        ${authorLink({ locale, nickname: guide.author, status: guide.authorStatus })} · ${dayOf(guide.createdAt)}
         ${when(guide.seriesTitle, () => html` · ${guide.seriesTitle}`)}
       </span>
       ${when(guide.spoiler, () => html`
@@ -100,7 +101,7 @@ export function guideView({ locale, guide, user = null }) {
 <div class="guide">
   <h1 class="guide__title">${guide.title}</h1>
   <p class="guide__meta">
-    ${guide.author} · ${dayOf(guide.createdAt)}
+    ${authorLink({ locale, nickname: guide.author, status: guide.authorStatus })} · ${dayOf(guide.createdAt)}
     ${when(guide.seriesSlug, () => html`
     · <a class="guide__series" href="/${locale}/series/${guide.seriesSlug}">${guide.seriesTitle}</a>`)}
   </p>

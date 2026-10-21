@@ -66,6 +66,7 @@ import {
 import { createSnapshotBackup } from './services/backup/snapshot.js';
 import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
+import { pgProfile } from './services/profile/service.js';
 import { createHashQueue } from './services/auth/hashQueue.js';
 import { createSessionMiddleware } from './services/auth/session.js';
 import { createJournal } from './services/journal.js';
@@ -290,6 +291,8 @@ hourlyRatings();
 const app = createApp({
   data: pgData(pool),
   hashQueue,
+  // Публичный профиль пользователя (S-18, F-01-07).
+  profile: pgProfile(pool),
   series: pgSeries(pool),
   posterCard: pgPosterCard(pool),
   catalogue: pgCatalogueList(pool),

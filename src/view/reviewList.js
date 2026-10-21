@@ -9,6 +9,7 @@
 // спойлера и «Читать далее» неоткуда, пока карточка собрана одним кодом.
 
 import { html, when, raw } from './render.js';
+import { authorLink } from './profile.js';
 import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
 import { dayLabel } from './dates.js';
@@ -73,9 +74,9 @@ const machineDate = (date) => new Date(date).toISOString().slice(0, 10);
  * скрипт для показа не нужен. `data-nosnippet` не даёт поисковику вытащить
  * спойлер в сниппет, хотя текст остаётся в разметке (M4 §8д, R-SEO-14).
  *
- * Ник — текст, а не ссылка: страницы пользователя (S-18) ещё нет, а ссылка в
- * никуда читается как сломанная. Адрес S-18 появится — вернёмся (см. план
- * F-04-05).
+ * Ник ведёт на профиль (S-18): страница появилась, и ссылка перестала быть
+ * ссылкой в никуда. У удалённого аккаунта профиля нет, и вместо ника
+ * показывается текст (EC-A22).
  *
  * @param {object} args
  * @param {string} args.locale
@@ -288,13 +289,16 @@ export function reportDialog({ locale, series, report }) {
  * @returns {string}
  */
 export function reviewMeta({ locale, item, timezone = null, link = false }) {
-  const deleted = item.authorStatus === 'deleted';
   const date = html`<time class="reviews__date" datetime="${machineDate(item.createdAt)}"
       >${dayLabel(locale, item.createdAt, timezone ?? undefined)}</time>`;
   return html`
   <p class="reviews__head">
-    <span class="reviews__nick${deleted ? ' reviews__nick--deleted' : ''}"
-      >${deleted ? t(locale, 'review.deleted') : item.authorNickname}</span>
+    ${authorLink({
+      locale,
+      nickname: item.authorNickname,
+      status: item.authorStatus,
+      className: 'reviews__nick',
+    })}
     <span class="reviews__card-rating" aria-hidden="true">${item.authorRating}</span>
     <span class="visually-hidden">${t(locale, 'review.card.rating', { value: item.authorRating })}</span>
     ${when(link, () => html`

@@ -13,6 +13,7 @@
 // нет. Блок добавится вместе с M5 (см. IMPROVEMENTS.md).
 
 import { html, when } from './render.js';
+import { authorLink } from './profile.js';
 import { t } from '../i18n/strings.js';
 import { paragraphs } from './reviews.js';
 import { reviewActions, reviewMeta, reportDialog } from './reviewList.js';
@@ -85,7 +86,7 @@ export function reviewPageView({
       ${comments.map((comment) => html`
       <li class="comment__item">
         <p class="discussion__body">${comment.body}</p>
-        <p class="discussion__meta">${comment.author} · ${dayOf(comment.createdAt)}</p>
+        <p class="discussion__meta">${authorLink({ locale, nickname: comment.author, status: comment.authorStatus })} · ${dayOf(comment.createdAt)}</p>
       </li>`)}
     </ul>`)}
     ${when(user, () => html`

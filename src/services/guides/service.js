@@ -40,7 +40,7 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
     const { rows } = await pool.query(
       `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.sections, m.series_id,
               s.slug AS series_slug, coalesce(s.title_ru, s.title_original) AS series_title,
-              u.nickname
+              u.nickname, u.status AS author_status
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
          LEFT JOIN e_series s ON s.id = m.series_id
@@ -72,7 +72,7 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
     const { rows } = await pool.query(
       `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.sections, m.series_id,
               s.slug AS series_slug, coalesce(s.title_ru, s.title_original) AS series_title,
-              u.nickname
+              u.nickname, u.status AS author_status
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
          LEFT JOIN e_series s ON s.id = m.series_id
@@ -162,6 +162,7 @@ function decorate(row) {
     spoiler: Boolean(row.spoiler),
     createdAt: row.created_at,
     author: row.nickname,
+    authorStatus: row.author_status,
     seriesId: row.series_id,
     seriesSlug: row.series_slug,
     seriesTitle: row.series_title,

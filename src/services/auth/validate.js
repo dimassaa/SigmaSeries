@@ -26,8 +26,8 @@ export const RESERVED_NICKS = new Set([
   'settings', 'login', 'logout', 'register', 'verify', 'about', 'help',
 ]);
 
-const NICK_ALLOWED = /^[\p{L}\p{N}_-]+$/u;
-const NICK_SEPARATOR = /^[_-]|[_-]$/;
+export const NICK_ALLOWED = /^[\p{L}\p{N}_-]+$/u;
+export const NICK_SEPARATOR = /^[_-]|[_-]$/;
 
 export const EMAIL_RE = /^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/u;
 
