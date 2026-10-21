@@ -9,30 +9,12 @@ import { isLocale, t } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { studioCardView } from '../view/studioCard.js';
+import { readMultipart } from '../services/http/multipart.js';
 
 const BASE = '/admin/catalog';
 
 /** Таблицы стилей экрана: общая плюс админская. */
 const STYLES = ['base', 'admin'];
-
-/**
- * Разбор тела multipart средствами Node.
- *
- * Сторонняя библиотека для этого не нужна: `Request.formData()` разбирает
- * `multipart/form-data` сам, а предел тела задан разборщиком тела Express.
- *
- * @param {object} req
- * @returns {Promise<FormData>}
- */
-async function readMultipart(req) {
-  const type = req.headers['content-type'] ?? '';
-  const request = new Request('http://localhost/upload', {
-    method: 'POST',
-    headers: { 'content-type': type },
-    body: req.body,
-  });
-  return request.formData();
-}
 
 /**
  * Маршруты карточки сериала.
