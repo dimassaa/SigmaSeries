@@ -52,19 +52,26 @@ export const FLAGGED_BUDGET = {
  * решать — по числам, и проверка решения не должна зависеть от наполнения
  * общей базы.
  *
- * @param {{flaggedInHour: number, alreadyMuted?: boolean}} input
- * @returns {{mute: boolean, hours: number|null, reason: string|null}}
+ * `hits` — сколько раз бюджет уже превышен: каждый превышенный бюджет — это
+ * ещё пять помеченных материалов. Первый превышенный бюджет даёт мьют на
+ * час, повтор — на сутки, третий — сутки и флаг администратору (R-MOD-08).
+ *
+ * @param {{flaggedInHour: number, hits?: number}} input
+ * @returns {{mute: boolean, hours: number|null, reason: string|null, hits: number, notify: boolean}}
  */
-export function flaggedBudgetFrom({ flaggedInHour, alreadyMuted = false }) {
+export function flaggedBudgetFrom({ flaggedInHour, hits = 1 }) {
   if (flaggedInHour < FLAGGED_BUDGET.limit) {
-    return { mute: false, hours: null, reason: null };
+    return { mute: false, hours: null, reason: null, hits: 0, notify: false };
   }
+  const repeat = hits >= 2;
   return {
     mute: true,
-    hours: alreadyMuted ? FLAGGED_BUDGET.repeatHours : FLAGGED_BUDGET.firstHours,
-    reason: alreadyMuted
+    hours: repeat ? FLAGGED_BUDGET.repeatHours : FLAGGED_BUDGET.firstHours,
+    reason: repeat
       ? 'превышен бюджет помеченных материалов, повтор'
       : 'превышен бюджет помеченных материалов',
+    hits,
+    notify: hits >= 3,
   };
 }
 
@@ -207,21 +214,17 @@ export function pgModerationBudget(pool) {
    */
   async function flaggedBudget(userId, at = new Date()) {
     const { rows } = await pool.query(
-      `SELECT count(*)::int AS n FROM e_material
-        WHERE author_id = $1 AND state IN ('flagged', 'checking')
-          AND submitted_at > $2`,
+      `SELECT count(*) FILTER (WHERE submitted_at > $2)::int AS hour,
+              count(*)::int AS day
+         FROM e_material
+        WHERE author_id = $1 AND state IN ('flagged', 'checking')`,
       [userId, new Date(at.getTime() - 3600_000)],
     );
-    const flaggedInHour = Number(rows[0].n);
-    const { rows: mutes } = await pool.query(
-      `SELECT count(*)::int AS n FROM e_restriction
-        WHERE user_id = $1 AND kind = 'mute' AND set_by IS NULL`,
-      [userId],
-    );
-    const decision = flaggedBudgetFrom({
-      flaggedInHour,
-      alreadyMuted: Number(mutes[0].n) > 0,
-    });
+    const flaggedInHour = Number(rows[0].hour);
+    // Превышений было столько, сколько раз набрался бюджет: пять помеченных
+    // материалов — одно превышение.
+    const hits = Math.floor(Number(rows[0].day) / FLAGGED_BUDGET.limit);
+    const decision = flaggedBudgetFrom({ flaggedInHour, hits: Math.max(hits, 1) });
     return { flaggedInHour, ...decision };
   }
 

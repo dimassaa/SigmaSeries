@@ -15,6 +15,7 @@ import { refreshRatings } from './ratings.js';
 import { scheduleSync } from './schedule-sync.js';
 import { notifyScheduleChanges } from '../notify/changes.js';
 import { loadSlugs } from './write.js';
+import { pgSimilar } from '../catalogue/similar.js';
 import {
   candidatesStep, matchStep, enrichStep, catalogueStep, failRun, DATA_DIR,
 } from './steps.js';
@@ -48,6 +49,10 @@ async function readTopN(pool) {
  * @returns {Record<string, Function>}
  */
 export function createImportTasks({ pool, store, tmdb, dataDir = DATA_DIR, notifications = null, log = () => {} }) {
+  // Похожие сериалы (F-02-08): считаются после импорта, когда изменился сам
+  // каталог. Считает тот же код, что и страница читает, — веса лежат в базе.
+  const similar = pgSimilar(pool);
+
   return {
     // Полный прогон (S-76, F-12-08): отбор → сопоставление → обогащение →
     // запись в каталог. Строку прогона заводит планировщик, а выполняет он же.
@@ -82,6 +87,12 @@ export function createImportTasks({ pool, store, tmdb, dataDir = DATA_DIR, notif
 
         const steps = [candidates, matched, enriched, written];
         const status = steps.some((step) => step.status === 'partial') ? 'partial' : 'success';
+
+        // Похожие сериалы считаются после того, как каталог обновлён (F-02-08):
+        // раньше считать нечего, а веса должны соответствовать каталогу.
+        const pairs = await similar.recompute();
+        log(`[похожие] сериалов ${pairs.series}, пар ${pairs.pairs}`);
+
         return { status, items: written.counters.written ?? 0, errors: 0, reason: null };
       } catch (error) {
         // Прогон закрывается ошибкой, а об отвергнутом ключе администратор
@@ -117,9 +128,15 @@ export function createImportTasks({ pool, store, tmdb, dataDir = DATA_DIR, notif
 
     // Сухого прогона у обзора нет: добавление новинок пишет в каталог всегда,
     // а «посмотреть, что нашлось бы» — это `npm run import:discover`.
-    discover_sync: async ({ runId, now }) => discoverSync({
-      pool, store, tmdb, runId, now, slugs: await loadSlugs(pool), log,
-    }),
+    discover_sync: async ({ runId, now }) => {
+      const result = await discoverSync({
+        pool, store, tmdb, runId, now, slugs: await loadSlugs(pool), log,
+      });
+      // Новинки изменили каталог — похожие пересчитываются (F-02-08).
+      const pairs = await similar.recompute();
+      log(`[похожие] сериалов ${pairs.series}, пар ${pairs.pairs}`);
+      return result;
+    },
 
     // Датасет качается здесь же, а не «когда-нибудь раньше»: недельная задача
     // без файла должна стать ошибкой прогона, а не тишиной.

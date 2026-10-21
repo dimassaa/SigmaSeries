@@ -361,7 +361,8 @@
 
 .series__overview,
 .series__episodes,
-.series__cast {
+.series__cast,
+.series__similar {
   padding: 0 32px;
 }
 
@@ -437,7 +438,8 @@
 
   .series__overview,
   .series__episodes,
-  .series__cast {
+  .series__cast,
+  .series__similar {
     padding: 0 20px;
   }
 

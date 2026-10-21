@@ -71,9 +71,9 @@ test.after(async () => {
   if (!pool) return;
   const ids = `SELECT id FROM e_series WHERE id = ANY($1::bigint[])`;
   await pool.query(`DELETE FROM e_editor_decision WHERE material_id IN (SELECT id FROM e_material WHERE series_id IN (${ids}))`, [series]);
-  await pool.query(`DELETE FROM e_material WHERE series_id IN (${ids})`, [series]);
   await pool.query(`DELETE FROM e_moderation_cluster WHERE signature IN (
     SELECT signature FROM e_material WHERE series_id IN (${ids}) GROUP BY signature)`, [series]);
+  await pool.query(`DELETE FROM e_material WHERE series_id IN (${ids})`, [series]);
   await pool.query('DELETE FROM e_series WHERE id = ANY($1::bigint[])', [series]);
   await pool.end();
 });

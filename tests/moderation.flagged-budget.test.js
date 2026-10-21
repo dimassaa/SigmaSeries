@@ -30,16 +30,22 @@ test('пятый помеченный материал за час даёт мь
   assert.equal(FLAGGED_BUDGET.limit, 5, 'порог взят из правила R-MOD-08');
 
   assert.deepEqual(flaggedBudgetFrom({ flaggedInHour: 4 }), {
-    mute: false, hours: null, reason: null,
+    mute: false, hours: null, reason: null, hits: 0, notify: false,
   }, 'четыре помеченных — ещё не бюджет');
 
-  const first = flaggedBudgetFrom({ flaggedInHour: 5 });
+  const first = flaggedBudgetFrom({ flaggedInHour: 5, hits: 1 });
   assert.equal(first.mute, true);
   assert.equal(first.hours, 1, 'первый мьют — на час');
+  assert.equal(first.notify, false, 'первый раз администратора не тревожим');
 
-  const repeat = flaggedBudgetFrom({ flaggedInHour: 5, alreadyMuted: true });
+  const repeat = flaggedBudgetFrom({ flaggedInHour: 5, hits: 2 });
   assert.equal(repeat.mute, true);
   assert.equal(repeat.hours, 24, 'повтор — на сутки');
+  assert.equal(repeat.notify, false);
+
+  const third = flaggedBudgetFrom({ flaggedInHour: 5, hits: 3 });
+  assert.equal(third.hours, 24);
+  assert.equal(third.notify, true, 'третий раз — флаг администратору');
 });
 
 test('бюджет считает помеченные материалы автора за час', { skip }, async () => {

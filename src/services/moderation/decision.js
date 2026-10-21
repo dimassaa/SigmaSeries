@@ -8,7 +8,7 @@
 // окна (M5 §8в): отмена — отдельная запись в аудите, а не стирание.
 
 import { MODERATION } from '../../config/settings.js';
-import { signatureOf } from './cluster.js';
+import { signatureOf, pgModerationClusters } from './cluster.js';
 
 /** Слова решения маршрута и состояния материала. */
 export const DECISIONS = { approve: 'approved', reject: 'rejected' };
@@ -20,6 +20,10 @@ export const DECISIONS = { approve: 'approved', reject: 'rejected' };
  * @returns {object}
  */
 export function pgModerationDecisions(pool) {
+  // Кластеры: решение по кластеру распространяется на новые материалы с той
+  // же сигнатурой (подтверждено автором 21.10).
+  const clusters = pgModerationClusters(pool);
+
   /**
    * Принять решение по материалу.
    *
@@ -98,6 +102,18 @@ export function pgModerationDecisions(pool) {
         ],
       );
       await client.query('COMMIT');
+
+      // Решение по кластеру: помеченный материал запрещается вместе со всей
+      // группой, а та же сигнатура в новых материалах запрещается сразу.
+      if (state === DECISIONS.reject) {
+        await clusters.decide({
+          signature: signatureOf(material.body),
+          decision: state,
+          editorId,
+          reason: cause,
+        });
+      }
+
       return { ok: true, materialId: Number(material.id), clusterId };
     } catch (error) {
       await client.query('ROLLBACK');

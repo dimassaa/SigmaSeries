@@ -250,6 +250,26 @@ export function pgModerationClusters(pool) {
    *   reason: string}} input
    * @returns {Promise<{clusterId: number, applied: number}>}
    */
+  /**
+   * Запрещена ли эта сигнатура.
+   *
+   * Решение редактора по кластеру распространяется на новые материалы с той
+   * же сигнатурой (подтверждено автором 21.10): иначе волна одинакового
+   * мусора проходила бы по одному материалу за раз.
+   *
+   * @param {string} signature
+   * @returns {Promise<{forbidden: boolean, reason: string|null}>}
+   */
+  async function forbidden(signature) {
+    const { rows } = await pool.query(
+      `SELECT decision FROM e_moderation_cluster WHERE signature = $1`,
+      [signature],
+    );
+    const row = rows[0];
+    if (!row || row.decision !== 'rejected') return { forbidden: false, reason: null };
+    return { forbidden: true, reason: row.reason ?? null };
+  }
+
   async function decide({ signature, decision, editorId, reason }) {
     const client = await pool.connect();
     try {
@@ -302,5 +322,5 @@ export function pgModerationClusters(pool) {
     }
   }
 
-  return { queued, ordered, groups, decide };
+  return { queued, ordered, groups, decide, forbidden };
 }

@@ -23,6 +23,7 @@ const ICON = {
   mail_failed: '✉',
   collection_hidden: '🚫',
   spam_surge: '📈',
+  spam_budget_hit: '🛑',
   queue_threshold: '⏳',
   rating_anomaly: '⭐',
 };

@@ -25,6 +25,8 @@
 import { HOUR } from '../../config/settings.js';
 import { REVIEW, MODERATION } from '../settings.js';
 import { pgModerationBudget } from '../moderation/budget.js';
+import { notifyStaff } from '../notify/staff.js';
+import { pgModerationClusters } from '../moderation/cluster.js';
 
 /** Причина отказа — короткая строка, по ней маршрут выбирает текст. */
 export const REASONS = {
@@ -102,13 +104,16 @@ function reviewOf(row) {
  *
  * @param {import('pg').Pool} pool
  */
-export function pgReviews(pool, { budget = null, restrictions = null } = {}) {
+export function pgReviews(pool, { budget = null, restrictions = null, moderationClusters = null } = {}) {
   // Бюджеты модерации живут здесь же: они считают по той же таблице
   // материалов, что и отзывы, и спрашивать их должен тот же код, что и
   // отправляет материал (F-05-03). Бюджет подставляется снаружи: «осторожный»
   // режим — состояние всего сервиса, и проверять его поведение можно, не
   // включая его для всех подряд.
   const limits = budget ?? pgModerationBudget(pool);
+  // Кластеры: решение редактора по группе распространяется на новые
+  // материалы с той же сигнатурой (подтверждено автором 21.10).
+  const clusters = moderationClusters ?? pgModerationClusters(pool);
 
   return {
     /**
@@ -219,9 +224,35 @@ export function pgReviews(pool, { budget = null, restrictions = null } = {}) {
       let storedState = state;
       let queueFull = false;
       if (state === 'flagged') {
+        const { signatureOf } = await import('../moderation/cluster.js');
+
+        // Решение редактора по кластеру (F-05-03, подтверждено автором
+        // 21.10): по этой сигнатуре материалы уже запрещены — новый материал
+        // с той же сигнатурой отклоняется сразу, ждать нового разбора не
+        // нужно. В базе остаётся хэш текста: читать его всё равно некому.
+        const verdict = await clusters.forbidden(signatureOf(text));
+        if (verdict.forbidden) {
+          stored = signatureOf(text);
+          storedState = 'rejected';
+          await pool.query(
+            `INSERT INTO e_notification (user_id, kind, category, params, dedup_key)
+             VALUES ($1, 'material_decision', 'service', $2, $3)
+             ON CONFLICT (user_id, dedup_key) DO NOTHING`,
+            [
+              userId,
+              JSON.stringify({ decision: 'rejected', reason: verdict.reason ?? 'запрещено кластером' }),
+              `material-decision-cluster:${signatureOf(text)}:${userId}`,
+            ],
+          );
+        }
+
+        // Потолок очереди (R-MOD-11): когда ожидающих слишком много, новый
+        // помеченный материал от автора с историей модерации в очередь не
+        // ставится. Автор получает отказ, а в базе остаётся только хэш текста —
+        // для кластеров. Текст не хранится: материал в очередь не попал и
+        // разбирать его некому.
         const overflow = await limits.queueOverflow(userId, at);
-        if (overflow.refuse) {
-          const { signatureOf } = await import('../moderation/cluster.js');
+        if (!verdict.forbidden && overflow.refuse) {
           stored = signatureOf(text);
           storedState = 'rejected';
           queueFull = true;
@@ -290,6 +321,16 @@ export function pgReviews(pool, { budget = null, restrictions = null } = {}) {
           await restrictions.mute({
             userId, hours: budget.hours, reason: budget.reason, byId: null,
           });
+          // Третий раз превышения — сигнал администратору (R-MOD-08): система
+          // справилась сама, но решение о блокировке принимает человек.
+          if (budget.notify) {
+            await notifyStaff({
+              pool,
+              kind: 'spam_budget_hit',
+              params: { userId },
+              dedupKey: `spam-budget-hit:${userId}:${at.toISOString().slice(0, 13)}`,
+            }).catch(() => { /* лента не заменит решение о блокировке */ });
+          }
         }
       }
       return { ok: true, state, matched: result.matched, version: Number(rows[0].version) };

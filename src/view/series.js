@@ -179,10 +179,45 @@ export function seriesView({
     </ul>
   </section>`)}
 
+  ${when(series.similar?.length > 0, () => similarSection({ locale, items: series.similar }))}
+
   ${when(reviewBlock, () => reviewSection({ locale, slug: series.slug, timezone, ...reviewBlock }))}
 
   ${when(reviewTop?.length > 0, () => topReviews({ locale, series, items: reviewTop, timezone, votesById, report }))}
 </article>`;
+}
+
+/**
+ * Похожие сериалы (F-02-08).
+ *
+ * Блок появляется, когда есть хоть один похожий: пустого блока «Похожие» на
+ * странице нет. Карточки — те же, что в каталоге, со слоем по наведению
+ * (UI-10).
+ */
+function similarSection({ locale, items }) {
+  return html`
+  <section class="series__similar" id="similar" aria-labelledby="h-similar">
+    <h2 class="series__section-title" id="h-similar">${t(locale, 'series.similar')}</h2>
+    <ol class="posters" role="list">
+      ${items.map((item) => html`
+      <li class="posters__item">
+        <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}"
+           data-poster-info="${t(locale, 'poster.card.info')}">
+          <span class="poster__frame">
+            ${when(item.posterWidth, () => html`<img class="poster__img"
+               src="${imageUrl(locale, item.slug, 'poster', item.posterWidth)}"
+               alt="" width="185" height="278" loading="lazy" decoding="async">`)}
+            ${when(!item.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
+          </span>
+          <span class="poster__title">${item.title}</span>
+          <span class="poster__meta">
+            ${when(item.yearStart, () => html`${item.yearStart}`)}
+            ${when(item.exitState, () => html` · ${t(locale, `series.state.${item.exitState}`)}`)}
+          </span>
+        </a>
+      </li>`)}
+    </ol>
+  </section>`;
 }
 
 /** Адрес картинки: роль и ширина, локаль обязательна (ADR-003). */

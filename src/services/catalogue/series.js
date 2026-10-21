@@ -99,12 +99,14 @@ export function pgSeries(pool) {
       if (series.publication_state === 'imported') return null;
 
       const images = await imagesOf(pool, series.id);
-      const [genres, people, seasons, ratings, nextRelease] = await Promise.all([        genresOf(pool, series.id),
-        peopleOf(pool, series.id),
-        seasonsOf(pool, series.id),
-        ratingsOf(pool, series.id),
-        nextReleaseOf(pool, series.id),
-      ]);
+      const [genres, people, seasons, ratings, nextRelease, similar] = await Promise.all([
+      genresOf(pool, series.id),
+      peopleOf(pool, series.id),
+      seasonsOf(pool, series.id),
+      ratingsOf(pool, series.id),
+      nextReleaseOf(pool, series.id),
+      similarOf(pool, series.id),
+    ]);
 
       return {
         id: series.id,
@@ -131,6 +133,7 @@ export function pgSeries(pool) {
         seasons,
         ratings,
         nextRelease,
+        similar,
       };
     },
   };
@@ -166,6 +169,37 @@ async function imagesOf(pool, seriesId) {
   };
 
   return { poster: fit('poster', 342), backdrop: fit('backdrop', 1280) };
+}
+
+/**
+ * Похожие сериалы (F-02-08).
+ *
+ * Блок пуст, если пар для сериала нет: значит, считать нечего — и показывать
+ * пустое место незачем.
+ */
+async function similarOf(pool, seriesId) {
+  const { rows } = await pool.query(
+    `SELECT s.id, s.slug, s.title_ru, s.title_original, s.year_start, s.exit_state,
+            (SELECT iv.width FROM e_image i
+               JOIN e_image_variant iv ON iv.image_id = i.id
+              WHERE i.series_id = s.id AND i.role = 'poster'
+              ORDER BY iv.width LIMIT 1) AS poster_width
+       FROM e_series_similar sm
+       JOIN e_series s ON s.id = sm.similar_id
+      WHERE sm.series_id = $1
+        AND s.publication_state = 'published' AND s.archived_at IS NULL
+      ORDER BY sm.weight DESC, s.id
+      LIMIT 6`,
+    [seriesId],
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    slug: row.slug,
+    title: row.title_ru || row.title_original,
+    yearStart: row.year_start,
+    exitState: row.exit_state,
+    posterWidth: row.poster_width ? Number(row.poster_width) : null,
+  }));
 }
 
 async function genresOf(pool, seriesId) {
