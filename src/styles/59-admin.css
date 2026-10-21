@@ -970,3 +970,121 @@
   inset-block-start: var(--space-1);
   inset-inline-start: var(--space-1);
 }
+
+/* --- S-76 — экран «Импорт» (F-12-08) ---
+ *
+ * Ключевое число («Выходит с датами N из M») стоит слева крупно: на нём весь
+ * смысл экрана. Плотность календаря — полоски по неделям, высота относительно
+ * самой плотной недели, а не относительно плана: плана у календаря нет.
+ */
+
+.studio-import__mode { margin-block-end: var(--space-4); }
+.studio-import__mode-state { margin: 0; color: var(--text-primary); }
+.studio-import__mode-since { color: var(--text-secondary); font-size: var(--text-sm); }
+
+.studio-import__coverage { margin-block-end: var(--space-6); }
+
+.studio-import__key {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-block: 0 var(--space-3);
+}
+
+.studio-import__key-value { font-size: var(--text-3xl); font-weight: 700; }
+.studio-import__key-of { color: var(--text-secondary); }
+.studio-import__key-share { color: var(--text-secondary); font-size: var(--text-sm); }
+
+.studio-import__states {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-import__state {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-pill);
+}
+
+.studio-import__state-name { color: var(--text-secondary); font-size: var(--text-sm); }
+.studio-import__state-count { font-weight: 600; }
+
+.studio-import__density { margin-block-end: var(--space-6); }
+
+.studio-import__bars {
+  display: flex;
+  align-items: flex-end;
+  gap: var(--space-1);
+  min-block-size: 96px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.studio-import__bar {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  align-items: center;
+  gap: var(--space-1);
+  flex: 1 1 auto;
+  min-inline-size: 6px;
+}
+
+.studio-import__bar-fill {
+  inline-size: 100%;
+  min-block-size: 2px;
+  border-radius: var(--radius-sm);
+  background: var(--accent);
+}
+
+.studio-import__bar-count { color: var(--text-secondary); font-size: var(--text-xs); }
+
+.studio-import__runs { margin-block-end: var(--space-6); }
+
+.studio-import__table-wrap { overflow-x: auto; }
+
+.studio-import__runs-table,
+.studio-import__items-table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  font-size: var(--text-sm);
+}
+
+.studio-import__runs-table th,
+.studio-import__runs-table td,
+.studio-import__items-table th,
+.studio-import__items-table td {
+  padding: var(--space-2) var(--space-3);
+  border-block-end: 1px solid var(--border-subtle);
+  text-align: start;
+  white-space: nowrap;
+}
+
+.studio-import__runs-table tr.is-selected td { background: var(--surface-raised); }
+
+.studio-import__counters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  margin-block: var(--space-3) var(--space-4);
+}
+
+.studio-import__counter { margin: 0; }
+.studio-import__counter dt { color: var(--text-secondary); font-size: var(--text-xs); }
+.studio-import__counter dd { margin: 0; font-weight: 600; }
+
+.studio-import__filter {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}

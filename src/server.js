@@ -34,6 +34,8 @@ import { pgStudioCatalogue } from './services/studio/catalogue.js';
 import { pgEditorialPicks } from './services/studio/picks.js';
 import { pgStudioCard } from './services/studio/card.js';
 import { pgStudioSplash } from './services/studio/splash.js';
+import { pgImportReport } from './services/import/report.js';
+import { createFreezeService } from './services/import/freeze.js';
 import { pgStudioSchedule } from './services/studio/schedule.js';
 import { pgStudioImages } from './services/studio/images.js';
 import { pgDiscussions } from './services/discussions/topics.js';
@@ -321,6 +323,8 @@ const app = createApp({
   studio: pgStudioCatalogue(pool),
   studioCard: pgStudioCard(pool),
   splash: pgStudioSplash(pool),
+  importReport: pgImportReport(pool),
+  freeze: createFreezeService({ pool }),
   studioSchedule: pgStudioSchedule(pool),
   studioImages: pgStudioImages(pool),
   picks: pgEditorialPicks(pool),

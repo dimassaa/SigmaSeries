@@ -22,6 +22,7 @@ import { pgAuthStore } from '../src/services/auth/store.js';
 import { makeToken } from '../src/services/auth/password.js';
 import { pgSubscriptions } from '../src/services/tracking/subscription.js';
 import { recompute } from '../src/services/tracking/progress.js';
+import { acquireImportLock } from './helpers/import-lock.js';
 
 process.env.BLIND_INDEX_SECRET ??= 'test-blind-index-secret';
 process.env.ADDRESS_SECRET ??= 'test-address-secret';
@@ -34,6 +35,8 @@ const skip = available
 
 let pool;
 let notify;
+/** Отпускается в `after`: держит общую блокировку строк запуска. */
+let unlockImport;
 let preferences;
 let subscriptions;
 let counter = 0;
@@ -41,6 +44,7 @@ let counter = 0;
 test.before(async () => {
   if (!available) return;
   pool = createPool();
+  unlockImport = await acquireImportLock(pool);
   notify = pgNotifications(pool);
   preferences = pgNotificationPreferences(pool);
   subscriptions = pgSubscriptions(pool);
@@ -159,6 +163,7 @@ test.after(async () => {
   await pool.query("DELETE FROM e_series WHERE slug LIKE 'nt%-%'");
   await pool.query("DELETE FROM e_system_setting WHERE key = 'notify.last_sweep_at'");
   await pool.query("DELETE FROM e_user WHERE nickname LIKE 'ntu-%'");
+  await unlockImport?.();
   await pool.end();
 });
 

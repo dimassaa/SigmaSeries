@@ -29,6 +29,7 @@ import { createAuditRoutes } from './routes/auditLog.js';
 import { createOverviewRoutes } from './routes/adminOverview.js';
 import { createBackupRoutes } from './routes/backups.js';
 import { createStudioRoutes } from './routes/studio.js';
+import { createImportRoutes } from './routes/studioImport.js';
 import { createDiscussionRoutes } from './routes/discussions.js';
 import { createGuideRoutes } from './routes/guides.js';
 import { createStudioLibraryRoutes } from './routes/studioCollections.js';
@@ -99,6 +100,8 @@ export function createApp({
   studio = null,
   studioCollections = null,
   splash = null,
+  importReport = null,
+  freeze = null,
   bulk = null,
   studioDictionaries = null,
   discussions = null,
@@ -225,6 +228,8 @@ export function createApp({
     series, audit, sessionMw,
   }));
   if (splash) app.use(createSplashRoutes({ splash, audit, sessionMw }));
+  // Отчёт об импорте (S-76): состояние расписания и запуски.
+  if (importReport) app.use(createImportRoutes({ pool, report: importReport, freeze, sessionMw }));
   if (studio) app.use(createStudioRoutes({ pool, studio, picks, bulk, audit, sessionMw }));
   // Карточка сериала (S-75): правка, публикация, архив.
   if (studioCard) app.use(createStudioCardRoutes({
