@@ -7,6 +7,7 @@
 import express from 'express';
 
 import { layout } from '../view/layout.js';
+import { csrfToken } from '../services/auth/session.js';
 import { panelFor } from './panel.js';
 import { homeView } from '../view/home.js';
 import { collectHomeData } from '../services/home/data.js';
@@ -50,7 +51,7 @@ export function createHomeRoutes({ data, sessionMw = null, panel = null }) {
         path: '/',
         title: t(locale, 'home.title'),
         description: t(locale, 'home.banners.empty'),
-        body: homeView({ locale, data: homeData }),
+        body: homeView({ locale, data: homeData, csrf: csrfToken(req.session) }),
         panel: await panelFor({ panel, locale, req }),
         noindex: NOINDEX_PATHS.includes('/'),
       });

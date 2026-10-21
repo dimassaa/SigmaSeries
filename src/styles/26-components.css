@@ -438,6 +438,33 @@
 
 .posters__item { position: relative; }
 
+/* Причина рекомендации (M11): она обязательна — без неё строка выглядит
+ * как догадка, а человек вправе спросить «откуда». */
+.poster__reason {
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+/* «Не интересно» появляется по наведению и фокусу (M11 F-11-03 §19). */
+.posters__dismiss {
+  position: absolute;
+  inset-block-start: var(--space-2);
+  inset-inline-end: var(--space-2);
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+@media (hover: none) {
+  .posters__dismiss { opacity: 1; }
+}
+
+@media (hover: hover) {
+  .posters__item:hover .posters__dismiss,
+  .posters__item:focus-within .posters__dismiss {
+    opacity: 1;
+  }
+}
+
 .poster-card-layer {
   position: fixed;
   z-index: 30;

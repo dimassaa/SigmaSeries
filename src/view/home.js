@@ -22,7 +22,24 @@ const imageUrl = (locale, slug, role, width) => (width ? `/${locale}/images/${sl
  * @param {string} page.locale
  * @param {object} page.data результат data.js
  */
-export function homeView({ locale, data }) {
+/**
+ * Причина рекомендации — текстом интерфейса (M11 §11).
+ *
+ * Название сериала или жанра — данные каталога, и они на двух языках;
+ * сама формулировка причины переводима.
+ *
+ * @param {string} locale
+ * @param {{kind: string, titleRu: string, titleEn: string}} reason
+ * @returns {string}
+ */
+function reasonText(locale, reason) {
+  const title = locale === 'en' ? reason.titleEn : reason.titleRu;
+  if (reason.kind === 'like') return t(locale, 'reco.reason.like', { title });
+  if (reason.kind === 'genre') return t(locale, 'reco.reason.genre', { title });
+  return t(locale, 'reco.reason.marked', { title });
+}
+
+export function homeView({ locale, data, csrf = '' }) {
   // Ряд «Для вас» для вошедшего и «Популярное» для гостя — одна и та же
   // геометрия, разный только заголовок (F-06-06 §19).
   const forYou = data.forYou ?? { items: [], personalized: false };
@@ -73,8 +90,17 @@ export function homeView({ locale, data }) {
           ${when(!s.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
         </span>
         <span class="poster__title">${s.title}</span>
+        ${when(s.reason, () => html`
+        <span class="poster__reason">${reasonText(locale, s.reason)}</span>`)}
         <span class="poster__meta">${s.year}</span>
       </a>
+      ${when(s.reason, () => html`
+      <form class="posters__dismiss" method="post" action="/${locale}/reco/dismiss">
+        <input type="hidden" name="csrf" value="${csrf}">
+        <input type="hidden" name="series" value="${s.slug}">
+        <input type="hidden" name="back" value="/${locale}/">
+        <button class="button button--quiet" type="submit">${t(locale, 'reco.dismiss')}</button>
+      </form>`)}
     </li>`)}
   </ol>`)}
 </section>

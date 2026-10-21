@@ -183,7 +183,23 @@ async function similarOf(pool, seriesId) {
             (SELECT iv.width FROM e_image i
                JOIN e_image_variant iv ON iv.image_id = i.id
               WHERE i.series_id = s.id AND i.role = 'poster'
-              ORDER BY iv.width LIMIT 1) AS poster_width
+              ORDER BY iv.width LIMIT 1) AS poster_width,
+            (SELECT array_agg(g.name_ru) FROM e_series_genre a
+               JOIN e_series_genre b ON b.genre_code = a.genre_code AND b.series_id = sm.similar_id
+               JOIN e_genre g ON g.code = a.genre_code
+              WHERE a.series_id = sm.series_id) AS common_genres,
+            (SELECT array_agg(g.name_en) FROM e_series_genre a
+               JOIN e_series_genre b ON b.genre_code = a.genre_code AND b.series_id = sm.similar_id
+               JOIN e_genre g ON g.code = a.genre_code
+              WHERE a.series_id = sm.series_id) AS common_genres_en,
+            (SELECT array_agg(p.name) FROM e_series_person a
+               JOIN e_series_person b ON b.person_id = a.person_id AND b.series_id = sm.similar_id
+               JOIN e_person p ON p.id = a.person_id
+              WHERE a.series_id = sm.series_id AND a.role IN ('director','creator')) AS common_people,
+            (SELECT array_agg(k.value) FROM e_series_keyword a
+               JOIN e_series_keyword b ON b.keyword_id = a.keyword_id AND b.series_id = sm.similar_id
+               JOIN e_keyword k ON k.id = a.keyword_id
+              WHERE a.series_id = sm.series_id) AS common_keywords
        FROM e_series_similar sm
        JOIN e_series s ON s.id = sm.similar_id
       WHERE sm.series_id = $1
@@ -199,7 +215,29 @@ async function similarOf(pool, seriesId) {
     yearStart: row.year_start,
     exitState: row.exit_state,
     posterWidth: row.poster_width ? Number(row.poster_width) : null,
+    // Причина «похоже на» называет конкретное общее: человека, жанр или
+    // слово, а не «похоже» (M11 F-11-02 §8б).
+    reason: reasonOf(row),
   }));
+}
+
+/**
+ * Причина сходства: одно общее — человек, жанр или слово.
+ *
+ * @param {object} row строка выборки
+ * @returns {{kind: string, title: string}|null}
+ */
+function reasonOf(row) {
+  const people = row.common_people ?? [];
+  if (people.length) return { kind: 'person', title: people[0] };
+  const genres = row.common_genres ?? [];
+  const genresEn = row.common_genres_en ?? [];
+  if (genres.length) {
+    return { kind: 'genre', title: genres[0], titleEn: genresEn[0] ?? genres[0] };
+  }
+  const keywords = row.common_keywords ?? [];
+  if (keywords.length) return { kind: 'keyword', title: keywords[0] };
+  return null;
 }
 
 async function genresOf(pool, seriesId) {

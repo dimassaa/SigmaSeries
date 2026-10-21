@@ -17,8 +17,9 @@ import { homeSettings } from './settings.js';
  * Форматирование в базе не делается — его нельзя отладить запросом.
  *
  * @param {pg.Pool} pool
+ * @param {{recommendations?: object|null}} [deps] сервис рекомендаций (M11)
  */
-export function pgData(pool) {
+export function pgData(pool, { recommendations = null } = {}) {
   // Настройки читаются один раз на источник: главная открывается часто, а
   // ключи меняются администратором в S-83, а не на каждый запрос. Источник
   // живёт дольше одного открытия страницы, поэтому чтение на каждый вызов
@@ -204,6 +205,16 @@ export function pgData(pool) {
       );
       if (!flag?.recs_enabled) return { items: await popular(), personalized: false };
 
+      // Персональные рекомендации (M11, F-11-01): у каждой позиции есть
+      // причина. Движка нет — строка называется «популярное».
+      if (recommendations) {
+        const reco = await recommendations.forUser(userId);
+        if (reco.items.length) {
+          return { items: reco.items.map(decorateSeries), personalized: true };
+        }
+        return { items: await popular(), personalized: false };
+      }
+
       const { rows } = await pool.query(`
         WITH my_genres AS (
           SELECT DISTINCT sg.genre_code
@@ -293,6 +304,8 @@ function decorateSeries(r) {
     title: r.title ?? '',
     year: r.year_start ?? '',
     posterWidth: r.poster_width,
+    // Причина рекомендации (M11): без неё строка — догадка.
+    ...(r.reason ? { reason: r.reason } : {}),
   };
 }
 

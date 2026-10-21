@@ -68,6 +68,7 @@ import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { pgProfile } from './services/profile/service.js';
 import { pgRecap } from './services/insights/recap.js';
+import { pgRecommendations } from './services/recommendations/reco.js';
 import { runRecapInvites } from './services/insights/invite.js';
 import { createHashQueue } from './services/auth/hashQueue.js';
 import { createSessionMiddleware } from './services/auth/session.js';
@@ -219,6 +220,10 @@ const auth = pgAuthStore(pool);
 // счётчик занятых слотов должен быть общим, иначе ограничения нет.
 const hashQueue = createHashQueue();
 
+// Персональные рекомендации (M11, F-11-01). Кэш расчёта живёт в памяти
+// процесса: считать дешевле, чем хранить инвалидируемый кэш.
+const recommendations = pgRecommendations(pool);
+
 // Лимит читается один раз при старте: см. services/search/limits.js.
 const { ratePerIp: searchRatePerIp } = await searchSettings(pool);
 
@@ -300,12 +305,14 @@ maturedWorker.unref();
 hourlyRatings();
 
 const app = createApp({
-  data: pgData(pool),
+  data: pgData(pool, { recommendations }),
   hashQueue,
   // Публичный профиль пользователя (S-18, F-01-07).
   profile: pgProfile(pool),
   // Персональные итоги (M7, F-07-01).
   recap: pgRecap(pool),
+  // Персональные рекомендации (M11, F-11-01).
+  recommendations,
   series: pgSeries(pool),
   posterCard: pgPosterCard(pool),
   catalogue: pgCatalogueList(pool),

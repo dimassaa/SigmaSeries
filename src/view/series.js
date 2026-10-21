@@ -53,6 +53,7 @@ export function seriesView({
   locale, series, status = null, progress = null, subscribe = null, ratingBlock = null,
   reviewBlock = null, reviewTop = null, votesById = null, notice = null, timezone = null,
   report = null,
+  csrf = '',
 }) {
   const episodesCount = series.seasons.reduce((sum, season) => sum + season.episodes.length, 0);
 
@@ -179,7 +180,9 @@ export function seriesView({
     </ul>
   </section>`)}
 
-  ${when(series.similar?.length > 0, () => similarSection({ locale, items: series.similar }))}
+  ${when(series.similar?.length > 0, () => similarSection({
+    locale, items: series.similar, csrf, seriesSlug: series.slug,
+  }))}
 
   ${when(reviewBlock, () => reviewSection({ locale, slug: series.slug, timezone, ...reviewBlock }))}
 
@@ -194,7 +197,21 @@ export function seriesView({
  * странице нет. Карточки — те же, что в каталоге, со слоем по наведению
  * (UI-10).
  */
-function similarSection({ locale, items }) {
+/**
+ * Причина сходства: называет конкретное общее — человека, жанр или слово.
+ *
+ * @param {string} locale
+ * @param {{kind: string, title: string, titleEn?: string}} reason
+ * @returns {string}
+ */
+function similarReason(locale, reason) {
+  const title = locale === 'en' ? (reason.titleEn ?? reason.title) : reason.title;
+  if (reason.kind === 'person') return t(locale, 'series.similar.reason.person', { title });
+  if (reason.kind === 'keyword') return t(locale, 'series.similar.reason.keyword', { title });
+  return t(locale, 'series.similar.reason.genre', { title });
+}
+
+function similarSection({ locale, items, csrf = '', seriesSlug = '' }) {
   return html`
   <section class="series__similar" id="similar" aria-labelledby="h-similar">
     <h2 class="series__section-title" id="h-similar">${t(locale, 'series.similar')}</h2>
@@ -210,11 +227,19 @@ function similarSection({ locale, items }) {
             ${when(!item.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
           </span>
           <span class="poster__title">${item.title}</span>
+          ${when(item.reason, () => html`
+          <span class="poster__reason">${similarReason(locale, item.reason)}</span>`)}
           <span class="poster__meta">
             ${when(item.yearStart, () => html`${item.yearStart}`)}
             ${when(item.exitState, () => html` · ${t(locale, `series.state.${item.exitState}`)}`)}
           </span>
         </a>
+        <form class="posters__dismiss" method="post" action="/${locale}/reco/dismiss">
+          <input type="hidden" name="csrf" value="${csrf}">
+          <input type="hidden" name="series" value="${item.slug}">
+          <input type="hidden" name="back" value="/${locale}/series/${seriesSlug}">
+          <button class="button button--quiet" type="submit">${t(locale, 'reco.dismiss')}</button>
+        </form>
       </li>`)}
     </ol>
   </section>`;

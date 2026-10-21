@@ -1194,6 +1194,19 @@ CREATE TABLE e_taste_seed (
 );
 CREATE INDEX ix_taste_seed_series ON e_taste_seed (series_id);
 
+--- ---------- Скрытые рекомендации (M11, F-11-03) ----------
+
+--- Человек нажал «Не интересно» на рекомендации. Причина не спрашивается и
+--- не хранится: хранится только сам факт, и сериал не показывается в
+--- «для вас» и в «похожих» в течение `reco.dismiss_days` дней.
+CREATE TABLE e_reco_dismiss (
+  user_id    BIGINT NOT NULL REFERENCES e_user(id) ON DELETE CASCADE,
+  series_id  BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (user_id, series_id)
+);
+CREATE INDEX ix_reco_dismiss_recent ON e_reco_dismiss (user_id, created_at DESC);
+
 -- ---------- Согласие на cookies ----------
 
 CREATE TABLE e_consent (
