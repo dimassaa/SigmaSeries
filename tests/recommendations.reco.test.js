@@ -27,7 +27,7 @@ test.before(async () => {
     `SELECT u.id FROM e_user u
       WHERE u.status = 'active' AND u.email_confirmed
         AND NOT EXISTS (SELECT 1 FROM e_role_assignment r WHERE r.user_id = u.id)
-      ORDER BY u.id LIMIT 1`,
+      ORDER BY u.id LIMIT 1 OFFSET 1`,
   );
   userId = users[0]?.id;
   assert.ok(userId, 'есть активный пользователь');
@@ -54,6 +54,9 @@ test.before(async () => {
 
   await pool.query('DELETE FROM e_watch_mark WHERE user_id = $1 AND episode_id = ANY($2::bigint[])',
     [userId, episodes]);
+  // Демо-оценки тоже считаются историей, а для проверки «мало истории» их
+  // быть не должно: демо-данные ставятся отдельно и помечены.
+  await pool.query('DELETE FROM e_rating WHERE user_id = $1 AND is_demo', [userId]);
 });
 
 test.after(async () => {

@@ -51,7 +51,7 @@ export function createHomeRoutes({ data, sessionMw = null, panel = null }) {
         path: '/',
         title: t(locale, 'home.title'),
         description: t(locale, 'home.banners.empty'),
-        body: homeView({ locale, data: homeData, csrf: csrfToken(req.session) }),
+        body: homeView({ locale, data: homeData, csrf: req.session ? csrfToken(req.session) : '' }),
         panel: await panelFor({ panel, locale, req }),
         noindex: NOINDEX_PATHS.includes('/'),
       });

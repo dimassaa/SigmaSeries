@@ -312,6 +312,10 @@
     if (!input) return;
 
     var locale = (location.pathname.split('/')[1] || 'ru');
+    // Текст запроса в событие не попадает никогда (R-AN-19): только длина.
+    form.addEventListener('submit', function () {
+      track('search_submit', { length: input.value.length });
+    });
     var debounce = Number(form.getAttribute('data-debounce')) || 200;
     var timer = null;
     var controller = null;
@@ -649,6 +653,10 @@
         var text = button.textContent;
         // Кнопка в FormData не попадает (вкатывается только submitter), а
         // её имя и значение — сама цель (`to`): добавляю вручную.
+        track('review_helpful_toggle', {
+          action: button.value,
+          review: form.querySelector('[name=to]')?.value || '',
+        });
         fetch(form.action, {
           method: 'POST',
           body: urlencoded(form, ['to', button.value]),

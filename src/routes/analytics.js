@@ -44,7 +44,7 @@ export function createAnalyticsRoutes({ analytics, metrics = null, sessionMw = n
     req.session.analyticsToken = token;
     // Токен формы едет вместе: баннер согласия тоже его шлёт, а разметка
     // страницы его не знает — гостю меню аккаунта нет.
-    return res.status(200).json({ token, csrf: csrfToken(req.session) });
+    return res.status(200).json({ token, csrf: req.session ? csrfToken(req.session) : '' });
   });
 
   /**

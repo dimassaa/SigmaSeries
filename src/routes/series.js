@@ -168,7 +168,7 @@ export function createSeriesRoutes({
       noindex: locale === 'en' && !found.descriptionRu,
       jsonLd: seriesJsonLd({ locale, series: found, rating }),
       body: seriesView({
-      csrf: csrfToken(req.session),
+      csrf: req.session ? csrfToken(req.session) : '',
         locale,
         series: found,
         status: watch ? { value: watch.status, csrf: watch.csrf, signedIn: watch.signedIn, archived: watch.archived } : null,
