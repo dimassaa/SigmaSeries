@@ -1,0 +1,22 @@
+{
+  "compilerOptions": {
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": false,
+    "noImplicitAny": false,
+    "skipLibCheck": true
+  },
+  "include": [
+    "src/services/insights/**/*.js",
+    "src/view/recap.js",
+    "src/routes/recap.js",
+    "src/view/profile.js",
+    "src/services/profile/**/*.js",
+    "src/services/auth/hashQueue.js",
+    "src/view/avatar.js"
+  ]
+}

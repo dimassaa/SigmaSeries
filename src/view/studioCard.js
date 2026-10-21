@@ -232,7 +232,7 @@ export function studioCardView({
         </button>`)}
         ${when(card.archived, () => html`
         <button class="button" type="submit" formaction="${saveAction}/restore">
-          ${t(locale, 'studio.card.restore')}
+          ${t(locale, 'studio.card.restoreFromArchive')}
         </button>`)}
       </form>
 
