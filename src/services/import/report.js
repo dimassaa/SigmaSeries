@@ -91,7 +91,7 @@ export function pgImportReport(pool) {
      */
     async runs({ limit = 50 } = {}) {
       const { rows } = await pool.query(
-        `SELECT id, kind, status, started_at, finished_at, counters, params
+        `SELECT id, kind, status, started_at, finished_at, counters, params, checkpoint, dry_run
            FROM e_import_run
           ORDER BY id DESC LIMIT $1`,
         [limit],
@@ -103,6 +103,8 @@ export function pgImportReport(pool) {
         startedAt: row.started_at,
         finishedAt: row.finished_at,
         counters: row.counters ?? {},
+        dryRun: row.dry_run,
+        checkpoint: row.checkpoint ?? {},
       }));
     },
 

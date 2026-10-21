@@ -229,7 +229,7 @@ export function createApp({
   }));
   if (splash) app.use(createSplashRoutes({ splash, audit, sessionMw }));
   // Отчёт об импорте (S-76): состояние расписания и запуски.
-  if (importReport) app.use(createImportRoutes({ pool, report: importReport, freeze, sessionMw }));
+  if (importReport) app.use(createImportRoutes({ pool, report: importReport, freeze, audit, sessionMw }));
   if (studio) app.use(createStudioRoutes({ pool, studio, picks, bulk, audit, sessionMw }));
   // Карточка сериала (S-75): правка, публикация, архив.
   if (studioCard) app.use(createStudioCardRoutes({

@@ -4,11 +4,10 @@
 // живут в своих модулях и проверяются отдельно — иначе проверка планировщика
 // проверяла бы не то.
 //
-// `full_run` в реестре нет намеренно: он запускается по кнопке (S-76, F-12-08)
-// и по расписанию не ходит. `backup` появится вместе с M9 (ADR-004): порядок
+// `full_run` не ходит по расписанию: его заводит кнопка на экране импорта
+// (S-76, F-12-08) и выполняет планировщик — тяжёлое не должно идти в веб-запросе
+// (R-PERF-09). `backup` появится вместе с M9 (ADR-004): порядок
 // «резервная копия → расписание» задан в `TASK_ORDER` заранее.
-
-import path from 'node:path';
 
 import { ensureDataset } from './datasets.js';
 import { discoverSync } from './discover-sync.js';
@@ -16,10 +15,24 @@ import { refreshRatings } from './ratings.js';
 import { scheduleSync } from './schedule-sync.js';
 import { notifyScheduleChanges } from '../notify/changes.js';
 import { loadSlugs } from './write.js';
+import {
+  candidatesStep, matchStep, enrichStep, catalogueStep, failRun, DATA_DIR,
+} from './steps.js';
 import { IMPORT_SETTINGS } from '../../config/settings.js';
 
-/** Каталог с датасетами IMDb: то же место, что и у команд импорта. */
-export const DATA_DIR = process.env.IMDB_DATA_DIR ?? path.resolve('data/imdb');
+/**
+ * Размер выборки: настройка администратора, а не константа.
+ *
+ * @param {object} pool
+ * @returns {Promise<number>}
+ */
+async function readTopN(pool) {
+  const { rows } = await pool.query(
+    "SELECT value FROM e_system_setting WHERE key = 'import.top_n'",
+  );
+  const value = Number(rows[0]?.value);
+  return Number.isInteger(value) && value > 0 ? value : IMPORT_SETTINGS.topN;
+}
 
 /**
  * Реестр задач для `createScheduler`.
@@ -36,6 +49,49 @@ export const DATA_DIR = process.env.IMDB_DATA_DIR ?? path.resolve('data/imdb');
  */
 export function createImportTasks({ pool, store, tmdb, dataDir = DATA_DIR, notifications = null, log = () => {} }) {
   return {
+    // Полный прогон (S-76, F-12-08): отбор → сопоставление → обогащение →
+    // запись в каталог. Строку прогона заводит планировщик, а выполняет он же.
+    //
+    // Сухой прогон отличается только флагом строки: те же стадии и тот же
+    // объём запросов, но в каталог он не пишет (F-12-08 §6). Запрет задан в
+    // самом шаге записи и считывается из строки прогона, а не из аргумента
+    // задачи, — «сухой» прогон не может записать в каталог, даже если его
+    // позвали с неверным флагом.
+    full_run: async ({ runId, now }) => {
+      try {
+        const topN = await readTopN(pool);
+        const candidates = await candidatesStep({ store, runId, topN, dataDir, log });
+        await store.updateRun(runId, {
+          counters: candidates.counters, checkpoint: candidates.checkpoint,
+        });
+
+        const matched = await matchStep({ pool, store, tmdb, runId, log });
+        await store.updateRun(runId, {
+          counters: matched.counters, checkpoint: matched.checkpoint,
+        });
+
+        const enriched = await enrichStep({ pool, store, tmdb, runId, dataDir, log });
+        await store.updateRun(runId, {
+          counters: enriched.counters, checkpoint: enriched.checkpoint,
+        });
+
+        const written = await catalogueStep({ pool, store, runId, now, log });
+        await store.updateRun(runId, {
+          counters: written.counters, checkpoint: written.checkpoint,
+        });
+
+        const steps = [candidates, matched, enriched, written];
+        const status = steps.some((step) => step.status === 'partial') ? 'partial' : 'success';
+        return { status, items: written.counters.written ?? 0, errors: 0, reason: null };
+      } catch (error) {
+        // Прогон закрывается ошибкой, а об отвергнутом ключе администратор
+        // узнаёт из уведомления: в журнале процесса он бы уже не нашёл
+        // ничего (F-12-09 §17, №94).
+        await failRun({ pool, store, runId, error });
+        throw error;
+      }
+    },
+
     schedule_sync: async ({ runId, dryRun, now }) => {
       const result = await scheduleSync({
         pool, store, tmdb, runId, dryRun, now, slugs: await loadSlugs(pool), log,

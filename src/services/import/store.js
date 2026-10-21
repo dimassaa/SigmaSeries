@@ -183,14 +183,21 @@ export function createImportStore(pool) {
      *
      * @param {object} [options]
      * @param {number} [options.limit] сколько позиций взять; 0 — все
+     * @param {number|null} [options.runId] прогон, из которого брать; без него
+     *   берётся последний начатый
      * @returns {Promise<{runId: number, items: object[], status: string}|null>}
      */
-    async pendingCandidates({ limit = 0 } = {}) {
-      const { rows: runs } = await pool.query(
-        `SELECT id, status FROM e_import_run
-          WHERE kind = 'full_run' AND status NOT IN ('planned','skipped')
-          ORDER BY id DESC LIMIT 1`,
-      );
+    async pendingCandidates({ limit = 0, runId = null } = {}) {
+      // Прогон можно задать явно: полный прогон по кнопке (S-76) идёт по
+      // своему прогону, а не по «последнему начатому» — иначе он сопоставлял
+      // бы чужую работу.
+      const { rows: runs } = runId
+        ? await pool.query('SELECT id, status FROM e_import_run WHERE id = $1', [runId])
+        : await pool.query(
+          `SELECT id, status FROM e_import_run
+            WHERE kind = 'full_run' AND status NOT IN ('planned','skipped')
+            ORDER BY id DESC LIMIT 1`,
+        );
       if (!runs.length) return null;
 
       const { rows } = await pool.query(
@@ -216,17 +223,28 @@ export function createImportStore(pool) {
      *
      * @param {object} [options]
      * @param {number} [options.limit] сколько позиций взять; 0 — все
+     * @param {number|null} [options.runId] прогон, из которого брать; без него
+     *   берётся последний, где есть пары
      * @returns {Promise<{runId: number, rows: object[], status: string}|null>}
      */
-    async matchedSeries({ limit = 0 } = {}) {
-      const { rows: runs } = await pool.query(
-        `SELECT r.id, r.status FROM e_import_run r
-          WHERE r.status NOT IN ('planned','skipped')
-            AND EXISTS (
-              SELECT 1 FROM e_import_item_result i
-               WHERE i.run_id = r.id AND i.tmdb_id IS NOT NULL)
-          ORDER BY r.id DESC LIMIT 1`,
-      );
+    async matchedSeries({ limit = 0, runId = null } = {}) {
+      const { rows: runs } = runId
+        ? await pool.query(
+          `SELECT r.id, r.status FROM e_import_run r
+            WHERE r.id = $1
+              AND EXISTS (
+                SELECT 1 FROM e_import_item_result i
+                 WHERE i.run_id = r.id AND i.tmdb_id IS NOT NULL)`,
+          [runId],
+        )
+        : await pool.query(
+          `SELECT r.id, r.status FROM e_import_run r
+            WHERE r.status NOT IN ('planned','skipped')
+              AND EXISTS (
+                SELECT 1 FROM e_import_item_result i
+                 WHERE i.run_id = r.id AND i.tmdb_id IS NOT NULL)
+            ORDER BY r.id DESC LIMIT 1`,
+        );
       if (!runs.length) return null;
 
       // Отбираются ВСЕ строки с подтверждённой парой, а не только те, что ещё
@@ -296,11 +314,57 @@ export function createImportStore(pool) {
     },
 
     /**
+     * Флаги прогона: сухой ли он.
+     *
+     * Читаются из строки, а не передаются вызывающим: «сухой» прогон не
+     * должен писать в каталог, и это не должно зависеть от того, правильно ли
+     * его позвали (F-12-08 §6).
+     *
+     * @param {number} runId
+     * @returns {Promise<{dryRun: boolean, status: string|null}>}
+     */
+    async runFlags(runId) {
+      const { rows } = await pool.query(
+        'SELECT dry_run, status FROM e_import_run WHERE id = $1',
+        [runId],
+      );
+      return { dryRun: rows[0]?.dry_run ?? false, status: rows[0]?.status ?? null };
+    },
+
+    /**
+     * Обновить счётчики и контрольную точку, не трогая статус.
+     *
+     * Полный прогон (F-12-08) идёт в одну строку, и стадия за стадией в неё
+     * пишется: статус у такой строки меняет только тот, кто её закрыл.
+     *
+     * @param {number} runId
+     * @param {{counters?: object|null, checkpoint?: object|null}} [extra]
+     * @returns {Promise<void>}
+     */
+    async updateRun(runId, { counters = null, checkpoint = null } = {}) {
+      await pool.query(
+        `UPDATE e_import_run
+            SET counters = counters || coalesce($2::jsonb, '{}'::jsonb),
+                checkpoint = coalesce($3::jsonb, checkpoint)
+          WHERE id = $1`,
+        [
+          runId,
+          counters ? JSON.stringify(counters) : null,
+          checkpoint ? JSON.stringify(checkpoint) : null,
+        ],
+      );
+    },
+
+    /**
      * Закрыть прогон.
      *
      * Счётчики и контрольная точка пишутся рядом со статусом: по отчёту
      * должно быть видно, сколько позиций дошло до конца, сколько упало и на чём
      * прогон остановился (F-12-09, №68, №102).
+     *
+     * Счётчики не заменяются, а дополняются: полный прогон (F-12-08) идёт в
+     * одну строку и пишет в неё по очереди — отбор, сопоставление, обогащение,
+     * запись. Замена стёрла бы то, что уже посчитано.
      *
      * @param {number} runId
      * @param {string} status
@@ -312,7 +376,7 @@ export function createImportStore(pool) {
         `UPDATE e_import_run
             SET status = $2,
                 finished_at = now(),
-                counters = coalesce($3::jsonb, counters),
+                counters = counters || coalesce($3::jsonb, '{}'::jsonb),
                 checkpoint = coalesce($4::jsonb, checkpoint)
           WHERE id = $1`,
         [

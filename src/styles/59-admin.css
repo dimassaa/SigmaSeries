@@ -978,9 +978,30 @@
  * самой плотной недели, а не относительно плана: плана у календаря нет.
  */
 
-.studio-import__mode { margin-block-end: var(--space-4); }
+.studio-import__mode {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-block-end: var(--space-4);
+}
 .studio-import__mode-state { margin: 0; color: var(--text-primary); }
 .studio-import__mode-since { color: var(--text-secondary); font-size: var(--text-sm); }
+
+/* Кнопки запуска: одна primary на действие, остальные — тихие. Пока идёт
+ * прогон, кнопки неактивны: запускать второй поверх первого нельзя. */
+.studio-import__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+.studio-import__action { margin: 0; }
+.studio-import__run-dry,
+.studio-import__run-stage {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+}
 
 .studio-import__coverage { margin-block-end: var(--space-6); }
 

@@ -560,6 +560,21 @@ const MESSAGES = {
     'studio.import.status.skipped': 'Пропущен',
     'studio.import.status.resumed': 'Продолжен',
     'studio.import.detail': 'Запуск №{id}',
+    'studio.import.run.full': 'Полный прогон',
+    'studio.import.run.dry': 'Сухой прогон',
+    'studio.import.run.schedule': 'Запустить синхронизацию расписания',
+    'studio.import.run.dryMark': '· сухой',
+    'studio.import.run.busy': 'Идёт другой запуск — дождитесь его окончания',
+    'studio.import.run.planned': 'Такой запуск уже запланирован',
+    'studio.import.run.unknown_kind': 'Неизвестный вид запуска',
+    'studio.import.run.csrf': 'Сессия устарела — обновите страницу',
+    'studio.import.counter.selected': 'Отобрано',
+    'studio.import.counter.added': 'Добавлено новых',
+    'studio.import.counter.updated': 'Обновлено',
+    'studio.import.counter.unchanged': 'Без изменений',
+    'studio.import.counter.written': 'Записано в каталог',
+    'studio.import.counter.published': 'Опубликовано',
+    'studio.import.counter.failed': 'Ошибок записи',
     'studio.import.counter.matched': 'Сопоставлено',
     'studio.import.counter.no_tmdb': 'Нет в TMDB',
     'studio.import.counter.pair_doubt': 'Сомнительных',
@@ -2076,6 +2091,21 @@ const MESSAGES = {
     'studio.import.status.skipped': 'Skipped',
     'studio.import.status.resumed': 'Resumed',
     'studio.import.detail': 'Run #{id}',
+    'studio.import.run.full': 'Full run',
+    'studio.import.run.dry': 'Dry run',
+    'studio.import.run.schedule': 'Run schedule sync now',
+    'studio.import.run.dryMark': '· dry',
+    'studio.import.run.busy': 'Another run is in progress — wait for it to finish',
+    'studio.import.run.planned': 'Such a run is already planned',
+    'studio.import.run.unknown_kind': 'Unknown run kind',
+    'studio.import.run.csrf': 'The session has expired — reload the page',
+    'studio.import.counter.selected': 'Selected',
+    'studio.import.counter.added': 'Added',
+    'studio.import.counter.updated': 'Updated',
+    'studio.import.counter.unchanged': 'Unchanged',
+    'studio.import.counter.written': 'Written to the catalogue',
+    'studio.import.counter.published': 'Published',
+    'studio.import.counter.failed': 'Write failures',
     'studio.import.counter.matched': 'Matched',
     'studio.import.counter.no_tmdb': 'Not on TMDB',
     'studio.import.counter.pair_doubt': 'Doubtful pairs',
@@ -3081,6 +3111,24 @@ export function t(locale, key, params = {}) {
     throw new Error(`Нет ключа «${key}» для языка «${locale}»`);
   }
   return msg.replace(/\{(\w+)\}/g, (m, name) => (name in params ? String(params[name]) : m));
+}
+
+/**
+ * Перевод по ключу, если ключ есть.
+ *
+ * Нужен там, где ключ приходит из данных: счётчик прогона лежит в базе, и в
+ * старом прогоне может быть ключ, которого ещё нет в каталоге. Неизвестный
+ * ключ — это его название латиницей, а не падение экрана.
+ *
+ * @param {string} locale ru | en
+ * @param {string} key
+ * @param {Record<string, string|number>} [params]
+ * @returns {string|null}
+ */
+export function tMaybe(locale, key, params = {}) {
+  const dict = MESSAGES[locale] ?? MESSAGES[DEFAULT_LOCALE];
+  if (dict[key] == null) return null;
+  return t(locale, key, params);
 }
 
 /** Проверка полноты каталога: у каждого ключа есть все языки. */

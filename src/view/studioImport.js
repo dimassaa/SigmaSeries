@@ -11,7 +11,7 @@
 // ничего не ловит).
 
 import { html, raw, when } from './render.js';
-import { t } from '../i18n/strings.js';
+import { t, tMaybe } from '../i18n/strings.js';
 import { fullDate } from './dates.js';
 
 /** Состояния сериала в порядке показа — как в спеке (F-12-08 §3). */
@@ -33,6 +33,11 @@ const STATES = ['airing', 'waiting', 'ended', 'cancelled', 'announced'];
 export function studioImportView({
   locale, overview, runs = [], detail = null, mode = {}, selected = null, csrf = '',
 }) {
+  // Кнопки запуска неактивны, пока идёт прогон (F-12-08 §8) и пока полный
+  // прогон уже запланирован: второй ждал бы первого, а ждать тут нечего.
+  const busy = runs.some((run) => run.status === 'running');
+  const planned = runs.some((run) => run.kind === 'full_run' && run.status === 'planned');
+
   return html`
 <div class="studio studio--import">
   <h1 class="studio__title">${t(locale, 'studio.import.title')}</h1>
@@ -43,6 +48,7 @@ export function studioImportView({
       ${when(mode.frozen && mode.since, () => html`
       <span class="studio-import__mode-since">${t(locale, 'studio.import.mode.since', { date: mode.since })}</span>`)}
     </p>
+    ${actions({ locale, csrf, busy, planned })}
   </div>
 
   ${when(runs.length === 0, () => html`
@@ -54,6 +60,33 @@ export function studioImportView({
   ${runsTable({ locale, runs, selected })}
   ${when(detail, () => runDetail({ locale, detail, csrf }))}`)}
 </div>`;
+}
+
+/**
+ * Кнопки запуска.
+ *
+ * Кнопка не выполняет прогон: она заводит строку, а выполняет её
+ * планировщик (R-PERF-09). Поэтому и текст, и отчёт говорят «запланировано»,
+ * а не «запущено».
+ */
+function actions({ locale, csrf, busy, planned }) {
+  const off = (locked) => raw(locked ? ' disabled' : '');
+  const form = (kind, dry, label, locked, primary) => html`
+  <form class="studio-import__action" method="post" action="/${locale}/admin/import/run">
+    <input type="hidden" name="csrf" value="${csrf ?? ''}">
+    <input type="hidden" name="kind" value="${kind}">
+    ${when(dry !== null, () => html`<input type="hidden" name="dry" value="${dry}">`)}
+    <button class="button${primary ? ' button--primary' : ''}" type="submit"${off(locked)}>
+      ${label}
+    </button>
+  </form>`;
+
+  return html`
+  <div class="studio-import__actions">
+    ${form('full_run', '0', t(locale, 'studio.import.run.full'), busy || planned, true)}
+    ${form('full_run', '1', t(locale, 'studio.import.run.dry'), busy || planned, false)}
+    ${form('schedule_sync', null, t(locale, 'studio.import.run.schedule'), busy, false)}
+  </div>`;
 }
 
 /** «Выходит с датами N из M» и счётчики состояний. */
@@ -130,8 +163,16 @@ function runsTable({ locale, runs, selected }) {
           <td>
             <a href="?run=${run.id}">${run.startedAt ? fullDate(locale, run.startedAt.toISOString().slice(0, 10)) : '—'}</a>
           </td>
-          <td>${t(locale, `studio.import.kind.${run.kind}`)}</td>
-          <td>${t(locale, `studio.import.status.${run.status}`)}</td>
+          <td>
+            ${t(locale, `studio.import.kind.${run.kind}`)}
+            ${when(run.dryRun, () => html`
+            <span class="studio-import__run-dry">${t(locale, 'studio.import.run.dryMark')}</span>`)}
+          </td>
+          <td>
+            ${t(locale, `studio.import.status.${run.status}`)}
+            ${when(run.status === 'running' && run.checkpoint?.stage, () => html`
+            <span class="studio-import__run-stage">${t(locale, `studio.import.stage.${run.checkpoint.stage}`)}</span>`)}
+          </td>
           <td>${duration(run)}</td>
           <td>${run.counters.error ?? run.counters.errors ?? 0}</td>
         </tr>`)}
@@ -154,7 +195,7 @@ function runDetail({ locale, detail, csrf }) {
   <dl class="studio-import__counters">
     ${Object.entries(run.counters ?? {}).map(([key, value]) => html`
     <div class="studio-import__counter">
-      <dt>${t(locale, `studio.import.counter.${key}`)}</dt>
+      <dt>${tMaybe(locale, `studio.import.counter.${key}`) ?? key}</dt>
       <dd>${value}</dd>
     </div>`)}
   </dl>

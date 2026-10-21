@@ -11,27 +11,20 @@
 // Переменные окружения: PG* для базы, IMDB_DATA_DIR для датасетов
 // (по умолчанию data/imdb).
 
-import path from 'node:path';
-
 import { createPool } from '../db/pool.js';
-import { ensureDataset } from '../services/import/datasets.js';
-import { selectFromDatasets } from '../services/import/imdb.js';
 import { createImportStore } from '../services/import/store.js';
 import { assertNotFrozen } from '../services/import/freeze.js';
-import { IMPORT_SETTINGS, EXCLUDED_GENRES_IMDB } from '../config/settings.js';
-
-const DATA_DIR = process.env.IMDB_DATA_DIR ?? path.resolve('data/imdb');
+import { candidatesStep, DATA_DIR } from '../services/import/steps.js';
+import { IMPORT_SETTINGS } from '../config/settings.js';
 
 /** Разбор аргументов: пока только --top-n, чтобы можно было урезать прогон. */
 function parseArgs(argv) {
-  const args = { topN: IMPORT_SETTINGS.topN, dryRun: true };
+  const args = { topN: IMPORT_SETTINGS.topN };
   for (let i = 0; i < argv.length; i += 1) {
     if (argv[i] === '--top-n') args.topN = Number(argv[i + 1]);
   }
   return args;
 }
-
-const bytes = (n) => `${(n / 1048576).toFixed(1)} МБ`;
 
 async function main() {
   const { topN } = parseArgs(process.argv.slice(2));
@@ -48,62 +41,14 @@ async function main() {
     pool = createPool();
     store = createImportStore(pool);
 
-    console.log('Скачиваю датасеты IMDb…');
-    const basics = await ensureDataset({
-      key: 'basics',
-      dir: DATA_DIR,
-      maxBytes: IMPORT_SETTINGS.downloadMaxMb * 1024 * 1024,
-      timeoutMs: IMPORT_SETTINGS.downloadTimeoutMs,
-      attempts: IMPORT_SETTINGS.downloadAttempts,
-      freshDays: IMPORT_SETTINGS.downloadFreshDays,
-    });
-    const ratings = await ensureDataset({
-      key: 'ratings',
-      dir: DATA_DIR,
-      maxBytes: IMPORT_SETTINGS.downloadMaxMb * 1024 * 1024,
-      timeoutMs: IMPORT_SETTINGS.downloadTimeoutMs,
-      attempts: IMPORT_SETTINGS.downloadAttempts,
-      freshDays: IMPORT_SETTINGS.downloadFreshDays,
-    });
-    console.log(
-      `  ${path.basename(basics.path)} — ${basics.reused ? 'свежий' : `скачан, ${bytes(basics.bytes)}`}`
-      + ` · ${path.basename(ratings.path)} — ${ratings.reused ? 'свежий' : `скачан, ${bytes(ratings.bytes)}`}`,
-    );
-
-    const started = Date.now();
-    console.log('Отбираю кандидатов…');
-    const { items, counters, stats } = await selectFromDatasets({
-      basicsPath: basics.path,
-      ratingsPath: ratings.path,
-      topN,
-      excludedGenres: EXCLUDED_GENRES_IMDB,
-    });
-
     runId = await store.startRun('full_run', { dryRun: true });
-    await store.saveItems(runId, items.map((item) => ({
-      tconst: item.tconst,
-      stage: 'candidates',
-      outcome: 'ok',
-      rank: item.rank,
-      numVotes: item.numVotes,
-      averageRating: item.averageRating,
-      startYear: item.startYear,
-    })));
-    await store.finishRun(runId, 'success');
-
-    console.log(`\nПрогон #${runId}: отобрано ${items.length} из ${counters.lines} строк за ${Date.now() - started} мс`);
-    console.log(
-      `  отсеяно: тип ${counters.wrongType}, 18+ ${counters.adult},`
-      + ` жанры ${counters.excludedGenre}, без жанров ${counters.noGenres}, без рейтинга ${counters.noRating}`,
-    );
-    console.log(`  не разобрано строк: базовый ${stats.basics.skipped}, рейтинги ${stats.ratings.skipped}`);
-    console.log('\nПервые десять:');
-    for (const item of items.slice(0, 10)) {
-      console.log(
-        `  ${String(item.rank).padStart(4)}. ${item.title} (${item.startYear ?? '—'})`
-        + ` — ${item.averageRating} при ${item.numVotes} голосах`,
-      );
-    }
+    const result = await candidatesStep({
+      store, runId, topN, dataDir: DATA_DIR, log: console.log,
+    });
+    await store.finishRun(runId, result.status, {
+      counters: result.counters,
+      checkpoint: result.checkpoint,
+    });
     process.exitCode = 0;
   } catch (error) {
     // Прогон без результата тоже оставляет след: иначе в S-76 будет тишина,

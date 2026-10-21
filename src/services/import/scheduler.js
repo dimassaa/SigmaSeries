@@ -174,6 +174,17 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
       }
     }
 
+    // Ручные запуски (S-76): их ждал не час, а кнопка администратора. Они
+    // выполняются после ночных: расписание и рейтинги в своё время, а
+    // полный прогон — сразу, как только до него дошла очередь.
+    for (const row of await manualRuns()) {
+      const outcome = await start(row);
+      skipped.push(...outcome.skipped);
+      if (outcome.status === 'skipped') continue;
+      ran.push(row.kind);
+      if (outcome.status === 'error') break;
+    }
+
     await plan();
     return { ran, skipped, reason: null };
   }
@@ -209,10 +220,28 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
 
   async function plannedRow(kind) {
     const { rows } = await pool.query(
-      "SELECT id, kind, started_at FROM e_import_run WHERE kind = $1 AND status = 'planned'",
+      "SELECT id, kind, started_at, dry_run FROM e_import_run WHERE kind = $1 AND status = 'planned'",
       [kind],
     );
     return rows[0] ?? null;
+  }
+
+  /**
+   * Ручные запуски: строки, заведённые кнопкой на экране импорта (S-76).
+   *
+   * Отдельный список, а не «всё, что ждёт своего часа»: ночной план в 04:00
+   * должен ждать 04:00, а ручной запуск — немедленно. И «просроченный» ручной
+   * запуск не подчиняется правилу 36 часов: он ждал не ночь, а минуту.
+   *
+   * @returns {Promise<object[]>}
+   */
+  async function manualRuns() {
+    const { rows } = await pool.query(
+      `SELECT id, kind, started_at, dry_run FROM e_import_run
+        WHERE status = 'planned' AND params->>'manual' = 'true' AND started_at <= now()
+        ORDER BY started_at, id`,
+    );
+    return rows;
   }
 
   /** Подошёл ли срок этой задаче. */
@@ -268,7 +297,10 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
     }
 
     try {
-      const result = await task({ runId: row.id, dryRun: false, now: clock() });
+      // Флаг сухого прогона приходит из строки, а не из вызывающего: строка
+      // заведена кнопкой на S-76, и «сухой» прогон не должен писать в каталог
+      // (F-12-08 §6).
+      const result = await task({ runId: row.id, dryRun: row.dry_run, now: clock() });
       const status = result?.status === 'partial' ? 'partial' : 'success';
       await store.finishRun(row.id, status);
       return { status, skipped: [] };

@@ -18,7 +18,7 @@
 | OP | Функция | Тестов | Статус |
 |---|---|---|---|
 | `OP-01` | `src/services/moderation/check.js`, `dictionary.js` | 32 (`tests/moderation.check.test.js`) + 3 (`tests/moderation.dictionary.test.js`) | **ПРОВЕРЕНО** |
-| `OP-06` | `src/services/import/pipeline.js` (`matchSeries`) | 9 (`tests/import.match.test.js`) | **ПРОВЕРЕНО** |
+| `OP-06` | `src/services/import/pipeline.js` (`matchSeries`), `steps.js` (шаги прогона), `runs.js` (ручные запуски) | 9 (`tests/import.match.test.js`) + 12 (`tests/import.steps.test.js`, `tests/import.runs.test.js`, `tests/studio.import.run.test.js`) | **ПРОВЕРЕНО** |
 | `OP-07` | `src/services/import/pipeline.js` (`completeness`) | 24 (`tests/import.pipeline.test.js`) | **ПРОВЕРЕНО** |
 | `OP-08` | `src/services/catalogue/calendar.js` | 14 + 12 (`catalogue.calendar`, `http.calendar`) | **ПРОВЕРЕНО** |
 | `OP-10` | `src/services/tracking/progress.js`, `marks.js` | 11 + 15 + 7 (`tracking.progress`, `tracking.marks`, `http.marks`) | **ПРОВЕРЕНО** |

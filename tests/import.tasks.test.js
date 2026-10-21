@@ -49,11 +49,17 @@ test.after(async () => {
 test('у каждого ночного вида запуска есть задача, и лишних видов нет', { skip }, () => {
   const tasks = createImportTasks({ pool, store: createImportStore(pool), tmdb: {} });
 
-  assert.deepEqual(Object.keys(tasks).sort(), ['discover_sync', 'ratings_sync', 'schedule_sync']);
-  assert.equal(tasks.full_run, undefined, 'полный прогон запускается по кнопке, а не по часу');
+  // Полный прогон — задача тоже: строку прогона заводит кнопка на S-76, а
+  // выполняет её планировщик. В ночном порядке его нет, и по часу он не ходит.
+  assert.deepEqual(
+    Object.keys(tasks).sort(),
+    ['discover_sync', 'full_run', 'ratings_sync', 'schedule_sync'],
+  );
   assert.equal(tasks.backup, undefined, 'резервная копия — задача M9');
   assert.deepEqual(TASK_ORDER, ['backup', 'schedule_sync', 'discover_sync', 'ratings_sync'],
     'порядок ночи задан заранее и не зависит от того, что уже построено');
+  assert.equal(TASK_ORDER.includes('full_run'), false,
+    'полный прогон запускается по кнопке, а не по часу');
 });
 
 test('задача рейтингов берёт датасет и пишет числа в каталог', { skip }, async () => {
