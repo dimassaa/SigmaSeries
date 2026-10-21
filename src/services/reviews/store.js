@@ -35,6 +35,8 @@ export const REASONS = {
   NO_MARK: 'no-mark',
   LIMIT: 'limit',
   COOLDOWN: 'cooldown',
+  /** F-05-03: очередь модерации переполнена (R-MOD-11). */
+  QUEUE_FULL: 'queue-full',
   EMPTY: 'empty',
   SHORT: 'short',
   LONG: 'long',
@@ -208,6 +210,24 @@ export function pgReviews(pool, { budget = null, restrictions = null } = {}) {
         : result.decision === 'queue' ? 'flagged' : 'checking';
       const chosen = lang === 'ru' || lang === 'en' ? lang : detectLang(text);
 
+      // Потолок очереди (R-MOD-11): когда ожидающих слишком много, новый
+      // помеченный материал от автора с историей модерации в очередь не
+      // ставится. Автор получает отказ, а в базе остаётся только хэш текста —
+      // для кластеров. Текст не хранится: материал в очередь не попал и
+      // разбирать его некому.
+      let stored = text;
+      let storedState = state;
+      let queueFull = false;
+      if (state === 'flagged') {
+        const overflow = await limits.queueOverflow(userId, at);
+        if (overflow.refuse) {
+          const { signatureOf } = await import('../moderation/cluster.js');
+          stored = signatureOf(text);
+          storedState = 'rejected';
+          queueFull = true;
+        }
+      }
+
       // Найденные слова: редактор видит, что сработало (R-MOD-12), автор — нет.
       const matches = JSON.stringify((result.matched ?? []).map((item) => ({
         word: item.word,
@@ -230,15 +250,18 @@ export function pgReviews(pool, { budget = null, restrictions = null } = {}) {
           [existing.id, userId, text, spoiler, chosen, state, at, snapshot, matches],
         );
         // Новая версия прошла проверку и снова видна — снимок больше не нужен.
-        if (state === 'published') {
+        if (storedState === 'published') {
           await pool.query(
             'UPDATE e_material SET visible_body = NULL, visible_spoiler = FALSE WHERE id = $1',
             [existing.id],
           );
         }
+        if (queueFull) {
+          return { ok: false, reason: REASONS.QUEUE_FULL, retryAfterSec: 900 };
+        }
         return {
           ok: true,
-          state,
+          state: storedState,
           matched: result.matched,
           version: existing.version + 1,
         };
@@ -253,8 +276,11 @@ export function pgReviews(pool, { budget = null, restrictions = null } = {}) {
         `INSERT INTO e_material (author_id, kind, series_id, body, spoiler, lang, state, submitted_at, matches)
          VALUES ($1, 'review', $2, $3, $4, $5, $6, $7, $8)
          RETURNING id, version`,
-        [userId, seriesId, text, spoiler, chosen, state, at, matches],
+        [userId, seriesId, stored, spoiler, chosen, storedState, at, matches],
       );
+      if (queueFull) {
+        return { ok: false, reason: REASONS.QUEUE_FULL, retryAfterSec: 900 };
+      }
       // Бюджет помеченных попыток (R-MOD-08): пятый помеченный материал за
       // час — автоматический мьют на час, повтор — на сутки. Мьют ставит
       // система, поэтому у него нет автора.

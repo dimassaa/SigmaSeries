@@ -474,6 +474,14 @@ export function createSeriesRoutes({
         });
 
         if (result.reason === REASONS.MUTED) return res.redirect(303, `${back}#h-reviews`);
+        if (result.reason === REASONS.QUEUE_FULL) {
+          // Очередь модерации переполнена (R-MOD-11): материал в неё не встал,
+          // и ждать надо не минуту, а дольше.
+          return res.status(429)
+            .set('Retry-After', String(result.retryAfterSec ?? 900))
+            .type('text/plain; charset=utf-8')
+            .send(t(locale, 'review.error.queueFull'));
+        }
         if (result.reason === REASONS.LIMIT || result.reason === REASONS.RATE) {
           // Часовой лимит и минутный отвечают одинаково: человеку важно, что
           // надо подождать, а не какое из двух правил сработало.

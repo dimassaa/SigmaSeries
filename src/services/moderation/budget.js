@@ -69,6 +69,29 @@ export function flaggedBudgetFrom({ flaggedInHour, alreadyMuted = false }) {
 }
 
 /**
+ * Потолок очереди ожидающих (R-MOD-11).
+ *
+ * Две тысячи — число из правила, а не оценка: очередь такой величины
+ * редактор уже не разбирает.
+ */
+export const QUEUE_CEILING = 2000;
+
+/**
+ * Что делать с новым помеченным материалом при переполнении очереди.
+ *
+ * «Низкое доверие» — история модерации автора: система уже помечала его
+ * материалы. Решение автора от 21.10: доверяем тому, кого система ещё не
+ * ловила, а переполнение касается именно тех, кого ловила.
+ *
+ * @param {{waiting: number, lowTrust: boolean, ceiling?: number}} input
+ * @returns {{full: boolean, lowTrust: boolean, refuse: boolean}}
+ */
+export function queueOverflowFrom({ waiting, lowTrust, ceiling = QUEUE_CEILING }) {
+  const full = waiting >= ceiling;
+  return { full, lowTrust, refuse: full && lowTrust };
+}
+
+/**
  * Состояние «осторожного» режима сервиса.
  *
  * Живёт в процессе, а не в базе: решение о режиме принимает система, и оно
@@ -202,7 +225,34 @@ export function pgModerationBudget(pool) {
     return { flaggedInHour, ...decision };
   }
 
-  return { submissionsInMinute, cautiousState, refresh, queuePressure, flaggedBudget };
+  /**
+   * Переполнение очереди и «низкое доверие» автора (R-MOD-11).
+   *
+   * Низкое доверие — помеченные материалы автора: их наличие и есть история
+   * модерации. Считается до текущей подачи: проверка идёт до записи.
+   *
+   * @param {number} userId
+   * @param {Date} [at]
+   * @returns {Promise<{waiting: number, full: boolean, lowTrust: boolean, refuse: boolean}>}
+   */
+  async function queueOverflow(userId, at = new Date()) {
+    const { rows: pressure } = await pool.query(
+      `SELECT count(*)::int AS n FROM e_material
+        WHERE state IN ('flagged', 'checking')`,
+    );
+    const { rows: history } = await pool.query(
+      `SELECT count(*)::int AS n FROM e_material
+        WHERE author_id = $1 AND state = 'flagged'`,
+      [userId],
+    );
+    const waiting = Number(pressure[0].n);
+    const lowTrust = Number(history[0].n) > 0;
+    return { waiting, ...queueOverflowFrom({ waiting, lowTrust }) };
+  }
+
+  return {
+    submissionsInMinute, cautiousState, refresh, queuePressure, flaggedBudget, queueOverflow,
+  };
 }
 
 /** Сбросить состояние режима: им пользуются проверки и перезапуск. */

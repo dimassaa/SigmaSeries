@@ -44,10 +44,12 @@ test('пятый помеченный материал за час даёт мь
 
 test('бюджет считает помеченные материалы автора за час', { skip }, async () => {
   const budget = pgModerationBudget(pool);
+  // Первый по номеру свободный пользователь: проверка потолка очереди берёт
+  // последнего, иначе проверки мешали бы друг другу.
   const { rows } = await pool.query(
     `SELECT u.id FROM e_user u
       WHERE NOT EXISTS (SELECT 1 FROM e_material m WHERE m.author_id = u.id)
-      LIMIT 1`,
+      ORDER BY u.id LIMIT 1`,
   );
   const userId = rows[0]?.id;
   assert.ok(userId, 'есть пользователь без материалов');
@@ -64,7 +66,7 @@ test('бюджет считает помеченные материалы авт
     [userId, series[0].id],
   );
   const after = await budget.flaggedBudget(userId);
-  assert.equal(after.flaggedInHour, 1, 'помеченный материал в счёт попал');
+  assert.equal(after.flaggedInHour, before.flaggedInHour + 1, 'помеченный материал в счёт попал');
   assert.equal(after.mute, false, 'одно помеченное — ещё не бюджет');
 
   await pool.query(
