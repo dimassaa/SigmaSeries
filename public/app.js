@@ -1281,6 +1281,35 @@
     });
   }
 
+  // ─── Нет соединения (S-43) ────────────────────────────────────────────────
+  //
+  // Без сети страница остаётся рабочей, но человек должен знать, что это не
+  // поломка сайта. Кнопка «Повторить» перезагружает страницу.
+  function initOffline() {
+    var banner = document.createElement('div');
+    banner.className = 'offline';
+    banner.setAttribute('role', 'status');
+    banner.hidden = true;
+
+    var label = document.documentElement.getAttribute('data-offline-text') || 'Нет соединения';
+    var retry = document.documentElement.getAttribute('data-offline-retry') || 'Повторить';
+    banner.textContent = label + ' ';
+    var button = document.createElement('button');
+    button.className = 'button';
+    button.type = 'button';
+    button.textContent = retry;
+    button.addEventListener('click', function () { window.location.reload(); });
+    banner.appendChild(button);
+    document.body.appendChild(banner);
+
+    var show = function (offline) {
+      banner.hidden = !offline;
+    };
+    window.addEventListener('offline', function () { show(true); });
+    window.addEventListener('online', function () { show(false); });
+    show(navigator.onLine === false);
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -1290,6 +1319,7 @@
     initBackupCodes();
     initSearch();
     initPosterCards();
+    initOffline();
     initCalendarDefaultView();
     initUndoWindow();
     initUnreadPoll();

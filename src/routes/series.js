@@ -11,7 +11,7 @@ import express from 'express';
 import { clientIp } from '../http/helpers.js';
 
 import { layout, pageTitle } from '../view/layout.js';
-import { notFound } from './home.js';
+import { notFound, errorPage } from './home.js';
 import { seriesView, goneView } from '../view/series.js';
 import { reviewListView, topReviews as topReviewsView, reviewsHref } from '../view/reviewList.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
@@ -479,16 +479,20 @@ export function createSeriesRoutes({
           // и ждать надо не минуту, а дольше.
           return res.status(429)
             .set('Retry-After', String(result.retryAfterSec ?? 900))
-            .type('text/plain; charset=utf-8')
-            .send(t(locale, 'review.error.queueFull'));
+            .type('html; charset=utf-8')
+            .send(errorPage(locale, 'tooMany', {
+              minutes: Math.max(1, Math.round((result.retryAfterSec ?? 900) / 60)),
+            }).__raw);
         }
         if (result.reason === REASONS.LIMIT || result.reason === REASONS.RATE) {
           // Часовой лимит и минутный отвечают одинаково: человеку важно, что
           // надо подождать, а не какое из двух правил сработало.
           return res.status(429)
             .set('Retry-After', String(result.retryAfterSec))
-            .type('text/plain; charset=utf-8')
-            .send(t(locale, 'review.error.rate'));
+            .type('html; charset=utf-8')
+            .send(errorPage(locale, 'tooMany', {
+              minutes: Math.max(1, Math.round(result.retryAfterSec / 60)),
+            }).__raw);
         }
 
         // Оценка сохраняется до разбора отказа по тексту: человек уже выразил

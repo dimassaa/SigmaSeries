@@ -22,6 +22,7 @@ import { createAdminRoutes } from './routes/admin.js';
 import { createReviewRoutes } from './routes/review.js';
 import { createSeriesRoutes } from './routes/series.js';
 import { createPosterCardRoutes } from './routes/posterCard.js';
+import { createPageRoutes } from './routes/pages.js';
 import { createThemeRoutes } from './routes/theme.js';
 import { createModerationRoutes } from './routes/moderation.js';
 import { createMyContentRoutes } from './routes/myContent.js';
@@ -193,6 +194,9 @@ export function createApp({
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series, ratings, ratingLimiter }));
   // Слой подробной карточки постера (F-02-07): спрашивается по намерению.
   if (posterCard) app.use(createPosterCardRoutes({ card: posterCard, sessionMw }));
+  // Служебные страницы (F-00-05): «О проекте и данных», правила сообщества
+  // и «Конфиденциальность и cookies». Статические, без базы.
+  app.use(createPageRoutes({ sessionMw }));
   if (series) app.use(createSeriesRoutes({
     series, watchStatus, sessionMw, progress, subscriptions, ratings, ratingLimiter,
     reviews, reviewList, votes, helpfulLimiter, reports, reportLimiter,

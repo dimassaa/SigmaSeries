@@ -78,6 +78,27 @@ export function pageTitle(locale, middle) {
  * @param {{nickname: string, unread: number, pollSeconds?: number}|null} [page.account]
  *   меню аккаунта; `null` — гость, и вместо меню показывается вход
  */
+/**
+ * Подвал: ссылки на служебные страницы.
+ *
+ * Ссылки «О данных» и «Приватность» есть на всех страницах, включая
+ * страницы ошибок (F-00-05 §8в).
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @returns {object}
+ */
+function footer({ locale }) {
+  return html`
+<footer class="page__footer">
+  <nav class="page__footer-links" aria-label="${t(locale, 'footer.label')}">
+    <a href="/${locale}/about">${t(locale, 'page.about.title')}</a>
+    <a href="/${locale}/rules">${t(locale, 'page.rules.title')}</a>
+    <a href="/${locale}/privacy">${t(locale, 'page.privacy.title')}</a>
+  </nav>
+</footer>`;
+}
+
 export function layout(page) {
   const {
     locale, title, description, path, body = '', noindex = false, jsonLd = null, styles = null,
@@ -166,10 +187,14 @@ ${raw(styleLinks)}
   <main id="main" class="content">${raw(body)}</main>
   ${page.panel ? raw(page.panel) : ''}
 </div>
+
+${footer({ locale })}
 </body>`;
 
   return html`<!DOCTYPE html>
-<html lang="${locale}" data-theme="${page.theme ?? page.account?.theme ?? 'system'}">
+<html lang="${locale}" data-theme="${page.theme ?? page.account?.theme ?? 'system'}"
+      data-offline-text="${t(locale, 'error.offline.title')}"
+      data-offline-retry="${t(locale, 'error.offline.retry')}">
 <head>
 ${head}
 </head>

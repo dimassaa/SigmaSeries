@@ -106,3 +106,16 @@ a:hover { color: var(--accent-hover); }
     scroll-behavior: auto !important;
   }
 }
+
+/* Подвал: ссылки на служебные страницы (F-00-05 §8в). */
+.page__footer {
+  padding: var(--space-4) var(--space-5);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.page__footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}

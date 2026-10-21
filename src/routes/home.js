@@ -95,6 +95,44 @@ export function notFound(locale, account = null) {
     body: html`<section class="block block--message">
       <h1 class="message__title">${t(locale, 'error.notFound.title')}</h1>
       <p class="message__text">${t(locale, 'error.notFound.text')}</p>
+      <ul class="message__links" role="list">
+        <li><a href="/${locale}/series">${t(locale, 'error.notFound.catalogue')}</a></li>
+        <li><a href="/${locale}/">${t(locale, 'error.notFound.home')}</a></li>
+        <li><a href="/${locale}/search">${t(locale, 'error.notFound.search')}</a></li>
+      </ul>
+    </section>`,
+  });
+}
+
+/**
+ * Страницы ошибок (F-00-05, S-43).
+ *
+ * Каждая отвечает своим кодом и не содержит внутренних деталей: ни стека, ни
+ * имён таблиц (R-SEC-33). Человеку — текст и следующий шаг.
+ *
+ * @param {string} locale
+ * @param {'forbidden'|'tooMany'|'generic'} kind
+ * @param {object} [extra] `minutes` — сколько ждать при 429
+ * @returns {object}
+ */
+export function errorPage(locale, kind, extra = {}) {
+  const keys = {
+    forbidden: { title: 'error.forbidden.title', text: 'error.forbidden.text' },
+    tooMany: { title: 'error.tooMany.title', text: 'error.tooMany.text' },
+    generic: { title: 'error.generic.title', text: 'error.generic.text' },
+  }[kind];
+  return layout({
+    styles: STYLES,
+    locale,
+    path: `/${kind}`,
+    title: `${t(locale, keys.title)} — ${t(locale, 'app.title')}`,
+    description: t(locale, keys.text),
+    noindex: true,
+    body: html`<section class="block block--message">
+      <h1 class="message__title">${t(locale, keys.title)}</h1>
+      <p class="message__text">${kind === 'tooMany'
+    ? t(locale, keys.text, { minutes: extra.minutes ?? 1 })
+    : t(locale, keys.text)}</p>
       <p><a class="button" href="/${locale}/">${t(locale, 'error.notFound.home')}</a></p>
     </section>`,
   });

@@ -49,3 +49,19 @@
       rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.45) 60%, rgba(0, 0, 0, 0.2) 100%);
   }
 }
+
+/* Нет соединения (S-43): страница остаётся рабочей, но человек знает, что это
+ * не поломка сайта. */
+.offline {
+  position: fixed;
+  inset-block-end: 0;
+  inset-inline: 0;
+  z-index: 50;
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  background: var(--surface-overlay);
+  border-block-start: 1px solid var(--border-subtle);
+}

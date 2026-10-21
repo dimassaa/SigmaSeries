@@ -60,6 +60,8 @@ test('бюджет считает помеченные материалы авт
   const userId = rows[0]?.id;
   assert.ok(userId, 'есть пользователь без материалов');
 
+  // Чужой материал, оставшийся от другой проверки, сбил бы счётчик.
+  await pool.query('DELETE FROM e_material WHERE author_id = $1', [userId]);
   const before = await budget.flaggedBudget(userId);
   assert.equal(before.flaggedInHour, 0);
   assert.equal(before.mute, false);

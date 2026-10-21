@@ -176,6 +176,19 @@ a:hover { color: var(--accent-hover); }
   }
 }
 
+/* Подвал: ссылки на служебные страницы (F-00-05 §8в). */
+.page__footer {
+  padding: var(--space-4) var(--space-5);
+  border-block-start: 1px solid var(--border-subtle);
+}
+
+.page__footer-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--text-sm);
+}
+
 /* ─── 20-shell.css ─── */
 /* Оболочка: верхняя панель и область содержимого. */
 
@@ -516,6 +529,22 @@ a:hover { color: var(--accent-hover); }
     background: linear-gradient(100deg,
       rgba(0, 0, 0, 0.78) 0%, rgba(0, 0, 0, 0.45) 60%, rgba(0, 0, 0, 0.2) 100%);
   }
+}
+
+/* Нет соединения (S-43): страница остаётся рабочей, но человек знает, что это
+ * не поломка сайта. */
+.offline {
+  position: fixed;
+  inset-block-end: 0;
+  inset-inline: 0;
+  z-index: 50;
+  display: flex;
+  gap: var(--space-3);
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-3);
+  background: var(--surface-overlay);
+  border-block-start: 1px solid var(--border-subtle);
 }
 
 /* ─── 26-components.css ─── */
