@@ -23,6 +23,10 @@ export function aboutView({ locale, account = null }) {
   <h1 class="message__title">${t(locale, 'page.about.title')}</h1>
   <p class="message__text">${t(locale, 'page.about.lead')}</p>
   <p class="message__text">${t(locale, 'page.about.data')}</p>
+  <p class="message__text">
+    <a href="https://www.themoviedb.org/" target="_blank" rel="noopener noreferrer"
+      >${t(locale, 'page.about.tmdb')}</a>
+  </p>
   <p class="message__text">${t(locale, 'page.about.attribution')}</p>
   <p class="message__text">${t(locale, 'page.about.missing')}</p>
   <p class="message__text">${t(locale, 'page.about.contact')}</p>
