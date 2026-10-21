@@ -10,6 +10,7 @@ import { csrfValid } from '../services/auth/session.js';
 import { DECISIONS } from '../services/moderation/decision.js';
 import { moderationView } from '../view/moderation.js';
 import { layout, pageTitle } from '../view/layout.js';
+import { errorPage } from './home.js';
 import { csrfToken } from '../services/auth/session.js';
 import { safeReturnTo } from '../services/auth/login.js';
 import { MODERATION } from '../services/settings.js';
@@ -140,6 +141,12 @@ export function createModerationRoutes({
           privileged: 'mod.error.privileged',
           action: 'mod.error.decision',
         }[result.reason] ?? 'mod.error.decision';
+        if (result.reason === 'privileged') {
+          // Служебного человека ограничивает администратор — это «недостаточно
+          // прав», и об этом говорит страница (S-43), а не строка текста.
+          return res.status(403).type('html; charset=utf-8')
+            .send(errorPage(locale, 'forbidden').__raw);
+        }
         return res.status(400).type('text/plain; charset=utf-8').send(t(locale, key));
       }
 

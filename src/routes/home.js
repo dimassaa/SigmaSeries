@@ -151,19 +151,7 @@ export function errorHandler(locale) {
     if (res.headersSent) return next(err);
     console.error('[error]', err?.stack ?? err);
     const loc = isLocale(req.params?.locale) ? req.params.locale : locale;
-    res.status(500).type('html').send(layout({
-      styles: STYLES,
-      account: req.account,
-      locale: loc,
-      path: '/500',
-      title: `${t(loc, 'error.generic.title')} — ${t(loc, 'app.title')}`,
-      description: t(loc, 'error.generic.text'),
-      noindex: true,
-      body: html`<section class="block block--message">
-        <h1 class="message__title">${t(loc, 'error.generic.title')}</h1>
-        <p class="message__text">${t(loc, 'error.generic.text')}</p>
-      </section>`,
-    }).__raw);
+    res.status(500).type('html').send(errorPage(loc, 'generic').__raw);
   };
 }
 
