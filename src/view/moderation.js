@@ -14,6 +14,58 @@ import { paragraphs } from './reviews.js';
 import { MODERATION } from '../services/settings.js';
 
 /**
+ * Кластер: разбор группы и разделение её (F-05-03 §5).
+ *
+ * Редактор видит материалы группы и выбирает те, к которым решение
+ * относится: ошибочно объединённые материалы остаются в очереди, а решение
+ * применяется только к выбранным.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {object} args.group кластер (из `groups`)
+ * @param {string} args.csrf
+ * @returns {string}
+ */
+export function clusterView({ locale, group, csrf }) {
+  return html`
+<div class="mod">
+  <h1 class="mod__title">${t(locale, 'mod.cluster.title', { count: group.size })}</h1>
+  <p class="mod__warning">
+    ${t(locale, 'mod.cluster.hint', { count: group.size, authors: group.authors })}
+  </p>
+
+  <form class="mod__form" method="post" action="/${locale}/mod/cluster">
+    <input type="hidden" name="csrf" value="${csrf}">
+    <ol class="mod__cluster" role="list">
+      ${group.materials.map((item) => html`
+      <li class="mod__cluster-item">
+        <label class="mod__cluster-pick">
+          <input type="checkbox" name="materials" value="${item.id}">
+          <span class="visually-hidden">${t(locale, 'mod.cluster.pick', { id: item.id })}</span>
+        </label>
+        <a class="mod__cluster-link" href="/${locale}/mod?material=${item.id}">
+          <span class="mod__cluster-id">${t(locale, 'mod.item.title', { id: item.id })}</span>
+          <span class="mod__cluster-text">${paragraphs(item.body)[0] ?? ''}</span>
+        </a>
+      </li>`)}
+    </ol>
+
+    <label class="field__label" for="mod-cluster-reason">${t(locale, 'mod.reason.label')}</label>
+    <textarea class="field__input" id="mod-cluster-reason" name="reason" rows="2" required
+      >${t(locale, 'mod.reason.placeholder')}</textarea>
+    <p class="mod__actions">
+      <button class="button button--primary" type="submit" name="decision" value="approve"
+        >${t(locale, 'mod.decision.approve')}</button>
+      <button class="button button--danger" type="submit" name="decision" value="reject"
+        >${t(locale, 'mod.decision.reject')}</button>
+    </p>
+  </form>
+
+  <p><a class="button button--quiet" href="/${locale}/mod">${t(locale, 'mod.cluster.back')}</a></p>
+</div>`;
+}
+
+/**
  * Очередь модерации и разбор материала.
  *
  * @param {object} args
@@ -52,7 +104,10 @@ export function moderationView({ locale, queue = [], clusters = [], material = n
         <a class="mod__item-link" href="/${locale}/mod?material=${item.id}">
           <span class="mod__item-title">${t(locale, 'mod.item.title', { id: item.id })}</span>
           ${when(cluster, () => html`
-          <span class="mod__item-cluster">${t(locale, 'mod.item.cluster', { count: cluster.size })}</span>`)}
+          <span class="mod__item-cluster">
+            <a href="/${locale}/mod/cluster?material=${item.id}"
+              >${t(locale, 'mod.item.cluster', { count: cluster.size })}</a>
+          </span>`)}
           ${when(item.complaints > 0, () => html`
           <span class="mod__item-complaints">${t(locale, 'mod.item.complaints', { count: item.complaints })}</span>`)}
           <span class="mod__item-waiting">${t(locale, 'mod.item.waiting', { minutes: item.waitingMinutes })}</span>

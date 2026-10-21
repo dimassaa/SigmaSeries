@@ -157,6 +157,75 @@ export function pgModerationDecisions(pool) {
   }
 
   /**
+   * Разделить кластер: решение по выбранным материалам (F-05-03 §5).
+   *
+   * Кластер — способ разбора, а не приговор: редактор решает по каждому
+   * материалу отдельно, и решение применяется только к выбранным. Кластерная
+   * подпись (запрет по сигнатуре) при этом не ставится: группа оказалась не
+   * однородной, и материалы с той же сигнатурой, пришедшие позже, разбираются
+   * сами.
+   *
+   * @param {{materialIds?: number[], decision: string, editorId: number, reason: string}} input
+   * @returns {Promise<{ok: boolean, reason?: string, decided?: number}>}
+   */
+  async function split({ materialIds = [], decision, editorId, reason }) {
+    if (!DECISIONS[decision]) return { ok: false, reason: 'decision' };
+    const cause = String(reason ?? '').trim();
+    if (!cause) return { ok: false, reason: 'reason' };
+
+    const ids = [...new Set(materialIds.map(Number).filter((id) => Number.isInteger(id) && id > 0))];
+    if (!ids.length) return { ok: false, reason: 'materials' };
+
+    // Темп решений: заведомо неправдоподобная частота — сама по себе сигнал
+    // (F-05-04 §9). Разделение — одно решение редактора, а не десяток.
+    const { rows: [tally] } = await pool.query(
+      `SELECT count(*)::int AS n FROM e_editor_decision
+        WHERE editor_id = $1 AND decided_at > now() - interval '1 hour'`,
+      [editorId],
+    );
+    if (Number(tally.n) >= MODERATION.decisionsPerHour) return { ok: false, reason: 'rate' };
+
+    const state = DECISIONS[decision];
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      const { rows: materials } = await client.query(
+        `SELECT id, author_id FROM e_material
+          WHERE id = ANY($1::bigint[]) AND state IN ('flagged','checking')`,
+        [ids],
+      );
+      for (const material of materials) {
+        await client.query(
+          `INSERT INTO e_editor_decision (material_id, editor_id, decision, reason)
+           VALUES ($1, $2, $3, $4)`,
+          [material.id, editorId, state, cause],
+        );
+        await client.query(
+          'UPDATE e_material SET state = $2, decided_at = now() WHERE id = $1',
+          [material.id, state],
+        );
+        await client.query(
+          `INSERT INTO e_notification (user_id, kind, category, params, dedup_key)
+           VALUES ($1, 'material_decision', 'service', $2, $3)
+           ON CONFLICT (user_id, dedup_key) DO NOTHING`,
+          [
+            material.author_id,
+            JSON.stringify({ materialId: material.id, decision: state, reason: cause }),
+            `material-decision:${material.id}`,
+          ],
+        );
+      }
+      await client.query('COMMIT');
+      return { ok: true, decided: materials.length };
+    } catch (error) {
+      await client.query('ROLLBACK');
+      throw error;
+    } finally {
+      client.release();
+    }
+  }
+
+  /**
    * История решений по материалам автора — редактору о его материалах
    * (F-05-04 §4: «история автора за последние решения»).
    *
@@ -180,5 +249,5 @@ export function pgModerationDecisions(pool) {
     }));
   }
 
-  return { decide, one, authorHistory };
+  return { decide, one, authorHistory, split };
 }

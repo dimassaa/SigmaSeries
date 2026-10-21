@@ -121,3 +121,39 @@
 }
 
 .mod__restrict-title { font-size: var(--text-base); font-weight: 600; }
+
+/* Кластер: список материалов группы и выбор тех, к которым относится
+ * решение (F-05-03 §5). */
+.mod__cluster {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0 0 var(--space-3);
+  padding: 0;
+  list-style: none;
+  max-block-size: 60vh;
+  overflow-y: auto;
+}
+
+.mod__cluster-item {
+  display: flex;
+  gap: var(--space-2);
+  align-items: baseline;
+  padding: var(--space-2);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+}
+
+.mod__cluster-pick { flex: none; }
+
+.mod__cluster-link { text-decoration: none; color: inherit; }
+
+.mod__cluster-id { color: var(--text-secondary); font-size: var(--text-xs); }
+
+.mod__cluster-text {
+  display: block;
+  color: var(--text-primary);
+  font-size: var(--text-sm);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

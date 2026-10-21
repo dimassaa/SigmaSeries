@@ -31,7 +31,7 @@
 | `OP-03`, оценка и агрегат | `src/services/rating/store.js`, `routes/series.js`, `routes/season.js` | 15 (`tests/rating.store.test.js`) + 8 (`tests/http.rating.test.js`) + 10 (`tests/http.rating.episode.test.js`) | **ПРОВЕРЕНО** |
 | `OP-03`, среднее по сайту и гистограмма | `src/services/rating/store.js` (`refreshSiteAverage`), `src/view/rating.js`, `src/routes/series.js` (JSON-LD) | 3 (`tests/rating.store.test.js`: формула 7,5, среднее сайта, исключение бана) + 3 (`tests/http.rating.test.js`: состояния, гистограмма, разметка) | **ПРОВЕРЕНО** |
 | `OP-01`, отзыв: форма и публикация | `src/services/reviews/store.js`, `src/view/reviews.js`, `src/routes/series.js` | 22 (`tests/reviews.store.test.js`) + 15 (`tests/http.reviews.test.js`) | **ПРОВЕРЕНО** |
-| `OP-02` | антиспам (M5): `src/services/moderation/budget.js` (осторожный режим, давление очереди, бюджет помеченных с авто-мьютом, потолок очереди), `cluster.js` | 4 + 4 (`tests/moderation.budget.test.js`, `tests/moderation.flagged-budget.test.js`, `tests/moderation.queue-ceiling.test.js`) + 7 (`tests/moderation.cluster.test.js`) | **ЕСТЬ КОД**: бюджет помеченных (R-MOD-08), потолок очереди (R-MOD-11) и распространение решения по кластеру сделаны 21.10; не сделано разделение кластера редактором |
+| `OP-02` | антиспам (M5): `src/services/moderation/budget.js` (осторожный режим, давление очереди, бюджет помеченных с авто-мьютом, потолок очереди), `cluster.js` (кластеры, разделение, распространение решения), `decision.js` | 4 + 8 (`tests/moderation.budget.test.js`, `tests/moderation.flagged-budget.test.js`, `tests/moderation.queue-ceiling.test.js`, `tests/moderation.split.test.js`) + 7 (`tests/moderation.cluster.test.js`) | **ПРОВЕРЕНО** |
 | `OP-04`, группы и списки отзывов | `src/services/rating/group.js`, `src/services/reviews/list.js`, `src/view/reviewList.js`, `src/routes/series.js` | 4 (`tests/rating.group.test.js`) + 13 (`tests/reviews.list.test.js`) + 10 (`tests/http.reviews.list.test.js`) | **ПРОВЕРЕНО** |
 | `OP-05`, `OP-11`, `OP-12`, `OP-14`, `OP-15`, `OP-18` | баннеры дня, рекомендации, итоги, онлайн, агрегация аналитики, подборки по правилам — все P1 | — | **СПЕЦИФИЦИРОВАНО** |
 
@@ -41,9 +41,9 @@
 (`src/services/audit/log.js`, R-SEC-29 и R-SEC-33) — все три **ПРОВЕРЕНО**.
 
 Операций семнадцать (`OP-13` снят решением DEC-024, идентификатор не
-переиспользуется). Десять из них **ПРОВЕРЕНО**, семь остаются в статусе
-**СПЕЦИФИЦИРОВАНО** или **ЕСТЬ КОД**: один P0 ждёт продолжения — OP-02
-(антиспам, M5; код наполовину, см. строку выше); шесть P1 — своих модулей.
+переиспользуется). Одиннадцать из них **ПРОВЕРЕНО**, шесть остаются в статусе
+**СПЕЦИФИЦИРОВАНО**: все шесть — P1, своих модулей. Ни одна P0-операция не
+ждёт продолжения.
 
 ## 2. Требования Бланка → где реализуется
 

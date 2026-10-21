@@ -8,7 +8,7 @@ import express from 'express';
 import { isLocale, t } from '../i18n/strings.js';
 import { csrfValid } from '../services/auth/session.js';
 import { DECISIONS } from '../services/moderation/decision.js';
-import { moderationView } from '../view/moderation.js';
+import { moderationView, clusterView } from '../view/moderation.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { errorPage } from './home.js';
 import { csrfToken } from '../services/auth/session.js';
@@ -87,6 +87,87 @@ export function createModerationRoutes({
           mode,
         }),
       })));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  // Кластер: группа материалов и её разделение (F-05-03 §5).
+  router.get(`/:locale${BASE}/cluster`, editorOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+
+    try {
+      const materialId = Number(req.query.material);
+      if (!Number.isInteger(materialId) || materialId < 1) {
+        return res.status(404).type('text/plain; charset=utf-8')
+          .send(t(locale, 'mod.error.missing'));
+      }
+      const groups = await clustersService.groups({
+        windowHours: MODERATION.clusterWindowH,
+        minSize: 1,
+      });
+      const group = groups.find((item) => item.materials.some((row) => row.id === materialId));
+      if (!group) {
+        return res.status(404).type('text/plain; charset=utf-8')
+          .send(t(locale, 'mod.error.missing'));
+      }
+
+      return res.status(200).type('html').send(rawHtml(layout({
+        account: req.account,
+        locale,
+        path: BASE,
+        title: pageTitle(locale, t(locale, 'mod.cluster.title', { count: group.size })),
+        description: t(locale, 'mod.cluster.hint', { count: group.size, authors: group.authors }),
+        noindex: true,
+        styles: STYLES,
+        body: clusterView({ locale, group, csrf: csrfToken(req.session) }),
+      })));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  // Разделение кластера: решение по выбранным материалам (F-05-03 §5).
+  router.post(`/:locale${BASE}/cluster`, editorOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+
+    const body = req.body ?? {};
+    try {
+      if (!csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'mod.error.csrf'));
+      }
+      const materialIds = Array.isArray(body.materials) ? body.materials : [body.materials];
+      const result = await decisions.split({
+        materialIds,
+        decision: body.decision,
+        editorId: req.session.user.id,
+        reason: body.reason,
+      });
+      if (!result.ok) {
+        const key = {
+          decision: 'mod.error.decision',
+          reason: 'mod.error.reason',
+          rate: 'mod.error.rate',
+          materials: 'mod.cluster.empty',
+        }[result.reason] ?? 'mod.error.decision';
+        return res.status(result.reason === 'materials' ? 400 : 400)
+          .type('text/plain; charset=utf-8')
+          .send(t(locale, key));
+      }
+      if (audit) {
+        await audit.write({
+          actorId: req.session.user.id,
+          action: 'material.split',
+          objectType: 'material',
+          objectId: null,
+          result: 'ok',
+          reason: `decided=${result.decided}; ${body.decision}`,
+        });
+      }
+      return res.status(303).set('Location', `/${locale}${BASE}`).end();
     } catch (error) {
       return next(error);
     }
