@@ -50,7 +50,9 @@ export function subscribeBell({ locale, slug, state, csrf, signedIn, archived = 
   const auto = state?.source === 'auto';
 
   return html`
-<div class="subs" data-subs="${enabled ? (auto ? 'auto' : 'manual') : 'off'}">
+<div class="subs" data-subs="${enabled ? (auto ? 'auto' : 'manual') : 'off'}"
+    data-track-click="subscription_toggle"
+    data-track-props="${JSON.stringify({ kind: view, way: auto ? 'auto' : 'manual' })}">
   <form method="post" action="/${locale}/series/${slug}/subscribe">
     <input type="hidden" name="csrf" value="${csrf}">
     <input type="hidden" name="view" value="${view}">

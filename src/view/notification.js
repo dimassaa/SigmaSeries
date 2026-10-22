@@ -169,7 +169,8 @@ function item({ locale, row, csrf, feed }) {
   const unread = row.read_at === null;
 
   return html`
-<li class="notifications__item${unread ? ' notifications__item--unread' : ''}">
+<li class="notifications__item${unread ? ' notifications__item--unread' : ''}"
+    data-track-click="notification_open" data-track-props="${JSON.stringify({ kind: row.kind })}">
   <span class="notifications__icon" aria-hidden="true">${ICON[row.kind] ?? '•'}</span>
   <div class="notifications__body">
     <p class="notifications__item-title">

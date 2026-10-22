@@ -1538,7 +1538,20 @@
       if (!target || !target.closest) return;
       var node = target.closest('[data-track-click]');
       if (!node) return;
-      track(node.getAttribute('data-track-click'), { position: String(positionOf(node)) });
+      var props = { position: String(positionOf(node)) };
+      // Свойства события, заданные разметкой: тип уведомления, вид календаря.
+      var extra = node.getAttribute('data-track-props');
+      if (extra) {
+        try {
+          var parsed = JSON.parse(extra);
+          if (parsed && typeof parsed === 'object') {
+            Object.keys(parsed).forEach(function (key) { props[key] = String(parsed[key]); });
+          }
+        } catch (error) {
+          // Мусор в свойствах — просто событие без них.
+        }
+      }
+      track(node.getAttribute('data-track-click'), props);
     }, true);
   }
 
@@ -1563,6 +1576,14 @@
   function initAnalytics() {
     if (!analyticsAllowed()) return;
     track('page_view', { page_type: pageTypeOf() });
+    if (pageTypeOf() === 'calendar') {
+      // Вид и фильтр календаря — из адреса: страница и фильтр живут в запросе.
+      var params = new URLSearchParams(location.search);
+      track('calendar_view', {
+        view: params.get('view') || 'month',
+        filter: params.get('filter') || 'all',
+      });
+    }
     if (pageTypeOf() === 'series') {
       // Источник перехода: откуда человек пришёл на страницу сериала.
       var referrer = document.referrer || '';
