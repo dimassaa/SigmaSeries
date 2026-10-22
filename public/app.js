@@ -1342,6 +1342,7 @@
     initRecap();
     initAnalytics();
     initConsentBanner();
+    initWebVitals();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();
@@ -1426,6 +1427,75 @@
         send(analyticsToken);
       })
       .catch(function () { /* сети нет — события подождут */ });
+  }
+
+  /**
+   * Показатели скорости (R-AN-18): браузер сам присылает их.
+   *
+   * LCP, INP и CLS считаются на устройстве человека: сервер знает, сколько
+   * отдал байт, а не сколько это заняло на глаз.
+   */
+  function initWebVitals() {
+    if (!analyticsAllowed() || !window.PerformanceObserver) return;
+    var lcp = 0;
+    var cls = 0;
+    var inp = 0;
+
+    var publish = function () {
+      if (!lcp && !cls && !inp) return;
+      track('web_vitals', {
+        lcp: Math.round(lcp),
+        inp: Math.round(inp),
+        cls: Math.round(cls * 1000) / 1000,
+        page: pageTypeOf(),
+        device: deviceClass(),
+      });
+      lcp = 0;
+      cls = 0;
+      inp = 0;
+    };
+
+    var observe = function (type, handler) {
+      try {
+        new PerformanceObserver(function (list) { handler(list.getEntries()); })
+          .observe({ type: type, buffered: true });
+      } catch (error) {
+        // Браузер не знает метрику — это не поломка, а другое поколение API.
+      }
+    };
+
+    observe('largest-contentful-paint', function (entries) {
+      var last = entries[entries.length - 1];
+      if (last) lcp = last.startTime;
+    });
+    observe('layout-shift', function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.hadRecentInput) cls += entry.value;
+      });
+    });
+    observe('first-input', function (entries) {
+      var last = entries[entries.length - 1];
+      if (last) inp = last.duration;
+    });
+
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'hidden') {
+        publish();
+        flushAnalytics();
+      }
+    });
+    window.addEventListener('pagehide', function () {
+      publish();
+      flushAnalytics();
+    });
+  }
+
+  /** Класс устройства: телефон, планшет или компьютер. */
+  function deviceClass() {
+    var width = window.innerWidth || 0;
+    if (width < 768) return 'mobile';
+    if (width < 1024) return 'tablet';
+    return 'desktop';
   }
 
   /** Планировщик: пачка уходит раз в тридцать секунд и при уходе со страницы. */
