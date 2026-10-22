@@ -259,7 +259,7 @@ export function pgData(pool, { recommendations = null } = {}) {
           FROM e_genre g
           LEFT JOIN e_series_genre sg ON sg.genre_code = g.code
           LEFT JOIN e_series s ON s.id = sg.series_id AND s.archived_at IS NULL
-         WHERE g.active
+         WHERE g.active AND g.is_raw = FALSE
          GROUP BY g.code, g.name_ru, g.name_en
         HAVING count(sg.series_id) > 0
          ORDER BY series_count DESC

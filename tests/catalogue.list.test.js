@@ -6,6 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 import { createPool } from '../src/db/pool.js';
 import { pgCatalogueList } from '../src/services/catalogue/list.js';
@@ -245,6 +246,32 @@ test('сортировка выбирается из белого списка',
   const byRating = await stablePage({ sort: 'rating' });
   const values = byRating.items.map((item) => item.rating ?? -1);
   assert.deepEqual(values, [...values].sort((a, b) => b - a), 'по рейтингу — по убыванию');
+});
+
+test('сырые жанры импорта не попадают в публичный фильтр', { skip }, async () => {
+  const code = `imdb:test-${crypto.randomUUID()}`;
+  const { rows: [series] } = await pool.query(
+    "SELECT id FROM e_series WHERE publication_state = 'published' AND archived_at IS NULL LIMIT 1",
+  );
+  await pool.query(
+    `INSERT INTO e_genre (code, name_ru, name_en, active, is_raw)
+     VALUES ($1, $1, $1, true, true)`,
+    [code],
+  );
+  await pool.query(
+    'INSERT INTO e_series_genre (series_id, genre_code) VALUES ($1, $2)',
+    [series.id, code],
+  );
+
+  try {
+    const filters = await catalogue.filters();
+    assert.ok(!filters.genres.some((genre) => genre.code === code),
+      'жанр без перевода остаётся в импорте, но человеку в фильтре не показывается');
+  } finally {
+    await pool.query('DELETE FROM e_series_genre WHERE series_id = $1 AND genre_code = $2',
+      [series.id, code]);
+    await pool.query('DELETE FROM e_genre WHERE code = $1', [code]);
+  }
 });
 
 test('границы фильтров берутся из данных', { skip }, async () => {

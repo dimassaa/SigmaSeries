@@ -218,6 +218,7 @@ export function pgCatalogueList(pool) {
             JOIN e_series_genre sg ON sg.genre_code = g.code
             JOIN e_series s ON s.id = sg.series_id
            WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+             AND g.active AND g.is_raw = FALSE
            GROUP BY g.code, g.name_ru, g.name_en
            HAVING count(*) > 0
            ORDER BY g.name_ru`),
