@@ -32,7 +32,7 @@ const defaultLimiter = createRateLimiter({ limit: RATE_PER_MINUTE, windowMs: WIN
  * @param {Function} deps.sessionMw
  * @param {{allow: (key: string) => boolean, windowMs: number}} [deps.limiter]
  */
-export function createStatusRoutes({ status, series, sessionMw, limiter = defaultLimiter }) {
+export function createStatusRoutes({ status, series, sessionMw, limiter = defaultLimiter, analytics = null }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -71,6 +71,12 @@ export function createStatusRoutes({ status, series, sessionMw, limiter = defaul
     // было бы лишним, ведь в меню это один из пунктов наравне с остальными.
     if (wanted === '') {
       await status.remove({ userId, seriesId: found.id });
+      // Статус меняет данные, поэтому событие пишет сервер (R-AN-05).
+      await analytics?.write({
+        name: 'status_set',
+        props: { old: '', new: 'none' },
+        userId,
+      });
       return res.redirect(303, back);
     }
 
@@ -83,6 +89,11 @@ export function createStatusRoutes({ status, series, sessionMw, limiter = defaul
     // человек убирает его кнопкой «Убрать», а не сменой статуса.
     if (!result.ok) return res.redirect(303, back);
 
+    await analytics?.write({
+      name: 'status_set',
+      props: { old: String(result.old ?? ''), new: wanted },
+      userId,
+    });
     return res.redirect(303, back);
   });
 

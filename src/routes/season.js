@@ -32,6 +32,7 @@ const number = (value, min) => {
 
 export function createSeasonRoutes({
   seasons, sessionMw = null, series = null, ratings = null, ratingLimiter = null,
+  analytics = null,
 }) {
   const router = express.Router({ strict: true });
   // Сессия нужна ради отметок: гость видит такую же строку серии, но без

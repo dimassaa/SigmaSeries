@@ -21,7 +21,7 @@ const WINDOW_MS = 60_000;
 
 const defaultLimiter = createRateLimiter({ limit: RATE_PER_MINUTE, windowMs: WINDOW_MS });
 
-export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLimiter }) {
+export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLimiter, analytics = null }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -66,12 +66,25 @@ export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLi
           return res.redirect(303, `${back}?mark=soon&date=${encodeURIComponent(result.date ?? '')}`);
         }
         if (!result.ok) return res.redirect(303, `${back}?mark=${result.reason}`);
+        // Отметка меняет прогресс, поэтому событие пишет сервер (R-AN-05).
+        await analytics?.write({
+          name: 'episode_mark',
+          props: { precision: 'exact', bulk: 'episode' },
+          userId,
+        });
         return res.redirect(303, `${back}?mark=ok`);
       }
 
       if (action === 'season') {
         const result = await marks.markSeason({ userId, seasonId: number(req.body?.seasonId), today });
         if (!result.ok) return res.redirect(303, `${back}?mark=${result.reason}`);
+        // Массовая отметка — ретро: человек отметил всё до этой серии одним
+        // нажатием, и в «любимое время суток» такая отметка не годится.
+        await analytics?.write({
+          name: 'episode_mark',
+          props: { precision: 'retro', bulk: 'season' },
+          userId,
+        });
         return res.redirect(303, `${back}?mark=done&marked=${result.marked}&batch=${result.batchId}`);
       }
 

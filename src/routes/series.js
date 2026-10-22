@@ -67,6 +67,7 @@ export function createSeriesRoutes({
   reports = null,
   reportLimiter = null,
   dictionary = null,
+  analytics = null,
   reviewIpLimiter = null,
   reviewDeviceLimiter = null,
 }) {
@@ -362,12 +363,23 @@ export function createSeriesRoutes({
         // диапазона и должен быть отвергнут, а человек хочет снять своё.
         if (raw === '' || raw === '0') {
           await ratings.removeSeriesRating({ userId: user.id, seriesId: found.id });
+          // Оценка меняет данные, поэтому событие пишет сервер (R-AN-05).
+          await analytics?.write({
+            name: 'rating_set',
+            props: { value: '0', object: 'series' },
+            userId: user.id,
+          });
           // H-75: отзыв — продолжение оценки, и «убрать оценку» при живом
           // отзыве удаляет и его. Подтверждение спрашивает интерфейс: без
           // скрипта данные остаются в целости (см. `rating.clear.confirm`).
           if (reviews) await reviews.deleteOwn({ userId: user.id, seriesId: found.id });
         } else {
           await ratings.setSeriesRating({ userId: user.id, seriesId: found.id, value: Number(raw) });
+          await analytics?.write({
+            name: 'rating_set',
+            props: { value: raw, object: 'series' },
+            userId: user.id,
+          });
         }
 
         // Один и тот же возврат и на успех, и на отказ: причина отказа приходит

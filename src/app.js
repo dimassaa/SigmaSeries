@@ -207,7 +207,7 @@ export function createApp({
   if (search) app.use(createSearchRoutes({
     search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined,
   }));
-  if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series, ratings, ratingLimiter }));
+  if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series, ratings, ratingLimiter, analytics }));
   // Слой подробной карточки постера (F-02-07): спрашивается по намерению.
   if (posterCard) app.use(createPosterCardRoutes({ card: posterCard, sessionMw }));
   // Служебные страницы (F-00-05): «О проекте и данных», правила сообщества
@@ -216,7 +216,7 @@ export function createApp({
   if (series) app.use(createSeriesRoutes({
     series, watchStatus, sessionMw, progress, subscriptions, ratings, ratingLimiter,
     reviews, reviewList, votes, helpfulLimiter, reports, reportLimiter,
-    dictionary, reviewIpLimiter, reviewDeviceLimiter,
+    dictionary, reviewIpLimiter, reviewDeviceLimiter, analytics,
   }));
   // Страница отзыва (S-10) живёт вне сериала: адрес `/reviews/{id}` один на
   // отзыв, и по сериалу он не выводится.
@@ -301,13 +301,17 @@ export function createApp({
   // Статус меняется по POST с CSRF и проверкой сессии: без них кнопка
   // была бы формой, которая пишет в базу по чужой ссылке.
   if (watchStatus && series && sessionMw) {
-    app.use(createStatusRoutes({ status: watchStatus, series, sessionMw, limiter: statusLimiter ?? undefined }));
+    app.use(createStatusRoutes({
+      status: watchStatus, series, sessionMw, limiter: statusLimiter ?? undefined, analytics,
+    }));
   }
   // Закладки читают сессию: гостю показывается вход, вошедшему — свой список.
   if (library && sessionMw) app.use(createLibraryRoutes({ library, sessionMw, progress, subscriptions }));
   // Отметки серий: POST с CSRF, лимитом частоты и проверкой «вышла ли серия».
   if (marks && series && sessionMw) {
-    app.use(createMarkRoutes({ marks, series, sessionMw, limiter: markLimiter ?? undefined }));
+    app.use(createMarkRoutes({
+      marks, series, sessionMw, limiter: markLimiter ?? undefined, analytics,
+    }));
   }
   // Лента уведомлений (F-03-09). Живёт рядом с подпиской: колокольчик
   // создаёт записи, а лента их показывает, и обе части читают одну таблицу.
