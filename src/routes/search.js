@@ -57,7 +57,7 @@ export function searchLimited(ip, rate, now = Date.now()) {
 }
 
 export function createSearchRoutes({
-  search, ratePerIp = DEFAULT_RATE_PER_MINUTE, sessionMw = null, panel = null,
+  search, ratePerIp = DEFAULT_RATE_PER_MINUTE, sessionMw = null, panel = null, analytics = null,
 }) {
   const router = express.Router({ strict: true });
   // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
@@ -91,6 +91,24 @@ export function createSearchRoutes({
 
     try {
       const result = await search.find({ query, offsets: offsetsFrom(req.query.from) });
+      // Поиск и отсутствие результата — события сервера: только длина запроса
+      // и число результатов, сам текст не попадает в аналитику никогда
+      // (R-AN-19).
+      if (query) {
+        const userId = req.session?.user?.id ?? null;
+        await analytics?.write({
+          name: 'search_submit',
+          props: { length: String(query.length), results: String(result.total) },
+          userId,
+        });
+        if (result.total === 0) {
+          await analytics?.write({
+            name: 'search_no_results',
+            props: { length: String(query.length) },
+            userId,
+          });
+        }
+      }
       return res.status(200).type('html').send(rawHtml(layout({
         styles: STYLES,
         account: req.account,

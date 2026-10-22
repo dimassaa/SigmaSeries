@@ -205,7 +205,7 @@ export function createApp({
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
   if (catalogue) app.use(createCatalogueRoutes({ catalogue, sessionMw, panel }));
   if (search) app.use(createSearchRoutes({
-    search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined,
+    search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined, analytics,
   }));
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series, ratings, ratingLimiter, analytics }));
   // Слой подробной карточки постера (F-02-07): спрашивается по намерению.

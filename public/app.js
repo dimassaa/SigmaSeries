@@ -312,10 +312,6 @@
     if (!input) return;
 
     var locale = (location.pathname.split('/')[1] || 'ru');
-    // Текст запроса в событие не попадает никогда (R-AN-19): только длина.
-    form.addEventListener('submit', function () {
-      track('search_submit', { length: input.value.length });
-    });
     var debounce = Number(form.getAttribute('data-debounce')) || 200;
     var timer = null;
     var controller = null;
