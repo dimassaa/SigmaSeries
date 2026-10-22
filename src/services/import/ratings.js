@@ -23,7 +23,7 @@ const CHUNK = 500;
  * Обновляет рейтинг и число голосов IMDb для сериалов каталога.
  *
  * @param {object} options
- * @param {object} options.pool
+ * @param {import('pg').Pool} options.pool
  * @param {string} options.path файл `title.ratings.tsv.gz`
  * @param {Date} [options.now]
  * @returns {Promise<{inCatalogue: number, matched: number, updated: number}>}

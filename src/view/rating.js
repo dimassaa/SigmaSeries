@@ -17,6 +17,35 @@ import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
 import { dayLabel } from './dates.js';
 
+/**
+ * @typedef {object} RatingSummary
+ * @property {boolean} shown показывать ли среднее: голосов может быть много,
+ *   а показывать ещё рано (порог `rating.min_votes_display`)
+ * @property {number} votes число голосов
+ * @property {number} average средняя оценка
+ * @property {Map<number, number>} histogram распределение голосов: оценка —
+ *   число голосов
+ */
+
+/**
+ * @typedef {object} RatingOwn
+ * @property {number} value своя оценка
+ * @property {boolean} counted учтён ли голос в рейтинге
+ * @property {string|null} maturesAt когда голос вступит в силу
+ */
+
+/**
+ * @typedef {object} RatingBlock
+ * @property {RatingSummary} summary
+ * @property {RatingOwn|null} own своя оценка, если она уже есть
+ * @property {boolean} canRate можно ли оценивать
+ * @property {string|null} reason почему нельзя оценивать
+ * @property {boolean} signedIn вошёл ли человек
+ * @property {string} csrf
+ * @property {boolean} [hasReview] есть ли у человека отзыв: снятие оценки
+ *   удалит и его, поэтому спрашиваем согласия
+ */
+
 /** Десять значений шкалы — одна последовательность на все экраны. */
 const SCALE = Array.from({ length: 10 }, (_, index) => index + 1);
 
@@ -109,10 +138,10 @@ function scaleForm({
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.summary
+ * @param {RatingSummary} args.summary
  * @param {string} args.low текст состояния «мало оценок»: у сериала с числом
  *   голосов, у серии краткий — её строка в списке и так коротка
- * @param {string|null} args.none текст состояния «нет оценок» или `null`
+ * @param {string|null} [args.none] текст состояния «нет оценок» или `null`
  * @param {string|null} [args.label] подпись числа: «Сайт» у рейтинга сайта
  */
 export function averageLine({ locale, summary, low, none = null, label = null }) {
@@ -142,7 +171,7 @@ export function averageLine({ locale, summary, low, none = null, label = null })
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.summary
+ * @param {RatingSummary} args.summary
  */
 export function histogram({ locale, summary }) {
   const maxVotes = Math.max(1, ...SCALE.map((value) => summary.histogram.get(value) ?? 0));
@@ -186,6 +215,11 @@ export function histogram({ locale, summary }) {
  *
  * Человек, поставивший оценку сразу после регистрации, видит своё число и
  * должен понимать, почему оно не сдвинуло рейтинг.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {RatingOwn|null} args.own своя оценка
+ * @param {string|null} [args.timezone] пояс посетителя для подписи дозревания
  */
 export function ownLine({ locale, own, timezone }) {
   return when(own, () => html`
@@ -202,7 +236,7 @@ export function ownLine({ locale, own, timezone }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {string} args.slug
- * @param {object} args.rating данные блока: `summary`, `own`, `canRate`, `reason`
+ * @param {RatingBlock} args.rating данные блока: `summary`, `own`, `canRate`, `reason`
  * @param {string|null} [args.timezone] пояс посетителя для подписи дозревания
  */
 export function seriesRatingBlock({ locale, slug, rating: block, timezone = null }) {
@@ -259,7 +293,7 @@ export function seriesRatingBlock({ locale, slug, rating: block, timezone = null
  * @param {string} args.slug
  * @param {number} args.season
  * @param {number} args.episode номер серии
- * @param {object} args.rating данные блока: `summary`, `own`, `canRate`, `reason`
+ * @param {RatingBlock} args.rating данные блока: `summary`, `own`, `canRate`, `reason`
  * @param {string|null} [args.timezone]
  */
 export function episodeRatingBlock({ locale, slug, season, episode, rating: block, timezone = null }) {
@@ -303,7 +337,7 @@ export function episodeRatingBlock({ locale, slug, season, episode, rating: bloc
  * человек и оказался, если шкалы не нашлось. Экспорт нужен лишь затем, чтобы
  * не рисовать пустую обёртку вокруг ничего.
  *
- * @param {object|null} rating блок оценки серии
+ * @param {RatingBlock|null} rating блок оценки серии
  * @returns {boolean}
  */
 export function hasEpisodeRating(rating) {
@@ -324,7 +358,7 @@ export function hasEpisodeRating(rating) {
  * @param {string} args.slug
  * @param {number} args.season
  * @param {number} args.episode номер серии
- * @param {object} args.rating
+ * @param {RatingBlock} args.rating
  */
 export function episodeRatingCell({ locale, slug, season, episode, rating: block }) {
   const { summary, own, canRate, signedIn, csrf } = block;

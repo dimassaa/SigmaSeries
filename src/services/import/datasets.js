@@ -128,14 +128,16 @@ async function downloadOnce({ url, dest, maxBytes, timeoutMs }) {
  * Готовит датасет на диске: свежий — берём как есть, иначе качаем.
  *
  * @param {object} options
- * @param {keyof DATASETS} options.key
+ * @param {'basics'|'ratings'|'crew'|'principals'|'names'} options.key
+ *   Ключ из `DATASETS`; перечисление написано словами, потому что `keyof` по
+ *   значению не даёт ключа, пригодного для поиска по объекту.
  * @param {string} options.dir каталог для датасетов
  * @param {string} [options.baseUrl] адрес источника; по умолчанию официальный
  * @param {number} options.maxBytes
  * @param {number} options.timeoutMs
  * @param {number} options.attempts
  * @param {number} options.freshDays
- * @param {() => Promise<void>} [options.sleep] пауза между попытками
+ * @param {(ms:number) => Promise<void>} [options.sleep] пауза между попытками
  * @returns {Promise<{path:string, reused:boolean, bytes:number}>}
  */
 export async function ensureDataset({

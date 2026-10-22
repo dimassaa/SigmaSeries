@@ -7,11 +7,61 @@ import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 
 /**
+ * Строка списка подборок.
+ *
+ * @typedef {object} StudioCollectionSummary
+ * @property {number} id
+ * @property {string} slug
+ * @property {string} title
+ * @property {string|null} titleEn
+ * @property {string|null} description
+ * @property {string|null} descriptionEn
+ * @property {number} weight
+ * @property {boolean} active
+ * @property {boolean} isDemo
+ * @property {number} visibleSeries
+ * @property {number} totalSeries
+ * @property {string[]} publishBlockers
+ */
+
+/**
+ * Сериал внутри подборки.
+ *
+ * @typedef {object} StudioCollectionItem
+ * @property {number} seriesId
+ * @property {number} ordinal
+ * @property {string} slug
+ * @property {string} title
+ * @property {number|null} year
+ * @property {number|null} posterWidth
+ * @property {boolean} visible
+ */
+
+/**
+ * Подборка целиком — с её сериалами.
+ *
+ * @typedef {object} StudioCollection
+ * @property {number} id
+ * @property {string} slug
+ * @property {string} title
+ * @property {string|null} titleEn
+ * @property {string|null} description
+ * @property {string|null} descriptionEn
+ * @property {number} weight
+ * @property {boolean} active
+ * @property {boolean} isDemo
+ * @property {boolean} hasBanner
+ * @property {number} visibleSeries
+ * @property {string[]} publishBlockers
+ * @property {StudioCollectionItem[]} items
+ */
+
+/**
  * Список подборок.
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object[]} args.list
+ * @param {StudioCollectionSummary[]} [args.list]
  * @returns {object}
  */
 export function studioCollectionsView({ locale, list = [] }) {
@@ -61,8 +111,8 @@ export function studioCollectionsView({ locale, list = [] }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.collection
- * @param {string} args.csrf
+ * @param {StudioCollection} args.collection
+ * @param {string} [args.csrf]
  * @returns {object}
  */
 export function studioCollectionView({ locale, collection, csrf = '' }) {

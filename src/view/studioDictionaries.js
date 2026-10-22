@@ -7,14 +7,39 @@ import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 
 /**
+ * @typedef {object} StudioGenre
+ * @property {string} code
+ * @property {string|null} nameRu
+ * @property {string|null} nameEn
+ * @property {boolean} active
+ * @property {number} seriesCount
+ * @property {boolean} raw сырой жанр импорта: правке не подлежит
+ */
+
+/**
+ * @typedef {object} StudioPlatform
+ * @property {string} code
+ * @property {string} name
+ * @property {number} scaleMax
+ * @property {number} ratings
+ * @property {boolean} active
+ */
+
+/**
+ * @typedef {object} StudioCountry
+ * @property {string} code
+ * @property {string} title
+ */
+
+/**
  * Справочники.
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object[]} args.genres
- * @param {object[]} args.platforms
- * @param {object[]} args.countries
- * @param {string} args.csrf
+ * @param {StudioGenre[]} [args.genres]
+ * @param {StudioPlatform[]} [args.platforms]
+ * @param {StudioCountry[]} [args.countries]
+ * @param {string} [args.csrf]
  * @returns {object}
  */
 export function studioDictionariesView({

@@ -8,16 +8,54 @@ import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 
 /**
+ * Назначение «Выбор редакции» на день.
+ *
+ * @typedef {object} EditorialPick
+ * @property {number} id
+ * @property {string} day
+ * @property {number} seriesId
+ * @property {string} slug
+ * @property {string} title
+ * @property {string|null} note
+ * @property {string|Date|null} setAt
+ * @property {boolean} withdrawn сериал ушёл в архив
+ * @property {boolean} noBackdrop у сериала нет фона
+ */
+
+/**
+ * Баннер в предпросмотре.
+ *
+ * @typedef {object} BannerPreview
+ * @property {string} kind
+ * @property {number} seriesId
+ * @property {string} slug
+ * @property {string} title
+ * @property {number|null} year
+ * @property {number|null} imdb
+ */
+
+/**
+ * Сериал, годный для баннера.
+ *
+ * @typedef {object} BannerCandidate
+ * @property {number} id
+ * @property {string} slug
+ * @property {string} title
+ * @property {number|null} year
+ * @property {number|null} imdb
+ */
+
+/**
  * Экран баннеров.
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.month
- * @param {object} args.picks назначения по датам
- * @param {object[]} args.preview три баннера на выбранный день
- * @param {object[]} args.candidates сериалы, годные для баннера
+ * @param {{year: number, month: number}} args.month
+ * @param {Map<string, EditorialPick>} args.picks назначения по датам
+ * @param {BannerPreview[]} [args.preview] три баннера на выбранный день
+ * @param {BannerCandidate[]} [args.candidates] сериалы, годные для баннера
  * @param {string} args.date выбранный день
- * @param {string} args.csrf
+ * @param {string} [args.csrf]
  * @returns {object}
  */
 export function studioBannersView({ locale, month, picks, preview = [], candidates = [], date, csrf = '' }) {

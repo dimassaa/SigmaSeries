@@ -9,21 +9,74 @@ import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 
 /**
+ * Кадр заставки.
+ *
+ * @typedef {object} SplashFrame
+ * @property {number} id
+ * @property {number} ordinal
+ * @property {boolean} active
+ * @property {boolean} disabled сериал кадра в архиве
+ * @property {number} imageId
+ * @property {number|null} seriesId
+ * @property {string|null} seriesSlug
+ * @property {string|null} seriesTitle
+ * @property {number} width
+ * @property {number} height
+ * @property {number} focalX
+ * @property {number} focalY
+ * @property {number|null} brightness
+ */
+
+/**
+ * @typedef {object} SplashWarning
+ * @property {number} from
+ * @property {number} to
+ * @property {number} diff
+ */
+
+/**
+ * @typedef {object} SplashCandidate
+ * @property {number} seriesId
+ * @property {string} slug
+ * @property {string} title
+ * @property {number} imageId
+ * @property {number} width
+ * @property {number} height
+ * @property {number} focalX
+ * @property {number} focalY
+ */
+
+/**
+ * @typedef {object} SplashState
+ * @property {SplashFrame[]} frames
+ * @property {SplashWarning[]} warnings
+ * @property {number} [usable] годных кадров
+ * @property {boolean} ready
+ * @property {number} [previewWidth]
+ * @property {number} [ticks]
+ */
+
+/**
  * Экран кадров заставки.
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.state
- * @param {object[]} args.candidates
- * @param {string} args.csrf
- * @returns {string}
+ * @param {SplashState} [args.state]
+ * @param {SplashCandidate[]} [args.candidates]
+ * @param {string} [args.csrf]
+ * @returns {object}
  */
 export function splashView({ locale, state = { frames: [], warnings: [], ready: false }, candidates = [], csrf = '' }) {
   const frames = state.frames ?? [];
   const usable = state.usable ?? frames.length;
   const width = state.previewWidth ?? 32;
 
-  /** Ссылка на размытую копию кадра: заставка показывает именно её. */
+  /**
+   * Ссылка на размытую копию кадра: заставка показывает именно её.
+   *
+   * @param {SplashFrame} frame
+   * @returns {string}
+   */
   const previewUrl = (frame) => (frame.seriesSlug
     ? `/${locale}/images/${frame.seriesSlug}/backdrop-${width}.webp`
     : '');

@@ -8,10 +8,34 @@ import { pickCandidate, verifyPair, isKeyRejected } from './tmdb.js';
 import { IMPORT_SETTINGS } from '../../config/settings.js';
 
 /**
+ * Карточка сериала TMDB — поля, нужные для проверки пары.
+ *
+ * @typedef {object} TmdbDetails
+ * @property {{imdb_id?: string}} [external_ids]
+ * @property {string} [first_air_date]
+ */
+
+/**
+ * Позиция из ответа `/find`.
+ *
+ * @typedef {object} TmdbSearchResult
+ * @property {number} id
+ * @property {string} [media_type]
+ */
+
+/**
+ * Клиент TMDB — те методы, которыми пользуется сопоставление.
+ *
+ * @typedef {object} TmdbClient
+ * @property {(tconst: string) => Promise<{tvResults: TmdbSearchResult[], notFound?: boolean}>} findByImdbId
+ * @property {(id: number) => Promise<TmdbDetails>} getDetails
+ */
+
+/**
  * Сопоставляет один сериал.
  *
  * @param {{tconst:string, startYear:number|null}} item
- * @param {object} tmdb клиент из `createTmdbClient`
+ * @param {TmdbClient} tmdb клиент из `createTmdbClient`
  * @returns {Promise<{tconst:string, tmdbId:number|null, outcome:string, reasons:string[]}>}
  */
 async function matchOne(item, tmdb) {
@@ -19,10 +43,12 @@ async function matchOne(item, tmdb) {
 
   // Детали одного и того же сериала запрашиваются и при выборе из нескольких
   // кандидатов, и при проверке пары. Без кэша это удвоило бы запросы.
-  const cards = new Map();
+  const cards = /** @type {Map<number, TmdbDetails>} */ (new Map());
+
+  /** @type {(id: number) => Promise<TmdbDetails>} */
   const getDetails = async (id) => {
     if (!cards.has(id)) cards.set(id, await tmdb.getDetails(id));
-    return cards.get(id);
+    return /** @type {TmdbDetails} */ (cards.get(id));
   };
 
   const { tvResults } = await tmdb.findByImdbId(tconst);

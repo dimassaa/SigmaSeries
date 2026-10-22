@@ -14,6 +14,37 @@ export const MAX_BULK = 200;
 export const BULK_ACTIONS = ['publish', 'archive', 'add_genre', 'remove_genre', 'accept_reason'];
 
 /**
+ * Карточка сериала из базы: то, о чём решает действие.
+ *
+ * @typedef {object} BulkSeriesRow
+ * @property {number} id
+ * @property {string} slug
+ * @property {string|null} title_ru
+ * @property {string|null} title_original
+ * @property {string} publication_state
+ * @property {string|null} level
+ * @property {string[]} reasons причины, по которым карточка ждёт решения
+ * @property {number} genres число жанров карточки
+ */
+
+/**
+ * Карточка, которую действие пропустило.
+ *
+ * @typedef {object} BulkSkipped
+ * @property {number} id
+ * @property {string|null} title
+ * @property {string} reason
+ */
+
+/**
+ * Карточка из первых пяти, которые действие тронет.
+ *
+ * @typedef {object} BulkSample
+ * @property {number} id
+ * @property {string|null} title
+ */
+
+/**
  * Массовые операции.
  *
  * @param {import('pg').Pool} pool
@@ -22,8 +53,10 @@ export function pgBulkOperations(pool) {
   /**
    * Что изменится, если выполнить действие.
    *
-   * @param {object} input
-   * @returns {Promise<{ok: boolean, reason?: string, affected: number, skipped: object[], sample: object[]}>}
+   * @param {{action: string, ids?: number[], genre?: string|null, reason?: string|null}} input
+   * @returns {Promise<{ok: false, reason: string}
+   *   | {ok: true, affected: number, skipped: BulkSkipped[], sample: BulkSample[],
+   *      total: number, ids: number[]}>}
    */
   async function preview({ action, ids = [], genre = null, reason = null }) {
     if (!BULK_ACTIONS.includes(action)) return { ok: false, reason: 'action' };
@@ -65,7 +98,8 @@ export function pgBulkOperations(pool) {
    * записывается в `e_bulk_job`, его состояние видно в студии, а отчёт — по
    * каждому элементу (F-10-11 §4).
    *
-   * @param {object} input
+   * @param {{action: string, ids?: number[], genre?: string|null, reason?: string|null,
+   *   byId?: number|null}} input
    * @returns {Promise<object>} задание
    */
   async function start({ action, ids = [], genre = null, reason = null, byId = null }) {
@@ -101,7 +135,8 @@ export function pgBulkOperations(pool) {
    * Выполнить задание.
    *
    * @param {number} jobId
-   * @param {object} input
+   * @param {{action: string, genre: string|null, reason: string|null,
+   *   skipped?: BulkSkipped[], total?: number}} input
    * @returns {Promise<object>}
    */
   async function execute(jobId, { action, genre, reason, skipped = [], total = 0 }) {
@@ -191,7 +226,7 @@ export function pgBulkOperations(pool) {
  * Почему действие не подходит этой карточке.
  *
  * @param {string} action
- * @param {object} row
+ * @param {BulkSeriesRow} row
  * @param {{genre: string|null, reason: string|null}} extra
  * @returns {string|null}
  */
@@ -229,7 +264,7 @@ function problemOf(action, row, { genre, reason }) {
  *
  * @param {import('pg').PoolClient} client
  * @param {string} action
- * @param {object} row
+ * @param {BulkSeriesRow} row
  * @param {{genre: string|null, reason: string|null}} extra
  * @returns {Promise<void>}
  */

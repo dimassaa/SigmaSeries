@@ -55,7 +55,9 @@ function makeApp(users = {}) {
   return createApp({
     data: stubData(),
     auth: stubAuthStore(users),
-    sessionMw: createSessionMiddleware(pool, createMemorySessionStore()),
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore())),
     mailQueue: recordingQueue(),
   });
 }
@@ -67,7 +69,9 @@ async function withServer(run, users = {}) {
   const app = createApp({
     data: stubData(),
     auth,
-    sessionMw: createSessionMiddleware(pool, createMemorySessionStore()),
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore())),
     mailQueue,
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });

@@ -38,7 +38,6 @@ async function viewer(over = {}) {
     profile_public: false,
     stats_public: false,
     quiet_hours: false,
-    quiet_hours: false,
     ...over,
   };
 }
@@ -66,7 +65,9 @@ async function withServer({
   const app = createApp({
     data: stubData(),
     auth,
-    sessionMw: createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, createMemorySessionStore()),
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, createMemorySessionStore())),
     journal: { security: (entry) => events.push(entry) },
     mailQueue: {
       async enqueue(job) { queued.push(job); return queued.length; },
@@ -139,12 +140,17 @@ test('переключение режима требует повторного 
   const changes = [];
   const setting = { rows: [] };
 
-  const verdict = await switchMode({
+  // `setting` функция не читает: остаток от прежней версии `switchMode`.
+  // Объявленный тип её не вмещает, поэтому лишнее свойство описано здесь.
+  /** @type {Parameters<typeof switchMode>[0] & { setting: { rows: unknown[] } }} */
+  const deps = {
     current: async () => 'smtp',
     change: async (value, by) => { changes.push([value, by]); return { ok: true, previous: 'smtp' }; },
     verify: async () => false,
     setting,
-  });
+  };
+
+  const verdict = await switchMode(deps);
 
   assert.equal(verdict.ok, false, 'без верного пароля режим не переключается');
   assert.equal(changes.length, 0, 'и в базу ничего не записано');
@@ -256,10 +262,12 @@ test('демо-помощник показывает только письмо �
   const letters = [mine, stranger];
 
   assert.equal(
-    demoMailFor(letters, 'браузер-анны')?.token, 'мой-токен',
+    /** @type {{token: string}|null} */ (demoMailFor(letters, 'браузер-анны'))?.token, 'мой-токен',
     'своё письмо показывается',
   );
-  assert.equal(demoMailFor(letters, 'чужой-браузер')?.token, 'чужой-токен');
+  assert.equal(
+    /** @type {{token: string}|null} */ (demoMailFor(letters, 'чужой-браузер'))?.token, 'чужой-токен',
+  );
   assert.equal(demoMailFor(letters, 'никто'), null, 'чужому браузеру чужое письмо не выдаётся');
   assert.equal(demoMailFor(letters, ''), null, 'без отметки браузера — ничего');
 });
@@ -293,7 +301,9 @@ async function withDemoServer({ mode = 'devbox', foreign = [], run }) {
   const app = createApp({
     data: stubData(),
     auth,
-    sessionMw: createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore),
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
     journal: { security: () => {} },
     mailMode: { current: async () => mode, change: async () => ({ ok: true }) },
     mailQueue: {

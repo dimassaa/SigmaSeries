@@ -101,9 +101,11 @@ async function withServer(run, { enough = true, user = USER } = {}) {
     profile: stubProfile(user),
     recap: stubRecap(enough),
     data: { forYou: async () => ({ items: [], personalized: false }) },
-    sessionMw: createSessionMiddleware(pool, createMemorySessionStore(), {
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore(), {
       account: async (u) => ({ nickname: u.nickname, unread: 0, pollSeconds: 0 }),
-    }),
+    })),
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;

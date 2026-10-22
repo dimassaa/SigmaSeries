@@ -107,7 +107,9 @@ async function withServer({ user, roles = {}, twoFactor = null, run }) {
   const app = createApp({
     data: stubData(),
     auth,
-    sessionMw: createSessionMiddleware(pool, memStore),
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, memStore)),
     journal,
     now: () => NOW * 1000,
   });

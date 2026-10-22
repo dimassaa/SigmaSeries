@@ -71,9 +71,11 @@ async function withServer({ user: viewer = null, run }) {
     pool,
     importReport: pgImportReport(pool),
     audit: { write: async (entry) => calls.push(entry) },
-    sessionMw: createSessionMiddleware(pool, createMemorySessionStore(), {
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore(), {
       account: async (u) => ({ nickname: u.nickname, unread: 0, pollSeconds: 0 }),
-    }),
+    })),
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;

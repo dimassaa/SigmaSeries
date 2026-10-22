@@ -23,7 +23,7 @@ export const MANUAL_KINDS = ['full_run', 'schedule_sync'];
  * обычное время.
  *
  * @param {object} deps
- * @param {object} deps.pool
+ * @param {import('pg').Pool} deps.pool
  * @param {string} deps.kind вид запуска: `full_run` или `schedule_sync`
  * @param {boolean} [deps.dryRun] сухой прогон; осмыслен только для `full_run`
  * @param {Date} [deps.now]

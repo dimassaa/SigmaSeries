@@ -54,7 +54,9 @@ async function withServer({
   const app = createApp({
     data: stubData(),
     auth,
-    sessionMw: createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore),
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
     journal: { security: () => {} },
     mailQueue: { enqueue: async () => 0 },
     ...(clock ? { now: clock } : {}),

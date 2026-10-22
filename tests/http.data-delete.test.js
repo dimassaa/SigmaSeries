@@ -52,7 +52,6 @@ async function viewer(over = {}) {
     profile_public: false,
     stats_public: false,
     quiet_hours: false,
-    quiet_hours: false,
     ...over,
   };
 }
@@ -82,7 +81,9 @@ async function withServer({
   const app = createApp({
     data: stubData(),
     auth,
-    sessionMw: createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore),
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
     journal: { security: (entry) => events.push(entry) },
     mailQueue: { async enqueue(job) { queued.push(job); return queued.length; } },
     now: () => clock,

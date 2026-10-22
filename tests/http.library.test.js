@@ -160,10 +160,12 @@ async function withServer({ signedIn = true, run }) {
       [account.email]: account,
       [other.email]: other,
     }),
-    sessionMw: createSessionMiddleware(
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware(
       { query: async () => ({ rows: [] }), on: () => {} },
       createMemorySessionStore(),
-    ),
+    )),
   });
 
   const server = await new Promise((resolve) => {

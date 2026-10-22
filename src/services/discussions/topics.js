@@ -17,6 +17,57 @@ import { checkMaterial } from '../moderation/check.js';
 const VISIBLE = new Set(['published', 'approved']);
 
 /**
+ * Словарь модерации: два списка и признак «словарь прочитан».
+ *
+ * @typedef {object} Dictionary
+ * @property {Array<string|{word: string, category?: string|null}>} block чёрный список
+ * @property {Array<string|{word: string, category?: string|null}>} allow белый список
+ * @property {boolean} available словарь прочитан (false — публиковать нельзя)
+ */
+
+/**
+ * Бюджет модерации: сколько материалов автор подал и в каком режиме
+ * система живёт.
+ *
+ * @typedef {object} ModerationBudget
+ * @property {(userId: number, at?: Date) => Promise<number>} submissionsInMinute
+ * @property {() => Promise<{cautious: boolean}>} cautiousState
+ */
+
+/**
+ * Действующее ограничение пользователя.
+ *
+ * @typedef {object} ActiveRestriction
+ * @property {number} id
+ * @property {string} kind мьют или бан
+ * @property {Date|null} expiresAt
+ */
+
+/**
+ * Источник ограничений.
+ *
+ * @typedef {object} RestrictionSource
+ * @property {(userId: number, at?: Date) => Promise<ActiveRestriction|null>} active
+ */
+
+/**
+ * Тема из базы: поля материала плюс счётчики постов из подзапроса.
+ *
+ * @typedef {object} TopicRow
+ * @property {number} id
+ * @property {string|null} title
+ * @property {string} body
+ * @property {boolean} spoiler
+ * @property {Date|string} created_at
+ * @property {string} state
+ * @property {number} author_id
+ * @property {string} author_status
+ * @property {string} nickname
+ * @property {number} [posts] счётчик постов (в теме без подзапроса его нет)
+ * @property {number} [pinned] счётчик закреплённых постов
+ */
+
+/**
  * Обсуждения и комментарии.
  *
  * @param {import('pg').Pool} pool
@@ -25,6 +76,12 @@ const VISIBLE = new Set(['published', 'approved']);
  * @param {object} [deps.restrictions] ограничения пользователя (мьют, бан)
  */
 export function pgDiscussions(pool, { limits = null, restrictions = null } = {}) {
+  // Зависимости приходят снаружи и описаны в своих модулях, поэтому здесь
+  // сужаем их до используемой части: иначе любое обращение к методу было бы
+  // «свойство не существует у object».
+  const budget = /** @type {ModerationBudget|null} */ (limits);
+  const guard = /** @type {RestrictionSource|null} */ (restrictions);
+
   /**
    * Темы сериала.
    *
@@ -63,7 +120,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    * Тема с постами.
    *
    * @param {number} topicId
-   * @param {{page?: number, perPage?: number}} [options]
+   * @param {{page?: number, perPage?: number, userId?: number|null}} [options]
    * @returns {Promise<object|null>}
    */
   async function topic(topicId, { page = 1, perPage = 50, userId = null } = {}) {
@@ -122,7 +179,8 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
   /**
    * Создать тему.
    *
-   * @param {object} input
+   * @param {{userId: number, seriesId: number, title: string, body: string,
+   *   spoiler?: boolean, dictionary: Dictionary, at?: Date}} input
    * @returns {Promise<object>}
    */
   async function createTopic({
@@ -139,7 +197,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
 
     const blocked = await blockedBy(userId, at);
     if (blocked) return blocked;
-    const burst = await limits && (await limits.submissionsInMinute(userId, at))
+    const burst = await budget && (await budget.submissionsInMinute(userId, at))
       >= MODERATION.submissionRatePerMin;
     if (burst) return { ok: false, reason: 'rate', retryAfterSec: 60 };
 
@@ -147,7 +205,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
     if (result.decision === 'reject') return { ok: false, reason: 'empty' };
 
     const state = result.decision === 'publish'
-      ? ((await limits && (await limits.cautiousState()).cautious) ? 'checking' : 'published')
+      ? ((await budget && (await budget.cautiousState()).cautious) ? 'checking' : 'published')
       : result.decision === 'queue' ? 'flagged' : 'checking';
 
     const { rows } = await pool.query(
@@ -167,7 +225,8 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
   /**
    * Ответ в тему.
    *
-   * @param {object} input
+   * @param {{userId: number, topicId: number, body: string, spoiler?: boolean,
+   *   dictionary: Dictionary, at?: Date}} input
    * @returns {Promise<object>}
    */
   async function reply({
@@ -186,7 +245,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
 
     const blocked = await blockedBy(userId, at);
     if (blocked) return blocked;
-    const burst = await limits && (await limits.submissionsInMinute(userId, at))
+    const burst = await budget && (await budget.submissionsInMinute(userId, at))
       >= MODERATION.submissionRatePerMin;
     if (burst) return { ok: false, reason: 'rate', retryAfterSec: 60 };
 
@@ -194,7 +253,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
     if (result.decision === 'reject') return { ok: false, reason: 'empty' };
 
     const state = result.decision === 'publish'
-      ? ((await limits && (await limits.cautiousState()).cautious) ? 'checking' : 'published')
+      ? ((await budget && (await budget.cautiousState()).cautious) ? 'checking' : 'published')
       : result.decision === 'queue' ? 'flagged' : 'checking';
 
     const { rows } = await pool.query(
@@ -258,7 +317,8 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
   /**
    * Комментарий к отзыву.
    *
-   * @param {object} input
+   * @param {{userId: number, reviewId: number, body: string, spoiler?: boolean,
+   *   dictionary: Dictionary, at?: Date}} input
    * @returns {Promise<object>}
    */
   async function addComment({
@@ -278,7 +338,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
 
     const blocked = await blockedBy(userId, at);
     if (blocked) return blocked;
-    const burst = await limits && (await limits.submissionsInMinute(userId, at))
+    const burst = await budget && (await budget.submissionsInMinute(userId, at))
       >= MODERATION.submissionRatePerMin;
     if (burst) return { ok: false, reason: 'rate', retryAfterSec: 60 };
 
@@ -286,7 +346,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
     if (result.decision === 'reject') return { ok: false, reason: 'empty' };
 
     const state = result.decision === 'publish'
-      ? ((await limits && (await limits.cautiousState()).cautious) ? 'checking' : 'published')
+      ? ((await budget && (await budget.cautiousState()).cautious) ? 'checking' : 'published')
       : result.decision === 'queue' ? 'flagged' : 'checking';
 
     const { rows } = await pool.query(
@@ -327,8 +387,8 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    * @returns {Promise<object|null>}
    */
   async function blockedBy(userId, at) {
-    if (!restrictions) return null;
-    const active = await restrictions.active(userId, at);
+    if (!guard) return null;
+    const active = await guard.active(userId, at);
     if (!active) return null;
     return { ok: false, reason: 'muted', until: active.expiresAt ?? null };
   }
@@ -356,7 +416,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
 /**
  * Тема для разметки.
  *
- * @param {object} row
+ * @param {TopicRow} row
  * @returns {object}
  */
 function decorateTopic(row) {

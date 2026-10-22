@@ -33,11 +33,13 @@ const CHROME_WIN = 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36
 function makeApp(users = {}, roles = {}) {
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
   const store = createMemorySessionStore();
-  const sessionMw = createSessionMiddleware(pool, store, {
+  // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+  // или их пару — Express принимает и то и другое.
+  const sessionMw = /** @type {Function} */ (createSessionMiddleware(pool, store, {
     // То же, что собирает `server.js`: без функции меню аккаунта в шапке нет,
     // и проверки пункта «Выйти» смотрели бы на страницу гостя.
     account: async (user) => ({ nickname: user.nickname, unread: 0, pollSeconds: 0 }),
-  });
+  }));
   const auth = stubAuthStore(users, roles);
   const app = createApp({ data: stubData(), auth, sessionMw });
   return { app, sessionMw, store, auth };

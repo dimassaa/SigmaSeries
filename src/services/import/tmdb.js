@@ -10,6 +10,36 @@
 import { IMPORT_SETTINGS } from '../../config/settings.js';
 import { createBreaker } from './breaker.js';
 
+/**
+ * Карточка сериала TMDB — только те поля, которые читает этот модуль.
+ *
+ * Ответ внешнего сервиса меняется редко, но состав полей известен, поэтому
+ * форма названа явно: `object` прятал бы опечатки в именах полей.
+ *
+ * @typedef {object} TmdbDetails
+ * @property {{imdb_id?: string}} [external_ids]
+ * @property {string} [first_air_date]
+ */
+
+/**
+ * Размыкатель: открыт ли и сколько было пауз.
+ *
+ * @typedef {object} Breaker
+ * @property {boolean} tripped
+ * @property {number} pausedCount
+ * @property {(failed: boolean) => Promise<void>} record
+ */
+
+/**
+ * Позиция из ответа `/find`.
+ *
+ * В ответе есть ещё кино и люди — их отсекает поле `media_type`.
+ *
+ * @typedef {object} TmdbSearchResult
+ * @property {number} id
+ * @property {string} [media_type]
+ */
+
 /** Ошибка TMDB, дошедшая до предела попыток. */
 export class TmdbError extends Error {
   constructor(message, status) {
@@ -31,7 +61,10 @@ export class TmdbError extends Error {
  * @returns {boolean}
  */
 export function isKeyRejected(error) {
-  return error?.status === 401;
+  // Статус лежит в поле `status`, но у произвольной ошибки его может не быть:
+  // приводим к форме, где поле необязательно, и читаем его безопасно.
+  const status = /** @type {{status?: number}|undefined} */ (error)?.status;
+  return status === 401;
 }
 
 /** Задержки между попытками для 5xx и сети (F-12-09 §3). */
@@ -58,7 +91,7 @@ export function yearOf(date) {
  * Название не сверяется: в спайке оба «расхождения» оказались разными
  * локализациями одного и того же сериала.
  *
- * @param {{tconst:string, startYear:number|null, details:object}} pair
+ * @param {{tconst:string, startYear:number|null, details:TmdbDetails}} pair
  * @returns {{ok:boolean, outcome:'ok'|'pair_doubt', reason?:string}}
  */
 export function verifyPair({ tconst, startYear, details }) {
@@ -86,9 +119,9 @@ export function verifyPair({ tconst, startYear, details }) {
  * что и при проверке пары, только применённое заранее (§5).
  *
  * @param {object} options
- * @param {object[]} options.results
- * @param {number|null} [options.tconst]
- * @param {(id:number) => Promise<object>} options.getDetails
+ * @param {TmdbSearchResult[]} options.results
+ * @param {string|null} [options.tconst]
+ * @param {(id:number) => Promise<TmdbDetails>} options.getDetails
  * @returns {Promise<{tmdbId:number|null, outcome:string, reason?:string}>}
  */
 export async function pickCandidate({ results, tconst = null, getDetails }) {
@@ -111,14 +144,24 @@ export async function pickCandidate({ results, tconst = null, getDetails }) {
  * @param {string} [options.baseUrl]
  * @param {number} [options.rps] запросов в секунду (`import.rps`)
  * @param {(ms:number) => Promise<void>} [options.sleep]
- * @returns {{findByImdbId: Function, getDetails: Function}}
+ * @param {Breaker} [options.breaker] свой размыкатель; по умолчанию — общий
+ * @returns {{
+ *   readonly breakerTripped: boolean,
+ *   readonly breakerPauses: number,
+ *   findByImdbId: (tconst: string) => Promise<{tvResults: TmdbSearchResult[], notFound?: boolean}>,
+ *   getDetails: (id: number) => Promise<TmdbDetails>,
+ *   getDetailsLocalized: (id: number, language: string) => Promise<object>,
+ *   getSeason: (id: number, number: number, language: string) => Promise<object>,
+ *   getTvGenres: () => Promise<Record<string, number>>,
+ *   discoverTv: (params: Record<string, string|number>, pages?: number) => Promise<object[]>
+ * }}
  */
 export function createTmdbClient({
   token,
   baseUrl = 'https://api.themoviedb.org/3',
   rps = IMPORT_SETTINGS.rps,
   sleep = wait,
-  breaker = createBreaker({ sleep }),
+  breaker = /** @type {Breaker} */ (createBreaker({ sleep })),
 }) {
   if (!token) throw new Error('не задан TMDB_TOKEN: сопоставление без ключа невозможно');
 
@@ -200,7 +243,7 @@ export function createTmdbClient({
      * Ищет сериал по внешнему идентификатору IMDb (F-12-02 §4).
      *
      * @param {string} tconst
-     * @returns {Promise<{tvResults: object[], notFound?: boolean}>}
+     * @returns {Promise<{tvResults: TmdbSearchResult[], notFound?: boolean}>}
      */
     async findByImdbId(tconst) {
       const body = await request(`/find/${encodeURIComponent(tconst)}?external_source=imdb_id`);

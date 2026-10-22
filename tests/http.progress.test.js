@@ -153,10 +153,12 @@ async function withServer({ run }) {
     markLimiter: createRateLimiter({ limit: 120, windowMs: 60_000 }),
     pool,
     auth: stubAuthStore({ [account.email]: account }),
-    sessionMw: createSessionMiddleware(
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware(
       { query: async () => ({ rows: [] }), on: () => {} },
       createMemorySessionStore(),
-    ),
+    )),
   });
 
   const server = await new Promise((resolve) => {

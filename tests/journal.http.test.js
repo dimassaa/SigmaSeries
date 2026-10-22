@@ -17,7 +17,9 @@ async function withServer(run) {
   const app = createApp({
     data: stubData(),
     auth: stubAuthStore({}, {}),
-    sessionMw: createSessionMiddleware(pool, createMemorySessionStore()),
+    // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
+    // или их пару — Express принимает и то и другое.
+    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore())),
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;

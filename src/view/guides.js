@@ -25,14 +25,40 @@ function dayOf(value) {
 }
 
 /**
+ * Раздел статьи.
+ *
+ * @typedef {object} GuideSection
+ * @property {string} heading
+ * @property {string} text
+ */
+
+/**
+ * Руководство в списке и в статье.
+ *
+ * @typedef {object} Guide
+ * @property {number} id
+ * @property {string} slug
+ * @property {string} title
+ * @property {string} excerpt
+ * @property {boolean} spoiler
+ * @property {Date|string} createdAt
+ * @property {string} author
+ * @property {string} authorStatus
+ * @property {number|null} seriesId
+ * @property {string|null} seriesSlug
+ * @property {string|null} seriesTitle
+ * @property {GuideSection[]} [sections]
+ */
+
+/**
  * Список руководств.
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.list
- * @param {object|null} [args.series] сериал, если список по сериалу
- * @param {object|null} [args.user]
- * @param {string} args.csrf
+ * @param {{rows: Guide[], total: number}} [args.list]
+ * @param {{title: string, slug: string}|null} [args.series] сериал, если список по сериалу
+ * @param {{roles?: string[]}|null} [args.user]
+ * @param {string} [args.csrf]
  * @returns {object}
  */
 export function guidesListView({ locale, list = { rows: [], total: 0 }, series = null, user = null, csrf = '' }) {
@@ -92,8 +118,8 @@ export function guidesListView({ locale, list = { rows: [], total: 0 }, series =
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.guide
- * @param {object|null} [args.user]
+ * @param {Guide} args.guide
+ * @param {{roles?: string[]}|null} [args.user]
  * @returns {object}
  */
 export function guideView({ locale, guide, user = null }) {
@@ -121,7 +147,7 @@ export function guideView({ locale, guide, user = null }) {
 /**
  * Разделы статьи в разметке.
  *
- * @param {object} guide
+ * @param {Guide} guide
  * @param {string} locale
  * @returns {object}
  */

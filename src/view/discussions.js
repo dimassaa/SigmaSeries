@@ -30,15 +30,64 @@ function dayOf(value, withTime = false) {
 }
 
 /**
+ * Тема в списке тем.
+ *
+ * @typedef {object} DiscussionTopicRow
+ * @property {number} id
+ * @property {string} title
+ * @property {string} body
+ * @property {boolean} spoiler
+ * @property {Date|string} createdAt
+ * @property {string} author
+ * @property {number} authorId
+ * @property {string} authorStatus
+ * @property {number} posts число ответов
+ * @property {boolean} pinned
+ */
+
+/**
+ * Ответ в теме.
+ *
+ * @typedef {object} DiscussionPost
+ * @property {number} id
+ * @property {string} body
+ * @property {boolean} spoiler
+ * @property {Date|string} createdAt
+ * @property {string} author
+ * @property {number} authorId
+ * @property {string} authorStatus
+ * @property {boolean} pinned
+ */
+
+/**
+ * Тема с ответами.
+ *
+ * @typedef {object} DiscussionTopicFull
+ * @property {number} id
+ * @property {string} title
+ * @property {string} body
+ * @property {boolean} spoiler
+ * @property {Date|string} createdAt
+ * @property {string} author
+ * @property {number} authorId
+ * @property {string} authorStatus
+ * @property {boolean} pinned
+ * @property {string} seriesSlug
+ * @property {string} state
+ * @property {DiscussionPost[]} posts
+ * @property {number} totalPosts
+ */
+
+/**
  * Список тем сериала.
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.series
- * @param {object} args.topics
- * @param {number} args.page
- * @param {object|null} args.user
- * @param {string} args.csrf
+ * @param {{slug: string, title?: string, title_ru?: string}} args.series
+ * @param {{rows: DiscussionTopicRow[], total: number, page: number, pages: number}} args.topics
+ * @param {number} [args.page]
+ * @param {{roles?: string[]}|null} [args.user]
+ * @param {string} [args.csrf]
  * @returns {object}
  */
 export function discussionsListView({ locale, series, topics, page = 1, user = null, csrf = '' }) {
@@ -90,9 +139,9 @@ export function discussionsListView({ locale, series, topics, page = 1, user = n
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.topic
- * @param {object|null} args.user
- * @param {string} args.csrf
+ * @param {DiscussionTopicFull} args.topic
+ * @param {{roles?: string[]}|null} [args.user]
+ * @param {string} [args.csrf]
  * @returns {object}
  */
 export function discussionTopicView({ locale, topic, user = null, csrf = '' }) {
