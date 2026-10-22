@@ -75,10 +75,8 @@ export function labelFor(row) {
  * Источник данных панели.
  *
  * @param {pg.Pool} pool
- * @param {object} [options]
- * @param {number} [options.cacheSeconds]
- * @param {number} [options.maxVariants]
- * @param {() => number} [options.clock]
+ * @param {{cacheSeconds?: number, maxVariants?: number, clock?: () => number,
+ *   onError?: ((error: Error) => void)|null}} [options]
  */
 export function pgUpcomingPanel(pool, {
   cacheSeconds = PANEL_CACHE_S,
@@ -93,10 +91,10 @@ export function pgUpcomingPanel(pool, {
     /**
      * Ближайшие выходы.
      *
-     * @param {object} args
-     * @param {string} args.today сегодня пояса читателя `YYYY-MM-DD`
-     * @param {number} [args.userId] поднимает сериалы «Смотрю» и «В планах»
-     * @returns {Promise<object[]>}
+     * @param {{today: string, userId?: number, limit?: number, windowDays?: number}} args
+     *   args.today — сегодня пояса читателя `YYYY-MM-DD`; args.userId поднимает
+     *   сериалы «Смотрю» и «В планах»
+     * @returns {Promise<PanelRow[]>}
      */
     async upcoming({ today, userId = null, limit = PANEL_ITEMS, windowDays = PANEL_WINDOW_DAYS }) {
       try {
@@ -113,6 +111,16 @@ export function pgUpcomingPanel(pool, {
     },
   };
 }
+
+/**
+ * @typedef {object} PanelRow
+ * @property {number} seriesId
+ * @property {string} slug
+ * @property {string} title
+ * @property {string} label
+ * @property {string} date
+ * @property {boolean} mine сериал человека
+ */
 
 /** Сборка ответа: кэш, личный порядок и подписи. */
 async function collect({ pool, today, userId, limit, windowDays, cache, cacheSeconds, maxVariants, clock }) {
@@ -132,7 +140,7 @@ async function collect({ pool, today, userId, limit, windowDays, cache, cacheSec
 /**
  * Ближайшие выходы из базы с кэшем по локальной дате.
  *
- * @returns {Promise<object[]>}
+ * @returns {Promise<PanelRow[]>}
  */
 async function releases({ pool, today, limit, windowDays, cache, cacheSeconds, maxVariants, clock }) {
   const hit = cache.get(today);

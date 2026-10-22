@@ -17,7 +17,7 @@ import { captionFor } from '../services/catalogue/panel.js';
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object[]} args.rows
+ * @param {Array<{mine: boolean, slug: string, title: string, label: string, date: string}>} args.rows
  * @param {string} args.today сегодня пояса читателя
  * @returns {{__raw: string}}
  */
