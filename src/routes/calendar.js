@@ -57,10 +57,14 @@ export function createCalendarRoutes({ calendar, sessionMw = null }) {
       // по определению, и пустой ответ читался бы как «выходов нет».
       const guestInvite = state.filter === 'mine' && !user;
       const range = periodOf(state);
+      // Подписки сужают выдачу только в «Мои». Передавать `userId` при
+      // «Все» нельзя: источник поймёт это как фильтр и покажет вошедшему
+      // без подписок пустой календарь, хотя выходы есть у всех.
+      const userId = state.filter === 'mine' ? user?.id ?? null : null;
 
       const data = guestInvite
         ? { ...EMPTY, ...range }
-        : await calendar.days({ ...range, userId: user?.id ?? null, timezone });
+        : await calendar.days({ ...range, userId, timezone });
 
       return res.status(200).type('html').send(rawHtml(layout({
         styles: STYLES,
