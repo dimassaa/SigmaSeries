@@ -209,6 +209,8 @@
     for (i = 0; i < links.length; i += 1) {
       links[i].addEventListener('click', function () {
         var href = this.getAttribute('href');
+        // Смена языка — событие: язык, на который перешли (EV-18).
+        track('locale_switch', { value: (href || '').split('/')[1] || '' });
         // Фильтры и страница списка живут в запросе, а не в пути (F-04-05):
         // без дописывания переключение сбрасывало бы вид на первый экран.
         if (location.search && href.indexOf('?') === -1) {
