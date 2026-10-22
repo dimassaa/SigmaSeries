@@ -4,6 +4,8 @@
 // довести начатое до конца, и уникальность по (run_id, tconst) для этого
 // превращается в ON CONFLICT, а не в ошибку.
 
+import { writeServerEvent } from '../analytics/events.js';
+
 /** Колонки позиции — в том же порядке, что и значения в `saveChunk`. */
 const COLUMNS = [
   'tconst',
@@ -372,6 +374,15 @@ export function createImportStore(pool) {
      * @returns {Promise<void>}
      */
     async finishRun(runId, status, { counters = null, checkpoint = null } = {}) {
+      // Прогон закончен — событие сервера (R-AN-05, EV-23): число записанных
+      // сериалов и число ошибок, без имён файлов и без текстов.
+      await writeServerEvent(pool, {
+        name: 'import_run_finished',
+        props: {
+          series: String(counters?.series ?? counters?.written ?? counters?.catalogued ?? 0),
+          errors: String(counters?.errors ?? 0),
+        },
+      });
       await pool.query(
         `UPDATE e_import_run
             SET status = $2,
