@@ -45,7 +45,7 @@ const KEYS = {
  * обращений к настройкам на каждый её открытие дороже, чем весь остальной код
  * главной вместе взятый.
  *
- * @param {pg.Pool} pool
+ * @param {import('pg').Pool} pool
  * @returns {Promise<typeof DEFAULTS>}
  */
 export async function homeSettings(pool) {

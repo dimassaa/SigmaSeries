@@ -17,7 +17,7 @@ import { homeSettings } from './settings.js';
  * Форматирование в базе не делается — его нельзя отладить запросом.
  *
  * @param {pg.Pool} pool
- * @param {{recommendations?: object|null}} [deps] сервис рекомендаций (M11)
+ * @param {{recommendations?: {forUser: (userId: number|null) => Promise<{items: object[], personalized: boolean}>}|null}} [deps]
  */
 export function pgData(pool, { recommendations = null } = {}) {
   // Настройки читаются один раз на источник: главная открывается часто, а

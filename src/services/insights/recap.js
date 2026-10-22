@@ -26,7 +26,7 @@ export const PERIODS = ['year', 'month', 'all'];
  * @property {string} key ключ слайда
  * @property {number|string} value крупное число
  * @property {string|null} unit единица измерения числом
- * @property {object} params числа для текста
+ * @property {Record<string, string|number>} params числа для текста
  * @property {{href: string, title: string}|null} link сериал, о котором слайд
  * @property {boolean} notePlural у текста есть множественное число
  */

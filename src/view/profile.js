@@ -97,10 +97,11 @@ function pager({ locale, href, page, pages }) {
  *   statsPublic: boolean, profilePublic: boolean}} args.user профиль
  * @param {{review: number, guide: number}} args.counts счётчики работ
  * @param {'reviews'|'guides'} args.tab открытая вкладка
- * @param {{items: Array<{slug: string, title: string, status: string, seriesTitle: string, seriesSlug: string}>,
+ * @param {{items: Array<{slug: string, title: string, status: string, seriesTitle: string,
+ *   seriesSlug: string, excerpt: string}>,
  *   total: number, page: number, pages: number}} args.materials
  * @param {{marked: number, ratings: number, reviews: number}|null} [args.stats]
- * @param {{items: Array<{slug: string, title: string, status: string, changedAt: string}>,
+ * @param {{items: Array<{slug: string, title: string, status: string, createdAt: string}>,
  *   total: number, page: number, pages: number}|null} [args.marked]
  * @param {number} [args.page] страница материалов
  * @param {number} [args.marksPage] страница отмеченных сериалов

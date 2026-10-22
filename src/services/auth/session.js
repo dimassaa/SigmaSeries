@@ -108,7 +108,8 @@ export function csrfValid(session, token) {
  * Регистрационный экран подтверждения сюда не относится: там сессия
  * ограниченная и аккаунта ещё нет.
  *
- * @param {object} auth хранилище: `noteDevice`, `pruneSessions`
+ * @param {{noteDevice: (userId: number, data: object) => Promise<void>,
+ *   pruneSessions: (userId: number, sid: string, max: number) => Promise<void>}} auth хранилище
  * @param {import('express').Request} req
  * @param {number} userId
  * @returns {Promise<void>}
@@ -138,11 +139,25 @@ function cryptoRandom() {
  * разжимает сохранённый объект в настоящий Session с полем cookie и
  * без этого express-session падает на первом чтении.
  */
+/**
+ * @typedef {object} MemoryStore
+ * @property {(sid: string, cb: (err: Error|null, session?: object|null) => void) => void} get
+ * @property {(sid: string, session: object, cb: (err?: Error|null) => void) => void} set
+ * @property {(sid: string, cb: (err?: Error|null) => void) => void} destroy
+ * @property {(sid: string, session: object, cb: (err?: Error|null) => void) => void} touch
+ * @property {(cb: (err: Error|null, sessions?: object[]) => void) => void} all
+ * @property {(cb: (err: Error|null, length?: number) => void) => void} length
+ * @property {(cb?: (err?: Error|null) => void) => void} clear
+ */
+
 export function createMemorySessionStore() {
   const rows = new Map();
   const now = () => Date.now();
 
-  const store = new session.Store();
+  // `session.Store` помечен в типах абстрактным, а в самой библиотеке это
+  // обычный класс: все его методы переопределяются ниже.
+  const Store = /** @type {new () => unknown} */ (/** @type {unknown} */ (session.Store));
+  const store = /** @type {MemoryStore} */ (new Store());
 
   store.get = (sid, cb) => {
     const row = rows.get(sid);
@@ -155,7 +170,8 @@ export function createMemorySessionStore() {
   };
 
   store.set = (sid, sess, cb) => {
-    const ttl = sess?.cookie?.originalMaxAge ?? sess?.cookie?.maxAge ?? 86400000;
+    const cookie = /** @type {{originalMaxAge?: number, maxAge?: number}} */ (sess?.cookie ?? {});
+    const ttl = cookie.originalMaxAge ?? cookie.maxAge ?? 86400000;
     rows.set(sid, { data: sess, expiresAt: now() + ttl });
     if (cb) cb(null);
   };

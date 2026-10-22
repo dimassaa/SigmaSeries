@@ -42,7 +42,10 @@ export const DUMMY_HASH = '$argon2id$v=19$m=65536,t=3,p=4$c29tZXNhbHRzb21lc2FsdA
  * @returns {Promise<string>}argon2id-хэш в стандартном формате
  */
 export function hashPassword(plain) {
-  return argon2.hash(String(plain), ARGON);
+  // Типы argon2 описывают опции хеша и опции проверки разными структурами,
+  // а параметры у нас одни и те же — поэтому проверка идёт через общий тип.
+  const options = /** @type {Parameters<typeof argon2.hash>[1]} */ (ARGON);
+  return argon2.hash(String(plain), options);
 }
 
 /**
@@ -58,7 +61,8 @@ export function hashPassword(plain) {
  */
 export async function verifyPassword(plain, hash) {
   const target = hash || DUMMY_HASH;
-  const ok = await argon2.verify(target, String(plain), ARGON).catch(() => false);
+  const options = /** @type {Parameters<typeof argon2.verify>[2]} */ (ARGON);
+  const ok = await argon2.verify(target, String(plain), options).catch(() => false);
   return Boolean(hash) && ok;
 }
 

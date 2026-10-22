@@ -89,7 +89,7 @@ export function decideAfterCredentials(user, passwordOk) {
  *
  * @param {string} email
  * @param {string} password
- * @param {object|null} user
+ * @param {{password_hash: string}|null} user
  * @param {(plain: string, hash: string|null) => Promise<boolean>} [verify]
  */
 export async function authenticate(email, password, user, verify = verifyPassword) {
