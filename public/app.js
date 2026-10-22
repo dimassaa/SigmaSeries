@@ -732,6 +732,9 @@
 
     form.addEventListener('submit', function (event) {
       event.preventDefault();
+      // Жалоба на отзыв: причина из списка, без комментария (EV-28).
+      var reasonField = form.querySelector('[name=reason]:checked');
+      track('review_report', { reason: reasonField ? String(reasonField.value || '') : '' });
       fetch(form.getAttribute('action') || form.action, {
         method: 'POST',
         body: urlencoded(form),
@@ -1202,6 +1205,8 @@
     var open = function (poster, method, panel) {
       var slug = poster.getAttribute('data-poster-card');
       if (!slug) return;
+      // Карточка постера открыта — это показ, а не клик (EV-04).
+      track('poster_card_open', { way: method });
       // Ключ кэша — с видом слоя: у нижней панели есть кнопка «Открыть», у
       // наведённого слоя её нет, и путать их нельзя.
       var key = slug + (panel ? ':panel' : '');
@@ -1341,6 +1346,7 @@
     initAnalytics();
     initConsentBanner();
     initWebVitals();
+    initClientErrors();
     initAnalyticsEvents();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
@@ -1536,10 +1542,38 @@
     }, true);
   }
 
+  /**
+   * Ошибка на клиенте: страница не ответила или скрипт упал.
+   *
+   * Код ошибки и страница — без текста запроса и без личных данных (R-AN-04).
+   */
+  function initClientErrors() {
+    if (!analyticsAllowed()) return;
+    // Текст ошибки в событие не попадает: в нём может оказаться личное
+    // (R-AN-04). Код — это вид ошибки, а не её содержание.
+    window.addEventListener('error', function () {
+      track('client_error', { code: 'js_error', page: pageTypeOf() });
+    });
+    window.addEventListener('unhandledrejection', function () {
+      track('client_error', { code: 'unhandled_rejection', page: pageTypeOf() });
+    });
+  }
+
   /** Планировщик: пачка уходит раз в тридцать секунд и при уходе со страницы. */
   function initAnalytics() {
     if (!analyticsAllowed()) return;
     track('page_view', { page_type: pageTypeOf() });
+    if (pageTypeOf() === 'series') {
+      // Источник перехода: откуда человек пришёл на страницу сериала.
+      var referrer = document.referrer || '';
+      var source = 'direct';
+      try {
+        if (referrer) source = new URL(referrer).origin;
+      } catch (error) {
+        source = 'direct';
+      }
+      track('series_view', { source: source });
+    }
     if (analyticsTimer) clearInterval(analyticsTimer);
     analyticsTimer = setInterval(flushAnalytics, ANALYTICS_SEND_EVERY_MS);
     document.addEventListener('visibilitychange', function () {
@@ -1551,7 +1585,14 @@
   /** Тип страницы: по нему считаются просмотры. */
   function pageTypeOf() {
     var body = document.body;
-    return (body && body.getAttribute('data-page-type')) || 'unknown';
+    var type = body && body.getAttribute('data-page-type');
+    if (type && type !== 'other') return type;
+    // Разметка тип страницы не знает: первый значимый сегмент адреса и есть
+    // тип («series», «guides», «notifications», а на главной — «home»).
+    var parts = location.pathname.split('/').filter(Boolean);
+    if (!parts.length) return 'home';
+    if (parts.length === 1) return parts[0] === 'ru' || parts[0] === 'en' ? 'home' : parts[0];
+    return parts[1];
   }
 
   /** Текущая локаль: из атрибута языка документа. */
