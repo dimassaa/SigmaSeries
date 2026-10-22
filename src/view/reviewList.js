@@ -150,7 +150,7 @@ function voteRow({ locale, vote, menu = '' }) {
  * @param {string} args.locale
  * @param {object} args.item строка отзыва (`id`, `authorId`)
  * @param {object|null} args.report состояние жалобы страницы
- * @returns {string} пустая строка, если пункта быть не должно
+ * @returns {object} пустая строка, если пункта быть не должно
  */
 function reportMenuFor({ locale, item, report }) {
   if (!report) return '';
@@ -197,7 +197,7 @@ function reportMenuFor({ locale, item, report }) {
  * @param {string} args.locale
  * @param {object} args.series строка шапки сериала (`slug`)
  * @param {object|null} args.report состояние жалобы страницы
- * @returns {string} пустая строка, если жалобы на странице не бывает
+ * @returns {object} пустая строка, если жалобы на странице не бывает
  */
 export function reportDialog({ locale, series, report }) {
   if (!report || report.userId === null && !report.dialog) return raw('');
@@ -286,7 +286,7 @@ export function reportDialog({ locale, series, report }) {
  * @param {object} args.item строка отзыва
  * @param {string|null} [args.timezone] пояс посетителя для подписи даты
  * @param {boolean} [args.link] дату показать ссылкой на страницу отзыва
- * @returns {string}
+ * @returns {object}
  */
 export function reviewMeta({ locale, item, timezone = null, link = false }) {
   const date = html`<time class="reviews__date" datetime="${machineDate(item.createdAt)}"

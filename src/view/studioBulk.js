@@ -10,7 +10,7 @@ import { t } from '../i18n/strings.js';
  * Прогноз операции.
  *
  * @param {object} args
- * @returns {string}
+ * @returns {object}
  */
 export function bulkPreviewView({
   locale, plan = {}, action = '', genre = null, reason = null, csrf = '',

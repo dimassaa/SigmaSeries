@@ -16,7 +16,7 @@ import { dayLabel } from './dates.js';
  * @param {object[]} args.copies
  * @param {{hour: number, minute: number}|null} args.schedule
  * @param {string|null} args.csrf
- * @returns {string}
+ * @returns {object}
  */
 export function backupsView({ locale, copies = [], schedule = null, csrf = null }) {
   return html`

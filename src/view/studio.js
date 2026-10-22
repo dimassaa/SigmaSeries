@@ -45,7 +45,7 @@ function linkWith(locale, path, filters, changes) {
  * @param {object} args.list
  * @param {object[]} args.genres
  * @param {object} args.filters
- * @returns {string}
+ * @returns {object}
  */
 export function studioListView({
   locale, list, genres = [], filters = {}, jobs = [], csrf = '',
@@ -226,7 +226,7 @@ export function studioListView({
  * @param {string} args.locale
  * @param {object} args.queue
  * @param {string} args.reason
- * @returns {string}
+ * @returns {object}
  */
 export function studioQueueView({ locale, queue, reason = '' }) {
   const reasons = [
@@ -297,7 +297,7 @@ export function studioQueueView({ locale, queue, reason = '' }) {
  * @param {object} list
  * @param {string} path
  * @param {object} filters
- * @returns {string}
+ * @returns {object}
  */
 function pagination(locale, list, path, filters) {
   if (list.pages <= 1) return '';

@@ -23,6 +23,7 @@ export const STYLE_GROUPS = [
   { name: 'identity', files: ['35-identity.css', '36-profile.css'] },
   { name: 'recap', files: ['37-recap.css'] },
   { name: 'analytics', files: ['38-analytics.css'] },
+  { name: 'splash', files: ['39-splash.css'] },
   { name: 'series', files: ['45-series.css'] },
   { name: 'catalogue', files: ['46-catalog.css'] },
   { name: 'search', files: ['47-search.css'] },

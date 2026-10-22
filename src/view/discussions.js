@@ -39,7 +39,7 @@ function dayOf(value, withTime = false) {
  * @param {number} args.page
  * @param {object|null} args.user
  * @param {string} args.csrf
- * @returns {string}
+ * @returns {object}
  */
 export function discussionsListView({ locale, series, topics, page = 1, user = null, csrf = '' }) {
   return html`
@@ -93,7 +93,7 @@ export function discussionsListView({ locale, series, topics, page = 1, user = n
  * @param {object} args.topic
  * @param {object|null} args.user
  * @param {string} args.csrf
- * @returns {string}
+ * @returns {object}
  */
 export function discussionTopicView({ locale, topic, user = null, csrf = '' }) {
   return html`

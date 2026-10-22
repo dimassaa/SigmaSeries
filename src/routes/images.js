@@ -72,6 +72,53 @@ export function createImageRoutes({ pool }) {
 }
 
 /**
+ * Маршруты картинок заставки.
+ *
+ * Кадр заставки — не картинка сериала: у кадра своя картинка и своё
+ * размытие, по которому кадры идут по кругу. Отдельный адрес нужен ещё и
+ * потому, что у кадра может не быть сериала вовсе.
+ *
+ * @param {object} deps
+ * @param {import('pg').Pool} deps.pool
+ * @returns {import('express').Router}
+ */
+export function createSplashImageRoutes({ pool }) {
+  const router = express.Router({ strict: true });
+
+  router.get('/:locale/splash/:frameId-:width.webp', async (req, res, next) => {
+    const { frameId, width, locale } = req.params;
+    const wanted = Number(width);
+
+    if (!/^\d+$/.test(String(frameId)) || !/^\d+$/.test(String(width))) return next('route');
+    if (wanted < 1 || wanted > 4000) return next('route');
+
+    try {
+      const { rows } = await pool.query(
+        `SELECT iv.file, iv.mime, iv.bytes, iv.checksum, iv.width
+           FROM e_splash_frame f
+           JOIN e_image_variant iv ON iv.image_id = f.image_id
+          WHERE f.id = $1 AND f.active
+            AND iv.width >= $2
+          ORDER BY iv.blurred DESC, iv.width
+          LIMIT 1`,
+        [Number(frameId), wanted],
+      );
+      const variant = rows[0];
+      if (!variant) return notFound(res);
+
+      res.set('ETag', `"${variant.checksum}"`);
+      res.set('Cache-Control', 'public, max-age=31536000, immutable');
+      res.type(variant.mime);
+      return res.status(200).send(variant.file);
+    } catch (error) {
+      return next(error);
+    }
+  });
+
+  return router;
+}
+
+/**
  * Маршруты картинок подборки.
  *
  * Отдельный адрес нужен потому, что у баннера подборки может не быть сериала:

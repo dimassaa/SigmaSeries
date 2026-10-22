@@ -24,7 +24,7 @@ import { MODERATION } from '../services/settings.js';
  * @param {string} args.locale
  * @param {object} args.group кластер (из `groups`)
  * @param {string} args.csrf
- * @returns {string}
+ * @returns {object}
  */
 export function clusterView({ locale, group, csrf }) {
   return html`
@@ -75,7 +75,7 @@ export function clusterView({ locale, group, csrf }) {
  * @param {object|null} args.material разбираемый материал
  * @param {string} args.csrf
  * @param {object} args.mode состояние системы (осторожный режим, давление)
- * @returns {string}
+ * @returns {object}
  */
 export function moderationView({ locale, queue = [], clusters = [], material = null, csrf, mode = null }) {
   const clusterOf = new Map();

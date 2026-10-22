@@ -11,13 +11,8 @@
     "skipLibCheck": true
   },
   "include": [
-    "src/types/**/*.d.ts",
-    "src/services/insights/**/*.js",
-    "src/view/recap.js",
-    "src/routes/recap.js",
-    "src/view/profile.js",
-    "src/services/profile/**/*.js",
-    "src/services/auth/hashQueue.js",
-    "src/view/avatar.js"
+    "src/**/*.js",
+    "tests/**/*.js",
+    "tools/**/*.mjs"
   ]
 }

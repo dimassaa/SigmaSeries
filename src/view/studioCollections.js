@@ -12,7 +12,7 @@ import { t } from '../i18n/strings.js';
  * @param {object} args
  * @param {string} args.locale
  * @param {object[]} args.list
- * @returns {string}
+ * @returns {object}
  */
 export function studioCollectionsView({ locale, list = [] }) {
   return html`
@@ -63,7 +63,7 @@ export function studioCollectionsView({ locale, list = [] }) {
  * @param {string} args.locale
  * @param {object} args.collection
  * @param {string} args.csrf
- * @returns {string}
+ * @returns {object}
  */
 export function studioCollectionView({ locale, collection, csrf = '' }) {
   return html`

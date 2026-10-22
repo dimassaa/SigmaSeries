@@ -70,7 +70,7 @@ const GROUPS = [
  * @param {string} args.locale
  * @param {object} args.values текущие значения (ключ → значение)
  * @param {string|null} [args.csrf]
- * @returns {string}
+ * @returns {object}
  */
 export function systemSettingsView({ locale, values = {}, csrf = null }) {
   return html`

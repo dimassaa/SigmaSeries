@@ -28,7 +28,7 @@ const STATES = ['airing', 'waiting', 'ended', 'cancelled', 'announced'];
  * @param {object} args.mode состояние режима
  * @param {number|null} args.selected номер выбранного запуска
  * @param {string} args.csrf
- * @returns {string}
+ * @returns {object}
  */
 export function studioImportView({
   locale, overview, runs = [], detail = null, mode = {}, selected = null, csrf = '',

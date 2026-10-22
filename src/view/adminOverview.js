@@ -14,7 +14,7 @@ import { dayLabel } from './dates.js';
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.data
- * @returns {string}
+ * @returns {object}
  */
 export function adminOverviewView({ locale, data, csrf = null }) {
   const {

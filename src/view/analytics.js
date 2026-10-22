@@ -30,7 +30,7 @@ function number(locale, value) {
  * @param {string} args.locale
  * @param {string} args.title
  * @param {object[]} args.points
- * @returns {string}
+ * @returns {object}
  */
 function barChart({ locale, title, points }) {
   const max = Math.max(1, ...points.map((point) => point.value));
@@ -61,7 +61,7 @@ function barChart({ locale, title, points }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {string} args.key
- * @returns {string}
+ * @returns {object}
  */
 function metricCard({ locale, key }) {
   const metric = metricOf(key);
@@ -95,7 +95,7 @@ function metricCard({ locale, key }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.data
- * @returns {string}
+ * @returns {object}
  */
 export function analyticsOverviewView({ locale, data }) {
   return html`
@@ -145,7 +145,7 @@ export function analyticsOverviewView({ locale, data }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.data
- * @returns {string}
+ * @returns {object}
  */
 export function analyticsRetentionView({ locale, data }) {
   const max = Math.max(1, ...data.funnel.map((step) => step.value));
@@ -174,7 +174,7 @@ export function analyticsRetentionView({ locale, data }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.data
- * @returns {string}
+ * @returns {object}
  */
 export function analyticsContentView({ locale, data }) {
   return html`
@@ -201,7 +201,7 @@ export function analyticsContentView({ locale, data }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.data
- * @returns {string}
+ * @returns {object}
  */
 export function analyticsModerationView({ locale, data }) {
   return html`
@@ -228,7 +228,7 @@ export function analyticsModerationView({ locale, data }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.data
- * @returns {string}
+ * @returns {object}
  */
 export function analyticsPerformanceView({ locale, data }) {
   return html`

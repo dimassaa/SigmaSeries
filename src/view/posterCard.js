@@ -14,7 +14,7 @@ import { t } from '../i18n/strings.js';
  * @param {string} args.locale
  * @param {object} args.data данные слоя
  * @param {boolean} [args.open] нижняя панель для touch: в ней есть «Открыть»
- * @returns {string}
+ * @returns {object}
  */
 export function posterCardView({ locale, data, open = false }) {
   return html`

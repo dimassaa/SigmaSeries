@@ -1345,6 +1345,7 @@
     initRecap();
     initAnalytics();
     initConsentBanner();
+    initSplashOverlay();
     initWebVitals();
     initClientErrors();
     initAnalyticsEvents();
@@ -1620,6 +1621,116 @@
   function localeOf() {
     var lang = document.documentElement.getAttribute('lang') || 'ru';
     return lang === 'en' ? 'en' : 'ru';
+  }
+
+  // ─── Заставка на первом открытии (M0, F-00-06) ──────────────────────────
+  //
+  // Оверлей поверх уже загруженной страницы: счёт от 1 до 25, затем кадры
+  // с наложенным блюром по кругу. Показывается не чаще раза в сутки на
+  // устройство и только если человек ни разу не досмотрел до конца.
+
+  var SPLASH_LAST_SEEN = 'sigma-splash-seen';
+  var SPLASH_WATCHED = 'sigma-splash-watched';
+
+  function initSplashOverlay() {
+    try {
+      if (window.localStorage.getItem(SPLASH_WATCHED)) return;
+      var seen = Number(window.localStorage.getItem(SPLASH_LAST_SEEN) || 0);
+      if (seen && Date.now() - seen < 24 * 3600 * 1000) return;
+    } catch (e) { /* приватный режим — покажем один раз и забудем */ }
+
+    var reduced = window.matchMedia
+      && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    fetch('/' + localeOf() + '/splash/data', { credentials: 'same-origin' })
+      .then(function (response) { return response.ok ? response.json() : null; })
+      .then(function (data) {
+        if (!data) return;
+        showSplash(data, reduced);
+      })
+      .catch(function () { /* сети нет — заставки не будет */ });
+  }
+
+  /**
+   * Показывает заставку.
+   *
+   * @param {object} data кадры и сроки
+   * @param {boolean} reduced человек просил меньше движения
+   */
+  function showSplash(data, reduced) {
+    var total = Math.max(0, data.counterTo - data.counterFrom + 1);
+    var started = Date.now();
+    var overlay = document.createElement('div');
+    overlay.className = 'splash';
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-label', 'Заставка');
+
+    var frame = document.createElement('div');
+    frame.className = 'splash__frame';
+    var counter = document.createElement('p');
+    counter.className = 'splash__counter';
+    counter.textContent = String(data.counterFrom);
+    var hint = document.createElement('p');
+    hint.className = 'splash__hint';
+    hint.textContent = 'Нажмите, чтобы пропустить';
+    overlay.appendChild(frame);
+    overlay.appendChild(counter);
+    overlay.appendChild(hint);
+
+    var index = 0;
+    var finished = false;
+
+    var close = function (watched) {
+      if (finished) return;
+      finished = true;
+      clearInterval(ticker);
+      overlay.remove();
+      try {
+        window.localStorage.setItem(SPLASH_LAST_SEEN, String(Date.now()));
+        if (watched) window.localStorage.setItem(SPLASH_WATCHED, '1');
+      } catch (e) { /* приватный режим */ }
+    };
+
+    var showFrame = function () {
+      if (!data.frames.length) return;
+      var item = data.frames[index % data.frames.length];
+      index += 1;
+      var picture = document.createElement('img');
+      picture.className = 'splash__image';
+      picture.alt = '';
+      picture.src = '/' + localeOf() + '/splash/' + item.id + '-1280.webp';
+      picture.style.objectPosition = item.focalX + '% ' + item.focalY + '%';
+      frame.innerHTML = '';
+      frame.appendChild(picture);
+    };
+
+    var ticker = setInterval(function () {
+      var elapsed = Date.now() - started;
+      var step = Math.floor(elapsed / Math.max(1, data.maxDurationMs / total));
+      var shown = data.counterFrom + Math.min(total - 1, step);
+      counter.textContent = String(shown);
+      if (!reduced) showFrame();
+      if (elapsed >= data.maxDurationMs) {
+        if (reduced) close(false);
+        else {
+          // Кадры идут по кругу, пока человек не нажмёт; после десяти секунд
+          // заставка закрывается сама.
+          if (elapsed >= data.maxDurationMs + 10000) close(false);
+        }
+      }
+    }, 100);
+
+    overlay.addEventListener('click', function () { close(true); });
+    document.addEventListener('keydown', function (event) {
+      if (event.key === 'Escape' || event.key === 'Enter' || event.key === ' ') close(true);
+    });
+    if (reduced) {
+      counter.textContent = String(data.counterFrom);
+      hint.textContent = 'Нажмите, чтобы закрыть';
+    } else {
+      showFrame();
+    }
+    document.body.appendChild(overlay);
   }
 
   // ─── Согласие на аналитику (M8, F-08-01) ─────────────────────────────────

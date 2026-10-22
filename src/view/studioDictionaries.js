@@ -15,7 +15,7 @@ import { t } from '../i18n/strings.js';
  * @param {object[]} args.platforms
  * @param {object[]} args.countries
  * @param {string} args.csrf
- * @returns {string}
+ * @returns {object}
  */
 export function studioDictionariesView({
   locale, genres = [], platforms = [], countries = [], csrf = '',

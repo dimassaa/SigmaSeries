@@ -22,6 +22,7 @@ import { createAdminRoutes } from './routes/admin.js';
 import { createReviewRoutes } from './routes/review.js';
 import { createProfileRoutes } from './routes/profile.js';
 import { createRecapRoutes } from './routes/recap.js';
+import { createPublicSplashRoutes } from './routes/splash.js';
 import { createRecommendationRoutes } from './routes/recommendations.js';
 import { createAnalyticsRoutes } from './routes/analytics.js';
 import { createSeriesRoutes } from './routes/series.js';
@@ -52,7 +53,7 @@ import { createSubscribeRoutes } from './routes/subscribe.js';
 import { createNotificationRoutes } from './routes/notifications.js';
 import { createStatusRoutes } from './routes/status.js';
 import { createLibraryRoutes } from './routes/library.js';
-import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
+import { createImageRoutes, createCollectionImageRoutes, createSplashImageRoutes } from './routes/images.js';
 import { createJournal } from './services/journal.js';
 import { compressedStatic } from './services/assets.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
@@ -98,6 +99,8 @@ export function createApp({
   profile = null,
   // Персональные итоги (M7, F-07-01).
   recap = null,
+  // Заставка на первом открытии (M0, F-00-06).
+  publicSplash = null,
   // Персональные рекомендации (M11, F-11-01).
   recommendations = null,
   // Приём событий аналитики (M8, F-08-01) и метрики (F-08-02…05).
@@ -227,6 +230,7 @@ export function createApp({
   if (profile) app.use(createProfileRoutes({ profile, sessionMw }));
   // Персональные итоги (M7, S-33): свои — на /recap, чужие — под профилем.
   if (recap && profile && data) app.use(createRecapRoutes({ recap, profile, data, sessionMw }));
+  if (publicSplash) app.use(createPublicSplashRoutes({ splash: publicSplash }));
   // «Не интересно» (M11, F-11-03): список скрытых общий для «для вас» и
   // «похожих».
   if (recommendations) app.use(createRecommendationRoutes({ recommendations, sessionMw }));
@@ -330,6 +334,7 @@ export function createApp({
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.
   if (pool) app.use(createImageRoutes({ pool }));
   if (pool) app.use(createCollectionImageRoutes({ pool }));
+  if (pool) app.use(createSplashImageRoutes({ pool }));
 
   if (auth && sessionMw) {
     // Маршруты входа подключаются только если есть и хранилище, и middleware:

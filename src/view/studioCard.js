@@ -54,7 +54,7 @@ function dayOf(value) {
  * Поле формы с происхождением.
  *
  * @param {object} args
- * @returns {string}
+ * @returns {object}
  */
 function field({ locale, card, name, label, type = 'text', value = '', rows = null, hint = '' }) {
   const manual = card.origins[name] === 'manual';
@@ -87,7 +87,7 @@ function field({ locale, card, name, label, type = 'text', value = '', rows = nu
  * @param {object[]} args.history
  * @param {string} args.tab
  * @param {string} args.csrf
- * @returns {string}
+ * @returns {object}
  */
 export function studioCardView({
   locale, card, history = [], genres = [], schedule = [], images = [],

@@ -18,7 +18,7 @@ const ROLE_KEYS = ['admin', 'editor', 'analyst'];
  * @param {string} args.locale
  * @param {object} args.list
  * @param {object} args.query параметры адреса (для чипов фильтров)
- * @returns {string}
+ * @returns {object}
  */
 export function adminUsersView({ locale, list, query = {} }) {
   const { items = [], total = 0, page = 1, pages = 1 } = list;
@@ -124,7 +124,7 @@ export function adminUsersView({ locale, list, query = {} }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {object} args.user
- * @returns {string}
+ * @returns {object}
  */
 export function adminUserView({ locale, user, csrf = null, twoFactor = false, isSelf = false }) {
   return html`

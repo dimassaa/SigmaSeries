@@ -68,6 +68,7 @@ import { createRateLimiter } from './services/limits.js';
 import { pgAuthStore } from './services/auth/store.js';
 import { pgProfile } from './services/profile/service.js';
 import { pgRecap } from './services/insights/recap.js';
+import { pgSplash } from './services/splash/public.js';
 import { pgRecommendations } from './services/recommendations/reco.js';
 import { pgAnalytics } from './services/analytics/events.js';
 import { pgAnalyticsMetrics } from './services/analytics/metrics.js';
@@ -317,6 +318,8 @@ const app = createApp({
   profile: pgProfile(pool),
   // Персональные итоги (M7, F-07-01).
   recap: pgRecap(pool),
+  // Заставка на первом открытии (M0, F-00-06).
+  publicSplash: pgSplash(pool),
   // Персональные рекомендации (M11, F-11-01).
   recommendations,
   // Аналитика (M8, F-08-01).
