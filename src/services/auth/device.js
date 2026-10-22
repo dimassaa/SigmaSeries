@@ -23,6 +23,7 @@ const LABEL_MAX = 120;
  * Браузеры. Порядок обязателен: `Edg` встречается вместе с `Chrome`, а
  * `Chrome` — вместе с `Safari`, поэтому специфичное идёт первым.
  */
+/** @type {Array<[RegExp, string]>} */
 const BROWSERS = [
   [/Edg[ea]?\//, 'Edge'],
   [/OPR\/|Opera/, 'Opera'],
@@ -35,6 +36,7 @@ const BROWSERS = [
  * Системы. Порядок тоже обязателен: iPhone и iPad содержат «Mac OS X», а
  * Android содержит «Linux», поэтому мобильные проверяются первыми.
  */
+/** @type {Array<[RegExp, string]>} */
 const SYSTEMS = [
   [/iPhone|iPad|iPod/, 'iOS'],
   [/Android/, 'Android'],

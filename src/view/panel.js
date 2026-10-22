@@ -19,7 +19,7 @@ import { captionFor } from '../services/catalogue/panel.js';
  * @param {string} args.locale
  * @param {object[]} args.rows
  * @param {string} args.today сегодня пояса читателя
- * @returns {object|string}
+ * @returns {{__raw: string}}
  */
 export function upcomingPanel({ locale, rows, today }) {
   return html`

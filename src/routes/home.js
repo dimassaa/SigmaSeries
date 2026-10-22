@@ -113,8 +113,8 @@ export function notFound(locale, account = null) {
  *
  * @param {string} locale
  * @param {'forbidden'|'tooMany'|'generic'} kind
- * @param {object} [extra] `minutes` — сколько ждать при 429
- * @returns {object}
+ * @param {{minutes?: number}} [extra] `minutes` — сколько ждать при 429
+ * @returns {{__raw: string}}
  */
 export function errorPage(locale, kind, extra = {}) {
   const keys = {

@@ -17,7 +17,7 @@ import { timezoneOf, todayIn } from '../services/timezone.js';
  * @param {object} args
  * @param {object|null} args.panel источник данных панели; `null` — панели нет
  * @param {string} args.locale
- * @param {object} args.req
+ * @param {import('express').Request} args.req
  * @param {boolean} [args.showEmpty] показывать пустое состояние, когда выходов нет
  * @param {(error: Error) => void} [args.onError] куда уходит причина поломки
  * @returns {Promise<string>} готовая разметка или пустая строка
