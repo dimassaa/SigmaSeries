@@ -93,15 +93,16 @@ function pager({ locale, href, page, pages }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.user профиль (ник, статус, дата регистрации, флаги)
+ * @param {{id: number, nickname: string, status: string, registeredAt: string|number|Date,
+ *   statsPublic: boolean, profilePublic: boolean}} args.user профиль
  * @param {{review: number, guide: number}} args.counts счётчики работ
  * @param {'reviews'|'guides'} args.tab открытая вкладка
- * @param {object} args.materials страница материалов вкладки
- * @param {object|null} [args.stats] статистика, если человек её открыл
- * @param {object|null} [args.marked] страница отмеченных сериалов
+ * @param {{items: object[], total: number, page: number, pages: number}} args.materials
+ * @param {{marked: number, ratings: number, reviews: number}|null} [args.stats]
+ * @param {{items: object[], total: number, page: number, pages: number}|null} [args.marked]
  * @param {number} [args.page] страница материалов
  * @param {number} [args.marksPage] страница отмеченных сериалов
- * @returns {string}
+ * @returns {object} готовая разметка
  */
 export function profileView({
   locale,

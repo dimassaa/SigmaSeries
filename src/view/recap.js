@@ -30,13 +30,13 @@ function number(locale, value) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.recap данные итогов (из `slides`)
+ * @param {import('../services/insights/recap.js').RecapData} args.recap данные итогов
  * @param {string} args.period выбранный период
- * @param {object[]} args.popular что можно отметить, когда данных мало
+ * @param {Array<{slug: string, title: string}>} args.popular что можно отметить
  * @param {boolean} [args.own] свои итоги (для кнопки «поделиться»)
  * @param {boolean} [args.public] итоги открыты публично
  * @param {string} [args.csrf] токен формы (для сборки картинки)
- * @returns {string}
+ * @returns {object} готовая разметка
  */
 export function recapView({
   locale, recap, period, popular = [], own = true, public: isPublic = false, csrf = '',
