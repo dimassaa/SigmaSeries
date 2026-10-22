@@ -41,7 +41,11 @@ CREATE TABLE e_user (
   password_hash   TEXT   NOT NULL,           -- argon2id; наружу не отдаётся никогда
   nickname        TEXT   NOT NULL,
   avatar_image_id BIGINT,
-  status          TEXT   NOT NULL DEFAULT 'active'
+  status          TEXT   NOT NULL DEFAULT 'active',
+  -- Синтетический аккаунт демо-населения (M8). Демо и реальные не
+  -- смешиваются ни в одной метрике (R-AN-11), и демо-аккаунт должен быть
+  -- отличим от живого по самой строке, а не только по своим событиям.
+  is_demo         BOOLEAN NOT NULL DEFAULT FALSE,
                   CHECK (status IN ('active','muted','banned','deleting','deleted')),
   email_confirmed BOOLEAN NOT NULL DEFAULT FALSE,
   registered_at   TIMESTAMPTZ NOT NULL DEFAULT now(),

@@ -27,12 +27,33 @@ const DAYS = 30;
  * @returns {Promise<{events: number, ratings: number}>}
  */
 export async function seedDemo(pool, { days = DAYS, users = 40 } = {}) {
-  const { rows: accounts } = await pool.query(
-    `SELECT u.id FROM e_user u
-      WHERE u.status = 'active' AND u.email_confirmed
-      ORDER BY u.id LIMIT $1`,
-    [users],
-  );
+  // Прежние демо-данные убираются: повторный запуск не должен удваивать их.
+  await pool.query('DELETE FROM e_event WHERE is_demo');
+  await pool.query('DELETE FROM e_rating WHERE is_demo');
+
+  // Демо-аккаунты — свои и помеченные: синтетика не должна выглядеть как
+  // живые люди (R-AN-11). Настоящие аккаунты демо не трогает.
+  const accounts = [];
+  for (let i = 0; i < users; i += 1) {
+    const nickname = `demo-${i + 1}`;
+    const { rows } = await pool.query(
+      `INSERT INTO e_user (email_hash, email_blind_idx, email_enc, password_hash, nickname,
+                           is_demo, email_confirmed, status)
+       VALUES (NULL, NULL, NULL, 'demo', $1, TRUE, TRUE, 'active')
+       ON CONFLICT DO NOTHING
+       RETURNING id`,
+      [nickname],
+    );
+    if (rows.length) {
+      accounts.push({ id: Number(rows[0].id) });
+      continue;
+    }
+    const existing = await pool.query(
+      'SELECT id FROM e_user WHERE nickname = $1 AND is_demo',
+      [nickname],
+    );
+    if (existing.rows.length) accounts.push({ id: Number(existing.rows[0].id) });
+  }
   if (!accounts.length) return { events: 0, ratings: 0 };
 
   const names = [
