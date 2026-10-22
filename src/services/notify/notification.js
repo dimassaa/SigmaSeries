@@ -17,7 +17,8 @@
 
 import pg from 'pg';
 
-import { categoryOf } from './types.js';
+import { categoryOf, KINDS } from './types.js';
+import { writeServerEvent } from '../analytics/events.js';
 
 /** Шаг создания: `notify.max_per_user` соседних строк за один запрос (F-03-08 §9). */
 export const STEP = 500;
@@ -137,6 +138,15 @@ export function pgNotifications(pool) {
           [kind, categoryOf(kind), JSON.stringify(params), dedupKey, chunk],
         );
         created += rowCount;
+        // Уведомление отправлено — событие сервера (R-AN-05).
+        for (const userId of chunk) {
+          // eslint-disable-next-line no-await-in-loop
+          await writeServerEvent(pool, {
+            name: 'notification_sent',
+            props: { kind: String(kind), channel: KINDS[kind]?.channel ?? 'in_service' },
+            userId,
+          });
+        }
       }
 
       return { created, steps };

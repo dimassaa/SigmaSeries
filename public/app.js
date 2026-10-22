@@ -1612,6 +1612,7 @@
         event.preventDefault();
         if (dialog.open) return;
         dialog.showModal();
+        track('recap_share', { slide: String(index + 1), period: 'year' });
         var data = new URLSearchParams(new FormData(form));
         fetch(form.action, {
           method: 'POST',
@@ -1648,6 +1649,7 @@
     }
 
     paint();
+    track('recap_open', { slide: '1', period: 'year' });
     schedule();
   }
 

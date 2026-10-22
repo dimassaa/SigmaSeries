@@ -27,6 +27,7 @@ import { REVIEW, MODERATION } from '../settings.js';
 import { pgModerationBudget } from '../moderation/budget.js';
 import { notifyStaff } from '../notify/staff.js';
 import { pgModerationClusters } from '../moderation/cluster.js';
+import { writeServerEvent } from '../analytics/events.js';
 
 /** Причина отказа — короткая строка, по ней маршрут выбирает текст. */
 export const REASONS = {
@@ -309,6 +310,13 @@ export function pgReviews(pool, { budget = null, restrictions = null, moderation
          RETURNING id, version`,
         [userId, seriesId, stored, spoiler, chosen, storedState, at, matches],
       );
+      // Отправка материала меняет данные, поэтому событие пишет сервер
+      // (R-AN-05): результат проверки известен только здесь.
+      await writeServerEvent(pool, {
+        name: 'material_submit',
+        props: { kind: 'review', result: storedState },
+        userId,
+      });
       if (queueFull) {
         return { ok: false, reason: REASONS.QUEUE_FULL, retryAfterSec: 900 };
       }
