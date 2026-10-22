@@ -74,7 +74,7 @@ export function pgRecap(pool) {
    * @param {object} args
    * @param {number} args.userId
    * @param {string} [args.period]
-   * @returns {Promise<object|null>}
+   * @returns {Promise<RecapData|null>}
    */
   async function slides({ userId, period = 'year' }) {
     const when = await clock(userId);

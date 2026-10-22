@@ -27,9 +27,9 @@ const STYLES = ['recap'];
  * Маршруты персональных итогов.
  *
  * @param {object} deps
- * @param {object} deps.recap сервис итогов
- * @param {object} deps.profile сервис профиля (для чужих итогов)
- * @param {object} deps.data данные главной (популярное для экрана «мало данных»)
+ * @param {{slides: (args: {userId: number, period: string}) => Promise<object>, markInviteRead: (userId: number, year: number) => Promise<void>}} deps.recap
+ * @param {{byNickname: (nickname: string) => Promise<object|null>, byId: (userId: number) => Promise<object|null>}} deps.profile
+ * @param {{forYou: (userId: number|null) => Promise<{items: object[], personalized: boolean}>}} deps.data
  * @param {object|null} [deps.sessionMw]
  * @returns {import('express').Router}
  */
@@ -40,9 +40,9 @@ export function createRecapRoutes({ recap, profile, data, sessionMw = null }) {
   /**
    * Страница итогов.
    *
-   * @param {object} req
-   * @param {object} res
-   * @param {object} user человек, чьи итоги смотрят
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   * @param {{id: number, profilePublic: boolean}} user
    * @param {boolean} own свои или чужие
    * @param {import('express').NextFunction} next
    */
