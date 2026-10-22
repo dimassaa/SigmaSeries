@@ -1343,6 +1343,7 @@
     initAnalytics();
     initConsentBanner();
     initWebVitals();
+    initAnalyticsEvents();
     if (path.indexOf('/register/confirm') !== -1) initPolling();
     else {
       initProofOfWork();
@@ -1496,6 +1497,45 @@
     if (width < 768) return 'mobile';
     if (width < 1024) return 'tablet';
     return 'desktop';
+  }
+
+  /**
+   * Показы и клики по элементам, помеченным в разметке.
+   *
+   * Показ считается, когда карточка действительно появилась на экране, а не
+   * когда она отрисовалась: показ без клика — это и есть доля нерелевантности
+   * (F-11-01 §8г).
+   */
+  function initAnalyticsEvents() {
+    var positionOf = function (node) {
+      var parent = node.parentNode;
+      if (!parent) return 1;
+      return Array.prototype.indexOf.call(parent.children, node) + 1;
+    };
+
+    if (window.IntersectionObserver) {
+      var observer = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          if (!entry.isIntersecting) return;
+          var name = entry.target.getAttribute('data-track-impression');
+          if (!name) return;
+          track(name, { position: String(positionOf(entry.target)) });
+          observer.unobserve(entry.target);
+        });
+      }, { threshold: 0.5 });
+      Array.prototype.forEach.call(
+        document.querySelectorAll('[data-track-impression]'),
+        function (node) { observer.observe(node); },
+      );
+    }
+
+    document.addEventListener('click', function (event) {
+      var target = event.target;
+      if (!target || !target.closest) return;
+      var node = target.closest('[data-track-click]');
+      if (!node) return;
+      track(node.getAttribute('data-track-click'), { position: String(positionOf(node)) });
+    }, true);
   }
 
   /** Планировщик: пачка уходит раз в тридцать секунд и при уходе со страницы. */

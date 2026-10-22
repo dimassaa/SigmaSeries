@@ -57,6 +57,7 @@ export function homeView({ locale, data, csrf = '' }) {
     ${data.banners.map((b) => html`
     <li class="banners__item">
       <a class="banner" href="/${locale}/series/${b.seriesSlug}"
+         data-track-impression="banner_impression" data-track-click="banner_click"
          aria-label="${t(locale, `home.banners.reason.${b.reason}`)}, ${b.title}, ${t(locale, 'home.banners.rating', { rating: b.imdb })}${when(b.withdrawn, () => `, ${t(locale, 'home.banners.withdrawn')}`)}">
         ${when(b.backdropWidth && !b.withdrawn,
           () => html`<img class="banner__image" src="${imageUrl(locale, b.seriesSlug, 'backdrop', b.backdropWidth)}"
@@ -83,6 +84,7 @@ export function homeView({ locale, data, csrf = '' }) {
     ${forYou.items.map((s) => html`
     <li class="posters__item">
       <a class="poster" href="/${locale}/series/${s.slug}" data-poster-card="${s.slug}" data-poster-info="${t(locale, 'poster.card.info')}"
+         data-track-impression="reco_impression" data-track-click="reco_click"
          aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
         <span class="poster__frame">
           ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
@@ -99,7 +101,8 @@ export function homeView({ locale, data, csrf = '' }) {
         <input type="hidden" name="csrf" value="${csrf}">
         <input type="hidden" name="series" value="${s.slug}">
         <input type="hidden" name="back" value="/${locale}/">
-        <button class="button button--quiet" type="submit">${t(locale, 'reco.dismiss')}</button>
+        <button class="button button--quiet" type="submit" data-track-click="reco_dismiss"
+          >${t(locale, 'reco.dismiss')}</button>
       </form>`)}
     </li>`)}
   </ol>`)}

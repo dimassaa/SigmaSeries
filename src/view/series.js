@@ -219,6 +219,7 @@ function similarSection({ locale, items, csrf = '', seriesSlug = '' }) {
       ${items.map((item) => html`
       <li class="posters__item">
         <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}"
+           data-track-impression="reco_impression" data-track-click="reco_click"
            data-poster-info="${t(locale, 'poster.card.info')}">
           <span class="poster__frame">
             ${when(item.posterWidth, () => html`<img class="poster__img"
@@ -238,7 +239,8 @@ function similarSection({ locale, items, csrf = '', seriesSlug = '' }) {
           <input type="hidden" name="csrf" value="${csrf}">
           <input type="hidden" name="series" value="${item.slug}">
           <input type="hidden" name="back" value="/${locale}/series/${seriesSlug}">
-          <button class="button button--quiet" type="submit">${t(locale, 'reco.dismiss')}</button>
+          <button class="button button--quiet" type="submit" data-track-click="reco_dismiss"
+            >${t(locale, 'reco.dismiss')}</button>
         </form>
       </li>`)}
     </ol>
