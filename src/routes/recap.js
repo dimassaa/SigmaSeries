@@ -27,9 +27,13 @@ const STYLES = ['recap'];
  * Маршруты персональных итогов.
  *
  * @param {object} deps
- * @param {{slides: (args: {userId: number, period: string}) => Promise<object>, markInviteRead: (userId: number, year: number) => Promise<void>}} deps.recap
- * @param {{byNickname: (nickname: string) => Promise<object|null>, byId: (userId: number) => Promise<object|null>}} deps.profile
- * @param {{forYou: (userId: number|null) => Promise<{items: object[], personalized: boolean}>}} deps.data
+ * @param {{slides: (args: {userId: number, period: string}) => Promise<import('../services/insights/recap.js').RecapData|null>,
+ *   markInviteRead: (userId: number, year: number) => Promise<void>}} deps.recap
+ * @param {{byNickname: (nickname: string) => Promise<{id: number, nickname: string, status: string,
+ *   registeredAt: string, statsPublic: boolean, profilePublic: boolean}|null>,
+ *   byId: (userId: number) => Promise<{id: number, nickname: string, status: string,
+ *   registeredAt: string, statsPublic: boolean, profilePublic: boolean}|null>}} deps.profile
+ * @param {{forYou: (userId: number|null) => Promise<{items: Array<{slug: string, title: string}>, personalized: boolean}>}} deps.data
  * @param {object|null} [deps.sessionMw]
  * @returns {import('express').Router}
  */
@@ -48,7 +52,9 @@ export function createRecapRoutes({ recap, profile, data, sessionMw = null }) {
    */
   async function render(req, res, user, own, next) {
     const locale = req.params.locale;
-    const period = PERIODS.includes(req.query.period) ? req.query.period : WRAPPED.defaultPeriod;
+    // In the address the values are always strings.
+    const query = /** @type {Record<string, string>} */ (req.query ?? {});
+    const period = PERIODS.includes(query.period) ? query.period : WRAPPED.defaultPeriod;
     try {
       const data_ = await recap.slides({ userId: user.id, period });
       if (!data_) {
@@ -96,7 +102,8 @@ export function createRecapRoutes({ recap, profile, data, sessionMw = null }) {
     const locale = req.params.locale;
     if (!isLocale(locale)) return next('route');
     try {
-      const user = await profile.byNickname(req.params.nick);
+      const params = /** @type {Record<string, string>} */ (req.params ?? {});
+      const user = await profile.byNickname(params.nick);
       // Чужи итоги открыты только при включённой публичности; иначе — как
       // будто человека нет (F-07-01 §5).
       if (!user || !user.profilePublic) {

@@ -21,6 +21,29 @@ export const PERIODS = ['year', 'month', 'all'];
  *
  * @param {pg.Pool} pool
  */
+/**
+ * @typedef {object} RecapSlide
+ * @property {string} key ключ слайда
+ * @property {number|string} value крупное число
+ * @property {string|null} unit единица измерения числом
+ * @property {object} params числа для текста
+ * @property {{href: string, title: string}|null} link сериал, о котором слайд
+ * @property {boolean} notePlural у текста есть множественное число
+ */
+
+/**
+ * @typedef {object} RecapData
+ * @property {string} period выбранный период
+ * @property {number} year
+ * @property {number} month
+ * @property {string} timezone
+ * @property {boolean} enough данных достаточно для слайдов
+ * @property {number} marks точных отметок
+ * @property {number} series сериалов с отметками
+ * @property {number} hours часов по известным длительностям
+ * @property {RecapSlide[]} slides
+ */
+
 export function pgRecap(pool) {
   /**
    * Год и месяц в часовом поясе человека.
