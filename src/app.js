@@ -63,11 +63,80 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
 
 /**
  * @param {object} deps
- * @param {object} deps.data источник данных S-01
- * @param {object} deps.auth доступ к учётным записям
- * @param {Function} deps.sessionMw middleware сессий
- * @param {object} [deps.mailQueue] очередь служебных писем (F-01-12)
+ * @param {any} deps.data источник данных S-01
+ * @param {any} [deps.auth] доступ к учётным записям
+ * @param {import('express').RequestHandler[]} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.mailQueue] очередь служебных писем (F-01-12)
  * @param {string} [deps.publicDir] где лежит собранная таблица стилей
+ * @param {any} [deps.series]
+ * @param {any} [deps.posterCard]
+ * @param {any} [deps.catalogue]
+ * @param {any} [deps.search]
+ * @param {any} [deps.searchRatePerIp]
+ * @param {any} [deps.seasons]
+ * @param {any} [deps.collections]
+ * @param {any} [deps.person]
+ * @param {any} [deps.calendar]
+ * @param {any} [deps.watchStatus]
+ * @param {any} [deps.statusLimiter]
+ * @param {any} [deps.marks]
+ * @param {any} [deps.progress]
+ * @param {any} [deps.subscriptions]
+ * @param {any} [deps.subscribeLimiter]
+ * @param {any} [deps.feed]
+ * @param {any} [deps.preferences]
+ * @param {any} [deps.panel]
+ * @param {any} [deps.markLimiter]
+ * @param {any} [deps.ratings]
+ * @param {any} [deps.taste]
+ * @param {any} [deps.ratingLimiter]
+ * @param {any} [deps.anomalies]
+ * @param {any} [deps.audit]
+ * @param {any} [deps.profile]
+ * @param {any} [deps.recap]
+ * @param {any} [deps.publicSplash]
+ * @param {any} [deps.recommendations]
+ * @param {any} [deps.analytics]
+ * @param {any} [deps.analyticsMetrics]
+ * @param {any} [deps.hashQueue]
+ * @param {any} [deps.reviews]
+ * @param {any} [deps.reviewList]
+ * @param {any} [deps.decisions]
+ * @param {any} [deps.moderationClusters]
+ * @param {any} [deps.moderationBudget]
+ * @param {any} [deps.moderationRestrictions]
+ * @param {any} [deps.myMaterials]
+ * @param {any} [deps.adminUsers]
+ * @param {any} [deps.adminOverview]
+ * @param {any} [deps.backups]
+ * @param {any} [deps.studio]
+ * @param {any} [deps.studioCollections]
+ * @param {any} [deps.splash]
+ * @param {any} [deps.importReport]
+ * @param {any} [deps.freeze]
+ * @param {any} [deps.bulk]
+ * @param {any} [deps.studioDictionaries]
+ * @param {any} [deps.discussions]
+ * @param {any} [deps.guides]
+ * @param {any} [deps.studioCard]
+ * @param {any} [deps.studioSchedule]
+ * @param {any} [deps.studioImages]
+ * @param {any} [deps.picks]
+ * @param {any} [deps.backupRunner]
+ * @param {any} [deps.backupSchedule]
+ * @param {any} [deps.votes]
+ * @param {any} [deps.helpfulLimiter]
+ * @param {any} [deps.reports]
+ * @param {any} [deps.reportLimiter]
+ * @param {any} [deps.dictionary]
+ * @param {any} [deps.reviewIpLimiter]
+ * @param {any} [deps.reviewDeviceLimiter]
+ * @param {any} [deps.library]
+ * @param {any} [deps.pool]
+ * @param {any} [deps.mailMode]
+ * @param {any} [deps.journal]
+ * @param {string} [deps.baseUrl]
+ * @param {() => number} [deps.now]
  */
 export function createApp({
   data,
@@ -170,7 +239,7 @@ export function createApp({
       // журнал перевод строки и дописал запись (R-SEC-29).
       'X-Request-Id': crypto.randomUUID(),
     });
-    req.requestId = res.getHeader('X-Request-Id');
+    req.requestId = String(res.getHeader('X-Request-Id') ?? '');
     next();
   });
 

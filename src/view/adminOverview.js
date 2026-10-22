@@ -12,9 +12,10 @@ import { dayLabel } from './dates.js';
  * Обзор.
  *
  * @param {object} args
+ * @param {any} [args.csrf]
  * @param {string} args.locale
- * @param {object} args.data
- * @returns {object}
+ * @param {any} args.data
+ * @returns {any}
  */
 export function adminOverviewView({ locale, data, csrf = null }) {
   const {

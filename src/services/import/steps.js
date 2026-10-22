@@ -52,12 +52,12 @@ function datasetOptions(key, dir) {
  * прогон, чтобы S-76 было что показывать.
  *
  * @param {object} deps
- * @param {object} deps.store хранилище прогонов
+ * @param {any} deps.store хранилище прогонов
  * @param {number} deps.runId прогон, в который пишутся позиции
  * @param {number} [deps.topN] сколько позиций отобрать
  * @param {string} [deps.dataDir] каталог с датасетами
  * @param {(line: string) => void} [deps.log]
- * @returns {Promise<{status: string, counters: object, checkpoint: object}>}
+ * @returns {Promise<{status: string, counters: any, checkpoint: any}>}
  */
 export async function candidatesStep({
   store, runId, topN = IMPORT_SETTINGS.topN, dataDir = DATA_DIR, log = () => {},
@@ -118,13 +118,13 @@ export async function candidatesStep({
  * Сопоставление кандидатов с TMDB (F-12-02).
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.store хранилище прогонов
- * @param {object} deps.tmdb клиент TMDB
+ * @param {any} deps.pool
+ * @param {any} deps.store хранилище прогонов
+ * @param {any} deps.tmdb клиент TMDB
  * @param {number} deps.runId прогон, который обрабатывается
  * @param {number} [deps.limit] сколько позиций взять; 0 — все
  * @param {(line: string) => void} [deps.log]
- * @returns {Promise<{status: string, counters: object, checkpoint: object|null, skipped: boolean, reason: string|null}>}
+ * @returns {Promise<{status: string, counters: any, checkpoint: any|null, skipped: boolean, reason: string|null}>}
  */
 export async function matchStep({ pool, store, tmdb, runId, limit = 0, log = () => {} }) {
   const pending = await store.pendingCandidates({ limit, runId });
@@ -208,14 +208,15 @@ export async function matchStep({ pool, store, tmdb, runId, limit = 0, log = () 
  * Обогащение из TMDB и IMDb (F-12-03).
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.store хранилище прогонов
- * @param {object} deps.tmdb клиент TMDB
+ * @param {any} deps.pool
+ * @param {any} deps.store хранилище прогонов
+ * @param {any} deps.tmdb клиент TMDB
  * @param {number} deps.runId прогон, который обрабатывается
  * @param {number} [deps.limit] сколько позиций взять; 0 — все
  * @param {string} [deps.dataDir] каталог с датасетами
  * @param {(line: string) => void} [deps.log]
- * @returns {Promise<{status: string, counters: object, checkpoint: object|null, skipped: boolean, reason: string|null}>}
+ * @returns {Promise<{status: string, counters: any, checkpoint: any|null, skipped: boolean,
+ *   reason: string|null, errors?: number, enriched?: number}>}
  */
 export async function enrichStep({
   pool, store, tmdb, runId, limit = 0, dataDir = DATA_DIR, log = () => {},
@@ -342,13 +343,13 @@ export async function enrichStep({
  * это в отчёте (F-12-08 §6). Запрет задан флагом строки прогона.
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.store хранилище прогонов
+ * @param {any} deps.pool
+ * @param {any} deps.store хранилище прогонов
  * @param {number} deps.runId прогон, который записывается
  * @param {number} [deps.limit] сколько позиций взять; 0 — все
  * @param {Date} [deps.now]
  * @param {(line: string) => void} [deps.log]
- * @returns {Promise<{status: string, counters: object, checkpoint: object|null, skipped: boolean, reason: string|null}>}
+ * @returns {Promise<{status: string, counters: any, checkpoint: any|null, skipped: boolean, reason: string|null}>}
  */
 export async function catalogueStep({
   pool, store, runId, limit = 0, now = new Date(), log = () => {},
@@ -439,13 +440,13 @@ export async function catalogueStep({
  * лежит в базе сейчас.
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.store
+ * @param {any} deps.pool
+ * @param {any} deps.store
  * @param {number} deps.runId
- * @param {object[]} deps.rows обогащённые позиции прогона
+ * @param {any[]} deps.rows обогащённые позиции прогона
  * @param {Date} deps.now
  * @param {(line: string) => void} deps.log
- * @returns {Promise<{counters: object, checkpoint: object|null, skipped: boolean, reason: string|null}>}
+ * @returns {Promise<{counters: any, checkpoint: any|null, skipped: boolean, reason: string|null}>}
  */
 async function dryCatalogue({ pool, store, runId, rows, now, log }) {
   const keys = rows.map((row) => row.tconst);
@@ -551,8 +552,8 @@ async function dryCatalogue({ pool, store, runId, rows, now, log }) {
  * процесса, которого к тому времени уже нет (F-12-09 §17, №94).
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.store
+ * @param {any} deps.pool
+ * @param {any} deps.store
  * @param {number} deps.runId
  * @param {Error} deps.error
  * @returns {Promise<void>}

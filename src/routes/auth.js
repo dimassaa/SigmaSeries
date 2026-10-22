@@ -31,7 +31,7 @@ const STYLES = ['identity'];
  *
  * @param {import('express').Request} req
  * @param {object} input
- * @param {object} input.user
+ * @param {any} input.user
  * @param {string} input.email
  * @param {string[]} input.roles
  * @param {string} input.kind
@@ -58,6 +58,16 @@ async function beginTwoFactor(req, { user, email, roles, kind, configured }) {
   };
 }
 
+/**
+ * Маршруты входа и восстановления доступа.
+ *
+ * @param {object} deps
+ * @param {any} deps.auth хранилище учётных записей
+ * @param {any} [deps.limitsApi] счётчики попыток; в тестах подменяются
+ * @param {import('express').RequestHandler[]} deps.sessionMw middleware сессий
+ * @param {any} [deps.hashQueue] очередь тяжёлого хеширования
+ * @param {any} [deps.analytics] серверные события
+ */
 export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueue = null, analytics = null }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
@@ -206,6 +216,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueu
 
     const roles = await auth.roles(user.id);
     const kind = sessionKind(roles);
+    const staff = kind === 'staff';
 
     // R-SEC-04, DEC-015: служебная роль требует второго фактора.
     //
@@ -215,7 +226,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueu
     //
     // Отказ здесь (как было до F-01-05) означал, что администратор не может
     // войти вовсе: страница S-72 и модерация для него просто не существуют.
-    if (kind === 'staff') {
+    if (staff) {
       const state = await auth.twoFactor(user.id);
       await beginTwoFactor(req, { user, email, roles, kind, configured: Boolean(state) });
       return res.redirect(303, `/${locale}${state ? '/2fa' : '/2fa/setup'}`);
@@ -238,7 +249,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueu
     await regenerate(req);
 
     // Служебной ветки здесь быть не может — она выше вернула редирект на 2FA.
-    const durations = sessionDurations(kind === 'staff');
+    const durations = sessionDurations(staff);
     req.session.user = {
       id: user.id,
       nickname: user.nickname,
@@ -328,9 +339,9 @@ function renderForm(ctx) {
 }
 
 function regenerate(req) {
-  return new Promise((resolve, reject) => {
+  return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     req.session.regenerate((e) => (e ? reject(e) : resolve()));
-  });
+  }));
 }
 
 /** IP для лимитов: заголовок берётся только если приложение за прокси. */

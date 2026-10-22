@@ -11,7 +11,7 @@ import { isLocale } from '../i18n/strings.js';
  * Маршрут данных заставки.
  *
  * @param {object} deps
- * @param {object} deps.splash источник кадров
+ * @param {any} deps.splash источник кадров
  * @returns {import('express').Router}
  */
 export function createPublicSplashRoutes({ splash }) {

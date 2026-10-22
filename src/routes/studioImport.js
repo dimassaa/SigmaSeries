@@ -25,10 +25,10 @@ const STYLES = ['base', 'admin'];
  *
  * @param {object} deps
  * @param {import('pg').Pool} deps.pool
- * @param {object} deps.report источник данных отчёта
- * @param {object|null} [deps.freeze] состояние режима защиты
- * @param {object|null} [deps.audit] журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.report источник данных отчёта
+ * @param {any} [deps.freeze] состояние режима защиты
+ * @param {any} [deps.audit] журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createImportRoutes({ pool, report, freeze = null, audit = null, sessionMw = null }) {

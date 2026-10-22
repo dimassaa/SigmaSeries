@@ -76,9 +76,13 @@ const THEMES = ['light', 'dark', 'system'];
 
 /**
  * @param {object} deps
- * @param {object} deps.auth хранилище учётных записей
- * @param {Function} deps.sessionMw middleware сессий
- * @param {object} [deps.journal] журнал безопасности
+ * @param {any} [deps.baseUrl]
+ * @param {any} [deps.mailQueue]
+ * @param {any} [deps.now]
+ * @param {any} [deps.preferences]
+ * @param {any} deps.auth хранилище учётных записей
+ * @param {import('express').RequestHandler[]} deps.sessionMw middleware сессий
+ * @param {any} [deps.journal] журнал безопасности
  */
 export function createSettingsRoutes({
   auth, sessionMw, journal, mailQueue, preferences = null, now = () => Date.now(), baseUrl = '',
@@ -152,7 +156,7 @@ export function createSettingsRoutes({
 
     const body = req.body ?? {};
     if (!csrfValid(req.session, body.csrf)) {
-      return respond(res, 403, render(req, {
+      return respond(res, 403, await render(req, {
         section, user: req.session.user ?? null, error: t(locale, 'settings.error.csrf'),
       }));
     }
@@ -577,7 +581,7 @@ export function createSettingsRoutes({
    * Адрес берётся из базы, а не из сессии: в сессии его нет, а в теле
    * запроса ему нельзя доверять (R-SEC-10).
    *
-   * @param {object} [params] подстановки в текст письма, например дата
+   * @param {any} [params] подстановки в текст письма, например дата
    */
   async function notify(userId, locale, kind, params = {}) {
     const to = await auth.addressOf(userId);
@@ -602,7 +606,7 @@ export function createSettingsRoutes({
     if (checkTimezone(timezone).length) problems.push('timezone');
 
     if (problems.length) {
-      return respond(res, 400, render(req, {
+      return respond(res, 400, await render(req, {
         section: 'appearance',
         user,
         error: t(locale, `settings.error.${problems[0]}`),
@@ -693,7 +697,7 @@ export function createSettingsRoutes({
     const verdict = await auth.requestExport(user.id, user.locale ?? locale, new Date(now()));
     // EC-A21: отказ со временем следующей попытки, а не «попробуйте позже».
     if (!verdict.ok) {
-      const hours = Math.max(1, Math.ceil((new Date(verdict.retryAt) - now()) / 3_600_000));
+      const hours = Math.max(1, Math.ceil((new Date(verdict.retryAt).getTime() - now()) / 3_600_000));
       return respond(res, 429, await render(req, {
         ...ctx,
         section: 'data',

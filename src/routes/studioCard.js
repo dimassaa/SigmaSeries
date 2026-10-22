@@ -20,9 +20,11 @@ const STYLES = ['base', 'admin'];
  * Маршруты карточки сериала.
  *
  * @param {object} deps
- * @param {object} deps.card источник данных карточки
- * @param {object|null} [deps.audit] журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.images]
+ * @param {any} [deps.schedule]
+ * @param {any} deps.card источник данных карточки
+ * @param {any} [deps.audit] журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createStudioCardRoutes({
@@ -193,7 +195,7 @@ export function createStudioCardRoutes({
               .send(t(locale, 'admin.users.csrf'));
           }
           const file = form.get('file');
-          if (!file || typeof file.arrayBuffer !== 'function') {
+          if (!file || typeof file === 'string' || typeof file.arrayBuffer !== 'function') {
             return res.status(400).type('text/plain; charset=utf-8')
               .send(t(locale, 'studio.card.uploadError.file'));
           }

@@ -234,10 +234,10 @@ export function createSeasonRoutes({
  * измерение 14).
  *
  * @param {object} args
- * @param {object} args.ratings сервис оценок
- * @param {object|null} args.user вошедший или `null`
+ * @param {any} args.ratings сервис оценок
+ * @param {any} args.user вошедший или `null`
  * @param {string} args.csrf
- * @param {object[]} args.episodes строки сезона с отметкой и датой
+ * @param {any[]} args.episodes строки сезона с отметкой и датой
  * @param {string|null} args.today сегодня в поясе посетителя
  * @returns {Promise<Map<number, object>>} блок оценки по идентификатору серии
  */
@@ -278,8 +278,8 @@ async function ratingsOfSeason({ ratings, user, csrf, episodes, today }) {
  * странице выглядит как ошибка вёрстки, а приглашение объясняет, что делать.
  *
  * @param {object} args
- * @param {object} args.ratings сервис оценок
- * @param {object|null} args.user
+ * @param {any} args.ratings сервис оценок
+ * @param {any} args.user
  * @param {string} args.csrf
  * @param {number} args.episodeId
  * @param {string|null} args.today
@@ -312,8 +312,8 @@ async function ratingOfEpisode({ ratings, user, csrf, episodeId, today }) {
  * @param {import('express').Response} args.res
  * @param {string} args.locale
  * @param {string} args.slug
- * @param {object|null} args.series источник карточки; без него всегда 404
- * @param {object|null} [args.account] меню аккаунта из верхней панели
+ * @param {any} args.series источник карточки; без него всегда 404
+ * @param {any} [args.account] меню аккаунта из верхней панели
  */
 async function sendMissing({ res, locale, slug, series, account = null }) {
   const found = series ? await series.bySlug(slug) : null;
@@ -351,8 +351,8 @@ function episodeJsonLd({ locale, page, seasonNumber, episodeNumber }) {
  * приглашение нажать кнопку, которая ничего не сделает.
  *
  * @param {import('express').Request} req
- * @returns {{csrf: string, signedIn: boolean, user: object|null,
- *   undoWindow: number, options: object}}
+ * @returns {{csrf: string, signedIn: boolean, user: any|null,
+ *   undoWindow: number, options: any}}
  */
 function marksOf(req) {
   const user = req.session?.user ?? null;

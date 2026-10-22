@@ -4,15 +4,16 @@
 // что в очередях, что с аномалиями оценок и как идут копии. Этот экран —
 // тот самый, на который администратор посмотрит, когда что-то пошло не так.
 
-import { ADMIN } from '../settings.js';
+import { ADMIN, MODERATION } from '../settings.js';
 
 /**
  * Источник данных обзора.
  *
  * @param {import('pg').Pool} pool
  * @param {object} deps
- * @param {object} [deps.backups] журнал резервных копий
- * @returns {object}
+ * @param {any} [deps.backups] журнал резервных копий
+ * @param {any} [deps.health] проверка состояния сервера (F-09-06)
+ * @returns {any}
  */
 export function pgAdminOverview(pool, { backups = null, health = null } = {}) {
   /**
@@ -56,14 +57,14 @@ export function pgAdminOverview(pool, { backups = null, health = null } = {}) {
     return {
       waiting: Number(row.waiting),
       oldestMinutes,
-      growing: oldestMinutes >= ADMIN.queueTargetMin,
+      growing: oldestMinutes >= MODERATION.queueTargetMin,
     };
   }
 
   /**
    * Открытые аномалии оценок: их администратор и разбирает (F-04-08).
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function anomalies() {
     const { rows } = await pool.query(
@@ -87,7 +88,7 @@ export function pgAdminOverview(pool, { backups = null, health = null } = {}) {
   /**
    * Последние резервные копии.
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function backupsList() {
     if (!backups) return [];
@@ -105,7 +106,7 @@ export function pgAdminOverview(pool, { backups = null, health = null } = {}) {
   /**
    * Всё сразу: один экран — один сбор.
    *
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function overview() {
     const [people, queue, anomaliesList, copies, state, state2] = await Promise.all([

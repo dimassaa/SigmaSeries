@@ -98,7 +98,7 @@ export function number(locale, value) {
  * @param {string|null} [args.clearConfirm] текст подтверждения снятия;
  *   `null` — подтверждать нечего. Снятие оценки при живом отзыве удаляет и
  *   отзыв, поэтому действие спрашивает согласия (F-04-04 §8в, H-75)
- * @param {object|null} [args.hidden] скрытые поля формы готовой разметкой
+ * @param {any} [args.hidden] скрытые поля формы готовой разметкой
  * @param {boolean} [args.compact] мелкий ряд для списка серий (S-07)
  */
 function scaleForm({

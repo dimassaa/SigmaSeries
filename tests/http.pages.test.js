@@ -22,7 +22,7 @@ async function withServer(run) {
       get: (path) => fetch(base + path, { redirect: 'manual' }),
     });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

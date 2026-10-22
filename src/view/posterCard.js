@@ -56,7 +56,7 @@ import { t } from '../i18n/strings.js';
  * @param {string} args.locale
  * @param {PosterCardData} args.data данные слоя
  * @param {boolean} [args.open] нижняя панель для touch: в ней есть «Открыть»
- * @returns {object}
+ * @returns {any}
  */
 export function posterCardView({ locale, data, open = false }) {
   return html`
@@ -187,7 +187,7 @@ function genreNames(locale, data) {
  * @param {string} locale
  * @param {string} label
  * @param {PosterRating|null} value
- * @returns {object}
+ * @returns {any}
  */
 function rating(locale, label, value) {
   const text = value

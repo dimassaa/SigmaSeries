@@ -42,7 +42,7 @@ export function pgTaste(pool) {
      * собственному вкусу редактора. Человек выбирает из того, что знают все,
      * а не из того, что полюбил автор.
      *
-     * @param {number} [size]
+     * @param {{size?: number}} [options]
      * @returns {Promise<Array<{id:number, slug:string, title:string,
      *   genreCode:string, genreRu:string|null, genreEn:string|null,
      *   posterWidth:number|null, votes:number|null}>>}

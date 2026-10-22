@@ -143,7 +143,7 @@ async function purgeTestData(pool) {
 /**
  * Создать аккаунт для показа.
  *
- * @param {object} pool
+ * @param {any} pool
  * @param {{nickname: string, role: string|null}} args
  * @returns {Promise<{email: string, password: string}>}
  */

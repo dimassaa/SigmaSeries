@@ -11,6 +11,7 @@ import assert from 'node:assert/strict';
 import { mailText, MAIL_KINDS } from '../src/i18n/mails.js';
 
 const LINK = 'http://127.0.0.1:3000/ru/password/reset?token=abc123';
+/** @type {Record<string, any>} */
 const NEEDED_VARS = { link: LINK };
 
 test('у каждого вида письма есть тема и тело в обоих языках', () => {

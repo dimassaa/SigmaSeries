@@ -61,7 +61,7 @@ const IMAGES = [{
 /**
  * Разметка вида строкой: шаблон отдаёт готовый кусок, а не строку.
  *
- * @param {object} args
+ * @param {any} args
  * @returns {string}
  */
 function markupOf(args) {

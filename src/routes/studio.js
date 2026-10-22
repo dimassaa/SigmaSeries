@@ -11,6 +11,7 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { studioListView, studioQueueView } from '../view/studio.js';
 import { studioBannersView } from '../view/studioBanners.js';
+import { bulkPreviewView } from '../view/studioBulk.js';
 
 const BASE = '/admin/catalog';
 
@@ -21,11 +22,12 @@ const STYLES = ['base', 'admin'];
  * Маршруты студии.
  *
  * @param {object} deps
+ * @param {any} [deps.bulk]
  * @param {import('pg').Pool} deps.pool
- * @param {object} deps.studio источник данных студии
- * @param {object} [deps.picks] выборы редакции
- * @param {object|null} [deps.audit] журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.studio источник данных студии
+ * @param {any} [deps.picks] выборы редакции
+ * @param {any} [deps.audit] журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createStudioRoutes({
@@ -295,8 +297,8 @@ function localDate(at = new Date()) {
 /**
  * Фильтры из адреса.
  *
- * @param {object} query
- * @returns {object}
+ * @param {any} query
+ * @returns {any}
  */
 function readFilters(query = {}) {
   const reasons = []

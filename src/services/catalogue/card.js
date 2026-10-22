@@ -32,7 +32,7 @@ export function pgPosterCard(pool) {
      * на списке — продолжение списка, а не отдельная страница.
      *
      * @param {string} slug
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async forSlug(slug) {
       const { rows } = await pool.query(

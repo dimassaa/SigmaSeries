@@ -17,7 +17,7 @@ import { homeSettings } from './settings.js';
  * Форматирование в базе не делается — его нельзя отладить запросом.
  *
  * @param {pg.Pool} pool
- * @param {{recommendations?: {forUser: (userId: number|null) => Promise<{items: object[], personalized: boolean}>}|null}} [deps]
+ * @param {{recommendations?: {forUser: (userId: number|null) => Promise<{items: any[], personalized: boolean}>}|null}} [deps]
  */
 export function pgData(pool, { recommendations = null } = {}) {
   // Настройки читаются один раз на источник: главная открывается часто, а
@@ -176,7 +176,7 @@ export function pgData(pool, { recommendations = null } = {}) {
      * популярное — без сообщения об ошибке (F-06-06 §5).
      *
      * @param {number|null} userId
-     * @returns {Promise<{items: object[], personalized: boolean}>}
+     * @returns {Promise<{items: any[], personalized: boolean}>}
      */
     async forYou(userId) {
       const popular = async () => {

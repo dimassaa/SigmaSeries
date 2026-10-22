@@ -80,10 +80,10 @@ function categoriesOf(matched) {
  * @param {string} args.locale
  * @param {string} args.action
  * @param {string} args.csrf
- * @param {object|null} args.own свой отзыв, если уже есть
+ * @param {any} args.own свой отзыв, если уже есть
  * @param {number|null} [args.rating] текущая оценка — подставляется в шкалу
- * @param {object|null} [args.values] введённое после ошибки
- * @param {object|null} [args.error] `{ key, params }` — что показать над формой
+ * @param {any} [args.values] введённое после ошибки
+ * @param {any} [args.error] `{ key, params }` — что показать над формой
  */
 function reviewForm({ locale, action, csrf, own, rating = null, values = null, error = null }) {
   const body = values?.body ?? own?.body ?? '';
@@ -149,12 +149,12 @@ function reviewForm({ locale, action, csrf, own, rating = null, values = null, e
  * @param {object} args
  * @param {string} args.locale
  * @param {string} args.slug
- * @param {object|null} args.own свой отзыв
- * @param {object} args.gate `{ signedIn, canWrite, reason, mute, csrf, cooldownSec }`
- * @param {object|null} [args.review] `{ matched }` — находки для подсветки
+ * @param {any} args.own свой отзыв
+ * @param {any} args.gate `{ signedIn, canWrite, reason, mute, csrf, cooldownSec }`
+ * @param {any} [args.review] `{ matched }` — находки для подсветки
  * @param {number|null} [args.rating] текущая оценка
- * @param {object|null} [args.values] введённое после ошибки
- * @param {object|null} [args.error]
+ * @param {any} [args.values] введённое после ошибки
+ * @param {any} [args.error]
  * @param {boolean} [args.editing] форма открыта после ошибки или по запросу
  * @param {string|null} [args.timezone]
  */

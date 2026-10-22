@@ -74,7 +74,7 @@ export function labelFor(row) {
 /**
  * Источник данных панели.
  *
- * @param {pg.Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  * @param {{cacheSeconds?: number, maxVariants?: number, clock?: () => number,
  *   onError?: ((error: Error) => void)|null}} [options]
  */

@@ -109,7 +109,7 @@ async function withServer({ user, roles = {}, twoFactor = null, run }) {
     auth,
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, memStore)),
+    sessionMw: /** @type {any} */ (createSessionMiddleware(pool, memStore)),
     journal,
     now: () => NOW * 1000,
   });
@@ -124,7 +124,7 @@ async function withServer({ user, roles = {}, twoFactor = null, run }) {
   try {
     await run({ ...main, newBrowser: () => browser(base), sessions, auth, logged });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

@@ -14,7 +14,7 @@ import { pgNotifications } from './notification.js';
  * @param {object} args
  * @param {import('pg').Pool} args.pool
  * @param {string} args.kind вид уведомления (из реестра `KINDS`)
- * @param {object} [args.params] параметры текста
+ * @param {any} [args.params] параметры текста
  * @param {string} args.dedupKey ключ, по которому повтор не создаётся
  * @param {string[]} [args.roles] роли получателей; по умолчанию — администратор
  *   и редактор (служебные виды в реестре адресованны обоим, M3 §8е)

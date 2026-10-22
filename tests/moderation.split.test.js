@@ -22,6 +22,7 @@ let unlockImport;
 let decisions;
 let clusters;
 let series;
+/** @type {any} */
 const materials = [];
 
 test.before(async () => {

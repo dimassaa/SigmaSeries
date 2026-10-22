@@ -52,7 +52,7 @@ export const REASON_CLASS = {
  * на прошлой неделе должен быть «Выходит», а не «ждёт сезон».
  *
  * @param {object} options
- * @param {object} options.raw сырой слой сериала
+ * @param {any} options.raw сырой слой сериала
  * @param {Date} [options.today]
  * @returns {string} значение `e_series.exit_state`
  */
@@ -78,7 +78,7 @@ export function computeExitState({ raw, today = new Date() }) {
  * Причины неполноты и уровень карточки (§8).
  *
  * @param {object} options
- * @param {object} options.raw
+ * @param {any} options.raw
  * @param {{poster?:boolean, backdrop?:boolean}} [options.images]
  * @param {Date} [options.now]
  * @param {string[]} [options.unchecked] коды, которых этот прогон не проверял:
@@ -122,7 +122,7 @@ export function computeCompleteness({ raw, images = {}, now = new Date(), unchec
 /**
  * Есть ли в последнем сезоне серия без даты, когда сериал выходит.
  *
- * @param {object} raw
+ * @param {any} raw
  * @param {Date} now
  * @returns {boolean}
  */
@@ -244,7 +244,7 @@ const CYRILLIC = {
 /**
  * Выходы сезона: серии с одной датой образуют один (EC-D11).
  *
- * @param {object} season
+ * @param {any} season
  * @returns {{date: string, episodeNumbers: number[]}[]}
  */
 export function groupReleases(season) {

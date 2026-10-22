@@ -27,9 +27,10 @@ const defaultLimiter = createRateLimiter({ limit: RATE_PER_MINUTE, windowMs: WIN
 
 /**
  * @param {object} deps
- * @param {object} deps.status источник данных
- * @param {object} deps.series источник карточки: адрес сериала должен существовать
- * @param {Function} deps.sessionMw
+ * @param {any} [deps.analytics]
+ * @param {any} deps.status источник данных
+ * @param {any} deps.series источник карточки: адрес сериала должен существовать
+ * @param {import('express').RequestHandler[]} deps.sessionMw
  * @param {{allow: (key: string) => boolean, windowMs: number}} [deps.limiter]
  */
 export function createStatusRoutes({ status, series, sessionMw, limiter = defaultLimiter, analytics = null }) {

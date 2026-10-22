@@ -40,7 +40,7 @@ export function clientIp(req) {
  * Хеш токена; при мусоре на входе — null, без исключения.
  *
  * @param {unknown} token
- * @returns {string|null}
+ * @returns {Buffer|null}
  */
 export function safeHash(token) {
   if (typeof token !== 'string' || !token) return null;

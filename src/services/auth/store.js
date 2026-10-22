@@ -31,14 +31,14 @@ const UNVERIFIED_BATCH = 100;
 
 export function pgAuthStore(pool) {
   return {
-    /** @returns {object|null} строка пользователя или null */
+    /** @returns {Promise<any|null>} строка пользователя или null */
     async byEmail(email) {
       const { rows } = await pool.query(
         `SELECT id, email_enc, password_hash, nickname, status, email_confirmed,
                 locale, theme
            FROM e_user
           WHERE email_blind_idx = $1 AND deleted_at IS NULL`,
-        [blindIndex(email, pool)],
+        [blindIndex(email)],
       );
       return rows[0] ?? null;
     },
@@ -164,7 +164,7 @@ export function pgAuthStore(pool) {
      *
      * @param {number} userId
      * @param {string|null} [currentHash] хеш идентификатора текущей сессии
-     * @returns {Promise<object[]>}
+     * @returns {Promise<any[]>}
      */
     async devices(userId, currentHash = null) {
       const { rows } = await pool.query(
@@ -854,7 +854,7 @@ export function pgAuthStore(pool) {
     async emailFree(email) {
       const { rows } = await pool.query(
         `SELECT 1 FROM e_user WHERE email_blind_idx = $1 AND deleted_at IS NULL LIMIT 1`,
-        [blindIndex(email, pool)],
+        [blindIndex(email)],
       );
       return rows.length === 0;
     },
@@ -1260,11 +1260,11 @@ export function pgAuthStore(pool) {
  * работает по-настоящему: без неё HTTP-тесты проверяли бы страницу,
  * которой никто не может воспользоваться.
  *
- * @param {Record<string, object>} users по email в нижнем регистре
+ * @param {Record<string, any>} users по email в нижнем регистре
  * @param {Record<number, string[]>} roles роли по id пользователя
  */
 export function stubAuthStore(users = {}, roles = {}) {
-  /** @type {Map<string, object>} токены по хешу, как в настоящей таблице */
+  /** @type {Map<string, any>} токены по хешу, как в настоящей таблице */
   const tokens = new Map();
   let nextId = 1;
 
@@ -1882,7 +1882,6 @@ export function stubAuthStore(users = {}, roles = {}) {
         recs_enabled: false,
         profile_public: false,
         stats_public: false,
-        quiet_hours: false,
         quiet_hours: false,
         delete_requested_at: null,
         anonymize_after: null,

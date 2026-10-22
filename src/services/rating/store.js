@@ -328,7 +328,7 @@ export function pgRatings(pool) {
      * @param {{userId: number, seriesId: number, episodeId: number,
      *   value: number, today?: string, at?: Date}} input
      * @returns {Promise<{ok: boolean, reason?: string, counted?: boolean,
-     *   own?: number, summary?: object}>}
+     *   own?: number, summary?: any}>}
      */
     async setEpisodeRating({ userId, seriesId, episodeId, value, today = null, at = new Date() }) {
       if (!Number.isInteger(value) || value < 1 || value > 10) {

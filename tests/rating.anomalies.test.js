@@ -69,7 +69,7 @@ async function seriesWith() {
  * Аккаунт для оценок. По умолчанию взрослый: свежий аккаунт по умолчанию
  * превратил бы любую фикс-оценку в экстремум молодого.
  *
- * @param {{ageHours: number}} args
+ * @param {{ageHours?: number}} [args]
  */
 async function viewer({ ageHours = 24 * 30 } = {}) {
   const { hash } = makeToken();

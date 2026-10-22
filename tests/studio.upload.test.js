@@ -175,6 +175,6 @@ test('файл доезжает до карточки и попадает в б�
     );
     assert.equal(rows[0].n, 1, 'изображение записано в базу');
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 });

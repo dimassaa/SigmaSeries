@@ -19,12 +19,12 @@ const STYLES = ['base', 'series', 'reviews'];
  * Маршруты руководств.
  *
  * @param {object} deps
- * @param {object} deps.guides источник данных руководств
- * @param {object} deps.series каталог: сериал по адресу
- * @param {object|null} [deps.dictionary] словарь проверки
- * @param {object|null} [deps.limits] бюджет модерации
- * @param {object|null} [deps.restrictions] ограничения пользователя
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.guides источник данных руководств
+ * @param {any} deps.series каталог: сериал по адресу
+ * @param {any} [deps.dictionary] словарь проверки
+ * @param {any} [deps.limits] бюджет модерации
+ * @param {any} [deps.restrictions] ограничения пользователя
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createGuideRoutes({

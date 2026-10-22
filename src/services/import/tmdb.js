@@ -150,10 +150,10 @@ export async function pickCandidate({ results, tconst = null, getDetails }) {
  *   readonly breakerPauses: number,
  *   findByImdbId: (tconst: string) => Promise<{tvResults: TmdbSearchResult[], notFound?: boolean}>,
  *   getDetails: (id: number) => Promise<TmdbDetails>,
- *   getDetailsLocalized: (id: number, language: string) => Promise<object>,
- *   getSeason: (id: number, number: number, language: string) => Promise<object>,
+ *   getDetailsLocalized: (id: number, language: string) => Promise<any>,
+ *   getSeason: (id: number, number: number, language: string) => Promise<any>,
  *   getTvGenres: () => Promise<Record<string, number>>,
- *   discoverTv: (params: Record<string, string|number>, pages?: number) => Promise<object[]>
+ *   discoverTv: (params: Record<string, string|number>, pages?: number) => Promise<any[]>
  * }}
  */
 export function createTmdbClient({
@@ -255,7 +255,7 @@ export function createTmdbClient({
      * Карточка сериала с внешними идентификаторами.
      *
      * @param {number} id
-     * @returns {Promise<object>}
+     * @returns {Promise<any>}
      */
     async getDetails(id) {
       return request(`/tv/${encodeURIComponent(String(id))}?append_to_response=external_ids`);
@@ -270,7 +270,7 @@ export function createTmdbClient({
      *
      * @param {number} id
      * @param {string} language `ru-RU` или `en-US`
-     * @returns {Promise<object>}
+     * @returns {Promise<any>}
      */
     async getDetailsLocalized(id, language) {
       return request(
@@ -289,7 +289,7 @@ export function createTmdbClient({
      * @param {number} id
      * @param {number} number
      * @param {string} language
-     * @returns {Promise<object>}
+     * @returns {Promise<any>}
      */
     async getSeason(id, number, language) {
       return request(
@@ -324,7 +324,7 @@ export function createTmdbClient({
      *
      * @param {Record<string, string|number>} params фильтры TMDB
      * @param {number} [pages] сколько страниц взять
-     * @returns {Promise<object[]>}
+     * @returns {Promise<any[]>}
      */
     async discoverTv(params, pages = 1) {
       const items = [];

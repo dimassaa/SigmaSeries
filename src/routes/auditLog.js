@@ -18,8 +18,8 @@ const rawHtml = (page) => page.__raw;
  * Маршруты журнала аудита.
  *
  * @param {object} deps
- * @param {object} deps.audit журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.audit журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createAuditRoutes({ audit, sessionMw = null }) {

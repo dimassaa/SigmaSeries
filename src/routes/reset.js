@@ -35,10 +35,11 @@ const PATH = '/password/reset';
 
 /**
  * @param {object} deps
- * @param {object} deps.auth доступ к учётным записям
- * @param {Function} deps.sessionMw middleware сессий
- * @param {object} [deps.mailQueue] очередь писем (F-01-12)
- * @param {object} [deps.journal] журнал безопасности (F-01-04 §17)
+ * @param {any} [deps.mailMode]
+ * @param {any} deps.auth доступ к учётным записям
+ * @param {import('express').RequestHandler[]} deps.sessionMw middleware сессий
+ * @param {any} [deps.mailQueue] очередь писем (F-01-12)
+ * @param {any} [deps.journal] журнал безопасности (F-01-04 §17)
  * @param {string} [deps.baseUrl] адрес приложения для ссылки в письме
  */
 export function createResetRoutes({

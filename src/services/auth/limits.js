@@ -16,7 +16,7 @@ import { AUTH, MINUTE, HOUR } from '../../config/settings.js';
 /** @type {Map<string, number[]>} ключ → временные метки неудачных попыток */
 const failures = new Map();
 
-/** @type {Map<string, {challenge:string, issuedAt:number}>} */
+/** @type {Map<string, {challenge:string, issuedAt:number, zeros:number}>} */
 const challenges = new Map();
 
 function prune(key, now) {
@@ -291,6 +291,7 @@ function resetIpKey(ip) {
  */
 export function resetRequestLimited(email, ip, now = Date.now()) {
   let retryAfter = 0;
+  /** @type {Array<[string, number]>} */
   const keys = [
     [resetKey(email), AUTH.resetPerHour],
     [resetIpKey(ip), AUTH.resetPerIpPerHour],

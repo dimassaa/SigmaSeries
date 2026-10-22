@@ -106,7 +106,7 @@ function hasValue(v) {
  *
  * @param {Record<string, unknown>} incoming поля из источника
  * @param {Set<string>|string[]} locked поля, зафиксированные вручную
- * @returns {{applied:object, skipped:string[]}}
+ * @returns {{applied:Record<string, any>, skipped:string[]}}
  */
 export function applyIncoming(incoming, locked) {
   const lock = locked instanceof Set ? locked : new Set(locked ?? []);
@@ -128,10 +128,12 @@ export function applyIncoming(incoming, locked) {
  * и это невозможно отличить от штатной работы.
  *
  * @param {object} deps
- * @param {(dryRun:boolean) => Promise<object[]>} deps.fetchSource
- * @param {(rows:object[], dryRun:boolean) => Promise<{written:number, skipped:number}>} deps.persist
- * @param {(kind:string) => Promise<void>} [deps.onEvent]
- * @param {boolean} [dryRun]
+ * @param {any} [deps.dryRun]
+ * @param {(dryRun:boolean) => Promise<any[]>} deps.fetchSource
+ * @param {(rows:any[], dryRun:boolean) => Promise<{written:number, skipped:number}>} deps.persist
+ * @param {(event: any) => Promise<void>} [deps.onEvent]
+ * @returns {Promise<{ok: boolean, written: number, skipped: number, count: number,
+ *   dryRun?: boolean, error?: string}>}
  */
 export async function runImport({ fetchSource, persist, onEvent = async () => {}, dryRun = false }) {
   const startedAt = new Date().toISOString();
@@ -146,6 +148,6 @@ export async function runImport({ fetchSource, persist, onEvent = async () => {}
   } catch (e) {
     // Ничего не применено: persist не вызывался. Каталог остался как был.
     await onEvent({ type: 'import.failed', startedAt, error: String(e?.message ?? e) });
-    return { ok: false, written: 0, skipped: 0, error: String(e?.message ?? e) };
+    return { ok: false, written: 0, skipped: 0, count: 0, error: String(e?.message ?? e) };
   }
 }

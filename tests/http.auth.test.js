@@ -35,7 +35,7 @@ function makeApp(users = {}, roles = {}) {
   const store = createMemorySessionStore();
   // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
   // или их пару — Express принимает и то и другое.
-  const sessionMw = /** @type {Function} */ (createSessionMiddleware(pool, store, {
+  const sessionMw = /** @type {any} */ (createSessionMiddleware(pool, store, {
     // То же, что собирает `server.js`: без функции меню аккаунта в шапке нет,
     // и проверки пункта «Выйти» смотрели бы на страницу гостя.
     account: async (user) => ({ nickname: user.nickname, unread: 0, pollSeconds: 0 }),
@@ -86,7 +86,7 @@ async function withServer(users, roles, run) {
   try {
     await run({ get, post, csrfOf, sessions, auth });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

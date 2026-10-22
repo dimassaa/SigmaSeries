@@ -28,10 +28,20 @@ const item = (id, extra = {}) => ({
   ...extra,
 });
 
-/** Обзор по первым датам. */
+/**
+ * Обзор по первым датам.
+ *
+ * @param {any[]} items
+ * @returns {{reason: 'new', items: any[]}}
+ */
 const newWindow = (items) => ({ reason: 'new', items });
 
-/** Обзор по датам выхода серий. */
+/**
+ * Обзор по датам выхода серий.
+ *
+ * @param {any[]} items
+ * @returns {{reason: 'airing', items: any[]}}
+ */
 const airingWindow = (items) => ({ reason: 'airing', items });
 
 // ─── Окно ─────────────────────────────────────────────────────────────────────

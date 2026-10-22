@@ -100,7 +100,7 @@ export function pgBulkOperations(pool) {
    *
    * @param {{action: string, ids?: number[], genre?: string|null, reason?: string|null,
    *   byId?: number|null}} input
-   * @returns {Promise<object>} задание
+   * @returns {Promise<any>} задание
    */
   async function start({ action, ids = [], genre = null, reason = null, byId = null }) {
     const plan = await preview({ action, ids, genre, reason });
@@ -137,7 +137,7 @@ export function pgBulkOperations(pool) {
    * @param {number} jobId
    * @param {{action: string, genre: string|null, reason: string|null,
    *   skipped?: BulkSkipped[], total?: number}} input
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function execute(jobId, { action, genre, reason, skipped = [], total = 0 }) {
     const client = await pool.connect();
@@ -197,7 +197,7 @@ export function pgBulkOperations(pool) {
    * Последние задания — их видно в студии.
    *
    * @param {number} [limit]
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function jobs(limit = 10) {
     const { rows } = await pool.query(

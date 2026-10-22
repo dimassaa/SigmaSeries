@@ -31,7 +31,7 @@ export function pgProfile(pool) {
      * написании: «/u/Ivan» и «/u/ivan» — один и тот же человек.
      *
      * @param {string} nickname
-     * @returns {Promise<object|null>} профиль или null, если такого ника нет
+     * @returns {Promise<any|null>} профиль или null, если такого ника нет
      */
     async byNickname(nickname) {
       const { rows } = await pool.query(
@@ -56,7 +56,7 @@ export function pgProfile(pool) {
      * Пользователь по идентификатору.
      *
      * @param {number} userId
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async byId(userId) {
       const { rows } = await pool.query(
@@ -101,7 +101,7 @@ export function pgProfile(pool) {
      * @param {number} userId
      * @param {'review'|'guide'} kind
      * @param {{page?: number, pageSize?: number}} [options]
-     * @returns {Promise<{items: object[], total: number, page: number, pages: number}>}
+     * @returns {Promise<{items: any[], total: number, page: number, pages: number}>}
      */
     async materials(userId, kind, { page = 1, pageSize = PROFILE_PAGE_SIZE } = {}) {
       const size = Math.max(1, pageSize);
@@ -175,7 +175,7 @@ export function pgProfile(pool) {
      *
      * @param {number} userId
      * @param {{page?: number, pageSize?: number}} [options]
-     * @returns {Promise<{items: object[], total: number, page: number, pages: number}>}
+     * @returns {Promise<{items: any[], total: number, page: number, pages: number}>}
      */
     async marked(userId, { page = 1, pageSize = PROFILE_PAGE_SIZE } = {}) {
       const size = Math.max(1, pageSize);

@@ -101,7 +101,7 @@ test.after(async () => {
  * добавят сериал с названием раньше.
  *
  * @param {string[]} slugs
- * @returns {Promise<object[]>} в порядке аргументов
+ * @returns {Promise<any[]>} в порядке аргументов
  */
 async function itemsOf(...slugs) {
   const { rows } = await pool.query(

@@ -10,6 +10,62 @@ import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 
 /**
+ * Разобранный адрес каталога: значения фильтров уже приведены к числам и
+ * массивам, чтобы вид не разбирал строки повторно.
+ *
+ * @typedef {object} CatalogueFilters
+ * @property {string[]} genres
+ * @property {number|null} yearFrom
+ * @property {number|null} yearTo
+ * @property {number|null} ratingFrom
+ * @property {string[]} states
+ * @property {string[]} countries
+ * @property {string[]} networks
+ * @property {string} networkSearch
+ * @property {string} [sort]
+ * @property {number} [page]
+ */
+
+/**
+ * Границы фильтров из источника: что вообще есть в каталоге.
+ *
+ * @typedef {object} CatalogueBounds
+ * @property {Array<{code: string, nameRu: string, nameEn: string, count: number}>} genres
+ * @property {number} yearMin
+ * @property {number} yearMax
+ * @property {number} ratingMin
+ * @property {number} ratingMax
+ * @property {Array<{code: string, nameRu: string, nameEn: string, count: number}>} countries
+ * @property {Array<{id: number, name: string, count: number}>} networks
+ * @property {Array<{key: string, count: number}>} states
+ */
+
+/**
+ * Карточка в выдаче каталога.
+ *
+ * @typedef {object} CatalogueItem
+ * @property {string} slug
+ * @property {string} title
+ * @property {number|null} yearStart
+ * @property {number|null} yearEnd
+ * @property {string} [genreName]
+ * @property {number|null} [rating]
+ * @property {string} exitState
+ * @property {number|null} [posterWidth]
+ */
+
+/**
+ * Одна страница выдачи.
+ *
+ * @typedef {object} CataloguePage
+ * @property {CatalogueItem[]} items
+ * @property {number} total
+ * @property {number} pages
+ * @property {number} page
+ * @property {string} sort
+ */
+
+/**
  * Адрес каталога с заданными фильтрами.
  *
  * Единая точка сборки адреса: и сортировка, и постраничность, и «Сбросить»
@@ -18,7 +74,7 @@ import { t } from '../i18n/strings.js';
  * Пустые значения в адрес не попадают: `?sort=popular&page=1` — мусор.
  *
  * @param {string} locale
- * @param {object} filters
+ * @param {CatalogueFilters} filters
  * @returns {string}
  */
 export function href(locale, filters) {
@@ -80,9 +136,9 @@ function dropHint({ locale, filters }) {
 /**
  * @param {object} page
  * @param {string} page.locale
- * @param {object} page.page выдача источника данных
- * @param {object} page.bounds границы фильтров из каталога
- * @param {object} page.filters разобранный адрес
+ * @param {CataloguePage} page.page выдача источника данных
+ * @param {CatalogueBounds} page.bounds границы фильтров из каталога
+ * @param {CatalogueFilters} page.filters разобранный адрес
  * @param {string[]} page.sorts
  * @param {string[]} page.states
  */

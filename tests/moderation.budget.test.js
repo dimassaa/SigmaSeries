@@ -67,8 +67,7 @@ async function material({ authorId, seriesId, state = 'published', at = new Date
 test.before(async () => {
   if (!available) return;
   pool = createPool();
-  // Свой ключ состояния: общий ключ включал бы режим для всех файлов прогона.
-  budget = pgModerationBudget(pool, { stateKey: 'mod.cautious.test' });
+  budget = pgModerationBudget(pool);
 });
 
 test.after(async () => {

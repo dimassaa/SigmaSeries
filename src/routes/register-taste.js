@@ -26,10 +26,10 @@ const rawHtml = (page) => page.__raw;
  * Шаг 3 (F-01-01 §4, H-55).
  *
  * @param {object} deps
- * @param {object} deps.taste источник зёрен вкуса (`pgTaste`)
- * @param {object} deps.search поиск по тексту для строки поиска на шаге
- * @param {object} deps.auth хранилище учётных записей
- * @param {object} deps.sessionMw
+ * @param {any} deps.taste источник зёрен вкуса (`pgTaste`)
+ * @param {any} deps.search поиск по тексту для строки поиска на шаге
+ * @param {any} deps.auth хранилище учётных записей
+ * @param {any} deps.sessionMw
  */
 export function createTasteRoutes({ taste, search, auth, sessionMw }) {
   const router = express.Router({ strict: true });
@@ -43,7 +43,7 @@ export function createTasteRoutes({ taste, search, auth, sessionMw }) {
    * на одной сетке подписи, а на другой — пустоту.
    *
    * @param {string} query
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   const searched = async (query) => {
     const found = await search.find({ query, limit: GRID_SIZE });

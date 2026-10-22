@@ -18,7 +18,7 @@ export const DECISIONS = { approve: 'approved', reject: 'rejected' };
  * Источник решений редактора.
  *
  * @param {import('pg').Pool} pool
- * @returns {object}
+ * @returns {any}
  */
 export function pgModerationDecisions(pool) {
   // Кластеры: решение по кластеру распространяется на новые материалы с той
@@ -139,7 +139,7 @@ export function pgModerationDecisions(pool) {
    * Материал для разбора: текст, находки, жалобы и история автора.
    *
    * @param {{materialId: number}} input
-   * @returns {Promise<object|null>}
+   * @returns {Promise<any|null>}
    */
   async function one({ materialId }) {
     const { rows: [material] } = await pool.query(

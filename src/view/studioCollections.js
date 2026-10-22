@@ -62,7 +62,7 @@ import { t } from '../i18n/strings.js';
  * @param {object} args
  * @param {string} args.locale
  * @param {StudioCollectionSummary[]} [args.list]
- * @returns {object}
+ * @returns {any}
  */
 export function studioCollectionsView({ locale, list = [] }) {
   return html`
@@ -113,7 +113,7 @@ export function studioCollectionsView({ locale, list = [] }) {
  * @param {string} args.locale
  * @param {StudioCollection} args.collection
  * @param {string} [args.csrf]
- * @returns {object}
+ * @returns {any}
  */
 export function studioCollectionView({ locale, collection, csrf = '' }) {
   return html`

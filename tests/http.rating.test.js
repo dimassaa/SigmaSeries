@@ -42,7 +42,7 @@ const fixtures = [];
  * идентификатор без строки в базе отвечал бы отказом на любую оценку —
  * проверка зеленела бы вовсе не по той причине.
  *
- * @returns {Promise<object>} строка для заглушки хранилища с настоящим `id`
+ * @returns {Promise<any>} строка для заглушки хранилища с настоящим `id`
  */
 const viewer = async () => {
   const { hash } = makeToken();
@@ -106,7 +106,7 @@ async function seriesWith(number) {
  * Сервер с настоящей базой: маршрут оценки проверяет право по `e_user`,
  * `e_watch_mark` и `e_rating`, и заглушка здесь сказала бы «да» на всё.
  */
-async function withServer({ user, run, limiter }) {
+async function withServer({ user = null, run, limiter = null }) {
   const auth = stubAuthStore(user ? { [user.email]: user } : {});
   const app = createApp({
     data: stubData(),
@@ -116,7 +116,7 @@ async function withServer({ user, run, limiter }) {
     ratingLimiter: limiter,
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore(), {
+    sessionMw: /** @type {any} */ (createSessionMiddleware(pool, createMemorySessionStore(), {
       account: async (u) => ({ nickname: u.nickname, unread: 0, pollSeconds: 0 }),
     })),
   });
@@ -150,7 +150,7 @@ async function withServer({ user, run, limiter }) {
   try {
     await run({ get, post, csrfOf });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

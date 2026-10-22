@@ -28,15 +28,16 @@ export const SIZES = {
  * дискового пространства на каждом прогоне.
  *
  * @param {object} deps
+ * @param {string} [deps.id]
  * @param {() => Promise<{bytes:number, checksum:string}>} deps.dump создать дамп
  * @param {(backupId:string) => Promise<boolean>} deps.restore развернуть во временную базу
  * @param {() => Promise<{dbBytes:number}>} deps.dbSize размер базы для проверки минимума
  * @param {(job:object) => Promise<void>} deps.onEvent уведомить администратора
- * @param {string} [id] идентификатор копии
  * @returns {Promise<{id:string, status:BackupStatus, bytes:number, checksum:string, error:string|null}>}
  */
 export async function createVerifiedBackup({ dump, restore, dbSize, onEvent, id }) {
   const jobId = id ?? `job_${Date.now()}`;
+  /** @type {{id: string, status: BackupStatus, bytes: number, checksum: string, error: string|null}} */
   const job = { id: jobId, status: 'running', bytes: 0, checksum: '', error: null };
 
   let made;
@@ -85,7 +86,7 @@ export async function createVerifiedBackup({ dump, restore, dbSize, onEvent, id 
 /**
  * Какие копии можно удалить.
  *
- * @param {{id:string, status:BackupStatus}[]} jobs существующие копии, свежие первыми
+ * @param {{id:string, status:string}[]} jobs существующие копии, свежие первыми
  * @param {number} [keep]
  * @returns {string[]} идентификаторы к удалению
  */

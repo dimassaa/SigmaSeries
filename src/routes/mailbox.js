@@ -27,11 +27,11 @@ const BASE = '/admin/mailbox';
 
 /**
  * @param {object} deps
- * @param {object} deps.auth хранилище учётных записей
- * @param {Function} deps.sessionMw middleware сессий
- * @param {object} deps.mailQueue очередь писем (список и очистка)
- * @param {object} deps.mailMode текущий режим и переключение
- * @param {object} [deps.journal] журнал безопасности
+ * @param {any} deps.auth хранилище учётных записей
+ * @param {import('express').RequestHandler[]} deps.sessionMw middleware сессий
+ * @param {any} deps.mailQueue очередь писем (список и очистка)
+ * @param {any} deps.mailMode текущий режим и переключение
+ * @param {any} [deps.journal] журнал безопасности
  */
 export function createMailboxRoutes({ auth, sessionMw, mailQueue, mailMode, journal }) {
   const router = express.Router({ strict: true });

@@ -23,7 +23,7 @@ export const STATES = {
  * Источник «Моих материалов».
  *
  * @param {import('pg').Pool} pool
- * @returns {object}
+ * @returns {any}
  */
 export function pgMyMaterials(pool) {
   /**
@@ -31,12 +31,13 @@ export function pgMyMaterials(pool) {
    *
    * @param {{userId: number, kind?: string|null, state?: string|null,
    *   page?: number, pageSize?: number}} input
-   * @returns {Promise<{items: object[], total: number, page: number, pages: number,
-   *   kinds: string[], states: string[]}>}
+   * @returns {Promise<{items: any[], total: number, page: number, pages: number,
+   *   kinds: string[], states: string[], applied: {kind: string|null, state: string|null}}>}
    */
   async function own({ userId, kind = null, state = null, page = 1, pageSize = 20 }) {
     const current = Math.max(1, Number(page) || 1);
     const size = Math.max(1, Number(pageSize) || 20);
+    /** @type {any[]} */
     const params = [userId];
     const where = ['m.author_id = $1'];
     if (kind) {

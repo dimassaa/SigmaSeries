@@ -11,7 +11,7 @@ import { t } from '../i18n/strings.js';
 /**
  * @param {object} page
  * @param {string} page.locale
- * @param {object} page.collection данные источника
+ * @param {any} page.collection данные источника
  */
 export function collectionView({ locale, collection }) {
   return html`

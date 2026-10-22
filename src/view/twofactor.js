@@ -41,7 +41,11 @@ export function twoFactorView(ctx) {
 </section>`;
 }
 
-/** Форма ввода кода из приложения-аутентификатора. */
+/**
+ * Форма ввода кода из приложения-аутентификатора.
+ *
+ * @param {{locale: string, csrf: string, error?: string|null, codesLeft?: number}} ctx
+ */
 function codeForm({ locale, csrf, error, codesLeft }) {
   const bad = Boolean(error);
   // При ≤ 3 оставшихся кодов человек предупреждается (F-01-05 §5): узнать
@@ -100,6 +104,8 @@ function codeForm({ locale, csrf, error, codesLeft }) {
  * Отдельная форма с отдельной кнопкой: если бы оба поля были в одной форме с
  * одной кнопкой, человек отправил бы пустое поле кода вместе с заполненным
  * резервным и получил бы отказ вместо входа.
+ *
+ * @param {{locale: string, csrf: string, error?: string|null}} ctx
  */
 function backupForm({ locale, csrf, error }) {
   return html`

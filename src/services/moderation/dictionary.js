@@ -11,7 +11,7 @@
 /**
  * Источник словаря.
  *
- * @param {import('pg').Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  * @param {{onError?: (error: Error) => void}} [options]
  */
 export function pgDictionary(pool, { onError = () => {} } = {}) {

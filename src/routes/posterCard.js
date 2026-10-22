@@ -12,8 +12,8 @@ import { posterCardView } from '../view/posterCard.js';
  * Маршруты слоя карточки.
  *
  * @param {object} deps
- * @param {object} deps.card источник данных слоя
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.card источник данных слоя
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createPosterCardRoutes({ card, sessionMw = null }) {

@@ -34,10 +34,14 @@ const STYLES = ['identity'];
 
 /**
  * @param {object} deps
- * @param {object} deps.auth хранилище учётных записей
- * @param {Function} deps.sessionMw middleware сессий
+ * @param {any} [deps.analytics]
+ * @param {any} [deps.hashQueue]
+ * @param {any} [deps.mailMode]
+ * @param {any} [deps.tasteStep]
+ * @param {any} deps.auth хранилище учётных записей
+ * @param {import('express').RequestHandler[]} deps.sessionMw middleware сессий
  * @param {{enqueue:Function}} [deps.mailQueue] очередь писем (F-01-12)
- * @param {object} [deps.limitsApi] подмена счётчиков в тестах
+ * @param {any} [deps.limitsApi] подмена счётчиков в тестах
  * @param {string} [deps.baseUrl] адрес приложения для ссылки в письме
  */
 export function createRegisterRoutes({
@@ -522,9 +526,9 @@ function pick(body) {
 /** IP для лимитов: заголовок берётся только если приложение за прокси. */
 
 function regenerate(req) {
-  return new Promise((resolve, reject) => {
+  return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     req.session.regenerate((e) => (e ? reject(e) : resolve()));
-  });
+  }));
 }
 
 

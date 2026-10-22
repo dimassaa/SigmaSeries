@@ -27,7 +27,7 @@ export function devboxBadge(mode) {
  *
  * @param {Array<{browserId:string, kind:string, token:string, createdAt?:string}>} letters
  * @param {string} browserId отметка браузера из подписанной cookie
- * @returns {object|null}
+ * @returns {any|null}
  */
 export function demoMailFor(letters, browserId) {
   if (!browserId) return null;

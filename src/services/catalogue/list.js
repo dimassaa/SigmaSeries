@@ -71,7 +71,7 @@ const BASE_SELECT = `
 /**
  * Источник данных каталога.
  *
- * @param {pg.Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  */
 export function pgCatalogueList(pool) {
   return {
@@ -88,8 +88,8 @@ export function pgCatalogueList(pool) {
      * @param {(string|number)[]} [filters.networks] идентификаторы сетей TMDB
      * @param {string} [filters.sort] ключ из белого списка
      * @param {number} [filters.page] с единицы
-     * @returns {Promise<{items: object[], total: number, page: number, pages: number,
-     *   size: number, sort: string, applied: object}>}
+     * @returns {Promise<{items: any[], total: number, page: number, pages: number,
+     *   size: number, sort: string, applied: any}>}
      */
     async list(filters = {}) {
       const { pageSize: size, ratingFloor } = await importSettings(pool);
@@ -203,8 +203,8 @@ export function pgCatalogueList(pool) {
      * Работает без скриптов — это обычный ввод в той же форме.
      *
      * @param {{networkSearch?: string, countrySearch?: string}} [search]
-     * @returns {Promise<{genres: object[], states: object[], countries: object[],
-     *   networks: object[], yearMin: number, yearMax: number, ratingMin: number, ratingMax: number}>}
+     * @returns {Promise<{genres: any[], states: any[], countries: any[],
+     *   networks: any[], yearMin: number, yearMax: number, ratingMin: number, ratingMax: number}>}
      */
     async filters(search = {}) {
       const networkSearch = String(search.networkSearch ?? '').trim().toLowerCase();
@@ -292,7 +292,7 @@ export function pgCatalogueList(pool) {
  * число уже возвращается оконной функцией, а лишний `COUNT` на каждом
  * открытии каталога стоил бы прохода по таблице ради числа, которое уже есть.
  *
- * @param {pg.Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  * @param {string} filtered текст `SELECT … FROM … WHERE …` с параметрами на `$1…`
  * @param {unknown[]} params параметры без `LIMIT` и `OFFSET`
  * @returns {Promise<number>}
@@ -311,7 +311,7 @@ async function countAll(pool, filtered, params) {
  * опечаткой (`?country=ZZ`) показывал бы пустую страницу вместо базового
  * списка (F-02-03 §4).
  *
- * @param {object} pool
+ * @param {any} pool
  * @param {string} table справочник: `e_genre`, `e_country`, `e_network`
  * @param {string} column колонка со значением, приводимая к тексту
  * @param {unknown[]} requested

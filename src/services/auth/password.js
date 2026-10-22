@@ -45,7 +45,10 @@ export function hashPassword(plain) {
   // Типы argon2 описывают опции хеша и опции проверки разными структурами,
   // а параметры у нас одни и те же — поэтому проверка идёт через общий тип.
   const options = /** @type {Parameters<typeof argon2.hash>[1]} */ (ARGON);
-  return argon2.hash(String(plain), options);
+  // `options` не содержит `raw`, поэтому библиотека возвращает строку;
+  // приведение сужает перегруженный тип argon2, который иначе берёт
+  // первую перегрузку с Buffer.
+  return /** @type {Promise<string>} */ (argon2.hash(String(plain), options));
 }
 
 /**

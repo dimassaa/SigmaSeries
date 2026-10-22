@@ -44,7 +44,7 @@ export class HashQueueBusyError extends Error {
  * @param {number} [options.parallel] сколько хешей считать одновременно
  * @param {number} [options.capacity] сколько задач может ждать в очереди
  * @param {number} [options.waitMs] сколько ждать в очереди до отказа
- * @returns {{run: (fn: () => Promise<any>) => Promise<any>, stats: () => object}}
+ * @returns {{run: (fn: () => Promise<any>) => Promise<any>, stats: () => any}}
  */
 export function createHashQueue({
   parallel = AUTH.hashParallel,

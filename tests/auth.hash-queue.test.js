@@ -138,6 +138,6 @@ test('регистрация при переполненной очереди о
     release();
     await blocker;
     limits._reset();
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 });

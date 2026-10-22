@@ -16,14 +16,14 @@
  * одинаковую тройку, и главная не «моргает» при каждом заходе (F-06-02 §8а).
  *
  * @param {object} input кандидаты по правилам
- * @param {object[]} input.newToday выходы сегодня
- * @param {object[]} input.newWindow выходы за окно запасного правила
- * @param {object[]} input.classicRated старые с рейтингом не ниже порога
- * @param {object[]} input.classicAny любые старые
- * @param {object[]} input.editorial активные выборы редакции
- * @param {object[]} input.editorialLast последний выбор, даже истёкший
- * @param {object} settings настройки главной
- * @returns {object[]} баннеры: `{kind, seriesId, slug, title, yearStart, imdb}`
+ * @param {any[]} input.newToday выходы сегодня
+ * @param {any[]} input.newWindow выходы за окно запасного правила
+ * @param {any[]} input.classicRated старые с рейтингом не ниже порога
+ * @param {any[]} input.classicAny любые старые
+ * @param {any[]} input.editorial активные выборы редакции
+ * @param {any[]} input.editorialLast последний выбор, даже истёкший
+ * @param {any} settings настройки главной
+ * @returns {any[]} баннеры: `{kind, seriesId, slug, title, yearStart, imdb}`
  */
 export function selectBanners(input, settings = {}) {
   const {
@@ -35,8 +35,8 @@ export function selectBanners(input, settings = {}) {
   /**
    * Первый свободный кандидат из списка.
    *
-   * @param {object[]} list
-   * @returns {object|null}
+   * @param {any[]} list
+   * @returns {any|null}
    */
   const firstFree = (list) => {
     for (const candidate of list) {
@@ -86,8 +86,8 @@ export function pgBannerSelection(pool) {
    * Дата приходит извне: локальная дата сервера и дата в базе могут
    * различаться, а «сегодня» для посетителя — это местное время.
    *
-   * @param {{date?: string, settings?: object}} args
-   * @returns {Promise<object>}
+   * @param {{date?: string, settings?: any}} args
+   * @returns {Promise<any>}
    */
   async function candidates({ date = localDate(), settings = {} } = {}) {
     const classicMinYear = settings.classicMinYear ?? 2016;
@@ -202,8 +202,8 @@ export function pgBannerSelection(pool) {
   /**
    * Выбрать баннеры на дату.
    *
-   * @param {{date?: string, settings?: object}} args
-   * @returns {Promise<object[]>}
+   * @param {{date?: string, settings?: any}} args
+   * @returns {Promise<any[]>}
    */
   async function select({ date = localDate(), settings = {} } = {}) {
     const pool2 = await candidates({ date, settings });
@@ -216,7 +216,7 @@ export function pgBannerSelection(pool) {
    * Пересчёт заменяет баннеры дня целиком: иначе после смены правил старый
    * третий баннер остался бы висеть рядом с новым.
    *
-   * @param {object[]} picked
+   * @param {any[]} picked
    * @param {{date?: string}} args
    * @returns {Promise<void>}
    */
@@ -234,8 +234,8 @@ export function pgBannerSelection(pool) {
   /**
    * Пересчитать баннеры дня и сохранить.
    *
-   * @param {{date?: string, settings?: object}} args
-   * @returns {Promise<object[]>} выбранные баннеры
+   * @param {{date?: string, settings?: any}} args
+   * @returns {Promise<any[]>} выбранные баннеры
    */
   async function recompute({ date = localDate(), settings = {} } = {}) {
     const picked = await select({ date, settings });
@@ -262,8 +262,8 @@ export function pgBannerSelection(pool) {
 /**
  * Строка из базы в вид кандидата.
  *
- * @param {object} row
- * @returns {object}
+ * @param {any} row
+ * @returns {any}
  */
 function toCandidate(row) {
   return {

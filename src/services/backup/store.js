@@ -28,7 +28,7 @@ export function pgBackupJobs(pool) {
      * @param {number} [args.sizeBytes]
      * @param {string|null} [args.checksum]
      * @param {string|null} [args.filePath] где лежит дамп
-     * @returns {Promise<object>} строка журнала
+     * @returns {Promise<any>} строка журнала
      */
     async record({ status, sizeBytes = null, checksum = null, filePath = null }) {
       const { rows } = await pool.query(
@@ -44,8 +44,8 @@ export function pgBackupJobs(pool) {
     /**
      * Последние копии — для S-82.
      *
-     * @param {number} [limit]
-     * @returns {Promise<object[]>}
+     * @param {{limit?: number}} [options]
+     * @returns {Promise<any[]>}
      */
     async recent({ limit = 20 } = {}) {
       const { rows } = await pool.query(
@@ -60,7 +60,7 @@ export function pgBackupJobs(pool) {
     /**
      * Убрать проверенные копии сверх `keep_last`.
      *
-     * @param {number} [keepLast]
+     * @param {{keepLast?: number}} [options]
      * @returns {Promise<number>} сколько строк убрано
      */
     async prune({ keepLast = KEEP_LAST } = {}) {

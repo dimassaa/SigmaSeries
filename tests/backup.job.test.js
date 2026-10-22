@@ -19,7 +19,7 @@ function deps(over = {}) {
     dump: async () => ({ bytes: 1000, checksum: 'abc' }),
     restore: async () => true,
     dbSize: async () => ({ dbBytes: 5000 }), // 1000 > 10% от 5000
-    onEvent: async (e) => events.push(e),
+    onEvent: async (e) => { events.push(e); },
     id: 'job_test',
   };
   return { ...base, ...over, events };

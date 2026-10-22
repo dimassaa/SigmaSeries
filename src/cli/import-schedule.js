@@ -48,7 +48,7 @@ const CHANGE_TITLES = {
  * Полный список в терминал не годится — за ночь его набирается сотни строк, а
  * важно в них только «что изменилось» и «где смотреть».
  *
- * @param {object[]} changes
+ * @param {any[]} changes
  */
 function printChanges(changes) {
   if (!changes.length) {

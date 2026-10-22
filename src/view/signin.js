@@ -13,9 +13,10 @@ import { revealButton } from './field.js';
  * @param {string} ctx.locale
  * @param {string} ctx.csrf
  * @param {string} [ctx.challenge] задача невидимой проверки
- * @param {object} ctx.values значения полей, чтобы не заставлять вводить заново
+ * @param {any} ctx.values значения полей, чтобы не заставлять вводить заново
  * @param {string|null} ctx.error текст ошибки формы
  * @param {string} ctx.returnTo
+ * @param {number} [ctx.powZeros] сколько нулей требует проверка
  */
 export function signinView(ctx) {
   const { locale, csrf, challenge, powZeros, values = {}, error, returnTo = '/' } = ctx;

@@ -172,7 +172,7 @@ async function withServer({ user = null, limiter = null, run }) {
   try {
     await run({ get, post, csrfOf });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

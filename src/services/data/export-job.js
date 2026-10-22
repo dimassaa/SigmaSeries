@@ -14,9 +14,9 @@ export const EXPORT_TICK_MS = 60_000;
 
 /**
  * @param {object} deps
- * @param {object} deps.auth хранилище учётных записей и выгрузок
- * @param {object} deps.mailQueue очередь писем
- * @param {object} [deps.journal] журнал безопасности
+ * @param {any} deps.auth хранилище учётных записей и выгрузок
+ * @param {any} deps.mailQueue очередь писем
+ * @param {any} [deps.journal] журнал безопасности
  * @param {string} [deps.baseUrl] основа ссылки в письме
  * @param {Function} [deps.now] часы, для тестов
  * @returns {Promise<{ready:number, failed:number}>}
@@ -81,7 +81,7 @@ export async function runExportSweep({ auth, mailQueue, journal, baseUrl = '', n
    * Молчаливая неудача — худший вид: человек закрыл вкладку и узнал бы о
    * неудаче, лишь вернувшись за файлом.
    *
-   * @param {object} job
+   * @param {any} job
    * @param {Date} at
    * @returns {Promise<void>}
    */

@@ -42,11 +42,11 @@ const ISSUER = 'sigmaseries';
 
 /**
  * @param {object} deps
- * @param {object} deps.auth хранилище учётных записей
- * @param {Function} deps.sessionMw middleware сессий
- * @param {object} [deps.journal] журнал безопасности
- * @param {object} [deps.mailQueue] очередь писем
- * @param {Function} [deps.limitsApi] подмена счётчиков в тестах
+ * @param {any} deps.auth хранилище учётных записей
+ * @param {import('express').RequestHandler[]} deps.sessionMw middleware сессий
+ * @param {any} [deps.journal] журнал безопасности
+ * @param {any} [deps.mailQueue] очередь писем
+ * @param {any} [deps.limitsApi] подмена счётчиков в тестах
  * @param {Function} [deps.now] текущее время, для тестов
  */
 export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, limitsApi = limits, now = () => Date.now() }) {
@@ -360,7 +360,7 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
  */
 
 function regenerate(req) {
-  return new Promise((resolve, reject) => {
+  return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     req.session.regenerate((e) => (e ? reject(e) : resolve()));
-  });
+  }));
 }

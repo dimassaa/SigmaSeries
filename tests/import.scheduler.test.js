@@ -45,6 +45,10 @@ test.after(async () => {
  * читаются из базы: настройки общие для всех файлов прогона, и запись в них
  * ломала бы проверки режима защиты (F-12-10) — они идут параллельно.
  */
+/**
+ * @param {any} now
+ * @param {{enabled?: string, frozen?: boolean, tasks?: any}} [options]
+ */
 function schedulerAt(now, { enabled = 'on', frozen = false, tasks } = {}) {
   calls.length = 0;
   const defaults = {

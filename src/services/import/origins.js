@@ -14,12 +14,12 @@ import { isKeyRejected } from './tmdb.js';
  * Проставляет страны и сети сериалам, у которых их нет.
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.tmdb
+ * @param {any} deps.pool
+ * @param {any} deps.tmdb
  * @param {number} [deps.limit] сколько сериалов за раз; `Infinity` — все
  * @param {string|null} [deps.tconst] один сериал по ключу IMDb
  * @param {(line: string) => void} [deps.log]
- * @param {() => void} [deps.onProgress]
+ * @param {(done: number, total: number) => void} [deps.onProgress]
  * @returns {Promise<{scanned: number, filled: number, withoutCountry: number, errors: number}>}
  */
 export async function fillOrigins({

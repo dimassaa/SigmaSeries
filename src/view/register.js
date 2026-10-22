@@ -24,13 +24,15 @@ const FIELDS = [
  * @param {number} ctx.steps всегда 3
  * @param {string} ctx.csrf
  * @param {string|null} [ctx.challenge] задача невидимой проверки
- * @param {object} [ctx.values] значения полей, чтобы не вводить заново
+ * @param {number} [ctx.zeros] сколько нулей требует проверка
+ * @param {any} [ctx.values] значения полей, чтобы не вводить заново
  * @param {Record<string,string[]>} [ctx.problems] коды замечаний по полям
  * @param {string|null} [ctx.error] общий текст ошибки формы
- * @param {object} [ctx.pending] адрес и ник на шаге 2
+ * @param {any} [ctx.pending] адрес и ник на шаге 2
  * @param {boolean} [ctx.sent] письмо отправлено повторно
  * @param {string} [ctx.statusUrl] куда опрашивать подтверждение
  * @param {string} [ctx.nextUrl] куда переходить после подтверждения
+ * @param {string} [ctx.demoLink] ссылка на демо-подтверждение без почты
  */
 export function registerView(ctx) {
   const { locale, step, steps, csrf } = ctx;
@@ -100,7 +102,7 @@ ${state === 'error' ? html`<p class="form__error">${t(locale, 'error.generic.tex
  * @param {object} ctx
  * @param {string} ctx.locale
  * @param {string} ctx.csrf
- * @param {object[]} ctx.items сериалы для сетки
+ * @param {any[]} ctx.items сериалы для сетки
  * @param {string} ctx.query что ищет человек
  * @param {number[]} ctx.chosen уже сохранённый выбор
  * @param {string|null} ctx.reason причина последнего отказа

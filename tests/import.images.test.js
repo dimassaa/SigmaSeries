@@ -34,7 +34,7 @@ async function jpeg(width, height) {
 function serve(handler) {
   const server = http.createServer(handler);
   return new Promise((resolve) => {
-    server.listen(0, '127.0.0.1', () => resolve({ server, baseUrl: `http://127.0.0.1:${server.address().port}` }));
+    server.listen(0, '127.0.0.1', () => resolve({ server, baseUrl: `http://127.0.0.1:${/** @type {import('node:net').AddressInfo} */ (server.address()).port}` }));
   });
 }
 

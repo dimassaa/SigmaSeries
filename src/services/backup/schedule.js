@@ -57,7 +57,7 @@ function minutesOf(date) {
  *
  * @param {object} deps
  * @param {import('pg').Pool|null} deps.pool для чтения расписания и журнала
- * @param {object} deps.backups журнал копий (`pgBackupJobs`)
+ * @param {any} deps.backups журнал копий (`pgBackupJobs`)
  * @param {Function} [deps.snapshot] снятие копии; по умолчанию `createSnapshotBackup`
  * @param {() => Date} [deps.now] часы, для тестов
  * @param {Function} [deps.lastBackupAt] когда была последняя копия; по умолчанию

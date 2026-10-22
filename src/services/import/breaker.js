@@ -25,7 +25,7 @@ export const MAX_PAUSES = 3;
  * @param {number} [options.threshold]
  * @param {number} [options.pauseMs]
  * @param {number} [options.maxPauses]
- * @returns {object}
+ * @returns {any}
  */
 export function createBreaker({
   sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),

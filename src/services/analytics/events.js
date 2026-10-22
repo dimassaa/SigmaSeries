@@ -52,7 +52,7 @@ export function userPseudoId(userId) {
  * @param {pg.Pool} pool
  * @param {object} event
  * @param {string} event.name имя события из таксономии
- * @param {object} [event.props] свойства события
+ * @param {any} [event.props] свойства события
  * @param {number|string|null} [event.userId] человек: пишется псевдоним
  * @param {string|null} [event.anonId]
  * @param {string|null} [event.locale]
@@ -141,11 +141,11 @@ export function pgAnalytics(pool) {
      * Принимает пачку событий.
      *
      * @param {object} args
-     * @param {object[]} args.events события клиента
+     * @param {any[]} args.events события клиента
      * @param {string|null} args.token присланный токен
      * @param {string|null} args.expectedToken токен, выданный сервером
-     * @param {object} args.context общие свойства (R-AN-02)
-     * @returns {Promise<{accepted: number, rejected: number, reasons: object}>}
+     * @param {any} args.context общие свойства (R-AN-02)
+     * @returns {Promise<{accepted: number, rejected: number, reasons: any}>}
      */
     async intake({ events = [], token = null, expectedToken = null, context = {} }) {
       const reasons = {};
@@ -242,7 +242,8 @@ export function pgAnalytics(pool) {
     /**
      * Пишет серверное событие напрямую.
      *
-     * @param {object} event
+     * @param {{name: string, props?: any, userId?: string|number, anonId?: string,
+     *   locale?: string, isDemo?: boolean}} event
      * @returns {Promise<boolean>}
      */
     async write(event) {
@@ -253,7 +254,7 @@ export function pgAnalytics(pool) {
      * Счётчики отказов за день: по ним видна доля отбракованных.
      *
      * @param {{days?: number}} [options]
-     * @returns {Promise<object[]>}
+     * @returns {Promise<any[]>}
      */
     async rejects({ days = 7 } = {}) {
       const { rows } = await pool.query(

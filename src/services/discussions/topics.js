@@ -72,8 +72,8 @@ const VISIBLE = new Set(['published', 'approved']);
  *
  * @param {import('pg').Pool} pool
  * @param {object} [deps]
- * @param {object} [deps.limits] бюджет модерации (лимиты частоты, «осторожный» режим)
- * @param {object} [deps.restrictions] ограничения пользователя (мьют, бан)
+ * @param {any} [deps.limits] бюджет модерации (лимиты частоты, «осторожный» режим)
+ * @param {any} [deps.restrictions] ограничения пользователя (мьют, бан)
  */
 export function pgDiscussions(pool, { limits = null, restrictions = null } = {}) {
   // Зависимости приходят снаружи и описаны в своих модулях, поэтому здесь
@@ -87,7 +87,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    *
    * @param {number} seriesId
    * @param {{page?: number, perPage?: number}} [options]
-   * @returns {Promise<{rows: object[], total: number, page: number, pages: number}>}
+   * @returns {Promise<{rows: any[], total: number, page: number, pages: number}>}
    */
   async function listForSeries(seriesId, { page = 1, perPage = 20 } = {}) {
     const { rows } = await pool.query(
@@ -121,7 +121,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    *
    * @param {number} topicId
    * @param {{page?: number, perPage?: number, userId?: number|null}} [options]
-   * @returns {Promise<object|null>}
+   * @returns {Promise<any|null>}
    */
   async function topic(topicId, { page = 1, perPage = 50, userId = null } = {}) {
     const { rows: [head] } = await pool.query(
@@ -181,7 +181,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    *
    * @param {{userId: number, seriesId: number, title: string, body: string,
    *   spoiler?: boolean, dictionary: Dictionary, at?: Date}} input
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function createTopic({
     userId, seriesId, title, body, spoiler = false, dictionary, at = new Date(),
@@ -227,7 +227,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    *
    * @param {{userId: number, topicId: number, body: string, spoiler?: boolean,
    *   dictionary: Dictionary, at?: Date}} input
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function reply({
     userId, topicId, body, spoiler = false, dictionary, at = new Date(),
@@ -289,7 +289,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    *
    * @param {number} reviewId
    * @param {{page?: number, perPage?: number}} [options]
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function comments(reviewId, { page = 1, perPage = 50 } = {}) {
     const { rows } = await pool.query(
@@ -319,7 +319,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    *
    * @param {{userId: number, reviewId: number, body: string, spoiler?: boolean,
    *   dictionary: Dictionary, at?: Date}} input
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function addComment({
     userId, reviewId, body, spoiler = false, dictionary, at = new Date(),
@@ -384,7 +384,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
    *
    * @param {number} userId
    * @param {Date} at
-   * @returns {Promise<object|null>}
+   * @returns {Promise<any|null>}
    */
   async function blockedBy(userId, at) {
     if (!guard) return null;
@@ -417,7 +417,7 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
  * Тема для разметки.
  *
  * @param {TopicRow} row
- * @returns {object}
+ * @returns {any}
  */
 function decorateTopic(row) {
   return {

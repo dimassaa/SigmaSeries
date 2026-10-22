@@ -12,9 +12,9 @@ import { dayLabel } from './dates.js';
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.list
- * @param {object} args.query
- * @returns {object}
+ * @param {any} args.list
+ * @param {any} args.query
+ * @returns {any}
  */
 export function auditLogView({ locale, list, query = {} }) {
   const { items = [], total = 0, page = 1, pages = 1 } = list;

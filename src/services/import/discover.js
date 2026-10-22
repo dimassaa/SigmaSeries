@@ -53,9 +53,9 @@ export function reasonOf(reasons) {
  * каталог должны попасть те, о которых знают, а не те, что вышли вчера
  * (EC-I7).
  *
- * @param {{reason:'new'|'airing', items: object[]}[]} windows
+ * @param {{reason:'new'|'airing', items: any[]}[]} windows
  * @param {{cap?: number}} [options]
- * @returns {object[]} отобранные позиции с полем `reason`
+ * @returns {any[]} отобранные позиции с полем `reason`
  */
 export function mergeDiscoveries(windows, { cap = IMPORT_SETTINGS.newCap } = {}) {
   const byId = new Map();
@@ -105,12 +105,12 @@ export function resolveExcludedGenres(names, genreMap) {
  * Собирает кандидатов из обзоров TMDB.
  *
  * @param {object} deps
- * @param {object} deps.tmdb клиент из `createTmdbClient`
+ * @param {any} deps.tmdb клиент из `createTmdbClient`
  * @param {string} deps.until `import.until`
  * @param {Date} [deps.today]
  * @param {number} [deps.cap]
  * @param {number} [deps.pages]
- * @returns {Promise<{items: object[], unresolvedGenres: string[]}>}
+ * @returns {Promise<{items: any[], unresolvedGenres: string[]}>}
  */
 export async function discoverCandidates({ tmdb, until, today = new Date(), cap = IMPORT_SETTINGS.newCap, pages = MAX_PAGES }) {
   const genreMap = await tmdb.getTvGenres();

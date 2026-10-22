@@ -36,7 +36,7 @@ function number(locale, value) {
  * @param {boolean} [args.own] свои итоги (для кнопки «поделиться»)
  * @param {boolean} [args.public] итоги открыты публично
  * @param {string} [args.csrf] токен формы (для сборки картинки)
- * @returns {object} готовая разметка
+ * @returns {any} готовая разметка
  */
 export function recapView({
   locale, recap, period, popular = [], own = true, public: isPublic = false, csrf = '',

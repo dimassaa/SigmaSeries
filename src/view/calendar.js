@@ -31,7 +31,7 @@ export const FILTERS = ['all', 'mine'];
 /**
  * @param {object} page
  * @param {string} page.locale
- * @param {object} page.calendar данные источника
+ * @param {any} page.calendar данные источника
  * @param {object} page.state
  * @param {string} page.state.view `month` | `week` | `list`
  * @param {string} page.state.filter `all` | `mine`
@@ -105,7 +105,7 @@ function toolbar({ locale, state }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.state
+ * @param {any} args.state
  */
 function viewSwitch({ locale, state }) {
   return html`
@@ -204,7 +204,7 @@ ${when(hidden > 0, () => html`
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object[]} args.list
+ * @param {any[]} args.list
  * @param {boolean} args.compact короткая подпись для ячейки и недели
  */
 function entries({ locale, list, compact }) {
@@ -235,7 +235,7 @@ const STATE_KEY = {
  * Подпись записи: «S2E5», «3 серии», «весь сезон».
  *
  * @param {string} locale
- * @param {object} entry
+ * @param {any} entry
  * @returns {string}
  */
 function entryLabel(locale, entry) {
@@ -289,7 +289,7 @@ function monthCells(year, month, today = null) {
  * года неразличимы, и ссылкой на календарь нельзя поделиться.
  *
  * @param {string} locale
- * @param {object} state
+ * @param {any} state
  * @returns {string}
  */
 export function href(locale, state) {

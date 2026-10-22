@@ -14,8 +14,8 @@ import { t } from '../i18n/strings.js';
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object|null} args.account
- * @returns {object} разметка страницы
+ * @param {any} args.account
+ * @returns {any} разметка страницы
  */
 export function aboutView({ locale, account = null }) {
   return html`
@@ -38,8 +38,8 @@ export function aboutView({ locale, account = null }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object|null} args.account
- * @returns {object}
+ * @param {any} args.account
+ * @returns {any}
  */
 export function rulesView({ locale, account = null }) {
   return html`
@@ -58,8 +58,8 @@ export function rulesView({ locale, account = null }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object|null} args.account
- * @returns {object}
+ * @param {any} args.account
+ * @returns {any}
  */
 export function privacyView({ locale, account = null }) {
   return html`

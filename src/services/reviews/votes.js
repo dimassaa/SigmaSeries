@@ -48,7 +48,7 @@ const countOf = async (pool, materialId) => {
 /**
  * Голоса «Полезно» отзывов (E-HelpfulVote).
  *
- * @param {import('pg').Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  */
 export function pgReviewVotes(pool) {
   return {

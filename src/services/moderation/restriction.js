@@ -17,9 +17,9 @@ const STAFF_ROLES = ['editor', 'analyst', 'admin'];
  *
  * @param {import('pg').Pool} pool
  * @param {object} deps
- * @param {object} [deps.auth] источник учётных записей (роли, сессии)
- * @param {object} [deps.audit] журнал действий
- * @returns {object}
+ * @param {any} [deps.auth] источник учётных записей (роли, сессии)
+ * @param {any} [deps.audit] журнал действий
+ * @returns {any}
  */
 export function pgModerationRestrictions(pool, { auth = null, audit = null } = {}) {
   /**
@@ -27,7 +27,7 @@ export function pgModerationRestrictions(pool, { auth = null, audit = null } = {
    *
    * @param {number} userId
    * @param {Date} [at]
-   * @returns {Promise<object|null>}
+   * @returns {Promise<any|null>}
    */
   async function active(userId, at = new Date()) {
     const { rows } = await pool.query(

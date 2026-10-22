@@ -90,7 +90,7 @@ async function withServer(run, user = USER) {
       return { status: res.status, headers: res.headers, body: await res.text() };
     });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

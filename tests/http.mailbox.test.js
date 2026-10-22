@@ -67,7 +67,7 @@ async function withServer({
     auth,
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, createMemorySessionStore())),
+    sessionMw: /** @type {any} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, createMemorySessionStore())),
     journal: { security: (entry) => events.push(entry) },
     mailQueue: {
       async enqueue(job) { queued.push(job); return queued.length; },
@@ -116,7 +116,7 @@ async function withServer({
   try {
     return await run({ get, post, csrfOf, user, auth, queued, events, settings });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 
@@ -303,7 +303,7 @@ async function withDemoServer({ mode = 'devbox', foreign = [], run }) {
     auth,
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
+    sessionMw: /** @type {any} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
     journal: { security: () => {} },
     mailMode: { current: async () => mode, change: async () => ({ ok: true }) },
     mailQueue: {
@@ -349,7 +349,7 @@ async function withDemoServer({ mode = 'devbox', foreign = [], run }) {
   try {
     return await run({ get, post, csrfOf });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

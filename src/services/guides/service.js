@@ -26,15 +26,15 @@ const MAX_SECTIONS = 30;
  *
  * @param {import('pg').Pool} pool
  * @param {object} [deps]
- * @param {object} [deps.limits] бюджет модерации
- * @param {object} [deps.restrictions] ограничения пользователя
+ * @param {any} [deps.limits] бюджет модерации
+ * @param {any} [deps.restrictions] ограничения пользователя
  */
 export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
   /**
    * Список руководств.
    *
    * @param {{seriesId?: number|null, page?: number, perPage?: number}} [options]
-   * @returns {Promise<{rows: object[], total: number}>}
+   * @returns {Promise<{rows: any[], total: number}>}
    */
   async function list({ seriesId = null, page = 1, perPage = 20 } = {}) {
     const { rows } = await pool.query(
@@ -66,7 +66,7 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
    * Статья по адресу.
    *
    * @param {string} slug
-   * @returns {Promise<object|null>}
+   * @returns {Promise<any|null>}
    */
   async function one(slug) {
     const { rows } = await pool.query(
@@ -92,7 +92,15 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
    * Подать руководство на проверку.
    *
    * @param {object} input
-   * @returns {Promise<{ok: boolean, reason?: string, id?: number}>}
+ * @param {any} [input.at]
+ * @param {any} [input.dictionary]
+ * @param {any} [input.seriesId]
+ * @param {any} [input.spoiler]
+ * @param {any} [input.text]
+ * @param {any} [input.title]
+ * @param {any} [input.userId]
+   * @returns {Promise<{ok: boolean, reason?: string, id?: number, slug?: string,
+   *   state?: string, retryAfterSec?: number}>}
    */
   async function submit({
     userId, seriesId = null, title, text, spoiler = false, dictionary, at = new Date(),
@@ -150,8 +158,8 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
 /**
  * Строка списка для разметки.
  *
- * @param {object} row
- * @returns {object}
+ * @param {any} row
+ * @returns {any}
  */
 function decorate(row) {
   return {
@@ -172,7 +180,7 @@ function decorate(row) {
 /**
  * Разделы статьи из тела.
  *
- * @param {object} row
+ * @param {any} row
  * @returns {{heading: string, text: string}[]}
  */
 function sectionsOf(row) {

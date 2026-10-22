@@ -26,10 +26,10 @@ const rawHtml = (page) => page.__raw;
 
 /**
  * @param {object} deps
- * @param {object} deps.library источник данных
- * @param {Function} deps.sessionMw
- * @param {object|null} [deps.progress] прогресс из кэша; без него у карточек нули
- * @param {object|null} [deps.subscriptions] состояние колокольчиков на карточках
+ * @param {any} deps.library источник данных
+ * @param {import('express').RequestHandler[]} deps.sessionMw
+ * @param {any} [deps.progress] прогресс из кэша; без него у карточек нули
+ * @param {any} [deps.subscriptions] состояние колокольчиков на карточках
  */
 export function createLibraryRoutes({ library, sessionMw, progress = null, subscriptions = null }) {
   const router = express.Router({ strict: true });

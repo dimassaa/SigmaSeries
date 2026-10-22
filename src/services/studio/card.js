@@ -47,7 +47,7 @@ export function pgStudioCard(pool) {
    * Карточка со всем, что о ней известно.
    *
    * @param {number} seriesId
-   * @returns {Promise<object|null>}
+   * @returns {Promise<any|null>}
    */
   async function read(seriesId) {
     const { rows } = await pool.query(
@@ -117,11 +117,12 @@ export function pgStudioCard(pool) {
    *
    * @param {number} seriesId
    * @param {object} input
-   * @param {object} input.fields значения полей
-   * @param {string[]} input.genres жанры из справочника
-   * @param {number} input.version ожидаемая версия
-   * @param {number} input.byId кто сохраняет
-   * @returns {Promise<{ok: boolean, reason?: string, version?: number}>}
+   * @param {any} [input.fields] значения полей
+   * @param {string[]} [input.genres] жанры из справочника
+   * @param {number} [input.version] ожидаемая версия
+   * @param {number} [input.byId] кто сохраняет
+   * @returns {Promise<{ok: boolean, reason?: string, version?: number,
+   *   current?: any, errors?: any, changed?: string[], diff?: any}>}
    */
   async function save(seriesId, { fields = {}, genres = null, version = null, byId = null } = {}) {
     const current = await read(seriesId);
@@ -277,7 +278,7 @@ export function pgStudioCard(pool) {
    * Опубликовать карточку.
    *
    * @param {number} seriesId
-   * @param {{byId: number|null}} args
+   * @param {{byId?: number|null}} args
    * @returns {Promise<{ok: boolean, reason?: string, blockers?: string[]}>}
    */
   async function publish(seriesId, { byId = null } = {}) {
@@ -297,8 +298,8 @@ export function pgStudioCard(pool) {
    * Убрать карточку в архив.
    *
    * @param {number} seriesId
-   * @param {{byId: number|null, reason?: string}} args
-   * @returns {Promise<{ok: boolean, dependencies?: object}>}
+   * @param {{byId?: number|null, reason?: string}} args
+   * @returns {Promise<{ok: boolean, dependencies?: any}>}
    */
   async function archive(seriesId, { byId = null } = {}) {
     const dependencies = await dependentCounts(seriesId);
@@ -322,8 +323,8 @@ export function pgStudioCard(pool) {
    * Вернуть карточку из архива.
    *
    * @param {number} seriesId
-   * @param {{byId: number|null}} args
-   * @returns {Promise<{ok: boolean}>}
+   * @param {{byId?: number|null}} args
+   * @returns {Promise<{ok: boolean, state?: string}>}
    */
   async function restore(seriesId, { byId = null } = {}) {
     const { rows } = await pool.query(
@@ -344,7 +345,7 @@ export function pgStudioCard(pool) {
    * Зависимые данные: что помешает удалить карточку.
    *
    * @param {number} seriesId
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function dependentCounts(seriesId) {
     const { rows } = await pool.query(
@@ -374,7 +375,7 @@ export function pgStudioCard(pool) {
    *
    * @param {number} seriesId
    * @param {number} [limit]
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function history(seriesId, limit = 50) {
     const { rows } = await pool.query(
@@ -518,7 +519,7 @@ export function pgStudioCard(pool) {
    * Изображения сериала с их фокальными точками.
    *
    * @param {number} seriesId
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function images(seriesId) {
     const { rows } = await pool.query(
@@ -549,7 +550,7 @@ export function pgStudioCard(pool) {
    * знает только импорт (расхождение расписания), остаются как есть.
    *
    * @param {number} seriesId
-   * @param {import('pg').PoolClient} [client]
+   * @param {any} [client] пул или клиент транзакции
    * @returns {Promise<void>}
    */
   async function recompute(seriesId, client = pool) {
@@ -626,7 +627,7 @@ async function lockMap(pool, seriesId) {
 /**
  * Что мешает публикации.
  *
- * @param {object} row
+ * @param {any} row
  * @returns {string[]}
  */
 function publishBlockers(row) {
@@ -640,8 +641,8 @@ function publishBlockers(row) {
 /**
  * Проверка и очистка полей.
  *
- * @param {object} fields
- * @returns {{ok: boolean, values: object, errors: object}}
+ * @param {any} fields
+ * @returns {{ok: boolean, values: any, errors: any}}
  */
 function validate(fields) {
   const values = {};

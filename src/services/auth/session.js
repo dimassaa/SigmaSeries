@@ -14,6 +14,12 @@ import connectPgSimple from 'connect-pg-simple';
 import { deviceLabel, ipPrefix, sessionHash } from './device.js';
 import { AUTH } from '../../config/settings.js';
 
+/**
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
+ * @param {any} [providedStore]
+ * @param {{account?: ((user: any) => Promise<any>) | null}} [options]
+ * @returns {import('express').RequestHandler[]}
+ */
 export function createSessionMiddleware(pool, providedStore, { account = null } = {}) {
   const store = providedStore ?? new (connectPgSimple(session))({
     pool,
@@ -45,7 +51,7 @@ export function createSessionMiddleware(pool, providedStore, { account = null } 
   // непрочитанных нужно везде. Считает его модуль уведомлений, а этот
   // middleware только выполняет переданную функцию — знания о таблице у него
   // нет. Без функции (тесты, заглушки) поведение прежнее: один middleware.
-  if (!account) return sessionMw;
+  if (!account) return [sessionMw];
 
   return [
     sessionMw,
@@ -108,7 +114,7 @@ export function csrfValid(session, token) {
  * Регистрационный экран подтверждения сюда не относится: там сессия
  * ограниченная и аккаунта ещё нет.
  *
- * @param {{noteDevice: (userId: number, data: object) => Promise<void>,
+ * @param {{noteDevice: (userId: number, data: any) => Promise<void>,
  *   pruneSessions: (userId: number, sid: string, max: number) => Promise<void>}} auth хранилище
  * @param {import('express').Request} req
  * @param {number} userId
@@ -141,11 +147,11 @@ function cryptoRandom() {
  */
 /**
  * @typedef {object} MemoryStore
- * @property {(sid: string, cb: (err: Error|null, session?: object|null) => void) => void} get
- * @property {(sid: string, session: object, cb: (err?: Error|null) => void) => void} set
+ * @property {(sid: string, cb: (err: Error|null, session?: any|null) => void) => void} get
+ * @property {(sid: string, session: any, cb: (err?: Error|null) => void) => void} set
  * @property {(sid: string, cb: (err?: Error|null) => void) => void} destroy
- * @property {(sid: string, session: object, cb: (err?: Error|null) => void) => void} touch
- * @property {(cb: (err: Error|null, sessions?: object[]) => void) => void} all
+ * @property {(sid: string, session: any, cb: (err?: Error|null) => void) => void} touch
+ * @property {(cb: (err: Error|null, sessions?: any[]) => void) => void} all
  * @property {(cb: (err: Error|null, length?: number) => void) => void} length
  * @property {(cb?: (err?: Error|null) => void) => void} clear
  */

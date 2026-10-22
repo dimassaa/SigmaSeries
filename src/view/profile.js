@@ -27,7 +27,7 @@ import { initialsOf } from './avatar.js';
  * @param {string} args.nickname
  * @param {string|null} [args.status] состояние аккаунта
  * @param {string} [args.className] класс обёртки
- * @returns {object} готовая разметка
+ * @returns {any} готовая разметка
  */
 export function authorLink({ locale, nickname, status = null, className = '' }) {
   if (status === 'deleted') {
@@ -74,7 +74,7 @@ export function profileHref(locale, nickname) {
  * @param {(page: number) => string} args.href адрес страницы
  * @param {number} args.page текущая страница
  * @param {number} args.pages всего страниц
- * @returns {object|null}
+ * @returns {any|null}
  */
 function pager({ locale, href, page, pages }) {
   if (pages <= 1) return null;
@@ -98,14 +98,14 @@ function pager({ locale, href, page, pages }) {
  * @param {{review: number, guide: number}} args.counts счётчики работ
  * @param {'reviews'|'guides'} args.tab открытая вкладка
  * @param {{items: Array<{slug: string, title: string, status: string, seriesTitle: string,
- *   seriesSlug: string, excerpt: string}>,
+ *   seriesSlug: string, excerpt: string, createdAt: string}>,
  *   total: number, page: number, pages: number}} args.materials
  * @param {{marked: number, ratings: number, reviews: number}|null} [args.stats]
  * @param {{items: Array<{slug: string, title: string, status: string, createdAt: string}>,
  *   total: number, page: number, pages: number}|null} [args.marked]
  * @param {number} [args.page] страница материалов
  * @param {number} [args.marksPage] страница отмеченных сериалов
- * @returns {object} готовая разметка
+ * @returns {any} готовая разметка
  */
 export function profileView({
   locale,

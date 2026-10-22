@@ -64,7 +64,7 @@ import { t } from '../i18n/strings.js';
  * @param {SplashState} [args.state]
  * @param {SplashCandidate[]} [args.candidates]
  * @param {string} [args.csrf]
- * @returns {object}
+ * @returns {any}
  */
 export function splashView({ locale, state = { frames: [], warnings: [], ready: false }, candidates = [], csrf = '' }) {
   const frames = state.frames ?? [];

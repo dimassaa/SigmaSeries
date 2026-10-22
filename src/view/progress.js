@@ -13,8 +13,8 @@ import { fullDate } from './dates.js';
 /**
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.series карточка сериала
- * @param {object|null} args.progress прогресс зрителя или `null` у гостя
+ * @param {any} args.series карточка сериала
+ * @param {any} args.progress прогресс зрителя или `null` у гостя
  */
 export function progressView({ locale, series, progress }) {
   if (!progress) return '';

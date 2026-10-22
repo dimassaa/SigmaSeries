@@ -66,8 +66,9 @@ export function pgStudioCatalogue(pool) {
    * @param {string} [options.genre]
    * @param {number|null} [options.yearFrom]
    * @param {number|null} [options.yearTo]
+   * @param {boolean} [options.manual]
    * @param {string} [options.sort]
-   * @returns {Promise<{rows: object[], total: number, page: number, pages: number}>}
+   * @returns {Promise<{rows: any[], total: number, page: number, pages: number}>}
    */
   async function list(options = {}) {
     const {
@@ -183,7 +184,7 @@ export function pgStudioCatalogue(pool) {
    * @param {object} [options]
    * @param {number} [options.page]
    * @param {string} [options.reason] одна причина вместо всех
-   * @returns {Promise<{rows: object[], total: number, page: number, pages: number}>}
+   * @returns {Promise<{rows: any[], total: number, page: number, pages: number}>}
    */
   async function incomplete(options = {}) {
     const { page = 1, reason = '' } = options;
@@ -274,8 +275,8 @@ export function pgStudioCatalogue(pool) {
 /**
  * Строка списка в вид для разметки.
  *
- * @param {object} row
- * @returns {object}
+ * @param {any} row
+ * @returns {any}
  */
 function decorate(row) {
   return {

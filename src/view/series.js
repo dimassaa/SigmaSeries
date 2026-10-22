@@ -31,18 +31,21 @@ function yearRange(series) {
 
 /**
  * @param {object} page
+ * @param {any} [page.csrf]
+ * @param {any} [page.ratingBlock]
+ * @param {any} [page.report]
  * @param {string} page.locale
- * @param {object} page.series результат источника
+ * @param {any} page.series результат источника
  * @param {{value: string|null, csrf: string, signedIn: boolean, archived: boolean}|null} [page.status]
  *   статус зрителя; `null` — источник статусов не подключён или это гость без сессии
- * @param {object|null} [page.progress] прогресс и «продолжить» (F-03-03)
- * @param {{state: object|null, csrf: string, signedIn: boolean}|null} [page.subscribe]
+ * @param {any} [page.progress] прогресс и «продолжить» (F-03-03)
+ * @param {{state: any|null, csrf: string, signedIn: boolean}|null} [page.subscribe]
  *   колокольчик подписки; `null` — источник подписок не подключён. Снятый с
  *   публикации сериал до вида не доходит: выше стоит 410 (EC-C1)
  * @param {string|null} [page.notice] отказ после действия: `limit`
- * @param {object|null} [page.reviewBlock] данные блока «Ваш отзыв» (F-04-04):
+ * @param {any} [page.reviewBlock] данные блока «Ваш отзыв» (F-04-04):
  *   `own`, `gate`, `review`, `rating`, `values`, `error`, `editing`
- * @param {object[]|null} [page.reviewTop] «Лучшие отзывы» (F-02-01 §4); пусто —
+ * @param {any[]|null} [page.reviewTop] лучшие отзывы (F-02-01 §4); пусто —
  *   блока нет
  * @param {Map|null} [page.votesById] id отзыва → данные кнопки «Полезно»
  *   (F-04-06) для карточек блока «Лучшие»

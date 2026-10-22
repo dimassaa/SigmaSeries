@@ -114,7 +114,7 @@ async function withServer({ signedIn = true, limiter = null, run }) {
     auth: stubAuthStore({ [account.email]: account }),
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware(
+    sessionMw: /** @type {any} */ (createSessionMiddleware(
       { query: async () => ({ rows: [] }), on: () => {} },
       createMemorySessionStore(),
     )),

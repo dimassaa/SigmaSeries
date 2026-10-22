@@ -17,7 +17,7 @@ const STYLES = ['base', 'admin'];
  * Маршруты служебных страниц.
  *
  * @param {object} deps
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createPageRoutes({ sessionMw = null } = {}) {

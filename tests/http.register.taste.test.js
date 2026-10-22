@@ -174,7 +174,7 @@ async function withServer({ user, run }) {
   try {
     await run({ get, post, csrfOf });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 
@@ -335,6 +335,6 @@ test('гостя на шаг не пускают', { skip }, async () => {
     assert.notEqual(res.status, 200, 'шаг регистрации без сессии недоступен');
     assert.match(res.headers.get('location') ?? '', /login/, 'и предлагает войти');
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 });

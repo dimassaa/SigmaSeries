@@ -30,8 +30,8 @@ const KIND_BY_CODE = {
  *
  * @param {object} deps
  * @param {pg.Pool} deps.pool
- * @param {object} deps.notifications источник данных уведомлений
- * @param {object[]} deps.changes события `scheduleSync`: `code`, `tconst`, `season`, `episode`, `from`, `to`
+ * @param {any} deps.notifications источник данных уведомлений
+ * @param {any[]} deps.changes события `scheduleSync`: `code`, `tconst`, `season`, `episode`, `from`, `to`
  * @param {number} [deps.maxPerUser]
  * @returns {Promise<{checked: number, created: number, superseded: number}>}
  */
@@ -98,8 +98,8 @@ export async function notifyScheduleChanges({ pool, notifications, changes, maxP
  * идентификатору.
  *
  * @param {pg.Pool} pool
- * @param {object} change
- * @returns {Promise<object|null>}
+ * @param {any} change
+ * @returns {Promise<any|null>}
  */
 async function findRelease(pool, change) {
   const { rows } = await pool.query(
@@ -122,7 +122,7 @@ async function findRelease(pool, change) {
  * Убрать предыдущие уведомления о переносе того же выхода за сутки (§8б).
  *
  * @param {pg.Pool} pool
- * @param {object} args
+ * @param {any} args
  * @returns {Promise<number>} сколько строк убрано
  */
 async function supersedeOlder(pool, { userIds, kind, releaseKey, keep }) {

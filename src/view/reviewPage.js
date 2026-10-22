@@ -23,11 +23,11 @@ import { reviewActions, reviewMeta, reportDialog } from './reviewList.js';
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.review строка отзыва из `pgReviewList.one()`
- * @param {object} args.series сериал отзыва (`slug`, `title`)
+ * @param {any} args.review строка отзыва из `pgReviewList.one()`
+ * @param {any} args.series сериал отзыва (`slug`, `title`)
  * @param {string|null} [args.timezone] пояс посетителя для подписи даты
- * @param {object|null} [args.vote] данные кнопки «Полезно»
- * @param {object|null} [args.report] состояние жалобы страницы
+ * @param {any} [args.vote] данные кнопки «Полезно»
+ * @param {any} [args.report] состояние жалобы страницы
  * @returns {string}
  */
 /**

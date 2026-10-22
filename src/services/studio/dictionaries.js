@@ -21,7 +21,7 @@ export function pgStudioDictionaries(pool) {
   /**
    * Жанры.
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function genres() {
     const { rows } = await pool.query(
@@ -46,6 +46,10 @@ export function pgStudioDictionaries(pool) {
    * Сохранить жанр.
    *
    * @param {object} input
+ * @param {any} [input.active]
+ * @param {any} [input.code]
+ * @param {any} [input.nameEn]
+ * @param {any} [input.nameRu]
    * @returns {Promise<{ok: boolean, reason?: string}>}
    */
   async function saveGenre({ code, nameRu, nameEn, active = true }) {
@@ -66,7 +70,7 @@ export function pgStudioDictionaries(pool) {
   /**
    * Платформы рейтингов.
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function platforms() {
     const { rows } = await pool.query(
@@ -89,6 +93,11 @@ export function pgStudioDictionaries(pool) {
    * Сохранить платформу.
    *
    * @param {object} input
+ * @param {any} [input.active]
+ * @param {any} [input.code]
+ * @param {any} [input.name]
+ * @param {any} [input.priority]
+ * @param {any} [input.scaleMax]
    * @returns {Promise<{ok: boolean, reason?: string}>}
    */
   async function savePlatform({ code, name, scaleMax, priority = 100, active = true }) {
@@ -123,7 +132,7 @@ export function pgStudioDictionaries(pool) {
    * Страны: код и название по `Intl.DisplayNames`.
    *
    * @param {string} locale
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function countries(locale = 'ru') {
     const names = new Intl.DisplayNames([locale], { type: 'region' });

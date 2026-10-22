@@ -112,7 +112,7 @@ export function distanceOf(a, b) {
  * Материалы в очереди, собранные в кластеры.
  *
  * @param {import('pg').Pool} pool
- * @returns {object}
+ * @returns {any}
  */
 export function pgModerationClusters(pool) {
   /**
@@ -198,7 +198,7 @@ export function pgModerationClusters(pool) {
    *
    * @param {{windowHours: number, minSize: number, states?: string[]}} input
    * @returns {Promise<Array<{signature: string, size: number, authors: number,
-   *   materials: object[], decided: string|null}>>}
+   *   materials: any[], decided: string|null}>>}
    */
   async function groups({ windowHours, minSize, states = QUEUE_STATES }) {
     const materials = await queued({ windowHours, states });

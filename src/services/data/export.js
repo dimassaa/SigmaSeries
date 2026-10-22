@@ -13,8 +13,8 @@ import crypto from 'node:crypto';
 import { AUTH } from '../../config/settings.js';
 
 /**
- * @param {object} mine данные пользователя, уже собранные хранилищем
- * @param {object} theirs то, что в выгрузку не попадает; передаётся, чтобы
+ * @param {any} mine данные пользователя, уже собранные хранилищем
+ * @param {any} theirs то, что в выгрузку не попадает; передаётся, чтобы
  *   тест мог убедиться, что чужие данные отсеяны на входе, а не подмешались
  *   в файл на выходе
  * @returns {{json:string, sha256:Buffer, size:number}}

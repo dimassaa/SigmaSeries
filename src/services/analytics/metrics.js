@@ -304,7 +304,7 @@ export function pgAnalyticsMetrics(pool) {
    * Обзор: пять крупных чисел и два графика.
    *
    * @param {{hours?: number, excludeDemo?: boolean}} [options]
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function overview({ hours = 24, excludeDemo = true } = {}) {
     const key = `overview:${hours}:${excludeDemo}`;
@@ -360,7 +360,6 @@ export function pgAnalyticsMetrics(pool) {
   /**
    * Доля помеченных модерацией.
    *
-   * @param {boolean} excludeDemo
    * @returns {Promise<number>}
    */
   async function flaggedShare() {
@@ -398,7 +397,7 @@ export function pgAnalyticsMetrics(pool) {
    *
    * @param {number} hours
    * @param {boolean} excludeDemo
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function seriesByHour(hours, excludeDemo) {
     const { rows } = await pool.query(
@@ -418,7 +417,7 @@ export function pgAnalyticsMetrics(pool) {
    *
    * @param {number} hours
    * @param {boolean} excludeDemo
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function seriesByDay(hours, excludeDemo) {
     const { rows } = await pool.query(
@@ -437,7 +436,7 @@ export function pgAnalyticsMetrics(pool) {
    * Воронка: визит → регистрация → активация → активность на второй неделе.
    *
    * @param {{hours?: number, excludeDemo?: boolean}} [options]
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function funnel({ hours = 168, excludeDemo = true } = {}) {
     const [visits, signups, activation, week2] = await Promise.all([
@@ -458,7 +457,7 @@ export function pgAnalyticsMetrics(pool) {
    * Качество модерации: помечено, разобрано, возвращено в белый список.
    *
    * @param {{hours?: number, excludeDemo?: boolean}} [options]
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function moderation({ hours = 168, excludeDemo = true } = {}) {
     const { rows } = await pool.query(
@@ -487,7 +486,7 @@ export function pgAnalyticsMetrics(pool) {
    * Поиск: запросов, без результата, средняя длина.
    *
    * @param {{hours?: number, excludeDemo?: boolean}} [options]
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function search({ hours = 168, excludeDemo = true } = {}) {
     const [submits, empty, avgLength] = await Promise.all([
@@ -526,7 +525,7 @@ export function pgAnalyticsMetrics(pool) {
    * Показатели скорости: p75 по трём метрикам.
    *
    * @param {{hours?: number, excludeDemo?: boolean}} [options]
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function vitals({ hours = 168, excludeDemo = true } = {}) {
     const { rows } = await pool.query(
@@ -551,7 +550,7 @@ export function pgAnalyticsMetrics(pool) {
   /**
    * Отказы приёма — видно на обзоре (F-08-01 §8д).
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function rejects() {
     const { rows } = await pool.query(

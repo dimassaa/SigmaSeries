@@ -18,7 +18,7 @@ const ROLE_KEY = {
 /**
  * @param {object} page
  * @param {string} page.locale
- * @param {object} page.person данные источника
+ * @param {any} page.person данные источника
  */
 export function personView({ locale, person }) {
   const roles = person.roles.map((role) => t(locale, ROLE_KEY[role] ?? 'person.role.actor'));

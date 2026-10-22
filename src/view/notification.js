@@ -33,7 +33,7 @@ const ICON = {
  * Заголовок и текст уведомления.
  *
  * @param {string} locale язык читателя
- * @param {object} row запись ленты
+ * @param {any} row запись ленты
  * @returns {{title: string, body: string}}
  */
 export function notificationText(locale, row) {
@@ -125,7 +125,7 @@ function dayLabel(locale, day, today) {
 /**
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.feed данные ленты
+ * @param {any} args.feed данные ленты
  * @param {string} args.csrf
  * @param {number} args.unread
  */

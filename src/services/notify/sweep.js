@@ -41,8 +41,8 @@ export const DIGEST_THRESHOLD = 5;
  *
  * @param {object} deps
  * @param {import('pg').Pool} deps.pool
- * @param {object} deps.notifications источник данных уведомлений
- * @param {object|null} [deps.feed] лента: ею убираются старые записи
+ * @param {any} deps.notifications источник данных уведомлений
+ * @param {any} [deps.feed] лента: ею убираются старые записи
  *   (`notify.retention_read_days`, `notify.retention_unread_days`)
  * @param {number} [deps.maxPerUser] `notify.max_per_user`
  * @param {number} [deps.digestThreshold] `notify.digest_threshold`
@@ -159,7 +159,7 @@ function releaseParams(release) {
  * меняются каждую ночь, и ключ по `id` прислал бы каждому подписчику одно и то
  * же уведомление снова — без всякой смены часового пояса и без EC-T4.
  *
- * @param {object} release
+ * @param {any} release
  * @returns {string}
  */
 function releaseKey(release) {
@@ -187,7 +187,7 @@ async function lastLocalDate(pool) {
 /**
  * Свернуть «много одинаковых за день» в сводку (F-03-08 §5).
  *
- * @param {object} notifications
+ * @param {any} notifications
  * @param {number} threshold
  * @param {Date} now
  * @returns {Promise<number>} сколько сводок создано

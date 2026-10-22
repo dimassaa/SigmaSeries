@@ -20,11 +20,11 @@ const rawHtml = (page) => page.__raw;
  * Маршруты резервных копий.
  *
  * @param {object} deps
- * @param {object} deps.backups журнал копий
+ * @param {any} deps.backups журнал копий
  * @param {Function} [deps.readSchedule] чтение расписания
  * @param {Function} [deps.runBackup] ручной запуск копии
- * @param {object|null} [deps.audit] журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.audit] журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createBackupRoutes({

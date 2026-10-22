@@ -21,7 +21,8 @@ function serve(handler) {
   const server = http.createServer(handler);
   return new Promise((resolve) => {
     server.listen(0, '127.0.0.1', () => {
-      resolve({ server, baseUrl: `http://127.0.0.1:${server.address().port}` });
+      const address = /** @type {import('node:net').AddressInfo} */ (server.address());
+      resolve({ server, baseUrl: `http://127.0.0.1:${address.port}` });
     });
   });
 }
@@ -30,7 +31,12 @@ const gzip = (text) => zlib.gzipSync(Buffer.from(text, 'utf8'));
 
 const tmpDir = () => fs.mkdtempSync(path.join(os.tmpdir(), 'imdb-dl-'));
 
-/** Параметры по умолчанию урезаются, чтобы тест не ждал настоящих 15 минут. */
+/**
+ * Параметры по умолчанию урезаются, чтобы тест не ждал настоящих 15 минут.
+ *
+ * @param {any} [extra]
+ * @returns {any}
+ */
 const quick = (extra = {}) => ({
   maxBytes: 10 * 1024 * 1024,
   timeoutMs: 2000,

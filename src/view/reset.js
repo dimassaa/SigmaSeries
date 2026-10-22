@@ -43,6 +43,7 @@ export function headingKey(state) {
  * @param {string} [ctx.email] значение поля адреса, чтобы не вводить заново
  * @param {string|null} [ctx.error] общий текст ошибки формы
  * @param {string[]} [ctx.problems] коды замечаний к паролю
+ * @param {string} [ctx.demoLink] ссылка на демо-переход без почты
  */
 export function resetView(ctx) {
   const { locale, state } = ctx;

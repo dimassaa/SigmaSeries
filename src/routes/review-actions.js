@@ -34,10 +34,10 @@ export function voteNumber(value) {
  * каждой карточке — бюджет страницы (M4 §14) важнее простоты.
  *
  * @param {object} deps
- * @param {object|null} deps.votes сервис голосов; без него футера нет
- * @param {object|null} deps.user сессия
- * @param {object|null} deps.session
- * @param {object[]} deps.items строки отзывов (`id`, `helpfulCount`, `authorId`)
+ * @param {any} deps.votes сервис голосов; без него футера нет
+ * @param {any} deps.user сессия
+ * @param {any} deps.session
+ * @param {any[]} deps.items строки отзывов (`id`, `helpfulCount`, `authorId`)
  * @param {string} deps.locale
  * @param {string} deps.slug сериал: адрес действия публикации
  * @param {string} deps.back адрес страницы для возврата и «Войдите»
@@ -90,13 +90,13 @@ export async function voteStateFor({ votes, user, session, items, locale, slug, 
  * сам на отправке (M4 §15-11), а меню — удобство, не защита.
  *
  * @param {object} args
- * @param {object} args.req
+ * @param {any} args.req
  * @param {string} args.locale
  * @param {string} args.slug сериал: адрес публикации жалобы
  * @param {string} args.back полный адрес страницы, с фильтрами
- * @param {object|null} args.user сессия пользователя
- * @param {object|null} args.session
- * @returns {object|null} null — жалобы на странице быть не должно
+ * @param {any} args.user сессия пользователя
+ * @param {any} args.session
+ * @returns {any|null} null — жалобы на странице быть не должно
  */
 export function reportStateFor({ req, locale, slug, back, user, session }) {
   const refNumber = voteNumber;

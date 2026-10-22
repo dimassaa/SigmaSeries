@@ -135,7 +135,7 @@ test('сдвиг дат меняет их на N дней (F-10-05 §4)', { skip
   assert.ok(moved >= 1, 'даты сдвинуты');
 
   const after = await schedule.forSeries(seriesId);
-  const diff = (new Date(after[0].episodes[0].date) - new Date(date)) / 86_400_000;
+  const diff = (new Date(after[0].episodes[0].date).getTime() - new Date(date).getTime()) / 86_400_000;
   assert.equal(diff, 3, 'сдвиг ровно на три дня');
 });
 

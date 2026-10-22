@@ -18,7 +18,7 @@ const KEEP_HOURS = 96;
  * Источник данных «онлайна» и здоровья системы.
  *
  * @param {import('pg').Pool} pool
- * @returns {object}
+ * @returns {any}
  */
 export function pgSystemHealth(pool) {
   /**
@@ -45,7 +45,7 @@ export function pgSystemHealth(pool) {
   /**
    * Ряд: точки за последние дни и среднее.
    *
-   * @returns {Promise<{points: object[], now: number, average: number,
+   * @returns {Promise<{points: any[], now: number, average: number,
    *   dataPoints: number, peak: number, guestsNow: number}>}
    */
   async function series() {
@@ -81,7 +81,7 @@ export function pgSystemHealth(pool) {
    * Метрики, которых нет (5xx за час, отклик p95), показываются как «нет
    * данных», а не ноль: ноль был бы ложью (F-09-06 §4).
    *
-   * @returns {Promise<object>}
+   * @returns {Promise<any>}
    */
   async function health() {
     const { rows: [db] } = await pool.query(

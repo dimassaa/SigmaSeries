@@ -28,7 +28,7 @@ export const UNCHECKED = ['no_people'];
  * Порядок в ответе источника не гарантирован, поэтому берётся максимум, а не
  * последний элемент.
  *
- * @param {object} details карточка сериала
+ * @param {any} details карточка сериала
  * @returns {number|null}
  */
 export function lastSeasonNumber(details) {
@@ -44,8 +44,8 @@ export function lastSeasonNumber(details) {
  * Исчезновение серии событием не считается: источник теряет серии при переезде,
  * и удалять их из каталога по одному ответу — значит терять данные.
  *
- * @param {{before: object, after: object}} input
- * @returns {object[]} события: `postponed`, `advanced`, `announced`, `state_changed`
+ * @param {{before: any, after: any}} input
+ * @returns {any[]} события: `postponed`, `advanced`, `announced`, `state_changed`
  */
 export function diffSchedule({ before, after }) {
   const changes = [];
@@ -77,9 +77,9 @@ export function diffSchedule({ before, after }) {
 /**
  * Сериалы, которым расписание ещё нужно обновлять.
  *
- * @param {object} pool
+ * @param {any} pool
  * @param {{limit?: number}} [options]
- * @returns {Promise<{tconst: string, tmdbId: number, yearStart: number|null, genres: string[], imdb: object}[]>}
+ * @returns {Promise<{tconst: string, tmdbId: number, yearStart: number|null, genres: string[], imdb: any}[]>}
  */
 export async function loadActiveSeries(pool, { limit = null } = {}) {
   const { rows } = await pool.query(
@@ -130,7 +130,7 @@ function episodesOf(raw) {
  * из команды, которая знает только IMDb-ключ, а сравнение «пустое до» выдало бы
  * все даты каталога за объявления.
  *
- * @param {object} pool
+ * @param {any} pool
  * @param {string} tconst
  * @param {number|null} seasonNumber
  * @returns {Promise<{exitState: string|null, episodes: Record<number, string|null>}>}
@@ -158,8 +158,8 @@ export async function previousState(pool, tconst, seasonNumber) {
 /**
  * Перечитывает детали и последний сезон одного сериала.
  *
- * @param {{tmdbId: number, imdb: object, tmdb: object}} options
- * @returns {Promise<object>} сырой слой для записи
+ * @param {{tmdbId: number, imdb: any, tmdb: any}} options
+ * @returns {Promise<any>} сырой слой для записи
  */
 export async function enrichForSchedule({ tmdbId, imdb, tmdb }) {
   const [detailsRu, detailsEn] = await Promise.all([
@@ -182,17 +182,17 @@ export async function enrichForSchedule({ tmdbId, imdb, tmdb }) {
  * Ночная синхронизация расписания.
  *
  * @param {object} options
- * @param {object} options.pool
- * @param {object} options.store
- * @param {object} options.tmdb клиент TMDB
+ * @param {any} options.pool
+ * @param {any} options.store
+ * @param {any} options.tmdb клиент TMDB
  * @param {number} options.runId прогон, в который пишутся позиции
  * @param {Set<string>} [options.slugs]
- * @param {object[]} [options.targets] что обновлять; по умолчанию — активные
+ * @param {any[]} [options.targets] что обновлять; по умолчанию — активные
  * @param {boolean} [options.dryRun] читать и считать, но не писать в каталог
  * @param {Date} [options.now]
  * @param {number} [options.concurrency]
  * @param {(line: string) => void} [options.log] куда писать о сбойной позиции
- * @returns {Promise<{status: string, items: number, errors: number, changes: object[]}>}
+ * @returns {Promise<{status: string, items: number, errors: number, changes: any[]}>}
  */
 export async function scheduleSync({
   pool, store, tmdb, runId, slugs = new Set(), targets = null,

@@ -49,7 +49,7 @@ const ASSET_VERSION = (() => {
  * `<` заменяется на `\u003c`: иначе данные с `</script>` закрывают тег раньше
  * времени, и дальше идёт уже не разметка, а код (R-SEC-15).
  *
- * @param {object} data
+ * @param {any} data
  * @returns {string}
  */
 function jsonLdText(data) {
@@ -68,7 +68,7 @@ export function pageTitle(locale, middle) {
  * @param {string} page.title готовый заголовок страницы
  * @param {string} page.description
  * @param {string} page.path путь без локали, например «/»
- * @param {object} [page.body] фрагмент содержимого
+ * @param {any} [page.body] фрагмент содержимого
  * @param {boolean} [page.noindex] служебная страница
  * @param {string} [page.theme] тема страницы: выбор человека из профиля
  *   (в `page.account.theme`), «system» — если выбора нет
@@ -86,7 +86,7 @@ export function pageTitle(locale, middle) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @returns {object}
+ * @returns {any}
  */
 function footer({ locale }) {
   return html`
@@ -216,7 +216,7 @@ ${bodyHtml}</html>`;
  * @param {string} args.locale
  * @param {{nickname: string, unread: number, csrf: string}} args.account
  * @param {string} args.poll период опроса в секундах; `0` — не опрашивать
- * @returns {object}
+ * @returns {any}
  */
 function accountMenu({ locale, account, poll }) {
   const letter = (account.nickname ?? '?').trim().charAt(0).toUpperCase();

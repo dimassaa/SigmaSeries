@@ -47,10 +47,9 @@ export const REDACTED = '[скрыто]';
  * Рекурсивный: секрет часто лежит не на верхнем уровне, а в
  * `before.user.emailHash`, и проверка только верхнего уровня его пропустит.
  *
- * @template T
- * @param {T} value
+ * @param {any} value
  * @param {number} [depth] ограничение глубины — от защиты от зацикливания
- * @returns {T}
+ * @returns {any}
  */
 export function sanitize(value, depth = 0) {
   if (depth > 8) return REDACTED;
@@ -75,14 +74,14 @@ export function sanitize(value, depth = 0) {
  *
  * @param {object} input
  * @param {number|null} input.actorId
- * @param {string} input.action
- * @param {string} input.objectType
+ * @param {string} [input.action]
+ * @param {string} [input.objectType]
  * @param {number|null} [input.objectId]
  * @param {'ok'|'denied'|'error'} [input.result]
  * @param {string} input.reason обязательна
- * @param {object} [input.before]
- * @param {object} [input.after]
- * @returns {object} строка для e_audit_log
+ * @param {any} [input.before]
+ * @param {any} [input.after]
+ * @returns {any} строка для e_audit_log
  */
 export function buildEntry({ actorId, action, objectType, objectId = null, result = 'ok', reason, before, after }) {
   if (!reason || !String(reason).trim()) {
@@ -115,7 +114,7 @@ export function buildEntry({ actorId, action, objectType, objectId = null, resul
  * копия всех персональных данных объекта в журнале, который читают и
  * выгружают.
  *
- * @returns {{before:object, after:object}|null}
+ * @returns {{before:Record<string, any>, after:Record<string, any>}|null}
  */
 export function diff(before, after) {
   if (!before || !after) return null;
@@ -140,15 +139,16 @@ export function diff(before, after) {
  * создавал никто — и S-81 показывать было нечего.
  *
  * @param {import('pg').Pool} pool
- * @returns {{write: (entry: object) => Promise<object>, prune: (options?: object) => Promise<number>}}
+ * @returns {{write: (entry: any) => Promise<any>, prune: (options?: any) => Promise<number>,
+ *   list: (input?: any) => Promise<{items: any[], total: number, page: number, pages: number}>}}
  */
 export function pgAuditLog(pool) {
   return {
     /**
      * Записать действие.
      *
-     * @param {object} entry те же поля, что у `buildEntry`
-     * @returns {Promise<object>} записанная строка
+     * @param {any} entry те же поля, что у `buildEntry`
+     * @returns {Promise<any>} записанная строка
      */
     async write(entry) {
       const row = buildEntry(entry);
@@ -182,7 +182,7 @@ export function pgAuditLog(pool) {
      * @param {{action?: string|null, actorId?: number|null, objectType?: string|null,
      *   objectId?: number|null, from?: string|null, to?: string|null, page?: number,
      *   pageSize?: number}} input
-     * @returns {Promise<{items: object[], total: number, page: number, pages: number}>}
+     * @returns {Promise<{items: any[], total: number, page: number, pages: number}>}
      */
     async list({
       action = null, actorId = null, objectType = null, objectId = null,

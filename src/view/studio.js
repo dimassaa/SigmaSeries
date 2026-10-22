@@ -16,8 +16,8 @@ const BASE = '/admin/catalog';
  *
  * @param {string} locale
  * @param {string} path
- * @param {object} filters
- * @param {object} changes
+ * @param {any} filters
+ * @param {any} changes
  * @returns {string}
  */
 function linkWith(locale, path, filters, changes) {
@@ -41,11 +41,13 @@ function linkWith(locale, path, filters, changes) {
  * Список сериалов.
  *
  * @param {object} args
+ * @param {any} [args.csrf]
+ * @param {any} [args.jobs]
  * @param {string} args.locale
- * @param {object} args.list
- * @param {object[]} args.genres
- * @param {object} args.filters
- * @returns {object}
+ * @param {any} args.list
+ * @param {any[]} args.genres
+ * @param {any} args.filters
+ * @returns {any}
  */
 export function studioListView({
   locale, list, genres = [], filters = {}, jobs = [], csrf = '',
@@ -224,9 +226,9 @@ export function studioListView({
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.queue
+ * @param {any} args.queue
  * @param {string} args.reason
- * @returns {object}
+ * @returns {any}
  */
 export function studioQueueView({ locale, queue, reason = '' }) {
   const reasons = [
@@ -294,10 +296,10 @@ export function studioQueueView({ locale, queue, reason = '' }) {
  * Постраничная навигация.
  *
  * @param {string} locale
- * @param {object} list
+ * @param {any} list
  * @param {string} path
- * @param {object} filters
- * @returns {object}
+ * @param {any} filters
+ * @returns {any}
  */
 function pagination(locale, list, path, filters) {
   if (list.pages <= 1) return '';

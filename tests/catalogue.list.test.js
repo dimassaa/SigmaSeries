@@ -52,7 +52,7 @@ async function published(runner = pool) {
  * ложное красное (№156). В снимке все чтения видят одно состояние каталога,
  * поэтому сравнения стали строгими, а сторожить больше нечего.
  *
- * @param {(runner: object, frozen: object) => Promise<*>} read
+ * @param {(runner: any, frozen: any) => Promise<*>} read
  * @returns {Promise<*>}
  */
 async function inSnapshot(read) {
@@ -75,8 +75,8 @@ async function inSnapshot(read) {
  * убравшего фикстуру, — ложное красное на общей базе без ошибки в коде
  * (так и случилось 18.10 при прогоне F-04-02: 1067 против 1068).
  *
- * @param {object} options параметры каталога
- * @returns {Promise<object>} страница, для которой числа сошлись
+ * @param {any} options параметры каталога
+ * @returns {Promise<any>} страница, для которой числа сошлись
  */
 async function assertTotalMatches(options) {
   return inSnapshot(async (runner, frozen) => {
@@ -90,8 +90,8 @@ async function assertTotalMatches(options) {
 /**
  * Страницы каталога, прочитанные в одном снимке.
  *
- * @param {object[]} optionsList параметры каждой страницы
- * @returns {Promise<object[]>} страницы в том же порядке
+ * @param {any[]} optionsList параметры каждой страницы
+ * @returns {Promise<any[]>} страницы в том же порядке
  */
 async function snapshotPages(optionsList) {
   return inSnapshot(
@@ -102,8 +102,8 @@ async function snapshotPages(optionsList) {
 /**
  * Страница, прочитанная в снимке, — для проверок без пар.
  *
- * @param {object} [options]
- * @returns {Promise<object>}
+ * @param {any} [options]
+ * @returns {Promise<any>}
  */
 async function stablePage(options = {}) {
   return inSnapshot((runner, frozen) => frozen.list(options));

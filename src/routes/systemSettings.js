@@ -22,8 +22,8 @@ const rawHtml = (page) => page.__raw;
  *
  * @param {object} deps
  * @param {import('pg').Pool} deps.pool
- * @param {object|null} [deps.audit] журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.audit] журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createSystemSettingsRoutes({ pool, audit = null, sessionMw = null }) {

@@ -56,7 +56,7 @@ import { t } from '../i18n/strings.js';
  * @param {BannerCandidate[]} [args.candidates] сериалы, годные для баннера
  * @param {string} args.date выбранный день
  * @param {string} [args.csrf]
- * @returns {object}
+ * @returns {any}
  */
 export function studioBannersView({ locale, month, picks, preview = [], candidates = [], date, csrf = '' }) {
   const today = new Date().toISOString().slice(0, 10);

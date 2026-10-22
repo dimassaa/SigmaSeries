@@ -14,7 +14,7 @@ const EPISODES_LIMIT = 50;
 /**
  * Источник данных карточки из базы.
  *
- * @param {import('pg').Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  */
 export function pgSeries(pool) {
   return {
@@ -28,7 +28,7 @@ export function pgSeries(pool) {
      * опубликован — `null`, опубликован и снят — строка с `archived: true`.
      *
      * @param {string} slug
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async lite(slug) {
       const { rows } = await pool.query(
@@ -63,7 +63,7 @@ export function pgSeries(pool) {
      * иначе посетитель решит, что такого сериала не было.
      *
      * @param {string} slug
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     /**
      * Серия по прежнему адресу.
@@ -72,7 +72,7 @@ export function pgSeries(pool) {
      * истории адресов они обрывались бы (EC-C2, F-10-06 §4).
      *
      * @param {string} slug прежний адрес
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async byOldSlug(slug) {
       const { rows } = await pool.query(
@@ -148,7 +148,7 @@ export function pgSeries(pool) {
  * Ширина выбирается та, что не больше нужной и самая большая из таких: на
  * маленьком экране большой файл всё равно не покажут, а грузить придётся.
  *
- * @param {object} pool
+ * @param {any} pool
  * @param {number} seriesId
  * @returns {Promise<{poster: number|null, backdrop: number|null}>}
  */
@@ -224,8 +224,8 @@ async function similarOf(pool, seriesId) {
 /**
  * Причина сходства: одно общее — человек, жанр или слово.
  *
- * @param {object} row строка выборки
- * @returns {{kind: string, title: string}|null}
+ * @param {any} row строка выборки
+ * @returns {{kind: string, title: string, titleEn?: string}|null}
  */
 function reasonOf(row) {
   const people = row.common_people ?? [];

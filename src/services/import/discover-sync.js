@@ -36,9 +36,9 @@ async function setting(pool, key) {
  * каждую ночь, и без фильтра каталог рос бы на сотни строк в сутки (§4).
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.store
- * @param {object} deps.tmdb
+ * @param {any} deps.pool
+ * @param {any} deps.store
+ * @param {any} deps.tmdb
  * @param {number} deps.runId прогон, куда пишутся позиции
  * @param {Set<string>} [deps.slugs]
  * @param {Date} [deps.now]
@@ -170,9 +170,9 @@ export async function discoverSync({ pool, store, tmdb, runId, slugs = null, now
  * закрыл бы прогон с упавшей позицией как успешный, и в отчёте выглядело бы
  * так, будто новинок просто не нашлось.
  *
- * @param {object} store
+ * @param {any} store
  * @param {number} runId
- * @param {object[]} records
+ * @param {any[]} records
  * @param {number} written сколько сериалов дошло до каталога
  * @returns {Promise<{status: string, items: number, errors: number, reason: null}>}
  */

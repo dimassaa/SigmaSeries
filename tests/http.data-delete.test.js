@@ -83,7 +83,7 @@ async function withServer({
     auth,
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
+    sessionMw: /** @type {any} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
     journal: { security: (entry) => events.push(entry) },
     mailQueue: { async enqueue(job) { queued.push(job); return queued.length; } },
     now: () => clock,
@@ -141,7 +141,7 @@ async function withServer({
       sweep: () => runDeletionSweep({ auth, journal: { security: () => {} }, now: () => clock }),
     });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

@@ -20,14 +20,17 @@ import { backupCodesList } from './twofactor-backup.js';
  * @param {string} ctx.csrf
  * @param {string} ctx.section открытый раздел
  * @param {Record<string,string>} ctx.sections разделы и их заголовки
- * @param {object|null} ctx.user текущий пользователь, если вошёл
+ * @param {any} ctx.user текущий пользователь, если вошёл
  * @param {string|null} ctx.error
  * @param {boolean} [ctx.saved] только что сохранено
- * @param {object|null} [ctx.values] значения, отправленные человеком: при
+ * @param {any} [ctx.values] значения, отправленные человеком: при
  *   ошибке они возвращаются в форму, иначе он набирает всё заново
- * @param {string[]} ctx.themes
- * @param {string[]} ctx.locales
- * @param {string[]} ctx.timezones
+ * @param {string[]} [ctx.themes]
+ * @param {string[]} [ctx.locales]
+ * @param {Record<string, string>} [ctx.localeNames]
+ * @param {boolean} ctx.staff
+ * @param {any} [ctx.matrix] матрица категорий уведомлений
+ * @param {string[]} [ctx.timezones]
  */
 export function settingsView(ctx) {
   const { locale, section, sections, user } = ctx;
@@ -59,7 +62,7 @@ export function settingsView(ctx) {
 
     <div class="settings__body">
       ${section === 'profile' ? profile(ctx) : ''}
-      ${section === 'appearance' ? appearance(ctx) : ''}
+      ${section === 'appearance' ? appearance(/** @type {any} */ (ctx)) : ''}
       ${section === 'notifications' ? notifications(ctx) : ''}
       ${section === 'privacy' ? privacy(ctx) : ''}
       ${section === 'security' ? security(ctx) : ''}
@@ -77,6 +80,15 @@ export function settingsView(ctx) {
  *
  * Загрузка аватара в P0 не входит (H-52), но плашка обязательна: пустое
  * место в списке отметок выглядит как поломка.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {string} args.csrf
+ * @param {any} args.user
+ * @param {string|null} args.error
+ * @param {any} [args.values]
+ * @param {any[]} [args.history]
+ * @param {any} [args.changedAt]
  */
 function profile({ locale, csrf, user, error, values, history = [], changedAt = null }) {
   const nickname = values?.nickname ?? user?.nickname ?? '';
@@ -192,7 +204,13 @@ function notifications({ locale, csrf, user, matrix = null, staff = false }) {
  * «включено» или «выключено», а не угадывать по наличию отметки.
  *
  * @param {object} args
- * @returns {object}
+ * @param {any} [args.category]
+ * @param {any} [args.csrf]
+ * @param {any} [args.label]
+ * @param {any} [args.locale]
+ * @param {any} [args.matrix]
+ * @param {any} [args.staff]
+ * @returns {any}
  */
 function matrixRow({ locale, csrf, category, label, matrix, staff }) {
   const on = matrix?.[category]?.in_service ?? true;
@@ -494,6 +512,17 @@ export function deleteConfirm({ locale, csrf, error, values }) {
  * Отдельная форма на каждый: §8(а) требует применить выбор сразу, и форма с
  * тремя полями применяла бы все три только по одной кнопке — то есть не
  * сразу.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {string} args.csrf
+ * @param {any} args.user
+ * @param {string|null} args.error
+ * @param {any} [args.values]
+ * @param {string[]} args.themes
+ * @param {string[]} args.locales
+ * @param {Record<string, string>} args.localeNames
+ * @param {string[]} args.timezones
  */
 function appearance({ locale, csrf, user, error, values, themes, locales, localeNames, timezones }) {
   const theme = values?.theme ?? user?.theme ?? 'system';

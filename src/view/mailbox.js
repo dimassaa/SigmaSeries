@@ -11,10 +11,10 @@ import { t } from '../i18n/strings.js';
  * @param {object} ctx
  * @param {string} ctx.locale
  * @param {string} ctx.csrf
- * @param {Array<object>} ctx.letters письма, свежие первыми
+ * @param {any[]} ctx.letters письма, свежие первыми
  * @param {string} ctx.mode действующий режим
  * @param {string|null} ctx.badge предупреждение о режиме или null
- * @param {object|null} ctx.opened открытое письмо
+ * @param {any} ctx.opened открытое письмо
  * @param {string|null} ctx.error
  */
 export function mailboxView(ctx) {

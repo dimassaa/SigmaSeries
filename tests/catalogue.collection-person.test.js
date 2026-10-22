@@ -58,7 +58,7 @@ test.after(async () => {
  * Порядок обязателен: связи объявлены RESTRICT намеренно («ошибка должна быть
  * громкой»), поэтому ссылка уходит раньше самой строки.
  *
- * @param {object} target
+ * @param {any} target
  */
 async function dropFixtures(target) {
   await target.query(

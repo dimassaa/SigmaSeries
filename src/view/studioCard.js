@@ -54,7 +54,15 @@ function dayOf(value) {
  * Поле формы с происхождением.
  *
  * @param {object} args
- * @returns {object}
+ * @param {any} [args.card]
+ * @param {any} [args.hint]
+ * @param {any} [args.label]
+ * @param {any} [args.locale]
+ * @param {any} [args.name]
+ * @param {any} [args.rows]
+ * @param {any} [args.type]
+ * @param {any} [args.value]
+ * @returns {any}
  */
 function field({ locale, card, name, label, type = 'text', value = '', rows = null, hint = '' }) {
   const manual = card.origins[name] === 'manual';
@@ -82,12 +90,15 @@ function field({ locale, card, name, label, type = 'text', value = '', rows = nu
  * Экран карточки.
  *
  * @param {object} args
+ * @param {any} [args.genres]
+ * @param {any} [args.images]
+ * @param {any} [args.schedule]
  * @param {string} args.locale
- * @param {object} args.card
- * @param {object[]} args.history
+ * @param {any} args.card
+ * @param {any[]} args.history
  * @param {string} args.tab
  * @param {string} args.csrf
- * @returns {object}
+ * @returns {any}
  */
 export function studioCardView({
   locale, card, history = [], genres = [], schedule = [], images = [],

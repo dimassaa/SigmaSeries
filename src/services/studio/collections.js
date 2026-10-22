@@ -23,7 +23,7 @@ export function pgStudioCollections(pool) {
   /**
    * Все подборки с числом видимых сериалов.
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function list() {
     const { rows } = await pool.query(
@@ -60,7 +60,7 @@ export function pgStudioCollections(pool) {
    * Подборка с её сериалами.
    *
    * @param {string} slug
-   * @returns {Promise<object|null>}
+   * @returns {Promise<any|null>}
    */
   async function one(slug) {
     const { rows } = await pool.query(
@@ -119,6 +119,14 @@ export function pgStudioCollections(pool) {
    * Создать или изменить подборку.
    *
    * @param {object} input
+ * @param {any} [input.active]
+ * @param {any} [input.description]
+ * @param {any} [input.descriptionEn]
+ * @param {any} [input.seriesIds]
+ * @param {any} [input.slug]
+ * @param {any} [input.title]
+ * @param {any} [input.titleEn]
+ * @param {any} [input.weight]
    * @returns {Promise<{ok: boolean, reason?: string, slug?: string}>}
    */
   async function save({

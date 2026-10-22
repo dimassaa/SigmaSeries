@@ -59,7 +59,7 @@ function dayOf(value) {
  * @param {{title: string, slug: string}|null} [args.series] сериал, если список по сериалу
  * @param {{roles?: string[]}|null} [args.user]
  * @param {string} [args.csrf]
- * @returns {object}
+ * @returns {any}
  */
 export function guidesListView({ locale, list = { rows: [], total: 0 }, series = null, user = null, csrf = '' }) {
   return html`
@@ -120,7 +120,7 @@ export function guidesListView({ locale, list = { rows: [], total: 0 }, series =
  * @param {string} args.locale
  * @param {Guide} args.guide
  * @param {{roles?: string[]}|null} [args.user]
- * @returns {object}
+ * @returns {any}
  */
 export function guideView({ locale, guide, user = null }) {
   return html`
@@ -149,7 +149,7 @@ export function guideView({ locale, guide, user = null }) {
  *
  * @param {Guide} guide
  * @param {string} locale
- * @returns {object}
+ * @returns {any}
  */
 function sectionsOf(guide, locale) {
   const sections = guide.sections ?? [];

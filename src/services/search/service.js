@@ -118,7 +118,7 @@ export function pgSearch(pool) {
      * @param {number} [options.limit]
      * @param {{series?: number, people?: number, collections?: number}} [options.offsets]
      *   сколько строк группы человек уже пролистал (#121)
-     * @returns {Promise<object>}
+     * @returns {Promise<any>}
      */
     async find({ query, limit = 24, offsets = {} }) {
       const trimmed = trimQuery(query);
@@ -178,7 +178,7 @@ export function pgSearch(pool) {
      * @param {object} options
      * @param {string} options.query
      * @param {number} [options.max]
-     * @returns {Promise<{series: object[], people: object[], collections: object[]}>}
+     * @returns {Promise<{series: any[], people: any[], collections: any[]}>}
      */
     async suggest({ query, max = null }) {
       const trimmed = trimQuery(query);
@@ -206,11 +206,11 @@ export function pgSearch(pool) {
  * Смещение своё у каждой группы: человек листает сериалы и не должен при этом
  * терять подборки, которые уже видел (#121).
  *
- * @param {object} pool
+ * @param {any} pool
  * @param {string} query
  * @param {number} limit
  * @param {{series?: number, people?: number, collections?: number}} [offsets]
- * @returns {Promise<object>}
+ * @returns {Promise<any>}
  */
 async function run(pool, query, limit, offsets = {}) {
   const needles = queryStems(query);
@@ -270,11 +270,11 @@ function emptyGroups(total) {
 /**
  * Поиск по одной цели: полнотекстовый, при пустом результате — как есть.
  *
- * @param {object} pool
- * @param {object} target описание из `TARGETS`
+ * @param {any} pool
+ * @param {any} target описание из `TARGETS`
  * @param {string[]} words слова запроса как есть
  * @param {string[]} needles основы слов запроса
- * @returns {Promise<{items: object[], found: number}>}
+ * @returns {Promise<{items: any[], found: number}>}
  */
 async function searchTarget(pool, target, words, needles) {
   const vector = `to_tsvector('russian', ${target.text})`;
@@ -335,10 +335,10 @@ function anyWord(text, words, offset) {
  * престолов» по-русски и `Game of Thrones` по-английски, а в базе лежат оба.
  * Приоритет совпадения — русское название, как оно показано в карточке.
  *
- * @param {object[]} rows
+ * @param {any[]} rows
  * @param {string[]} needles
- * @param {((row: object) => string)|null} [titleOf]
- * @returns {{items: object[], found: number}} отсортированные целиком и их число
+ * @param {((row: any) => string)|null} [titleOf]
+ * @returns {{items: any[], found: number}} отсортированные целиком и их число
  */
 function rank(rows, needles, titleOf = null) {
   const scored = [];

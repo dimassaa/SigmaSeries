@@ -43,12 +43,12 @@ const FOLLOWS = { discover_sync: 'schedule_sync' };
  * Планировщик.
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.store хранилище прогонов
+ * @param {any} deps.pool
+ * @param {any} deps.store хранилище прогонов
  * @param {Record<string, Function>} deps.tasks задачи по виду запуска
  * @param {() => Date} [deps.now] часы; в тестах — свои
  * @param {(line: string) => void} [deps.log] куда писать о пропусках и сбоях
- * @returns {object}
+ * @returns {any}
  */
 export function createScheduler({ pool, store, tasks = {}, now = () => new Date(), log = () => {} }) {
   const clock = () => now();
@@ -124,7 +124,7 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
    * `discover_sync` здесь не появляется: он следует за расписанием и
    * планируется в момент его завершения.
    *
-   * @returns {Promise<object[]>} созданные планы
+   * @returns {Promise<any[]>} созданные планы
    */
   async function plan() {
     if (await silence()) return [];
@@ -233,7 +233,7 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
    * должен ждать 04:00, а ручной запуск — немедленно. И «просроченный» ручной
    * запуск не подчиняется правилу 36 часов: он ждал не ночь, а минуту.
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function manualRuns() {
     const { rows } = await pool.query(
@@ -329,7 +329,7 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
     // выключенный сервер не завёл ни одного. Тогда просроченный план создаётся
     // здесь — и запускается, только если с успеха прошло меньше 36 часов.
     const last = await settings.lastSuccess('schedule_sync');
-    const overdueHours = last ? (at - new Date(last)) / 3_600_000 : Infinity;
+    const overdueHours = last ? (at.getTime() - new Date(last).getTime()) / 3_600_000 : Infinity;
     if (overdueHours > CATCH_UP_HOURS) {
       log(`[планировщик] последнее расписание ${Math.round(overdueHours)} ч назад — догоняю`);
       await planRun('schedule_sync', at);
@@ -359,7 +359,7 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
 
   async function readState() {
     const last = await settings.lastSuccess('schedule_sync');
-    const hours = last ? (clock() - new Date(last)) / 3_600_000 : Infinity;
+    const hours = last ? (clock().getTime() - new Date(last).getTime()) / 3_600_000 : Infinity;
     return {
       enabled: await settings.importEnabled() !== 'off',
       frozen: Boolean(await setting('defence.frozen_at')),
@@ -380,7 +380,7 @@ export function createScheduler({ pool, store, tasks = {}, now = () => new Date(
     /**
      * Подменяет источники настроек (тесты) и возвращает планировщик.
      *
-     * @param {object} source
+     * @param {any} source
      * @returns {object}
      */
     setSetting(source) {

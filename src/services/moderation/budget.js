@@ -113,7 +113,7 @@ let cautiousMode = false;
  * Источник данных бюджетов модерации.
  *
  * @param {import('pg').Pool} pool
- * @returns {object}
+ * @returns {any}
  */
 export function pgModerationBudget(pool) {
   /**

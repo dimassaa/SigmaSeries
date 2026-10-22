@@ -290,9 +290,12 @@ async function applyStatusAfterMarks(pool, { userId, seriesId, progress, today }
 /**
  * Запись статуса с пометкой источника.
  *
- * @param {pg.Pool} pool
+ * @param {import('pg').Pool} pool
  * @param {object} args
- * @param {'manual'|'auto'} args.source
+ * @param {number} args.userId
+ * @param {number} args.seriesId
+ * @param {string} args.status
+ * @param {'manual'|'auto'} [args.source]
  */
 async function setStatus(pool, { userId, seriesId, status, source = 'auto' }) {
   await pool.query(

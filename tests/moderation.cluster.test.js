@@ -181,8 +181,11 @@ test('решение по кластеру достаёт до всех мате
   const group = groups.find((one) => one.materials.some((m) => m.body === body));
   assert.ok(group, 'кластер найден');
 
+  // Решение принимается по сигнатуре этого текста, а не по `group.signature`:
+  // группы объединяют и близкие отпечатки, и при параллельном прогоне первым
+  // в группе может оказаться материал соседнего файла.
   const result = await clusters.decide({
-    signature: group.signature,
+    signature: signatureOf(body),
     decision: 'rejected',
     editorId: editor,
     reason: 'тест: кластер запрещён',

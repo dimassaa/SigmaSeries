@@ -19,14 +19,14 @@ async function withServer(run) {
     auth: stubAuthStore({}, {}),
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore())),
+    sessionMw: /** @type {any} */ (createSessionMiddleware(pool, createMemorySessionStore())),
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
   try {
     await run((path, init) => fetch(base + path, { redirect: 'manual', ...init }));
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

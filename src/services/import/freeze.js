@@ -24,10 +24,10 @@ export const STALE_RUN_HOURS = 6;
  * Служба режима защиты.
  *
  * @param {object} deps
- * @param {object} deps.pool
+ * @param {any} deps.pool
  * @param {{current:Function, set:Function}|null} [deps.mailMode] переключатель режима почты
- * @param {() => Promise<object>} [deps.backup] создание проверенной копии (OP-17)
- * @returns {object}
+ * @param {() => Promise<any>} [deps.backup] создание проверенной копии (OP-17)
+ * @returns {any}
  */
 export function createFreezeService({ pool, mailMode = null, backup = null }) {
   async function readSetting(key) {
@@ -83,7 +83,8 @@ export function createFreezeService({ pool, mailMode = null, backup = null }) {
      * Замораживает каталог для защиты (§3).
      *
      * @param {{at?: Date, mailDevbox?: boolean, requireBackup?: boolean}} [options]
-     * @returns {Promise<{frozen:boolean, since:string, backup:object|null}>}
+     * @returns {Promise<{frozen:boolean, since:string, backup:object|null,
+     *   mailDevbox: boolean|null}>}
      * @throws {Error} идёт запуск, копия не создалась или не проверена
      */
     async freeze({ at = new Date(), mailDevbox = false, requireBackup = true } = {}) {
@@ -149,7 +150,7 @@ export function createFreezeService({ pool, mailMode = null, backup = null }) {
  * Вынесена отдельно, потому что её зовут в пяти местах, и разбор настроек
  * внутри каждого повторился бы пять раз.
  *
- * @param {object} pool
+ * @param {any} pool
  * @returns {Promise<boolean>}
  */
 export async function isUnfrozen(pool) {
@@ -167,7 +168,7 @@ export async function isUnfrozen(pool) {
  * человек может запустить шаг руками. Проверка стоит первым делом в каждом
  * шаге, потому что дешевле всего объяснить это до скачивания файла на 218 МБ.
  *
- * @param {object} pool
+ * @param {any} pool
  * @returns {Promise<void>}
  * @throws {Error}
  */

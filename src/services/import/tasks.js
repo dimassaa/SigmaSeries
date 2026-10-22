@@ -24,7 +24,7 @@ import { IMPORT_SETTINGS } from '../../config/settings.js';
 /**
  * Размер выборки: настройка администратора, а не константа.
  *
- * @param {object} pool
+ * @param {any} pool
  * @returns {Promise<number>}
  */
 async function readTopN(pool) {
@@ -39,11 +39,11 @@ async function readTopN(pool) {
  * Реестр задач для `createScheduler`.
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.store
- * @param {object} deps.tmdb клиент TMDB; без ключа задачи обзора упадут сами
+ * @param {any} deps.pool
+ * @param {any} deps.store
+ * @param {any} deps.tmdb клиент TMDB; без ключа задачи обзора упадут сами
  * @param {string} [deps.dataDir] каталог с датасетами IMDb
- * @param {object|null} [deps.notifications] уведомления M3; без них переносы
+ * @param {any} [deps.notifications] уведомления M3; без них переносы
  *   остаются в отчёте прогона и никому не пишутся
  * @param {(line: string) => void} [deps.log]
  * @returns {Record<string, Function>}

@@ -20,7 +20,7 @@ const imageUrl = (locale, slug, role, width) => (width ? `/${locale}/images/${sl
 /**
  * @param {object} page
  * @param {string} page.locale
- * @param {object} page.data результат data.js
+ * @param {any} page.data результат data.js
  */
 /**
  * Причина рекомендации — текстом интерфейса (M11 §11).

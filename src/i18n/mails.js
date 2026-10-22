@@ -39,7 +39,7 @@ export const MAIL_KINDS = [
  *
  * @param {string} kind вид письма из `MAIL_KINDS`
  * @param {string} locale язык получателя (`R-I18N-13`)
- * @param {{link?:string}} vars подставляемые значения; ссылка обязательна
+ * @param {Record<string, any>} vars подставляемые значения; ссылка обязательна
  *   только там, где письмо ведёт в интерфейс
  * @returns {MailText}
  * @throws неизвестный вид или язык: молча отправленное письмо без темы
@@ -89,22 +89,6 @@ const TEXTS = {
       needsLink: true,
       subject: 'Confirm your address',
       body: 'Hello!\n\nConfirm your account address — without it signing in stays unavailable.\n\nThe link is single-use and lives for 30 minutes:\n{link}\n\nIf you did not sign up, you can delete this message.',
-    },
-  },
-
-  // Письмо уходит владельцу занятого адреса, а страница отвечает так же,
-  // как и для свободного (R-SEC-06): по письму узнать, что аккаунт есть,
-  // может только сам владелец.
-  email_taken: {
-    ru: {
-      needsLink: false,
-      subject: 'Адрес уже занят',
-      body: 'Здравствуйте!\n\nЭтот адрес уже занят аккаунтом. Если аккаунт ваш, восстановите пароль по ссылке на сайте.',
-    },
-    en: {
-      needsLink: false,
-      subject: 'The address is already taken',
-      body: 'Hello!\n\nThis address is already used by an account. If it is yours, recover the password from the site.',
     },
   },
 

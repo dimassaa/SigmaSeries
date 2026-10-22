@@ -12,9 +12,9 @@ import { dayLabel } from './dates.js';
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.list материалы (из `own`)
+ * @param {any} args.list материалы (из `own`)
  * @param {string|null} args.csrf
- * @returns {object}
+ * @returns {any}
  */
 export function myContentView({ locale, list, csrf = null }) {
   const { items = [], total = 0, page = 1, pages = 1, kinds = [], states = [] } = list;

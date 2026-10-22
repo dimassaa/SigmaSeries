@@ -21,7 +21,7 @@ import { t } from '../i18n/strings.js';
  * @param {object} ctx
  * @param {string} ctx.locale
  * @param {string[]} ctx.codes
- * @returns {object}
+ * @returns {any}
  */
 export function backupCodesList({ locale, codes }) {
   return html`
@@ -44,7 +44,6 @@ export function backupCodesList({ locale, codes }) {
 /**
  * @param {object} ctx
  * @param {string} ctx.locale
- * @param {'backup'} ctx.state
  * @param {string[]} ctx.codes коды, доступные только здесь
  */
 export function backupCodesView(ctx) {

@@ -29,7 +29,7 @@ test.before(async () => {
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {
       baseUrl = `http://127.0.0.1:${server.address().port}`;
-      resolve();
+      resolve(undefined);
     });
   });
 });
@@ -44,8 +44,14 @@ const get = (path) => fetch(`${baseUrl}${path}`);
 /** Месяц, в котором календарь что-то показывает: будущий, где есть выходы. */
 async function monthWithReleases() {
   const { rows } = await pool.query(
-    `SELECT to_char(date_trunc('month', release_date), 'YYYY-MM') AS month
-       FROM e_release WHERE release_date > CURRENT_DATE
+    `SELECT to_char(date_trunc('month', r.release_date), 'YYYY-MM') AS month
+       FROM e_release r
+       JOIN e_season se ON se.id = r.season_id
+       JOIN e_series s ON s.id = se.series_id
+      WHERE r.release_date > CURRENT_DATE
+        AND s.publication_state = 'published' AND s.archived_at IS NULL
+        AND (r.covers_season OR EXISTS (
+              SELECT 1 FROM e_release_episode rle WHERE rle.release_id = r.id))
       GROUP BY 1 ORDER BY count(*) DESC LIMIT 1`,
   );
   assert.ok(rows.length, 'в базе есть будущие выходы');
@@ -127,10 +133,16 @@ test('в ячейке месяца не больше трёх записей, о
   // страницу одного месяца с днём другого — проходила, только когда они
   // совпадали.
   const { rows: [busy] } = await pool.query(
-    `SELECT release_date::text AS date FROM e_release
-      WHERE release_date >= $1::date
-        AND release_date < ($1::date + interval '1 month')::date
-      GROUP BY release_date HAVING count(*) > 3 ORDER BY count(*) DESC LIMIT 1`,
+    `SELECT r.release_date::text AS date
+       FROM e_release r
+       JOIN e_season se ON se.id = r.season_id
+       JOIN e_series s ON s.id = se.series_id
+      WHERE r.release_date >= $1::date
+        AND r.release_date < ($1::date + interval '1 month')::date
+        AND s.publication_state = 'published' AND s.archived_at IS NULL
+        AND (r.covers_season OR EXISTS (
+              SELECT 1 FROM e_release_episode rle WHERE rle.release_id = r.id))
+      GROUP BY r.release_date HAVING count(*) > 3 ORDER BY count(*) DESC LIMIT 1`,
     [`${month}-01`],
   );
 

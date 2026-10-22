@@ -20,7 +20,12 @@ const skip = available
 
 let pool;
 
-/** Очередь с журналом отправок вместо настоящего шлюза. */
+/**
+ * Очередь с журналом отправок вместо настоящего шлюза.
+ *
+ * @param {{sent?: any[], fail?: number}} [sink]
+ * @returns {any}
+ */
 function queueWith(sink = { sent: [], fail: 0 }) {
   const sent = [];
   const deliver = async (job) => {

@@ -101,11 +101,12 @@ const LEASE_MIN = 5;
  * Очередь писем.
  *
  * @param {object} deps
- * @param {object} deps.pool подключение к базе
+ * @param {any} deps.pool подключение к базе
  * @param {(job: {to:string, subject:string, body:string, kind:string}) => Promise<void>} deps.deliver
  *   отправка одного письма; бросок означает «попытка не удалась»
  * @param {number} [deps.maxQueued] предел длины очереди (F-01-12 §9)
- * @returns {{enqueue: Function, processDue: Function}}
+ * @returns {{enqueue: Function, processDue: Function, purge: Function,
+ *   forBrowser: Function, listing: Function, fail: Function}}
  */
 export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQueued }) {
   return {
@@ -116,7 +117,8 @@ export function createMailQueue({ pool, deliver, maxQueued = MAIL_SETTINGS.maxQu
      * падает только то, что письмо нельзя поставить — переполнение очереди,
      * неизвестный вид или язык (см. `i18n/mails.js`).
      *
-     * @param {{kind:string, to:string, locale?:string, token?:string, link?:string}} job
+     * @param {{kind:string, to:string, locale?:string, token?:string, link?:string,
+     *   browserId?:string}} job
      * @returns {Promise<number>} идентификатор письма в очереди
      */
     async enqueue(job) {

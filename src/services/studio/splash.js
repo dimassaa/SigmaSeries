@@ -32,9 +32,10 @@ export const BLURRED_WIDTH = 32;
  */
 export function pgStudioSplash(pool) {
   /**
-   * Кадры по порядку.
+   * Кадры по порядку, яркость и предупреждения о перепадах.
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<{frames: any[], warnings: any[], usable: number,
+   *   ready: boolean, previewWidth: number, ticks: number}>}
    */
   async function frames() {
     const { rows } = await pool.query(
@@ -62,6 +63,7 @@ export function pgStudioSplash(pool) {
       height: Number(row.height),
       focalX: Math.round(Number(row.focal_x) * 100),
       focalY: Math.round(Number(row.focal_y) * 100),
+      brightness: /** @type {number|null} */ (null),
     }));
 
     // Яркость считается по размытым копиям: заставка показывает их.
@@ -98,8 +100,8 @@ export function pgStudioSplash(pool) {
   /**
    * Сериалы, у которых есть годный фон.
    *
-   * @param {number} [limit]
-   * @returns {Promise<object[]>}
+   * @param {{limit?: number}} [options]
+   * @returns {Promise<any[]>}
    */
   async function candidates({ limit = 60 } = {}) {
     const { rows } = await pool.query(
@@ -124,6 +126,7 @@ export function pgStudioSplash(pool) {
       height: Number(row.height),
       focalX: Math.round(Number(row.focal_x) * 100),
       focalY: Math.round(Number(row.focal_y) * 100),
+      brightness: /** @type {number|null} */ (null),
     }));
   }
 
@@ -178,7 +181,7 @@ export function pgStudioSplash(pool) {
   /**
    * Переставить кадр.
    *
-   * @param {{frameId: number, where: string}} input
+   * @param {{frameId: number, where?: string, position?: number}} input
    * @returns {Promise<boolean>}
    */
   async function reorder({ frameId, where = 'up', position = 0 }) {

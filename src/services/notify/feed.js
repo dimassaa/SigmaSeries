@@ -42,10 +42,11 @@ export function pgNotificationFeed(pool) {
      * @param {string|null} [args.category] фильтр по категории
      * @param {string} [args.today] сегодняшняя дата пояса читателя `YYYY-MM-DD`
      * @param {number} [args.size]
-     * @returns {Promise<object>}
+     * @returns {Promise<any>}
      */
     async feed({ userId, page = 1, category = null, today, size = PAGE_SIZE }) {
       const current = Math.max(1, Number(page) || 1);
+      /** @type {any[]} */
       const values = [userId, size, (current - 1) * size];
       const filter = category ? 'AND n.category = $4' : '';
       if (category) values.push(category);
@@ -211,6 +212,9 @@ export function pgNotificationFeed(pool) {
      * а пропущенное уведомление о переносе — интересует.
      *
      * @param {object} [args]
+ * @param {any} [args.maxPerUser]
+ * @param {any} [args.readDays]
+ * @param {any} [args.unreadDays]
      * @returns {Promise<number>} сколько записей убрано
      */
     async prune({ readDays = RETENTION.readDays, unreadDays = RETENTION.unreadDays, maxPerUser = MAX_PER_USER } = {}) {

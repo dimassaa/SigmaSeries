@@ -54,6 +54,8 @@ export function pgLibrary(pool) {
      * Страница закладок.
      *
      * @param {object} options
+ * @param {any} [options.progressOf]
+ * @param {any} [options.view]
      * @param {number} options.userId
      * @param {string|null} [options.status] вкладка; `null` — все
      * @param {string} [options.sort]
@@ -61,7 +63,7 @@ export function pgLibrary(pool) {
      * @param {number} [options.limit]
      * @param {string} [options.query] поиск по списку
      * @param {string} options.today сегодня пояса зрителя `YYYY-MM-DD`
-     * @returns {Promise<{items: object[], total: number, counts: Record<string, number>,
+     * @returns {Promise<{items: any[], total: number, counts: Record<string, number>,
      *   page: number, pages: number, limit: number, status: string|null, sort: string,
  *   query: string, view: 'cards'|'list'}>}
      */
@@ -115,7 +117,14 @@ export function pgLibrary(pool) {
  * длиннее страницы.
  *
  * @param {object} args
- * @returns {Promise<{rows: object[], total: number, counts: Record<string, number>}>}
+ * @param {any} [args.needle]
+ * @param {any} [args.orderBy]
+ * @param {any} [args.pool]
+ * @param {any} [args.progressOf]
+ * @param {any} [args.status]
+ * @param {any} [args.today]
+ * @param {any} [args.userId]
+ * @returns {Promise<{rows: any[], total: number, counts: Record<string, number>}>}
  */
 async function loadRows({ pool, userId, status, needle, today, orderBy, progressOf }) {
   const counts = Object.fromEntries(STATUSES.map((value) => [value, 0]));

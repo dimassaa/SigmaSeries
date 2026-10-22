@@ -83,7 +83,7 @@ export function similarityPairs({ features, votes = new Map(), limit = SIMILAR_L
  * Источник данных «похожих».
  *
  * @param {import('pg').Pool} pool
- * @returns {object}
+ * @returns {any}
  */
 export function pgSimilar(pool) {
   /**
@@ -165,7 +165,7 @@ export function pgSimilar(pool) {
    *
    * @param {number} seriesId
    * @param {{limit?: number}} [options]
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function forSeries(seriesId, { limit = SIMILAR_LIMIT } = {}) {
     const { rows } = await pool.query(

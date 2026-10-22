@@ -125,6 +125,6 @@ test('адрес слоя отдаёт фрагмент и весит не бо�
     const missing = await fetch(`${base}/ru/series/no-such-series/card`);
     assert.equal(missing.status, 404);
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 });

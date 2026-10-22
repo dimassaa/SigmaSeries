@@ -26,8 +26,8 @@ function year(item) {
  * @param {object} page
  * @param {string} page.locale
  * @param {string} page.query как введено человеком; выводится дословно
- * @param {object|null} page.result результат источника; `null` — превышен лимит
- * @param {object[]} page.genres жанры для пустого состояния
+ * @param {any} page.result результат источника; `null` — превышен лимит
+ * @param {any[]} page.genres жанры для пустого состояния
  */
 export function searchView({ locale, query, result, genres }) {
   const empty = !result || result.total === 0;
@@ -123,7 +123,7 @@ ${when(result.collections.length > 0, () => html`
  * @param {string} args.locale
  * @param {string} args.query
  * @param {'series'|'people'|'collections'} args.group
- * @param {object} args.result
+ * @param {any} args.result
  * @returns {object|string}
  */
 function more({ locale, query, group, result }) {

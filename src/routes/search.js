@@ -193,7 +193,7 @@ function offsetsFrom(raw) {
  * Подсказка «попробуйте жанр» работает только если есть чем попробовать, а
  * список жанров — это уже готовая навигация (S-03).
  *
- * @param {object} search
+ * @param {any} search
  * @returns {Promise<{code: string, title: string}[]>}
  */
 function popularGenres(search) {

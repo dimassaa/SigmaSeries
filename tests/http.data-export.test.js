@@ -49,7 +49,6 @@ async function viewer(over = {}) {
     profile_public: false,
     stats_public: false,
     quiet_hours: false,
-    quiet_hours: false,
     ...over,
   };
 }
@@ -108,7 +107,7 @@ async function withServer({ user, extra = [], roles: roleMap = {}, start = Date.
       }),
     });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

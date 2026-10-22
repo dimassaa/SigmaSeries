@@ -103,7 +103,7 @@ function reviewOf(row) {
 /**
  * Источник данных отзывов.
  *
- * @param {import('pg').Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  */
 export function pgReviews(pool, { budget = null, restrictions = null, moderationClusters = null } = {}) {
   // Бюджеты модерации живут здесь же: они считают по той же таблице
@@ -147,7 +147,7 @@ export function pgReviews(pool, { budget = null, restrictions = null, moderation
      *
      * @param {number} userId
      * @param {number} seriesId
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async ownReview(userId, seriesId) {
       const { rows } = await pool.query(
@@ -172,7 +172,7 @@ export function pgReviews(pool, { budget = null, restrictions = null, moderation
      * @param {{block: Array, allow: Array, available: boolean}} input.dictionary
      * @param {Date} [input.at]
      * @returns {Promise<{ok: boolean, reason?: string, state?: string,
-     *   matched?: object[], version?: number, retryAfterSec?: number,
+     *   matched?: any[], version?: number, retryAfterSec?: number,
      *   until?: Date|null}>}
      */
     async submit({

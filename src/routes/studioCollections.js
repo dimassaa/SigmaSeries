@@ -17,11 +17,11 @@ const STYLES = ['base', 'admin'];
  * Маршруты подборок и справочников.
  *
  * @param {object} deps
- * @param {object} deps.collections источник данных подборок
- * @param {object} deps.dictionaries источник данных справочников
- * @param {object} deps.series каталог: поиск сериала для подборки
- * @param {object|null} [deps.audit] журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.collections источник данных подборок
+ * @param {any} deps.dictionaries источник данных справочников
+ * @param {any} deps.series каталог: поиск сериала для подборки
+ * @param {any} [deps.audit] журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createStudioLibraryRoutes({

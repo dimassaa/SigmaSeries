@@ -43,10 +43,11 @@ function stubSplash(frames = [FRAME]) {
 async function withServer(run, { frames = [FRAME] } = {}) {
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
   const app = createApp({
+    data: {},
     publicSplash: stubSplash(frames),
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore())),
+    sessionMw: /** @type {any} */ (createSessionMiddleware(pool, createMemorySessionStore())),
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
   const base = `http://127.0.0.1:${server.address().port}`;
@@ -56,7 +57,7 @@ async function withServer(run, { frames = [FRAME] } = {}) {
       return { status: res.status, body: await res.text() };
     });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

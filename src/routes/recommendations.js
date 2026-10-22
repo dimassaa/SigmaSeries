@@ -13,8 +13,8 @@ import { safeReturnTo } from '../services/auth/login.js';
  * Маршруты рекомендаций.
  *
  * @param {object} deps
- * @param {object} deps.recommendations сервис рекомендаций
- * @param {object|null} [deps.sessionMw]
+ * @param {any} deps.recommendations сервис рекомендаций
+ * @param {any} [deps.sessionMw]
  * @returns {import('express').Router}
  */
 export function createRecommendationRoutes({ recommendations, sessionMw = null }) {

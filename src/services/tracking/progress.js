@@ -26,7 +26,7 @@ export function pgProgress(pool) {
      * @param {number} args.userId
      * @param {number} args.seriesId
      * @param {string} [args.today] сегодня пояса зрителя `YYYY-MM-DD`
-     * @returns {Promise<object>}
+     * @returns {Promise<any>}
      */
     async of({ userId, seriesId, today = isoToday() }) {
       const calculated = await recompute(pool, { userId, seriesId, today });
@@ -84,7 +84,7 @@ export function pgProgress(pool) {
  * @param {number} args.userId
  * @param {number} args.seriesId
  * @param {string} [args.today]
- * @returns {Promise<object>}
+ * @returns {Promise<any>}
  */
 export async function recompute(pool, { userId, seriesId, today = isoToday() }) {
   const { rows } = await pool.query(
@@ -196,9 +196,9 @@ export async function recompute(pool, { userId, seriesId, today = isoToday() }) 
  * подсчёта одного и того же процента разошлись бы при первом же изменении
  * округления.
  *
- * @param {object|null} row строка `e_progress` или `null`, если её нет
+ * @param {any} row строка `e_progress` или `null`, если её нет
  * @param {string|null} awaitingDate когда выйдет следующая, если всё отмечено
- * @returns {object}
+ * @returns {any}
  */
 function decorate(row, awaitingDate) {
   if (!row) {

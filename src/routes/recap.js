@@ -34,7 +34,7 @@ const STYLES = ['recap'];
  *   byId: (userId: number) => Promise<{id: number, nickname: string, status: string,
  *   registeredAt: string, statsPublic: boolean, profilePublic: boolean}|null>}} deps.profile
  * @param {{forYou: (userId: number|null) => Promise<{items: Array<{slug: string, title: string}>, personalized: boolean}>}} deps.data
- * @param {object|null} [deps.sessionMw]
+ * @param {any} [deps.sessionMw]
  * @returns {import('express').Router}
  */
 export function createRecapRoutes({ recap, profile, data, sessionMw = null }) {
@@ -44,7 +44,7 @@ export function createRecapRoutes({ recap, profile, data, sessionMw = null }) {
   /**
    * Страница итогов.
    *
-   * @param {import('express').Request} req
+   * @param {import('express').Request<{locale: string}>} req
    * @param {import('express').Response} res
    * @param {{id: number, profilePublic: boolean}} user
    * @param {boolean} own свои или чужие

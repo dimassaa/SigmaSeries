@@ -136,7 +136,7 @@ async function withServer({ user, run }) {
   try {
     await run({ get, post, csrfOf });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 
@@ -186,6 +186,7 @@ test('служебная строка появляется у служебной
   const page = settingsView({
     locale: 'ru',
     csrf: 'токен',
+    error: null,
     section: 'notifications',
     sections: { notifications: 'settings.notifications.title' },
     user: { ...account, quietHours: false, quietFrom: '23:00', quietTo: '08:00' },

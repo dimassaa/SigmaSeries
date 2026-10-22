@@ -48,8 +48,8 @@ function nickFromAddress(value) {
  * Маршруты публичного профиля.
  *
  * @param {object} deps
- * @param {object} deps.profile сервис профиля
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.profile сервис профиля
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createProfileRoutes({ profile, sessionMw = null }) {

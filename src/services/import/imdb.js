@@ -145,9 +145,9 @@ export function compareByPopularity(a, b) {
  * по неизвестной величине — это не «популярность», а произвольный порядок, и
  * такой сериал в каталог попал бы тем же шансом, что и лидер.
  *
- * @param {object[]} rows позиции с полем `numVotes`
+ * @param {any[]} rows позиции с полем `numVotes`
  * @param {number} topN
- * @returns {{items: object[], dropped: number}}
+ * @returns {{items: any[], dropped: number}}
  */
 export function selectCandidates(rows, topN) {
   const ranked = rows.filter((row) => Number.isFinite(row.numVotes));
@@ -165,8 +165,8 @@ export function selectCandidates(rows, topN) {
  * @param {object} options
  * @param {string} options.path путь к `.tsv.gz`
  * @param {string[]} options.header ожидаемый заголовок
- * @param {(line:string) => object|null} options.parseLine
- * @param {(row:object) => void} [options.onRow] вызывается для каждой разобранной строки
+ * @param {(line:string) => any|null} options.parseLine
+ * @param {(row:any) => void} [options.onRow] вызывается для каждой разобранной строки
  * @returns {Promise<{lines:number, rows:number, skipped:number}>}
  * @throws {Error} «схема изменилась», если заголовок не тот
  */
@@ -223,7 +223,7 @@ export async function readDataset({ path, header, parseLine, onRow = () => {} })
  * @param {string} options.ratingsPath
  * @param {number} options.topN
  * @param {string[]} options.excludedGenres
- * @returns {Promise<{items: object[], counters: object, stats: object}>}
+ * @returns {Promise<{items: any[], counters: any, stats: any}>}
  */
 export async function selectFromDatasets({ basicsPath, ratingsPath, topN, excludedGenres }) {
   const ratings = new Map();

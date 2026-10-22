@@ -10,6 +10,7 @@ import 'express';
 declare global {
   namespace Express {
     interface Request {
+      requestId?: string;
       account?: {
         nickname?: string;
         unread?: number;

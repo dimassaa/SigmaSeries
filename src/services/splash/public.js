@@ -20,7 +20,7 @@ export function pgSplash(pool) {
   /**
    * Кадры, готовые к показу.
    *
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function frames() {
     const { rows } = await pool.query(
@@ -55,8 +55,8 @@ export function pgSplash(pool) {
   /**
    * Данные заставки для первого открытия.
    *
-   * @returns {Promise<{frames: object[], counterFrom: number, counterTo: number,
-   *   maxDurationMs: number, fadeMs: number}>}
+   * @returns {Promise<{frames: any[], counterFrom: number, counterTo: number,
+   *   maxDurationMs: number, fadeMs: number, enough: boolean}>}
    */
   async function data() {
     const list = await frames();

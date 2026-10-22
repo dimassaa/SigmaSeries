@@ -109,7 +109,7 @@ function itemOf(row) {
 /**
  * Источник данных списка отзывов (S-09) и блока «Лучшие» (S-06).
  *
- * @param {import('pg').Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  */
 export function pgReviewList(pool) {
   return {
@@ -122,7 +122,7 @@ export function pgReviewList(pool) {
      *   значения сверх допустимых игнорируются (F-04-05 §5)
      * @param {number} [input.page] с единицы
      * @param {number} [input.pageSize]
-     * @returns {Promise<{items: object[], total: number, page: number, pages: number,
+     * @returns {Promise<{items: any[], total: number, page: number, pages: number,
      *   counts: {all: number, positive: number, mixed: number, negative: number},
      *   applied: {group: string|null, length: string|null, lang: string|null, sort: string}}>}
      */
@@ -136,6 +136,7 @@ export function pgReviewList(pool) {
 
       // Область длины и языка — общая у ленты и счётчиков; группа сужает
       // только total и ленту, но не числа на вкладках.
+      /** @type {any[]} */
       const params = [seriesId];
       const where = [`m.kind = 'review'`, 'm.series_id = $1', READABLE];
       if (length === 'short') {
@@ -201,7 +202,7 @@ export function pgReviewList(pool) {
      * ленты по умолчанию, и не больше лимита.
      *
      * @param {{seriesId: number, limit?: number}} input
-     * @returns {Promise<object[]>}
+     * @returns {Promise<any[]>}
      */
     async top({ seriesId, limit = REVIEW.topOnSeriesPage }) {
       const size = Math.max(1, Number(limit) || REVIEW.topOnSeriesPage);
@@ -230,7 +231,7 @@ export function pgReviewList(pool) {
      * страница» принимает страница, а не данные (EC-V14).
      *
      * @param {{id: number}} input
-     * @returns {Promise<{ok: true, review: object, series: object}
+     * @returns {Promise<{ok: true, review: any, series: any}
      *   | {ok: false, reason: 'missing'|'hidden'}>}
      */
     async one({ id }) {

@@ -44,7 +44,8 @@ export function pgStudioImages(pool) {
    * @param {Buffer} input.buffer содержимое файла
    * @param {boolean} [input.hasText] на изображении есть текст
    * @param {number|null} [input.byId] кто загрузил
-   * @returns {Promise<{ok: boolean, reason?: string, imageId?: number, cropped?: boolean}>}
+   * @returns {Promise<{ok: boolean, reason?: string, imageId?: number, cropped?: boolean,
+   *   changed?: boolean, width?: number, height?: number}>}
    */
   async function upload({ seriesId, role, buffer, hasText = false, byId = null }) {
     const rules = REQUIREMENTS[role];

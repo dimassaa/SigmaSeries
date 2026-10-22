@@ -32,6 +32,7 @@ function multipartBody({ field, value, filename, content, type = 'image/png' }) 
 }
 
 /** Запрос в виде, в котором его видит Express. */
+/** @param {any} body @param {string} boundary @returns {any} */
 function request(body, boundary) {
   return {
     headers: { 'content-type': `multipart/form-data; boundary=${boundary}` },
@@ -55,7 +56,7 @@ test('поле и файл доезжают из тела в форму', async 
   assert.equal(form.get('role'), 'poster');
 
   const file = form.get('file');
-  assert.ok(file && typeof file.arrayBuffer === 'function', 'файл пришёл файлом, а не строкой');
+  assert.ok(file && typeof file !== 'string' && typeof file.arrayBuffer === 'function', 'файл пришёл файлом, а не строкой');
   assert.equal(file.name, 'обложка.png');
   const bytes = Buffer.from(await file.arrayBuffer());
   assert.equal(bytes.length, png.length, 'байты файла не потерялись');
@@ -64,7 +65,7 @@ test('поле и файл доезжают из тела в форму', async 
 
 test('тело не multipart отвергается', async () => {
   await assert.rejects(
-    () => readMultipart({ headers: { 'content-type': 'application/json' }, body: Buffer.from('{}') }),
+    () => readMultipart(/** @type {any} */ ({ headers: { 'content-type': 'application/json' }, body: Buffer.from('{}') })),
     /multipart/,
     'не multipart не должен молча разбираться в пустую форму',
   );

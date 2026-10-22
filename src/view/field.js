@@ -19,7 +19,7 @@ import { t } from '../i18n/strings.js';
  * @param {object} args
  * @param {string} args.locale
  * @param {string} args.id идентификатор поля, на которое она ссылается
- * @returns {object}
+ * @returns {any}
  */
 export function revealButton({ locale, id }) {
   return html`<button class="field__reveal" type="button" data-password-toggle="${id}"

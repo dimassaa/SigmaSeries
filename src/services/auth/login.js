@@ -48,7 +48,7 @@ export function sessionDurations(hasStaffRole) {
  * входа становится способом проверить, зарегистрирован ли email, — а это
  * ровно то, что R-SEC-06 запрещает.
  *
- * @param {{status:string, email_confirmed:boolean}|null} user
+ * @param {{status:string, email_confirmed?:boolean}|null} user
  * @param {boolean} passwordOk
  * @returns {{action:string, reason?:string, sessionFor:string|null}}
  */

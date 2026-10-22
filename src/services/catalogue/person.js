@@ -31,7 +31,7 @@ export function pgPerson(pool) {
      * @param {object} [options]
      * @param {number} [options.page] страница сетки, начиная с 1
      * @param {number} [options.limit]
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async person(slug, { page = 1, limit = PERSON_SERIES_LIMIT } = {}) {
       const { rows } = await pool.query(

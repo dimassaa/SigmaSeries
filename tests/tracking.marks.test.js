@@ -47,7 +47,8 @@ test.after(async () => {
  * Сериал-фикстура: сезон, четыре серии, у трёх даты выхода в прошлом.
  *
  * @param {object} options
- * @param {number} options.aired сколько серий уже вышло
+ * @param {any} [options.future]
+ * @param {number} [options.aired] сколько серий уже вышло
  */
 async function fixture({ aired = 3, future = true } = {}) {
   const { token, hash } = makeToken();

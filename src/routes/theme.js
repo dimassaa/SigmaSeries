@@ -19,8 +19,8 @@ const THEMES = ['light', 'dark', 'system'];
  * Маршруты переключателя темы.
  *
  * @param {object} deps
- * @param {object|null} [deps.auth] источник учётных записей
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.auth] источник учётных записей
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createThemeRoutes({ auth = null, sessionMw = null }) {

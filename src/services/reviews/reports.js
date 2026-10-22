@@ -51,7 +51,7 @@ const ELIGIBLE = `SELECT m.kind, m.author_id,
 /**
  * Жалобы на отзывы (E-Report).
  *
- * @param {import('pg').Pool} pool
+ * @param {any} pool настоящий Pool или тестовый двойник с `query`
  */
 export function pgReviewReports(pool) {
   return {

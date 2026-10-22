@@ -38,7 +38,7 @@ const ACCOUNT = {
 /**
  * Стаб аномального сервиса: решает только подстроенные id.
  *
- * @param {object} calls сюда попадают вызовы resolve
+ * @param {any} calls сюда попадают вызовы resolve
  */
 function fakeAnomalies(calls) {
   return {
@@ -122,7 +122,7 @@ async function withServer({ roles = [], login = true, run }) {
   try {
     return await run({ get, post, csrfOf, auth, calls, auditEntries });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

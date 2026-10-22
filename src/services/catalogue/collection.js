@@ -36,7 +36,7 @@ export function pgCollections(pool) {
      * Подборка для страницы.
      *
      * @param {string} slug
-     * @returns {Promise<object|null>} `null`, если подборки для посетителя нет
+     * @returns {Promise<any|null>} `null`, если подборки для посетителя нет
      */
     async collection(slug) {
       const { rows } = await pool.query(
@@ -93,7 +93,7 @@ export function pgCollections(pool) {
  *
  * @param {pg.Pool} pool
  * @param {number} collectionId
- * @returns {Promise<object[]>}
+ * @returns {Promise<any[]>}
  */
 async function visibleSeries(pool, collectionId) {
   const { rows } = await pool.query(

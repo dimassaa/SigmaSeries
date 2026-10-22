@@ -15,7 +15,7 @@ import { timezoneOf, todayIn } from '../services/timezone.js';
  * Панель для страницы или пустая строка.
  *
  * @param {object} args
- * @param {object|null} args.panel источник данных панели; `null` — панели нет
+ * @param {any} args.panel источник данных панели; `null` — панели нет
  * @param {string} args.locale
  * @param {import('express').Request} args.req
  * @param {boolean} [args.showEmpty] показывать пустое состояние, когда выходов нет

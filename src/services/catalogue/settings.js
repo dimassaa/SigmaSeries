@@ -18,7 +18,7 @@ export const DEFAULT_RATING_FLOOR = 10;
  * Два ключа читаются вместе не из экономии: страница и фильтр рейтинга
  * спрашивают их в одном и том же вызове, и второй запрос ничего бы не дал.
  *
- * @param {object} pool
+ * @param {any} pool
  * @returns {Promise<{pageSize: number, ratingFloor: number}>}
  */
 export async function importSettings(pool) {

@@ -40,7 +40,7 @@ import { t } from '../i18n/strings.js';
  * @param {StudioPlatform[]} [args.platforms]
  * @param {StudioCountry[]} [args.countries]
  * @param {string} [args.csrf]
- * @returns {object}
+ * @returns {any}
  */
 export function studioDictionariesView({
   locale, genres = [], platforms = [], countries = [], csrf = '',

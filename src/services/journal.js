@@ -37,7 +37,7 @@ const FIELDS = {
  *
  * @param {object} [deps]
  * @param {(line: string) => void} [deps.sink] куда уходит готовая строка
- * @returns {{security: (entry: object) => void}}
+ * @returns {{security: (entry: any) => void}}
  */
 export function createJournal({ sink = defaultSink } = {}) {
   return {

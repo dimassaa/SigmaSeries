@@ -28,9 +28,12 @@ const rawHtml = (page) => page.__raw;
  * Маршруты разбора материалов.
  *
  * @param {object} deps
- * @param {object} deps.decisions сервис решений
- * @param {object|null} [deps.audit] журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.budget]
+ * @param {any} [deps.clustersService]
+ * @param {any} [deps.restrictions]
+ * @param {any} deps.decisions сервис решений
+ * @param {any} [deps.audit] журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createModerationRoutes({

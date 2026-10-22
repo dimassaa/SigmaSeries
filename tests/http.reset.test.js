@@ -112,7 +112,7 @@ async function withServer(users = {}, run) {
   try {
     await run({ get, post, csrfOf, sessions, queued, calls, auth, journal: logged });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

@@ -45,9 +45,12 @@ function limitClause(limit) {
 /**
  * Одна вставка пачки позиций.
  *
- * @param {object} pool
+ * @param {any} pool
  * @param {number} runId
- * @param {object[]} items
+ * @param {Array<{tconst: string, tmdbId?: number|null, stage: string, outcome: string,
+ *   rank?: number|null, numVotes?: number|null, averageRating?: number|null,
+ *   startYear?: number|null, raw?: any,
+ *   reasons?: string[], httpCodes?: number[], attempts?: number}>} items
  * @returns {Promise<number>}
  */
 async function saveChunk(pool, runId, items) {
@@ -112,8 +115,10 @@ async function saveChunk(pool, runId, items) {
 /**
  * Хранилище результатов импорта.
  *
- * @param {object} pool подключение к базе
- * @returns {{startRun: Function, saveItems: Function, finishRun: Function}}
+ * @param {any} pool подключение к базе
+ * @returns {{startRun: Function, progress: Function, pendingCandidates: Function,
+ *   matchedSeries: Function, resumeRun: Function, saveItems: Function,
+ *   runFlags: Function, updateRun: Function, finishRun: Function}}
  */
 export function createImportStore(pool) {
   return {
@@ -187,7 +192,7 @@ export function createImportStore(pool) {
      * @param {number} [options.limit] сколько позиций взять; 0 — все
      * @param {number|null} [options.runId] прогон, из которого брать; без него
      *   берётся последний начатый
-     * @returns {Promise<{runId: number, items: object[], status: string}|null>}
+     * @returns {Promise<{runId: number, items: any[], status: string}|null>}
      */
     async pendingCandidates({ limit = 0, runId = null } = {}) {
       // Прогон можно задать явно: полный прогон по кнопке (S-76) идёт по
@@ -227,7 +232,7 @@ export function createImportStore(pool) {
      * @param {number} [options.limit] сколько позиций взять; 0 — все
      * @param {number|null} [options.runId] прогон, из которого брать; без него
      *   берётся последний, где есть пары
-     * @returns {Promise<{runId: number, rows: object[], status: string}|null>}
+     * @returns {Promise<{runId: number, rows: any[], status: string}|null>}
      */
     async matchedSeries({ limit = 0, runId = null } = {}) {
       const { rows: runs } = runId
@@ -289,17 +294,9 @@ export function createImportStore(pool) {
      * Пишет позиции прогона.
      *
      * @param {number} runId
-     * @param {object[]} items
-     * @param {string} items.tconst
-     * @param {string} items.stage
-     * @param {string} items.outcome
-     * @param {number|null} [items.tmdbId]
-     * @param {number} [items.rank]
-     * @param {number} [items.numVotes]
-     * @param {number} [items.averageRating]
-     * @param {string[]} [items.reasons]
-     * @param {number[]} [items.httpCodes]
-     * @param {number} [items.attempts]
+     * @param {Array<{tconst: string, stage: string, outcome: string, tmdbId?: number|null,
+     *   rank?: number, numVotes?: number, averageRating?: number, startYear?: number|null,
+     *   raw?: any, reasons?: string[], httpCodes?: number[], attempts?: number}>} items
      * @returns {Promise<number>} сколько позиций записано
      */
     async saveItems(runId, items) {
@@ -340,7 +337,7 @@ export function createImportStore(pool) {
      * пишется: статус у такой строки меняет только тот, кто её закрыл.
      *
      * @param {number} runId
-     * @param {{counters?: object|null, checkpoint?: object|null}} [extra]
+     * @param {{counters?: any|null, checkpoint?: any|null}} [extra]
      * @returns {Promise<void>}
      */
     async updateRun(runId, { counters = null, checkpoint = null } = {}) {
@@ -370,7 +367,7 @@ export function createImportStore(pool) {
      *
      * @param {number} runId
      * @param {string} status
-     * @param {{counters?: object|null, checkpoint?: object|null}} [extra]
+     * @param {{counters?: any|null, checkpoint?: any|null}} [extra]
      * @returns {Promise<void>}
      */
     async finishRun(runId, status, { counters = null, checkpoint = null } = {}) {

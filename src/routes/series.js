@@ -87,8 +87,8 @@ export function createSeriesRoutes({
    * @param {import('express').Request} args.req
    * @param {string} args.locale
    * @param {string} args.slug
-   * @param {object} args.found сериал из источника
-   * @param {object|null} [args.reviewState] `{ values, error, editing }` —
+   * @param {any} args.found сериал из источника; форму задаёт сервис сериалов
+   * @param {any} [args.reviewState] `{ values, error, editing }` —
    *   что показать в форме отзыва после отказа
    */
   const composePage = async ({ req, locale, slug, found, reviewState = null }) => {
@@ -729,13 +729,13 @@ export function createSeriesRoutes({
  * разойдутся (EC-V1).
  *
  * @param {object} deps
- * @param {object} deps.reviews сервис отзывов
- * @param {object|null} deps.dictionary словарь проверки (для подсветки)
- * @param {object|null} deps.user
+ * @param {any} deps.reviews сервис отзывов
+ * @param {any} deps.dictionary словарь проверки (для подсветки)
+ * @param {any} deps.user
  * @param {number} deps.seriesId
- * @param {object|null} deps.session
+ * @param {any} deps.session
  * @param {number|null} [deps.rating] своя оценка — подставляется в форму
- * @param {object|null} [deps.state] `{ values, error, editing }` после отказа
+ * @param {any} [deps.state] `{ values, error, editing }` после отказа
  */
 async function reviewDataFor({
   reviews, dictionary, user, seriesId, session, rating = null, state = null,
@@ -800,8 +800,8 @@ async function reviewDataFor({
  * кулдауну, значило бы показывать работающую кнопку и отказ после неё.
  *
  * @param {object} deps
- * @param {object} deps.reviews сервис отзывов
- * @param {object|null} deps.user
+ * @param {any} deps.reviews сервис отзывов
+ * @param {any} deps.user
  * @param {number} deps.seriesId
  * @param {string} deps.locale
  * @param {string} deps.slug
@@ -829,11 +829,11 @@ async function reviewActionFor({
  * Данные блока оценки для страницы сериала.
  *
  * @param {object} deps
- * @param {object} deps.ratings сервис оценок
- * @param {object|null} deps.user
+ * @param {any} deps.ratings сервис оценок
+ * @param {any} deps.user
  * @param {number} deps.seriesId
- * @param {object|null} deps.session
- * @param {object|null} [deps.own] своя оценка, уже прочитанная вызывающим
+ * @param {any} deps.session
+ * @param {any} [deps.own] своя оценка, уже прочитанная вызывающим
  * @param {boolean} [deps.hasReview] есть ли отзыв: от него зависит
  *   подтверждение снятия оценки (H-75)
  */
@@ -869,8 +869,8 @@ async function ratingBlock({
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.series данные сериала
- * @param {object|null} [args.rating] блок оценки: берётся `summary`
+ * @param {any} args.series данные сериала; форму задаёт сервис сериалов
+ * @param {any} [args.rating] блок оценки: берётся `summary`
  */
 function seriesJsonLd({ locale, series: found, rating = null }) {
   const episodes = found.seasons.flatMap((season) => season.episodes);

@@ -23,10 +23,10 @@ import { promisify } from 'node:util';
  * настоящий `pg_dump` базы на 450 МБ не должен выполняться на каждом прогоне.
  *
  * @param {object} deps
- * @param {object} deps.pool живое подключение — только чтобы пересчитать строки
+ * @param {any} deps.pool живое подключение — только чтобы пересчитать строки
  * @param {(file:string, args:string[], options?:object) => Promise<{stdout:string}>} [deps.exec]
- * @param {() => Promise<string>} [deps.tmpDir] временный каталог; тест подменяет
- * @param {() => string} [deps.keepDir] каталог для годного дампа; по умолчанию `backups/`
+ * @param {() => string|Promise<string>} [deps.tmpDir] временный каталог; тест подменяет
+ * @param {() => string|Promise<string>} [deps.keepDir] каталог для годного дампа; по умолчанию `backups/`
  * @param {boolean} [deps.keepFile] `false` — только проверка, дамп удаляется
  * @returns {Promise<{status:'verified'|'error', bytes:number, file?:string, error?:string}>}
  */
@@ -36,7 +36,7 @@ export async function createSnapshotBackup({
   tmpDir = () => fs.mkdtemp(path.join(os.tmpdir(), 'defence-')),
   keepDir = () => path.resolve('backups'),
   keepFile = true,
-} = {}) {
+}) {
   const db = process.env.PGDATABASE ?? 'serial_tracker';
   const user = process.env.PGUSER ?? '';
   const host = process.env.PGHOST ?? '';
@@ -108,7 +108,7 @@ async function keepDump(dumpFile, keepDir) {
 /**
  * Сколько сериалов в живой базе: с этим числом сверяется восстановленная.
  *
- * @param {object} pool
+ * @param {any} pool
  * @returns {Promise<number>}
  */
 async function countSeries(pool) {

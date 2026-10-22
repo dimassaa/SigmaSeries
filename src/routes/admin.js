@@ -22,9 +22,9 @@ const DECISIONS = { accept: 'accepted', discard: 'discarded' };
  * Маршруты разбора аномалий.
  *
  * @param {object} deps
- * @param {object} deps.anomalies хранилище аномалий (resolve)
- * @param {Function} deps.sessionMw middleware сессий
- * @param {object} deps.audit журнал действий (audit_log.write)
+ * @param {any} deps.anomalies хранилище аномалий (resolve)
+ * @param {import('express').RequestHandler[]} deps.sessionMw middleware сессий
+ * @param {any} deps.audit журнал действий (audit_log.write)
  */
 export function createAdminRoutes({ anomalies, sessionMw, audit }) {
   const router = express.Router({ strict: true });

@@ -80,7 +80,7 @@ const machineDate = (date) => new Date(date).toISOString().slice(0, 10);
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.item строка из `pgReviewList`
+ * @param {any} args.item строка из `pgReviewList`
  * @param {string|null} [args.timezone] пояс посетителя для подписи даты
  */
 /**
@@ -95,10 +95,14 @@ const machineDate = (date) => new Date(date).toISOString().slice(0, 10);
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object|null} args.vote данные кнопки; `null` — футера нет
+ * @param {any} args.vote данные кнопки; `null` — футера нет
  */
-/** Футер карточки: строка голоса (F-04-06) с гнездом меню жалобы (F-04-07)
- * в той же раскладке, справа. Одна строка футера проще двух блоков. */
+/**
+ * Футер карточки: строка голоса (F-04-06) с гнездом меню жалобы (F-04-07)
+ * в той же раскладке, справа. Одна строка футера проще двух блоков.
+ *
+ * @param {{locale: string, vote: any, menu?: any}} args
+ */
 function voteRow({ locale, vote, menu = '' }) {
   if (!vote) return '';
   const label = t(locale, 'review.vote.label');
@@ -148,9 +152,9 @@ function voteRow({ locale, vote, menu = '' }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.item строка отзыва (`id`, `authorId`)
- * @param {object|null} args.report состояние жалобы страницы
- * @returns {object} пустая строка, если пункта быть не должно
+ * @param {any} args.item строка отзыва (`id`, `authorId`)
+ * @param {any} args.report состояние жалобы страницы
+ * @returns {any} пустая строка, если пункта быть не должно
  */
 function reportMenuFor({ locale, item, report }) {
   if (!report) return '';
@@ -195,9 +199,9 @@ function reportMenuFor({ locale, item, report }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.series строка шапки сериала (`slug`)
- * @param {object|null} args.report состояние жалобы страницы
- * @returns {object} пустая строка, если жалобы на странице не бывает
+ * @param {any} args.series строка шапки сериала (`slug`)
+ * @param {any} args.report состояние жалобы страницы
+ * @returns {any} пустая строка, если жалобы на странице не бывает
  */
 export function reportDialog({ locale, series, report }) {
   if (!report || report.userId === null && !report.dialog) return raw('');
@@ -265,10 +269,10 @@ export function reportDialog({ locale, series, report }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.item строка отзыва
+ * @param {any} args.item строка отзыва
  * @param {string|null} [args.timezone] часовой пояс читателя
- * @param {object|null} [args.vote] состояние голоса карточки
- * @param {object|null} [args.report] состояние жалобы страницы (меню «⋯»)
+ * @param {any} [args.vote] состояние голоса карточки
+ * @param {any} [args.report] состояние жалобы страницы (меню «⋯»)
  */
 /**
  * Шапка отзыва: ник, оценка автора, дата, метка языка (F-04-05 §4, F-04-09 §4).
@@ -283,10 +287,10 @@ export function reportDialog({ locale, series, report }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.item строка отзыва
+ * @param {any} args.item строка отзыва
  * @param {string|null} [args.timezone] пояс посетителя для подписи даты
  * @param {boolean} [args.link] дату показать ссылкой на страницу отзыва
- * @returns {object}
+ * @returns {any}
  */
 export function reviewMeta({ locale, item, timezone = null, link = false }) {
   const date = html`<time class="reviews__date" datetime="${machineDate(item.createdAt)}"
@@ -317,10 +321,10 @@ export function reviewMeta({ locale, item, timezone = null, link = false }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.item строка отзыва (`id`, `authorId`)
- * @param {object|null} args.vote данные кнопки «Полезно»; `null` — футера нет
- * @param {object|null} args.report состояние жалобы страницы
- * @returns {string} пустая строка, если футера быть не должно
+ * @param {any} args.item строка отзыва (`id`, `authorId`)
+ * @param {any} args.vote данные кнопки «Полезно»; `null` — футера нет
+ * @param {any} args.report состояние жалобы страницы
+ * @returns {any} пустая строка, если футера быть не должно
  */
 export function reviewActions({ locale, item, vote, report }) {
   if (!vote) return '';
@@ -377,7 +381,7 @@ export function reviewCard({ locale, item, timezone = null, vote = null, report 
  * @param {string} args.label ключ подписи
  * @param {Array<{key: string|null, label: string, count?: number}>} args.items
  * @param {string|null} args.active
- * @param {(changes: object) => string} args.hrefFor
+ * @param {(changes: any) => string} args.hrefFor
  */
 function chipRow({ locale, id, param, label, items, active, hrefFor }) {
   return html`
@@ -472,13 +476,15 @@ function actionView({ locale, action }) {
  * Страница списка отзывов (S-09).
  *
  * @param {object} args
+ * @param {any} [args.report]
+ * @param {any} [args.votesById]
  * @param {string} args.locale
- * @param {object} args.series найденный сериал
- * @param {object} args.summary сводка оценок (F-04-03)
- * @param {object|null} [args.ownRating] своя оценка
- * @param {object|null} [args.action] кнопка у сводки: `{kind: 'write'|'edit', href}`
+ * @param {any} args.series найденный сериал
+ * @param {any} args.summary сводка оценок (F-04-03)
+ * @param {any} [args.ownRating] своя оценка
+ * @param {any} [args.action] кнопка у сводки: `{kind: 'write'|'edit', href}`
  * @param {string|null} [args.timezone] пояс посетителя
- * @param {object} args.page результат `pgReviewList.page`
+ * @param {any} args.page результат `pgReviewList.page`
  */
 export function reviewListView({
   locale, series, summary, ownRating = null, action = null, timezone = null, page, votesById = null,
@@ -572,11 +578,11 @@ export function reviewListView({
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.series
- * @param {object[]} args.items не больше `review.top_on_series_page`
+ * @param {any} args.series
+ * @param {any[]} args.items не больше `review.top_on_series_page`
  * @param {string|null} [args.timezone]
  * @param {Map|null} [args.votesById] id отзыва → данные кнопки «Полезно»
- * @param {object|null} [args.report] состояние жалобы страницы (меню и диалог)
+ * @param {any} [args.report] состояние жалобы страницы (меню и диалог)
  */
 export function topReviews({ locale, series, items, timezone = null, votesById = null, report = null }) {
   if (items.length === 0) return raw('');

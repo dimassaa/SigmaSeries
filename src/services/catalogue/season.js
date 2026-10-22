@@ -20,7 +20,7 @@ export function pgSeasons(pool) {
      *
      * @param {string} slug
      * @param {number} seasonNumber
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async season(slug, seasonNumber, { userId = null, today = null } = {}) {
       const series = await visibleSeries(pool, slug);
@@ -65,7 +65,7 @@ export function pgSeasons(pool) {
      * @param {string} slug
      * @param {number} seasonNumber
      * @param {number} episodeNumber
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async episode(slug, seasonNumber, episodeNumber, options = {}) {
       const seasonPage = await this.season(slug, seasonNumber, options);
@@ -140,7 +140,7 @@ export function pgSeasons(pool) {
  * серию. Иначе редактор снимает сериал с публикации, а его страницы продолжают
  * отдаваться — и тот, кто это сделал, уверен, что всё убрано (EC-T8, EC-C1).
  *
- * @returns {Promise<object|null>}
+ * @returns {Promise<any|null>}
  */
 async function visibleSeries(pool, slug) {
   const { rows } = await pool.query(
@@ -212,7 +212,7 @@ async function seasonNumbersOf(pool, seriesId) {
 /**
  * Дата, в которую вышли все серии сезона.
  *
- * @param {object[]} episodes
+ * @param {any[]} episodes
  * @returns {string|null} дата или `null`, если выходы разные или их нет
  */
 function sameDay(episodes) {

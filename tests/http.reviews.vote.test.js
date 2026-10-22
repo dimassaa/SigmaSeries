@@ -137,7 +137,7 @@ async function withServer({ user = null, limiter = null, run }) {
     dictionary: { load: async () => CLEAN },
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware(pool, createMemorySessionStore(), {
+    sessionMw: /** @type {any} */ (createSessionMiddleware(pool, createMemorySessionStore(), {
       account: async (u) => ({ nickname: u.nickname, unread: 0, pollSeconds: 0 }),
     })),
   });
@@ -171,7 +171,7 @@ async function withServer({ user = null, limiter = null, run }) {
   try {
     await run({ get, post, csrfOf });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

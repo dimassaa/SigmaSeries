@@ -116,7 +116,7 @@ test('сбой фиксируется событием, а не теряется
   await runImport({
     fetchSource: async () => { throw new Error('сеть'); },
     persist: async () => ({ written: 0, skipped: 0 }),
-    onEvent: async (e) => events.push(e),
+    onEvent: async (e) => { events.push(e); },
   });
   assert.equal(events.at(-1).type, 'import.failed');
 });

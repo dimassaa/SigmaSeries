@@ -41,7 +41,7 @@ export function pgCalendar(pool) {
      * @param {string} options.to `YYYY-MM-DD`
      * @param {number|null} [options.userId] для фильтра «Мои»
      * @param {string} [options.timezone] пояс посетителя (H-72)
-     * @returns {Promise<{from: string, to: string, days: Map<string, object[]>, total: number,
+     * @returns {Promise<{from: string, to: string, days: Map<string, any[]>, total: number,
      *   truncated: boolean}>}
      */
     async days({ from, to, userId = null, timezone = 'Europe/Minsk' }) {

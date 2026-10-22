@@ -35,8 +35,8 @@ const EMPTY = { days: new Map(), total: 0, truncated: false };
 
 /**
  * @param {object} deps
- * @param {object} deps.calendar источник данных
- * @param {Function} [deps.sessionMw] middleware сессий: без него все посетители гости
+ * @param {any} deps.calendar источник данных
+ * @param {import('express').RequestHandler[]} [deps.sessionMw] middleware сессий: без него все посетители гости
  * @returns {import('express').Router}
  */
 export function createCalendarRoutes({ calendar, sessionMw = null }) {
@@ -93,7 +93,7 @@ export function createCalendarRoutes({ calendar, sessionMw = null }) {
  * @param {Record<string, unknown>} args.query
  * @param {string} args.today `YYYY-MM-DD` в поясе посетителя
  * @param {string} args.timezone
- * @returns {object}
+ * @returns {any}
  */
 function readState({ query, today, timezone }) {
   const view = VIEWS.includes(String(query.view)) ? String(query.view) : 'month';
@@ -131,7 +131,7 @@ function readState({ query, today, timezone }) {
  * Неделя и месяц берутся целиком, а не «до 62 дней»: предел из настроек —
  * страховка от рукописного диапазона, а не повод обрезать календарь.
  *
- * @param {object} state
+ * @param {any} state
  * @returns {{from: string, to: string}}
  */
 function periodOf(state) {
@@ -162,7 +162,7 @@ function mondayOf(iso) {
 /**
  * Индексируется ли месяц (F-03-05 §8, R-SEO-02).
  *
- * @param {object} state
+ * @param {any} state
  * @param {string} today `YYYY-MM-DD`
  * @returns {boolean}
  */

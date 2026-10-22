@@ -201,14 +201,14 @@ test('второй аккаунт с тем же адресом не прохо�
   const { fields } = newUser();
   await store.createUser(fields);
   const second = { ...fields, nickname: fields.nickname + 'b' };
-  await assert.rejects(() => store.createUser(second), (e) => e.code === '23505');
+  await assert.rejects(() => store.createUser(second), (e) => /** @type {any} */ (e).code === '23505');
 });
 
 test('второй аккаунт с тем же ником не проходит (EC-A5)', { skip }, async () => {
   const { fields } = newUser();
   await store.createUser(fields);
   const second = { ...fields, email: `store-${uniq()}@example.com` };
-  await assert.rejects(() => store.createUser(second), (e) => e.code === '23505');
+  await assert.rejects(() => store.createUser(second), (e) => /** @type {any} */ (e).code === '23505');
 });
 
 // ─── Токены ──────────────────────────────────────────────────────────────────
@@ -336,7 +336,7 @@ test('токен сброса выдаётся подтверждённому а
   const row = await store.tokenByHash(hashToken(issued.token));
   assert.equal(row.kind, 'password_reset', 'вид токена отличает сброс от подтверждения адреса');
   assert.equal(row.used_at, null);
-  const minutes = (new Date(row.expires_at) - Date.now()) / 60000;
+  const minutes = (new Date(row.expires_at).getTime() - Date.now()) / 60000;
   assert.ok(minutes > 25 && minutes < 31, `срок из настроек модуля, а не «на глаз»: ${minutes.toFixed(1)} мин`);
 });
 

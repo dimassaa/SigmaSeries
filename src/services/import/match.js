@@ -77,7 +77,7 @@ async function matchOne(item, tmdb) {
  *
  * @param {object} options
  * @param {{tconst:string, startYear:number|null}[]} options.items
- * @param {object} options.tmdb клиент TMDB
+ * @param {any} options.tmdb клиент TMDB
  * @param {number} [options.concurrency]
  * @returns {Promise<{tconst:string, tmdbId:number|null, outcome:string, reasons:string[]}[]>}
  */

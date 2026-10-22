@@ -53,7 +53,9 @@ function shift(days) {
  * Сериал-фикстура: сезон с восемью вышедшими сериями и одна будущая.
  *
  * @param {object} options
- * @param {number[]} options.markedWith номера отмеченных серий
+ * @param {any} [options.aired]
+ * @param {any} [options.future]
+ * @param {number[]} [options.markedWith] номера отмеченных серий
  */
 async function fixture({ markedWith = [], aired = 8, future = true } = {}) {
   const { token, hash } = makeToken();

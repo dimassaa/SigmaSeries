@@ -22,7 +22,7 @@ const TABS = ['all', 'watching', 'planned', 'watched', 'dropped', 'on_hold'];
 /**
  * @param {object} page
  * @param {string} page.locale
- * @param {object} page.library данные источника
+ * @param {any} page.library данные источника
  * @param {string} page.csrf
  * @param {Map<number, object>|null} [page.subs] состояние подписки по сериалам
  */
@@ -104,7 +104,7 @@ function tabHref(locale, library, tab) {
  * @param {object} args
  * @param {string} args.locale
  * @param {'cards'|'list'} args.view
- * @returns {object}
+ * @returns {any}
  */
 function viewToggle({ locale, view }) {
   const button = (value, icon, label) => html`

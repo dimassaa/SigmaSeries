@@ -24,8 +24,14 @@ const rawHtml = (page) => page.__raw;
  * Маршруты раздела пользователей.
  *
  * @param {object} deps
- * @param {object} deps.users сервис списка и карточки пользователей
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.audit]
+ * @param {any} [deps.auth]
+ * @param {any} [deps.journal]
+ * @param {any} [deps.mailQueue]
+ * @param {any} [deps.pool]
+ * @param {any} [deps.restrictions]
+ * @param {any} deps.users сервис списка и карточки пользователей
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createAdminUsersRoutes({

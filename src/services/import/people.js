@@ -146,7 +146,7 @@ export async function collectGenres({ tconsts, dataDir }) {
  * @param {Set<string>|string[]} options.tconsts какие сериалы разбираем
  * @param {string} options.dataDir каталог с датасетами IMDb
  * @param {number} [options.maxCast]
- * @returns {Promise<Map<string, {directors: object[], cast: object[]}>>}
+ * @returns {Promise<Map<string, {directors: any[], cast: any[]}>>}
  */
 export async function collectPeople({ tconsts, dataDir, maxCast = MAX_CAST }) {
   const wanted = new Set(tconsts);

@@ -108,7 +108,7 @@ export function pgEditorialPicks(pool) {
    * Сериалы, годные для баннера.
    *
    * @param {number} [limit]
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function candidates(limit = 50) {
     const { rows } = await pool.query(
@@ -136,7 +136,7 @@ export function pgEditorialPicks(pool) {
    * Предпросмотр трёх баннеров на дату.
    *
    * @param {{date: string}} args
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function preview({ date }) {
     const settings = await homeSettings(pool);
@@ -155,7 +155,7 @@ export function pgEditorialPicks(pool) {
    * Пересчитать баннеры на дату.
    *
    * @param {{date: string}} args
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function recompute({ date }) {
     const settings = await homeSettings(pool);

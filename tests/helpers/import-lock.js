@@ -14,7 +14,7 @@ export const IMPORT_LOCK_ID = 8_120_007;
 /**
  * Занимает блокировку до конца работы файла.
  *
- * @param {object} pool
+ * @param {any} pool
  * @returns {Promise<() => Promise<void>>} функция отпускания; безопасна в `after`
  */
 export async function acquireImportLock(pool) {

@@ -16,9 +16,10 @@ const ROLE_KEYS = ['admin', 'editor', 'analyst'];
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.list
- * @param {object} args.query параметры адреса (для чипов фильтров)
- * @returns {object}
+ * @param {any} args.list
+ * @param {any} args.query параметры адреса (для чипов фильтров)
+ * @param {string} args.csrf
+ * @returns {any}
  */
 export function adminUsersView({ locale, list, query = {} }) {
   const { items = [], total = 0, page = 1, pages = 1 } = list;
@@ -122,9 +123,12 @@ export function adminUsersView({ locale, list, query = {} }) {
  * Карточка пользователя.
  *
  * @param {object} args
+ * @param {any} [args.csrf]
+ * @param {any} [args.isSelf]
+ * @param {any} [args.twoFactor]
  * @param {string} args.locale
- * @param {object} args.user
- * @returns {object}
+ * @param {any} args.user
+ * @returns {any}
  */
 export function adminUserView({ locale, user, csrf = null, twoFactor = false, isSelf = false }) {
   return html`

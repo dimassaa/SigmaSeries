@@ -5,8 +5,11 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 import { createPool } from '../src/db/pool.js';
+import { pgAuthStore } from '../src/services/auth/store.js';
+import { makeToken } from '../src/services/auth/password.js';
 import {
   pgModerationBudget, queueOverflowFrom, QUEUE_CEILING,
 } from '../src/services/moderation/budget.js';
@@ -44,34 +47,45 @@ test('потолок — две тысячи ожидающих, а отказ �
 
 test('низкое доверие — это помеченные материалы автора', { skip }, async () => {
   const budget = pgModerationBudget(pool);
-  // Последний по номеру свободный пользователь: проверка бюджета помеченных
-  // берёт первого, иначе проверки мешали бы друг другу.
-  const { rows } = await pool.query(
-    `SELECT u.id FROM e_user u
-      WHERE NOT EXISTS (SELECT 1 FROM e_material m WHERE m.author_id = u.id)
-      ORDER BY u.id DESC LIMIT 1`,
-  );
-  const userId = rows[0]?.id;
-  assert.ok(userId, 'есть пользователь без материалов');
 
-  await pool.query('DELETE FROM e_material WHERE author_id = $1', [userId]);
-  const clean = await budget.queueOverflow(userId);
-  assert.equal(clean.lowTrust, false, 'у нового автора истории нет');
-  assert.equal(clean.refuse, false);
+  // Свой автор: чужой «свободный» пользователь может получить материал от
+  // параллельного файла между выбором и проверкой, и тогда проверка
+  // «истории нет» падает не по вине кода.
+  const nickname = `ceiling-${crypto.randomUUID().slice(0, 8)}`;
+  const { hash } = makeToken();
+  const { id: userId } = await pgAuthStore(pool).createUser({
+    email: `${nickname}@example.com`,
+    nickname,
+    passwordHash: 'x',
+    tokenHash: hash,
+    timezone: 'Europe/Minsk',
+    locale: 'ru',
+    theme: 'dark',
+    confirmed: true,
+  });
 
-  // Второй сериал: первый занят проверкой бюджета помеченных, а отзыв
-  // автора на одном сериале может быть только один.
-  const { rows: series } = await pool.query('SELECT id FROM e_series ORDER BY id LIMIT 1 OFFSET 1');
-  await pool.query(
-    `INSERT INTO e_material (author_id, kind, series_id, body, state, submitted_at)
-     VALUES ($1, 'review', $2, 'текст', 'flagged', now())`,
-    [userId, series[0].id],
+  const slug = `ceiling-${crypto.randomUUID().slice(0, 8)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Потолок очереди: тест', 'Ceiling fixture', $2, 'published', 'airing', 2026)
+     RETURNING id`,
+    [slug, 965_000_000 + Math.floor(Math.random() * 900)],
   );
-  const flagged = await budget.queueOverflow(userId);
-  assert.equal(flagged.lowTrust, true, 'помеченный материал — это история модерации');
 
-  await pool.query(
-    `DELETE FROM e_material WHERE author_id = $1 AND kind = 'review' AND body = 'текст'`,
-    [userId],
-  );
+  try {
+    const clean = await budget.queueOverflow(userId);
+    assert.equal(clean.lowTrust, false, 'у нового автора истории нет');
+    assert.equal(clean.refuse, false);
+
+    await pool.query(
+      `INSERT INTO e_material (author_id, kind, series_id, body, state, submitted_at)
+       VALUES ($1, 'review', $2, 'текст', 'flagged', now())`,
+      [userId, series.id],
+    );
+    const flagged = await budget.queueOverflow(userId);
+    assert.equal(flagged.lowTrust, true, 'помеченный материал — это история модерации');
+  } finally {
+    await pool.query('DELETE FROM e_material WHERE author_id = $1', [userId]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
 });

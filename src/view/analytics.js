@@ -29,8 +29,8 @@ function number(locale, value) {
  * @param {object} args
  * @param {string} args.locale
  * @param {string} args.title
- * @param {object[]} args.points
- * @returns {object}
+ * @param {any[]} args.points
+ * @returns {any}
  */
 function barChart({ locale, title, points }) {
   const max = Math.max(1, ...points.map((point) => point.value));
@@ -61,7 +61,7 @@ function barChart({ locale, title, points }) {
  * @param {object} args
  * @param {string} args.locale
  * @param {string} args.key
- * @returns {object}
+ * @returns {any}
  */
 function metricCard({ locale, key }) {
   const metric = metricOf(key);
@@ -94,8 +94,8 @@ function metricCard({ locale, key }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.data
- * @returns {object}
+ * @param {any} args.data
+ * @returns {any}
  */
 export function analyticsOverviewView({ locale, data }) {
   return html`
@@ -144,8 +144,8 @@ export function analyticsOverviewView({ locale, data }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.data
- * @returns {object}
+ * @param {any} args.data
+ * @returns {any}
  */
 export function analyticsRetentionView({ locale, data }) {
   const max = Math.max(1, ...data.funnel.map((step) => step.value));
@@ -173,8 +173,8 @@ export function analyticsRetentionView({ locale, data }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.data
- * @returns {object}
+ * @param {any} args.data
+ * @returns {any}
  */
 export function analyticsContentView({ locale, data }) {
   return html`
@@ -200,8 +200,8 @@ export function analyticsContentView({ locale, data }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.data
- * @returns {object}
+ * @param {any} args.data
+ * @returns {any}
  */
 export function analyticsModerationView({ locale, data }) {
   return html`
@@ -227,8 +227,8 @@ export function analyticsModerationView({ locale, data }) {
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {object} args.data
- * @returns {object}
+ * @param {any} args.data
+ * @returns {any}
  */
 export function analyticsPerformanceView({ locale, data }) {
   return html`

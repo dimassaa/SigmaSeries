@@ -18,9 +18,9 @@ const STYLES = ['base', 'admin'];
  * Маршруты кадров заставки.
  *
  * @param {object} deps
- * @param {object} deps.splash источник данных кадров
- * @param {object|null} [deps.audit] журнал действий
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.splash источник данных кадров
+ * @param {any} [deps.audit] журнал действий
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createSplashRoutes({ splash, audit = null, sessionMw = null }) {

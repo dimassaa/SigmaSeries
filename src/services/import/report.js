@@ -20,7 +20,7 @@ function densityUntil(now) {
  * Источник данных отчёта об импорте.
  *
  * @param {import('pg').Pool} pool
- * @returns {object}
+ * @returns {any}
  */
 export function pgImportReport(pool) {
   return {
@@ -34,7 +34,7 @@ export function pgImportReport(pool) {
      *
      * @param {object} [options]
      * @param {Date} [options.now]
-     * @returns {Promise<{withDates:number, total:number, states:object, weeks:object[], until:string}>}
+     * @returns {Promise<{withDates:number, total:number, states:object, weeks:any[], until:string}>}
      */
     async overview({ now = new Date() } = {}) {
       const until = densityUntil(now);
@@ -87,7 +87,7 @@ export function pgImportReport(pool) {
      *
      * @param {object} [options]
      * @param {number} [options.limit]
-     * @returns {Promise<object[]>}
+     * @returns {Promise<any[]>}
      */
     async runs({ limit = 50 } = {}) {
       const { rows } = await pool.query(
@@ -119,7 +119,7 @@ export function pgImportReport(pool) {
      * @param {string} [options.outcome] фильтр исхода; пусто — все
      * @param {number} [options.page] страница, с единицы
      * @param {number} [options.size] строк на страницу
-     * @returns {Promise<object|null>}
+     * @returns {Promise<any|null>}
      */
     async run(id, { outcome = '', page = 1, size = 50 } = {}) {
       const { rows: runs } = await pool.query(

@@ -19,7 +19,7 @@ const language = (locale) => (locale === 'en' ? 'en-GB' : 'ru-RU');
  * @param {string} locale
  * @param {string} key основа ключа без формы: `rating.votes`
  * @param {number} count
- * @param {object} [params] остальные подстановки строки, кроме `count`:
+ * @param {any} [params] остальные подстановки строки, кроме `count`:
  *   «Подборка «{title}», {count} сериалов» без названия не собрать
  * @returns {string}
  */

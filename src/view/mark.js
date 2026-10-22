@@ -78,6 +78,11 @@ export function markUpTo({ locale, slug, season, episode, csrf, signedIn = true 
  * «Отметить все вышедшие серии сезона» (EC-T6).
  *
  * @param {object} args
+ * @param {any} [args.csrf]
+ * @param {any} [args.locale]
+ * @param {any} [args.season]
+ * @param {any} [args.signedIn]
+ * @param {any} [args.slug]
  * @param {number} args.seasonId идентификатор сезона: по нему база знает, что
  *   именно этот сезон помечается, а не «сезон с таким номером у этого сериала»
  */

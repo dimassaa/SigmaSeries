@@ -24,7 +24,7 @@ export function pgStudioSchedule(pool) {
    * Сезоны сериала с сериями и их датами.
    *
    * @param {number} seriesId
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function forSeries(seriesId) {
     const { rows: seasons } = await pool.query(
@@ -97,7 +97,14 @@ export function pgStudioSchedule(pool) {
    * Поставить дату серии.
    *
    * @param {object} input
-   * @returns {Promise<{ok: boolean, reason?: string}>}
+ * @param {any} [input.byId]
+ * @param {any} [input.date]
+ * @param {any} [input.episodeId]
+ * @param {any} [input.seasonId]
+ * @param {any} [input.seriesId]
+ * @param {any} [input.state]
+ * @param {any} [input.time]
+   * @returns {Promise<{ok: boolean, reason?: string, cleared?: boolean}>}
    */
   async function setDate({ seriesId, seasonId, episodeId = null, date, time = null, state = 'scheduled', byId = null }) {
     const when = String(date ?? '').trim();
@@ -186,6 +193,14 @@ export function pgStudioSchedule(pool) {
    * Сгенерировать даты сезона.
    *
    * @param {object} input
+ * @param {any} [input.byId]
+ * @param {any} [input.count]
+ * @param {any} [input.from]
+ * @param {any} [input.seasonNumber]
+ * @param {any} [input.seriesId]
+ * @param {any} [input.step]
+ * @param {any} [input.time]
+ * @param {any} [input.weekdays]
    * @returns {Promise<{ok: boolean, reason?: string, created?: number}>}
    */
   async function generate({

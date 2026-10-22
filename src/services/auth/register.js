@@ -38,8 +38,13 @@ export function resendAllowed(lastSentAt, now = Date.now()) {
  * @param {object} deps
  * @param {(nick:string)=>Promise<boolean>} deps.nicknameFree
  * @param {(email:string)=>Promise<boolean>} deps.emailFree
- * @param {(nick:string,email:string,password:string)=>Promise<boolean>} [deps.hashPassword]
- * @returns {Promise<{ok:boolean, code?:string, fields?:object, passwordHash?:string}>}
+ * @param {(plain:string)=>Promise<string>} [deps.hashPassword] чем хешировать
+ *   пароль; по умолчанию argon2 из `password.js`
+ * @returns {Promise<{ok: boolean, code?: string, emailTaken?: boolean,
+ *   problems?: Record<string, string[]>, fields?: {email: string, nickname: string,
+ *   locale: string, theme: string, timezone: string,
+ *   confirmed: boolean, passwordHash: string, tokenHash: Buffer|null},
+ *   token?: string|null}>}
  */
 export async function decideRegistration(input, deps) {
   const { nickname, password } = input;
@@ -111,11 +116,17 @@ export async function decideRegistration(input, deps) {
   };
 }
 
-/** Хеширование внедрено, чтобы тест не платил за argon2 на каждый прогон. */
+/**
+ * Хеширование внедрено, чтобы тест не платил за argon2 на каждый прогон.
+ *
+ * @param {string} password
+ * @param {any} deps
+ * @returns {Promise<string>}
+ */
 async function hashPlain(password, deps) {
   if (typeof deps.hashPassword === 'function') return deps.hashPassword(password);
   const { hashPassword } = await import('./password.js');
-  return hashPassword(password);
+  return /** @type {Promise<string>} */ (hashPassword(password));
 }
 
 /**

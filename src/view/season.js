@@ -27,14 +27,14 @@ const episodeHref = (locale, slug, season, episode) =>
  *
  * @param {object} page
  * @param {string} page.locale
- * @param {object} page.page данные источника
+ * @param {any} page.page данные источника
  * @param {string} page.slug
  * @param {{csrf: string, signedIn: boolean, undoWindow: number}|null} [page.marks]
  *   отметки: без источника их на странице нет даже для гостя
  * @param {string|null} [page.notice] что сообщить после действия
  * @param {number} [page.noticeMarked]
  * @param {number|null} [page.noticeBatch]
- * @param {Map<number, object>|null} [page.ratings] блоки оценки по
+ * @param {Map<number, any>|null} [page.ratings] блоки оценки по
  *   идентификатору серии; `null` — источник оценок не подключён
  */
 export function seasonView({
@@ -154,10 +154,10 @@ ${when(season.episodes.length > 0, () => html`
  *
  * @param {object} page
  * @param {string} page.locale
- * @param {object} page.page данные источника
+ * @param {any} page.page данные источника
  * @param {string} page.slug
  * @param {{csrf: string, signedIn: boolean}|null} [page.marks]
- * @param {object|null} [page.rating] данные блока оценки серии (F-04-02)
+ * @param {any} [page.rating] данные блока оценки серии (F-04-02)
  * @param {string|null} [page.timezone] пояс посетителя для подписи дозревания
  */
 export function episodeView({ locale, page, slug, marks = null, rating = null, timezone = null }) {

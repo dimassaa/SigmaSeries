@@ -55,7 +55,7 @@ async function withServer({ user, extra = [], run }) {
     auth,
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
+    sessionMw: /** @type {any} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
     journal: { security: () => {} },
     mailQueue: { async enqueue(job) { queued.push(job); return queued.length; } },
   });
@@ -86,7 +86,7 @@ async function withServer({ user, extra = [], run }) {
   try {
     await run({ get, post, csrfOf, user, auth, queued });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

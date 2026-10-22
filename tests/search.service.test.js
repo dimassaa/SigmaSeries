@@ -69,7 +69,7 @@ test.after(async () => {
  * Порядок обязателен: `e_series_person.person_id` объявлен RESTRICT намеренно
  * («ошибка должна быть громкой»), поэтому связь уходит раньше самой строки.
  *
- * @param {object} pool
+ * @param {any} target
  */
 async function dropFixturePerson(target) {
   await target.query(

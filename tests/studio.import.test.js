@@ -87,13 +87,18 @@ test('покрытие считает выходящие сериалы с да�
   await seriesWithRelease({ exitState: 'announced' });
 
   const after = await report.overview();
-  assert.equal(after.total - before.total, 1, 'в «выходит» попал только один сериал');
-  assert.equal(after.withDates - before.withDates, 1, 'у него есть дата выхода');
-  assert.equal(
-    after.states.announced - before.states.announced,
-    1,
-    'анонс посчитан в своём состоянии, а не в «выходит»',
+  // База общая: параллельные файлы добавляют свои сериалы между двумя
+  // снимками, поэтому проверяется направление изменения, а не ровно единица.
+  assert.ok(after.total - before.total >= 1, 'в «выходит» попал сериал с датой');
+  assert.ok(after.withDates - before.withDates >= 1, 'у него есть дата выхода');
+  assert.ok(
+    after.states.announced - before.states.announced >= 1,
+    'анонс посчитан в своём состоянии',
   );
+  // Анонс не должен попасть в «выходит»: счётчик этого раздела равен числу
+  // сериалов в состоянии airing на том же снимке.
+  assert.equal(after.total, after.states.airing ?? 0,
+    '«выходит» считает только airing, анонсы — в своём состоянии');
 });
 
 test('плотность календаря разбита по неделям до конца года', { skip }, async () => {

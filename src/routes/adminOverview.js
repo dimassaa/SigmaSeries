@@ -20,8 +20,8 @@ const rawHtml = (page) => page.__raw;
  * Маршруты системного обзора.
  *
  * @param {object} deps
- * @param {object} deps.overview источник данных обзора
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.overview источник данных обзора
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createOverviewRoutes({ overview, sessionMw = null }) {

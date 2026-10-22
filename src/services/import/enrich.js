@@ -67,11 +67,11 @@ export function cleanText(value, max) {
  * Собирает сырой слой сериала из карточки TMDB.
  *
  * @param {object} options
- * @param {object} options.detailsRu карточка на `ru-RU`
- * @param {object} [options.detailsEn] карточка на `en-US`
- * @param {object[]} [options.seasons] сезоны с сериями
- * @param {object} options.imdb данные отбора: tconst, startYear, endYear, genres, votes, rating
- * @returns {object}
+ * @param {any} options.detailsRu карточка на `ru-RU`
+ * @param {any} [options.detailsEn] карточка на `en-US`
+ * @param {any[]} [options.seasons] сезоны с сериями
+ * @param {any} options.imdb данные отбора: tconst, startYear, endYear, genres, votes, rating
+ * @returns {any}
  */
 export function buildRawSeries({ detailsRu, detailsEn, seasons = [], imdb }) {
   const titles = {
@@ -180,8 +180,8 @@ export function pickAgeRating(results) {
  *
  * Сезон 0 — спецвыпуски: он загружается, но в прогресс не входит (H-38).
  *
- * @param {object} season ответ `/season/{n}`
- * @returns {object}
+ * @param {any} season ответ `/season/{n}`
+ * @returns {any}
  */
 export function normalizeSeason(season) {
   return {
@@ -203,9 +203,9 @@ export function normalizeSeason(season) {
  *
  * @param {object} options
  * @param {number} options.tmdbId
- * @param {object} options.imdb
- * @param {object} options.tmdb клиент TMDB
- * @returns {Promise<object>} сырой слой
+ * @param {any} options.imdb
+ * @param {any} options.tmdb клиент TMDB
+ * @returns {Promise<any>} сырой слой
  */
 export async function enrichSeries({ tmdbId, imdb, tmdb }) {
   const [detailsRu, detailsEn] = await Promise.all([
@@ -241,10 +241,10 @@ export async function enrichSeries({ tmdbId, imdb, tmdb }) {
  * диагностика, а число, которое придётся выяснять заново.
  *
  * @param {object} args
- * @param {{raw: object|null, error: string|null}[]} args.results результаты обогащения
+ * @param {{raw: any|null, error: string|null}[]} args.results результаты обогащения
  * @param {{tconst: string, tmdbId: number, rank: number|null}[]} args.targets цели, по тому же индексу
  * @param {Map<string, object>} [args.people] режиссёры и «В ролях» по tconst
- * @returns {{items: object[], failed: object[], errors: {tconst: string, message: string}[]}}
+ * @returns {{items: any[], failed: any[], errors: {tconst: string, message: string}[]}}
  */
 export function itemsFromEnrichment({ results, targets, people = new Map() }) {
   const items = [];
@@ -282,9 +282,9 @@ export function itemsFromEnrichment({ results, targets, people = new Map() }) {
  *
  * @param {object} options
  * @param {{tmdbId:number, imdb:object}[]} options.items
- * @param {object} options.tmdb
+ * @param {any} options.tmdb
  * @param {number} [options.concurrency]
- * @returns {Promise<{raw:object|null, error:string|null}[]>}
+ * @returns {Promise<{raw:any|null, error:string|null}[]>}
  */
 export async function enrichAll({ items, tmdb, concurrency = IMPORT_SETTINGS.apiConcurrency }) {
   const out = new Array(items.length);

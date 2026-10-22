@@ -90,7 +90,7 @@ export function pgRecommendations(pool) {
    *
    * @param {number} userId
    * @param {string[]} genres жанры вкуса
-   * @returns {Promise<object[]>}
+   * @returns {Promise<any[]>}
    */
   async function candidates(userId, genres) {
     const { rows } = await pool.query(
@@ -202,7 +202,7 @@ export function pgRecommendations(pool) {
    *
    * @param {number|null} userId
    * @param {{force?: boolean}} [options]
-   * @returns {Promise<{items: object[], personalized: boolean}>}
+   * @returns {Promise<{items: any[], personalized: boolean}>}
    */
   async function forUser(userId, { force = false } = {}) {
     if (!userId) return { items: [], personalized: false };
@@ -288,8 +288,8 @@ export function pgRecommendations(pool) {
    * Запоминает расчёт на десять минут.
    *
    * @param {string} key
-   * @param {{items: object[], personalized: boolean}} result
-   * @returns {{items: object[], personalized: boolean}}
+   * @param {{items: any[], personalized: boolean}} result
+   * @returns {{items: any[], personalized: boolean}}
    */
   function remember(key, result) {
     cache.set(key, { at: Date.now(), ...result });

@@ -98,7 +98,7 @@ async function seriesWith(number) {
  * файлы пишут в неё параллельно, и проверка «чистый текст публикуется»
  * краснела бы от чужих слов.
  */
-async function withServer({ user, run, limiter = null, dictionary = null, materialLimiter = null }) {
+async function withServer({ user = null, run, limiter = null, dictionary = null, materialLimiter = null }) {
   const auth = stubAuthStore(user ? { [user.email]: user } : {});
   const app = createApp({
     data: stubData(),
@@ -143,7 +143,7 @@ async function withServer({ user, run, limiter = null, dictionary = null, materi
   try {
     await run({ get, post, csrfOf });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

@@ -11,7 +11,15 @@
 import { MAIL_SETTINGS } from '../../config/settings.js';
 
 /** Допустимые режимы (CHECK в схеме `e_system_setting` — по ключу, не по enum). */
-const MODES = ['smtp', 'devbox'];
+const MODES = /** @type {const} */ (['smtp', 'devbox']);
+
+/**
+ * @param {string} value
+ * @returns {value is 'smtp'|'devbox'}
+ */
+function isMode(value) {
+  return MODES.includes(/** @type {'smtp'|'devbox'} */ (value));
+}
 
 /**
  * Действующий режим: запись админа, иначе окружение, иначе `smtp`.
@@ -28,7 +36,7 @@ export async function effectiveMode(pool, fallback = process.env.MAIL_MODE ?? 's
   const value = rows[0]?.value ?? fallback;
   // Мусор в базе или в окружении не должен ломать запуск: неизвестное значение
   // трактуется как отсутствие настройки.
-  return MODES.includes(value) ? value : (MODES.includes(fallback) ? fallback : 'smtp');
+  return isMode(value) ? value : (isMode(fallback) ? fallback : 'smtp');
 }
 
 /**
@@ -40,7 +48,7 @@ export async function effectiveMode(pool, fallback = process.env.MAIL_MODE ?? 's
  *
  * @param {object} deps
  * @param {() => Promise<string>} deps.current действующий режим
- * @param {(value:string, by:number) => Promise<object>} deps.change запись в базу
+ * @param {(value:string, by:number) => Promise<any>} deps.change запись в базу
  * @param {() => Promise<boolean>} deps.verify проверка текущего пароля
  * @param {string} [deps.next] режим, в который переключаем
  * @returns {Promise<{ok:boolean, reason?:string, previous?:string, next?:string}>}
@@ -66,7 +74,7 @@ export async function switchMode({ current, change, verify, next = 'devbox' }) {
  * Транспорт создаётся лениво и один раз: подключение при старте упало бы там,
  * где никто не ждёт отправки.
  *
- * @returns {{send: Function, configured: boolean}}
+ * @returns {Promise<{send: Function, configured: boolean}>}
  */
 export async function smtpMailer(env = process.env) {
   const host = env.SMTP_HOST;

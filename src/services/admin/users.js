@@ -47,7 +47,7 @@ export function leavesNoAdmin(admins, userId) {
  * Источник списка пользователей.
  *
  * @param {import('pg').Pool} pool
- * @returns {object}
+ * @returns {any}
  */
 export function pgAdminUsers(pool) {
   /**
@@ -59,7 +59,7 @@ export function pgAdminUsers(pool) {
    * @param {{nickname?: string, email?: string, roles?: string[], status?: string,
    *   registeredFrom?: string|null, registeredTo?: string|null, page?: number,
    *   pageSize?: number, showDeleted?: boolean}} input
-   * @returns {Promise<{items: object[], total: number, page: number, pages: number,
+   * @returns {Promise<{items: any[], total: number, page: number, pages: number,
    *   roles: string[], statuses: string[]}>}
    */
   async function list({
@@ -153,7 +153,7 @@ export function pgAdminUsers(pool) {
    * Карточка пользователя для администратора (F-09-02, S-72).
    *
    * @param {number} userId
-   * @returns {Promise<object|null>}
+   * @returns {Promise<any|null>}
    */
   async function one(userId) {
     const { rows } = await pool.query(

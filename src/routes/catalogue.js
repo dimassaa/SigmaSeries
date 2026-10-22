@@ -81,7 +81,8 @@ export function createCatalogueRoutes({ catalogue, sessionMw = null, panel = nul
  *
  * @param {Record<string, unknown>} query
  * @returns {{genres: string[], yearFrom: number|null, yearTo: number|null,
- *   ratingFrom: number|null, states: string[], sort: string, page: number}}
+ *   ratingFrom: number|null, states: string[], countries: string[],
+ *   networks: string[], networkSearch: string, sort: string, page: number}}
  */
 export function parseQuery(query) {
   const list = (value) => (Array.isArray(value) ? value : [value])

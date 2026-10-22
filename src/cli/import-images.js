@@ -17,6 +17,7 @@ import {
   LIMITS,
 } from '../services/import/images.js';
 import { IMPORT_SETTINGS } from '../config/settings.js';
+import { assertNotFrozen } from '../services/import/freeze.js';
 
 function parseArgs(argv) {
   const args = { limit: 0 };

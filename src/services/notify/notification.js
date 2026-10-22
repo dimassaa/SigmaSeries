@@ -45,7 +45,7 @@ export function pgNotifications(pool) {
      * @param {string} args.from `YYYY-MM-DD`,exclusive
      * @param {string} args.to `YYYY-MM-DD`, включительно
      * @param {number} [args.limit]
-     * @returns {Promise<object[]>}
+     * @returns {Promise<any[]>}
      */
     async dueReleases({ from, to, limit = STEP }) {
       const { rows } = await pool.query(
@@ -111,7 +111,7 @@ export function pgNotifications(pool) {
      * @param {object} args
      * @param {number[]} args.userIds
      * @param {string} args.kind
-     * @param {object} args.params
+     * @param {any} args.params
      * @param {string} args.dedupKey
      * @param {number} [args.step]
      * @returns {Promise<{created: number, steps: number}>}
@@ -162,7 +162,7 @@ export function pgNotifications(pool) {
      * @param {object} args
      * @param {number[]} args.userIds
      * @param {string} args.kind
-     * @param {object} args.params
+     * @param {any} args.params
      * @param {string} args.dedupKey
      * @returns {Promise<{updated: number, created: number}>}
      */
@@ -193,7 +193,7 @@ export function pgNotifications(pool) {
      * @param {object} args
      * @param {string} args.kind
      * @param {number} args.threshold
-     * @returns {Promise<{userId: number, series: object[], count: number}[]>}
+     * @returns {Promise<{userId: number, series: any[], count: number}[]>}
      */
     async digestCandidates({ kind, threshold }) {
       const { rows } = await pool.query(
@@ -225,7 +225,7 @@ export function pgNotifications(pool) {
      * @param {number} args.userId
      * @param {string} args.kind
      * @param {number} args.count
-     * @param {object[]} args.series
+     * @param {any[]} args.series
      * @param {string} args.date `YYYY-MM-DD`
      * @returns {Promise<boolean>} `true`, если сводка создана
      */

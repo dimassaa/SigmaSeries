@@ -41,7 +41,7 @@ function valueOf(args, flag) {
  *
  * @param {object} deps
  * @param {import('pg').Pool} deps.pool
- * @param {object} deps.auth
+ * @param {any} deps.auth
  * @param {{nickname: string|null, id: string|null}} input
  * @returns {Promise<{id: number, nickname: string}|null>}
  */
@@ -68,8 +68,8 @@ async function findUser({ pool, auth }, { nickname, id }) {
  *
  * @param {object} deps
  * @param {import('pg').Pool} deps.pool
- * @param {object} deps.auth
- * @param {object} deps.journal
+ * @param {any} deps.auth
+ * @param {any} deps.journal
  * @param {string[]} args аргументы командной строки
  * @returns {Promise<string|null>} что сделано; null — ничего не сделано
  */

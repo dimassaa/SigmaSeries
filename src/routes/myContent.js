@@ -21,8 +21,8 @@ const STYLES = ['base', 'my'];
  * Маршруты «Моих материалов».
  *
  * @param {object} deps
- * @param {object} deps.materials сервис материалов пользователя
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} deps.materials сервис материалов пользователя
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createMyContentRoutes({ materials, sessionMw = null }) {

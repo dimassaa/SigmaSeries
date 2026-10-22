@@ -30,10 +30,12 @@ const rawHtml = (page) => page.__raw;
  * Маршруты страницы отзыва.
  *
  * @param {object} deps
- * @param {object|null} [deps.reviewList] источник отзывов
- * @param {object|null} [deps.votes] сервис голосов «Полезно»
- * @param {object|null} [deps.reports] сервис жалоб
- * @param {object|null} [deps.sessionMw] middleware сессий
+ * @param {any} [deps.dictionary]
+ * @param {any} [deps.discussions]
+ * @param {any} [deps.reviewList] источник отзывов
+ * @param {any} [deps.votes] сервис голосов «Полезно»
+ * @param {any} [deps.reports] сервис жалоб
+ * @param {any} [deps.sessionMw] middleware сессий
  * @returns {import('express').Router}
  */
 export function createReviewRoutes({

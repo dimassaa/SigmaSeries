@@ -92,15 +92,15 @@ const NEVER_OVERWRITTEN = new Set(['imdb_key', 'slug']);
  * Пишет один сериал в каталог.
  *
  * @param {object} deps
- * @param {object} deps.pool
- * @param {object} deps.raw сырой слой сериала
+ * @param {any} deps.pool
+ * @param {any} deps.raw сырой слой сериала
  * @param {Set<string>} [deps.slugs] занятые адреса; берётся один раз на прогон
  * @param {Date} [deps.now]
  * @param {{poster?:boolean, backdrop?:boolean}} [deps.images]
  * @param {string[]} [deps.unchecked] коды полноты, которых этот прогон не
  *   проверял (F-12-07): они сохраняются из прежнего списка, иначе частичное
  *   обновление обнуляло бы то, чего просто не смотрело
- * @returns {Promise<{seriesId:number, slug:string, exitState:string, level:string,
+ * @returns {Promise<{seriesId:number, tconst:string, slug:string, exitState:string, level:string,
  *   reasons:string[], published:boolean, seasons:number, episodes:number, releases:number}>}
  * @throws {Error} транзакция откатывается, сериал остаётся как был
  */
@@ -257,7 +257,7 @@ async function updateSeries({ client, id, raw, locked, exitState, reasons, level
  * совпадают для большинства жанров, а несовпавшие попадут в справочник как
  * скрытые записи и всплывут в отчёте как `new_genre`.
  *
- * @param {object} raw
+ * @param {any} raw
  * @returns {string[]}
  */
 export function genresFor(raw) {
@@ -298,10 +298,11 @@ async function writeRatings({ client, seriesId, raw }) {
  * переводы, написанные руками, разошлись бы с ICU при первом обновлении Node,
  * а страна при этом осталась бы с прежним названием навсегда.
  *
- * @param {object} client
- * @param {number} seriesId
- * @param {string[]} countries ISO 3166-1, коды верхнего регистра
- * @param {{id: number, name: string, countryCode?: string|null}[]} networks
+ * @param {object} deps
+ * @param {any} deps.client
+ * @param {number} deps.seriesId
+ * @param {string[]} [deps.countries] ISO 3166-1, коды верхнего регистра
+ * @param {{id: number, name: string, countryCode?: string|null}[]} [deps.networks]
  */
 export async function writeOrigins({ client, seriesId, countries = [], networks = [] }) {
   const codes = [...new Set(countries.filter((code) => typeof code === 'string' && /^[A-Z]{2}$/.test(code)))];
@@ -534,10 +535,10 @@ export async function loadSlugs(pool) {
  * состояние выхода и сезоны, а здесь нужно только доставить недостающие связи.
  *
  * @param {object} deps
- * @param {object} deps.pool
+ * @param {any} deps.pool
  * @param {number} deps.seriesId
  * @param {string[]} deps.countries
- * @param {object[]} deps.networks
+ * @param {any[]} deps.networks
  * @returns {Promise<{countries: number, networks: number}>}
  */
 export async function writeOriginsForSeries({ pool, seriesId, countries, networks }) {
@@ -563,7 +564,7 @@ export async function writeOriginsForSeries({ pool, seriesId, countries, network
  * здесь считаем, что фон есть, если строка вообще есть, а чистоту проверит
  * F-12-05 при загрузке.
  *
- * @param {object} client
+ * @param {any} client
  * @param {number|null} seriesId
  * @returns {Promise<{poster:boolean, backdrop:boolean}>}
  */

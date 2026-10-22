@@ -238,7 +238,7 @@ async function withServer({ user = null, run }) {
   try {
     await run({ get, post, csrfOf, htmlGet, queries: () => counted.value });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

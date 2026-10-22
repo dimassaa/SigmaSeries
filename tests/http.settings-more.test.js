@@ -42,7 +42,7 @@ async function viewer(over = {}) {
 
 /** Сервер со входом. `twoFactor` задаётся ДО входа — иначе служебный вход ушёл бы на настройку. */
 async function withServer({
-  user, roles = {}, extra = [], twoFactor = null, clock, run,
+  user, roles = {}, extra = [], twoFactor = null, clock = null, run,
 }) {
   const accounts = { [user.email]: user };
   for (const other of extra) accounts[other.email] = other;
@@ -56,7 +56,7 @@ async function withServer({
     auth,
     // createApp объявляет middleware сессий функцией, а модуль отдаёт обработчик
     // или их пару — Express принимает и то и другое.
-    sessionMw: /** @type {Function} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
+    sessionMw: /** @type {any} */ (createSessionMiddleware({ query: async () => ({ rows: [] }), on: () => {} }, memStore)),
     journal: { security: () => {} },
     mailQueue: { enqueue: async () => 0 },
     ...(clock ? { now: clock } : {}),
@@ -99,7 +99,7 @@ async function withServer({
   try {
     await run({ get, post, csrfOf, user, auth, memStore });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 

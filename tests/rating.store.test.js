@@ -338,7 +338,7 @@ test('проход повторяет запрос после взаимобло
       attempts += 1;
       if (attempts === 1) {
         const error = new Error('обнаружена взаимоблокировка');
-        error.code = '40P01';
+        /** @type {any} */ (error).code = '40P01';
         throw error;
       }
       return { rows: [] };
@@ -360,7 +360,7 @@ test('проход не повторяет чужую ошибку', { skip }, a
       }
       attempts += 1;
       const error = new Error('нет прав');
-      error.code = '42501';
+      /** @type {any} */ (error).code = '42501';
       throw error;
     },
   };

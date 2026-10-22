@@ -34,8 +34,9 @@ const VARIANT_MIME = 'image/webp';
 /**
  * Фон для баннера: без текста, шириной ≥ 1920 и пропорцией около 16:9 (H-34).
  *
- * @param {{width:number, height:number, vote_average:number, iso_639_1?:string|null}[]} backdrops
- * @returns {object|null}
+ * @param {Array<{width: number, height: number, voteAverage: number,
+ *   language?: string|null, filePath?: string}>} backdrops
+ * @returns {any|null}
  */
 export function pickBackdrop(backdrops) {
   if (!Array.isArray(backdrops)) return null;
@@ -54,7 +55,7 @@ export function pickBackdrop(backdrops) {
 /**
  * Постер: путь из карточки на `ru-RU` (§4).
  *
- * @param {object} details
+ * @param {any} details
  * @returns {string|null}
  */
 export function posterPathOf(details) {
@@ -187,7 +188,7 @@ export async function downloadImage(url, {
  * моделью камеры и иногда — геолокация. В нашей базе им не место.
  *
  * @param {Buffer} buffer исходник
- * @param {'poster'|'backdrop'} role
+ * @param {'poster'|'backdrop'|'banner'|'splash'} role
  * @returns {Promise<{width:number, height:number, mime:string, checksum:string,
  *   cleanBackdrop:boolean, variants:{width:number, height:number, bytes:number, file:Buffer}[]}>}
  */
@@ -254,12 +255,12 @@ export function sha256(buffer) {
  * картинка та же (§5).
  *
  * @param {object} deps
- * @param {object} deps.client подключение внутри транзакции
+ * @param {any} deps.client подключение внутри транзакции
  * @param {number} deps.seriesId
  * @param {'poster'|'backdrop'|'banner'|'splash'} deps.role
  * @param {'tmdb'|'manual'} deps.source
  * @param {string} deps.sourcePath путь в источнике
- * @param {object} deps.prepared результат `prepareImage`
+ * @param {any} deps.prepared результат `prepareImage`
  * @returns {Promise<{imageId:number, changed:boolean}>}
  */
 export async function saveImage({ client, seriesId, role, source, sourcePath, prepared }) {

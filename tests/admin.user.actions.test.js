@@ -117,7 +117,7 @@ async function withServer({ user: viewer = null, run }) {
   try {
     await run({ get, post, csrfOf, mail });
   } finally {
-    await new Promise((r) => server.close(r));
+    await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 }
 
@@ -367,7 +367,7 @@ test('удаление окончательное: пароль спрашива
       assert.equal(row.status, 'deleting');
       assert.ok(row.anonymize_after !== null, 'срок обезличивания назначен');
       assert.equal(row.delete_materials, false, 'материалы остаются обезличенными');
-      const days = Math.round((new Date(row.anonymize_after) - Date.now()) / 86_400_000);
+      const days = Math.round((new Date(row.anonymize_after).getTime() - Date.now()) / 86_400_000);
       assert.ok(days >= 13 && days <= 14, `срок около 14 дней: ${days}`);
 
       await pool.query(

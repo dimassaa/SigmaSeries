@@ -21,10 +21,10 @@ import { RATING } from '../../config/settings.js';
  * ДБ-доступ через pg.Pool.
  *
  * @param {object} deps
- * @param {pg.Pool} deps.pool
- * @param {object} deps.ratings хранилище оценок: его `summary(seriesId)`
+ * @param {import('pg').Pool} deps.pool
+ * @param {any} deps.ratings хранилище оценок: его `summary(seriesId)`
  *   даёт снимок блока «последнее стабильное» на момент срабатывания
- * @returns {{scan: (at?: Date) => Promise<number>}}
+ * @returns {{scan: (at?: Date) => Promise<number>, resolve: Function}}
  */
 export function pgAnomalySensor({ pool, ratings }) {
   /**
@@ -212,7 +212,7 @@ function youngerDate(at) {
  * Числа детекции: редактор разбора не должен вычислять их заново по
  * волатильным таблицам — всё, на что смотрел датчик, лежит здесь.
  *
- * @param {{at: Date, row: object}} args
+ * @param {{at: Date, row: any}} args
  */
 function signal({ at, row }) {
   return {

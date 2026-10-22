@@ -26,8 +26,9 @@ import { layout, pageTitle } from '../view/layout.js';
  * Маршруты аналитики.
  *
  * @param {object} deps
- * @param {object} deps.analytics сервис приёма событий
- * @param {object|null} [deps.sessionMw]
+ * @param {any} [deps.metrics]
+ * @param {any} deps.analytics сервис приёма событий
+ * @param {any} [deps.sessionMw]
  * @returns {import('express').Router}
  */
 export function createAnalyticsRoutes({ analytics, metrics = null, sessionMw = null }) {
@@ -139,7 +140,15 @@ export function createAnalyticsRoutes({ analytics, metrics = null, sessionMw = n
    * @param {Function} load данные дашборда
    * @param {string} titleKey
    */
-  async function page(req, res, view, load, titleKey) {
+  /**
+   * @param {import('express').Request<{locale: string}>} req
+   * @param {import('express').Response} res
+   * @param {import('express').NextFunction} next
+   * @param {(ctx: any) => any} view
+   * @param {(options: {hours: number, excludeDemo: boolean}) => Promise<any>} load
+   * @param {string} titleKey
+   */
+  async function page(req, res, next, view, load, titleKey) {
     const locale = req.params.locale;
     try {
       const hours = hoursOf(req);
@@ -160,7 +169,7 @@ export function createAnalyticsRoutes({ analytics, metrics = null, sessionMw = n
   }
 
   router.get('/:locale/analytics', staffOnly, (req, res, next) => page(
-    req, res, analyticsOverviewView,
+    req, res, next, analyticsOverviewView,
     async (options) => {
       const overview = await metrics.overview(options);
       return { ...overview, rejects: await metrics.rejects() };
@@ -169,25 +178,25 @@ export function createAnalyticsRoutes({ analytics, metrics = null, sessionMw = n
   ));
 
   router.get('/:locale/analytics/retention', staffOnly, (req, res, next) => page(
-    req, res, analyticsRetentionView,
+    req, res, next, analyticsRetentionView,
     async (options) => ({ ...options, funnel: await metrics.funnel(options) }),
     'analytics.retention.title',
   ));
 
   router.get('/:locale/analytics/content', staffOnly, (req, res, next) => page(
-    req, res, analyticsContentView,
+    req, res, next, analyticsContentView,
     async (options) => ({ ...options, search: await metrics.search(options) }),
     'analytics.content.title',
   ));
 
   router.get('/:locale/analytics/moderation', staffOnly, (req, res, next) => page(
-    req, res, analyticsModerationView,
+    req, res, next, analyticsModerationView,
     async (options) => ({ ...options, moderation: await metrics.moderation(options) }),
     'analytics.moderation.title',
   ));
 
   router.get('/:locale/analytics/performance', staffOnly, (req, res, next) => page(
-    req, res, analyticsPerformanceView,
+    req, res, next, analyticsPerformanceView,
     async (options) => ({ ...options, vitals: await metrics.vitals(options) }),
     'analytics.performance.title',
   ));

@@ -15,10 +15,11 @@
  * Печатается целиком: обрезанная ссылка бесполезна и выглядит как ошибка, а
  * без ссылки нечего подтверждать (F-01-12 §18 — демо-режим без интернета).
  *
- * @param {{to:string, subject:string, body:string, kind:string}} job
+ * @param {NodeJS.WritableStream} [out]
  */
 export function consoleMailer(out = process.stdout) {
   return {
+    /** @param {{to:string, subject:string, body:string, kind:string}} job */
     async send(job) {
       out.write([
         '',

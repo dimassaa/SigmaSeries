@@ -40,7 +40,7 @@ const SETTINGS = {
  * @param {string} slug
  * @param {number|null} imdb
  * @param {number} [yearStart]
- * @returns {object}
+ * @returns {any}
  */
 function cand(id, slug, imdb, yearStart = 2020) {
   return { seriesId: id, slug, title: slug, yearStart, imdb };

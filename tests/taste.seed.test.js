@@ -147,6 +147,6 @@ test('источник ограничен двумя значениями', { sk
       `INSERT INTO e_taste_seed (user_id, series_id, source) VALUES ($1, $2, 'от балды')`,
       [userId, one],
     ),
-    (error) => error.code === '23514',
+    (error) => /** @type {any} */ (error).code === '23514',
   );
 });

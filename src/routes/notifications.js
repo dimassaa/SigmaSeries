@@ -23,8 +23,8 @@ const rawHtml = (page) => page.__raw;
 
 /**
  * @param {object} deps
- * @param {object} deps.feed источник данных ленты
- * @param {Function} deps.sessionMw
+ * @param {any} deps.feed источник данных ленты
+ * @param {import('express').RequestHandler[]} deps.sessionMw
  */
 export function createNotificationRoutes({ feed, sessionMw }) {
   const router = express.Router({ strict: true });
@@ -61,7 +61,6 @@ export function createNotificationRoutes({ feed, sessionMw }) {
         title: t(locale, 'notifications.title'),
         description: t(locale, 'notifications.description'),
         noindex: true,
-        account: req.account,
         body: notificationsView({
           locale,
           feed: data,

@@ -48,7 +48,7 @@ export function pgWatchStatus(pool) {
      * Статусы пользователя для списка S-30 вместе со счётчиками по статусам.
      *
      * @param {number} userId
-     * @returns {Promise<{rows: object[], counts: Record<string, number>}>}
+     * @returns {Promise<{rows: any[], counts: Record<string, number>, total: number}>}
      */
     async listOf(userId) {
       const { rows } = await pool.query(

@@ -17,10 +17,10 @@ import { AUTH, DAY } from '../../config/settings.js';
 /**
  * Обезличивает список аккаунтов, не давая одной ошибке остановить очередь.
  *
- * @param {object} auth хранилище учётных записей
+ * @param {any} auth хранилище учётных записей
  * @param {number[]} ids
  * @param {string} label для журнала и сообщения об ошибке
- * @param {object} [journal]
+ * @param {any} [journal]
  * @returns {Promise<{done:number, failed:number}>}
  */
 async function anonymizeEach(auth, ids, label, journal) {
@@ -47,8 +47,8 @@ async function anonymizeEach(auth, ids, label, journal) {
 
 /**
  * @param {object} deps
- * @param {object} deps.auth хранилище учётных записей
- * @param {object} [deps.journal] журнал безопасности
+ * @param {any} deps.auth хранилище учётных записей
+ * @param {any} [deps.journal] журнал безопасности
  * @param {Function} [deps.now] часы, для тестов
  * @returns {Promise<{done:number, failed:number}>} сколько обезличено и сорвалось
  */
@@ -68,8 +68,8 @@ export async function runDeletionSweep({ auth, journal, now = () => Date.now() }
  * войти.
  *
  * @param {object} deps
- * @param {object} deps.auth хранилище учётных записей
- * @param {object} [deps.journal]
+ * @param {any} deps.auth хранилище учётных записей
+ * @param {any} [deps.journal]
  * @param {Function} [deps.now] часы, для тестов
  * @param {number} [deps.ttlDays] `auth.unverified_ttl_days`
  * @returns {Promise<{done:number, failed:number}>}

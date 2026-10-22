@@ -32,6 +32,7 @@ const SECRET = 'JBSWY3DPEHPK3PXP'; // «Hello!\xDE\xAD\xBE\xEF» в base32, RFC 
 test('код совпадает с эталоном RFC 6238 для SHA-1', () => {
   // В RFC секрет для SHA-1 равен ASCII "12345678901234567890".
   const base32 = base32Of('12345678901234567890');
+  /** @type {Array<[number, string]>} */
   const vectors = [
     [59, '287082'],
     [1111111109, '081804'],
@@ -181,11 +182,10 @@ test('проверка резервного кода постоянна по в�
   // Set идёт по совпадению, и время выдаёт, какой код ближе к началу.
   const codes = generateBackupCodes();
   const hashes = new Set(codes.map(hashOf));
-  const mine = hashOf(codes[0]);
   const sizes = [];
   for (let i = 0; i < 20; i += 1) {
     const started = process.hrtime.bigint();
-    checkBackupCode(mine, hashes);
+    checkBackupCode(codes[0], hashes);
     sizes.push(Number(process.hrtime.bigint() - started));
   }
   assert.ok(Math.max(...sizes) < 50_000_000, 'проверка не должна занимать десятки мс');
