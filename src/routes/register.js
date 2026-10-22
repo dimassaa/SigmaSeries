@@ -42,7 +42,7 @@ const STYLES = ['identity'];
  */
 export function createRegisterRoutes({
   auth, sessionMw, mailQueue, mailMode = null, limitsApi = limits, baseUrl = '', tasteStep = false,
-  hashQueue = null,
+  hashQueue = null, analytics = null,
 }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
@@ -94,11 +94,13 @@ export function createRegisterRoutes({
 
   // ─── Шаг 1: данные ─────────────────────────────────────────────────────────
 
-  router.get('/:locale/register', (req, res, next) => {
+  router.get('/:locale/register', async (req, res, next) => {
     // Языка «xx» не существует: адрес обещал бы один язык, а экран показал
     // другой — `t()` на незнакомом языке молча берёт словарь по умолчанию
     // (ADR-003). Для поисковика это два документа с одним содержанием.
     if (!isLocale(req.params.locale)) return next('route');
+    // Шаг регистрации — событие: сколько шагов человек проходит (EV-16).
+    await analytics?.write({ name: 'signup_step', props: { step: '1' } });
     return respond(res, 200, renderStep1(req));
   });
 
@@ -245,6 +247,9 @@ export function createRegisterRoutes({
       // по коду ответа иначе определяется, что адрес уже занят.
       if (!isDuplicate(e)) throw e;
     }
+
+    // Регистрация завершена — событие сервера (R-AN-05).
+    await analytics?.write({ name: 'signup_complete', props: { step: '3' } });
 
     await regenerate(req);
     req.session.pendingUser = {

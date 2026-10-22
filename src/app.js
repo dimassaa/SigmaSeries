@@ -336,7 +336,7 @@ export function createApp({
     // страница без работающей сессии опаснее, чем её отсутствие.
     app.use(createAuthRoutes({ auth, sessionMw, hashQueue, analytics }));
     app.use(createRegisterRoutes({
-      auth, sessionMw, mailQueue, mailMode, baseUrl, hashQueue,
+      auth, sessionMw, mailQueue, mailMode, baseUrl, hashQueue, analytics,
       // Шаг 3 включается вместе со своим маршрутом: иначе после подтверждения
       // адреса человек попадал бы на страницу, которой нет.
       tasteStep: Boolean(taste && search),
