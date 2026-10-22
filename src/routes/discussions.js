@@ -37,7 +37,7 @@ export function createDiscussionRoutes({
   /**
    * Человек, который может писать: вошедший и не заглушенный.
    *
-   * @param {object} req
+   * @param {import('express').Request} req
    * @returns {object|null}
    */
   const writer = (req) => req.session?.user ?? null;
@@ -45,7 +45,7 @@ export function createDiscussionRoutes({
   /**
    * Токен формы. Без сессии токена нет, и форма всё равно не примет ответ.
    *
-   * @param {object} req
+   * @param {import('express').Request} req
    * @returns {string}
    */
   const csrfOf = (req) => (req.session ? csrfToken(req.session) : '');

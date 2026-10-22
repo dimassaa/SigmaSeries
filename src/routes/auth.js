@@ -29,7 +29,7 @@ const STYLES = ['identity'];
  * кода. Служебные разделы под таким флагом закрыты: иначе 2FA была бы вторым
  * полем формы.
  *
- * @param {object} req
+ * @param {import('express').Request} req
  * @param {object} input
  * @param {object} input.user
  * @param {string} input.email

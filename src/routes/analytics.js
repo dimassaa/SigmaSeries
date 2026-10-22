@@ -133,8 +133,8 @@ export function createAnalyticsRoutes({ analytics, metrics = null, sessionMw = n
   /**
    * Страница дашборда.
    *
-   * @param {object} req
-   * @param {object} res
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
    * @param {Function} view
    * @param {Function} load данные дашборда
    * @param {string} titleKey
@@ -198,7 +198,7 @@ export function createAnalyticsRoutes({ analytics, metrics = null, sessionMw = n
 /**
  * Класс устройства: телефон, планшет или компьютер.
  *
- * @param {object} req
+ * @param {import('express').Request} req
  * @returns {string}
  */
 function deviceClassOf(req) {

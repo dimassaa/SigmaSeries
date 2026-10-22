@@ -31,7 +31,7 @@ export function signBrowserId(id) {
  * Заголовок `Cookie` разбирается здесь, а не через `cookie-parser`: ради одной
  * cookie подключать модуль, которого нет в списке зависимостей, незачем.
  *
- * @param {object} req
+ * @param {import('express').Request} req
  * @returns {string}
  */
 export function browserIdFrom(req) {

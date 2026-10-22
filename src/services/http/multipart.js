@@ -11,7 +11,7 @@
 /**
  * Разобрать тело multipart.
  *
- * @param {object} req запрос Express с телом-буфером
+ * @param {import('express').Request} req запрос Express с телом-буфером
  * @returns {Promise<FormData>} поля формы; файлы — значения с `arrayBuffer()`
  * @throws {Error} тело не multipart или не разобралось
  */

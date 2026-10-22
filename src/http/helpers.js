@@ -29,7 +29,7 @@ export function respond(res, status, page) {
  * Заголовок берётся только если приложение стоит за прокси: иначе им можно
  * подделать счётчик (R-SEC-31).
  *
- * @param {object} req
+ * @param {import('express').Request} req
  * @returns {string}
  */
 export function clientIp(req) {
