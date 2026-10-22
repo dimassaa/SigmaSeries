@@ -128,6 +128,17 @@ test('поиск не находит выдуманное, а не выбрас�
   assert.equal(result.total, 0);
 });
 
+test('сериал в выдаче несёт постер, годы и состояние', { skip }, async () => {
+  const result = await search.find({ query: 'Друзья', limit: 24 });
+  const found = result.series.find((row) => row.slug === 'friends');
+
+  assert.ok(found, '«Друзья» есть в выдаче');
+  assert.ok(found.posterWidth > 0, 'ширина постера нужна карточке');
+  assert.equal(found.yearStart, 1994, 'год начала нужен подписи');
+  assert.equal(found.yearEnd, 2004, 'год окончания нужен диапазону лет');
+  assert.equal(found.exitState, 'ended', 'состояние выхода нужно озвучке карточки');
+});
+
 test('люди находятся по имени', { skip }, async () => {
   // Фикстура своя: чужая строка `e_person` может оказаться в каталоге по
   // одному-единственному сериалу, а параллельный прогон убирает его ссылку —

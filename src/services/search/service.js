@@ -58,12 +58,13 @@ const SERIES_COLUMNS = `
        s.id, s.slug,
        coalesce(s.title_ru, s.title_en, s.title_original) AS title,
        s.title_ru, s.title_en, s.title_original,
-       s.year_start, s.exit_state,
+       s.year_start AS "yearStart", s.year_end AS "yearEnd",
+       s.exit_state AS "exitState",
        r.votes,
        (SELECT iv.width FROM e_image_variant iv
           JOIN e_image i ON i.id = iv.image_id
          WHERE i.series_id = s.id AND i.role = 'poster'
-         ORDER BY iv.width LIMIT 1) AS poster_width`;
+         ORDER BY iv.width LIMIT 1) AS "posterWidth"`;
 
 const SERIES_FROM = `
        e_series s

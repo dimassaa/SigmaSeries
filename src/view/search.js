@@ -65,7 +65,7 @@ ${when(result.series.length > 0, () => html`
   <ol class="posters" role="list">
     ${result.series.map((item) => html`
     <li class="posters__item">
-      <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}" data-poster-info="${t(locale, 'poster.card.info')}"">
+      <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}" data-poster-info="${t(locale, 'poster.card.info')}">
         <span class="poster__frame">
           ${when(item.posterWidth, () => html`<img class="poster__img"
              src="/${locale}/images/${item.slug}/poster-${item.posterWidth}.webp"
