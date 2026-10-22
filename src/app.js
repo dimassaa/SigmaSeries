@@ -330,7 +330,7 @@ export function createApp({
   if (auth && sessionMw) {
     // Маршруты входа подключаются только если есть и хранилище, и middleware:
     // страница без работающей сессии опаснее, чем её отсутствие.
-    app.use(createAuthRoutes({ auth, sessionMw, hashQueue }));
+    app.use(createAuthRoutes({ auth, sessionMw, hashQueue, analytics }));
     app.use(createRegisterRoutes({
       auth, sessionMw, mailQueue, mailMode, baseUrl, hashQueue,
       // Шаг 3 включается вместе со своим маршрутом: иначе после подтверждения

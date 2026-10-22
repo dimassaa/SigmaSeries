@@ -9,6 +9,7 @@
 
 import { MODERATION } from '../../config/settings.js';
 import { signatureOf, pgModerationClusters } from './cluster.js';
+import { writeServerEvent } from '../analytics/events.js';
 
 /** Слова решения маршрута и состояния материала. */
 export const DECISIONS = { approve: 'approved', reject: 'rejected' };
@@ -102,6 +103,17 @@ export function pgModerationDecisions(pool) {
         ],
       );
       await client.query('COMMIT');
+
+      // Решение модерации меняет данные, поэтому событие пишет сервер
+      // (R-AN-05): клиент о нём не знает и знать не должен.
+      const waited = material.submitted_at
+        ? Math.max(0, Math.round((Date.now() - new Date(material.submitted_at).getTime()) / 60000))
+        : 0;
+      await writeServerEvent(pool, {
+        name: 'moderation_decision',
+        props: { decision: state, cluster: clusterId ?? 0, queue_time: waited },
+        userId: editorId,
+      });
 
       // Решение по кластеру: помеченный материал запрещается вместе со всей
       // группой, а та же сигнатура в новых материалах запрещается сразу.

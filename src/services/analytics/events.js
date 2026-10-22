@@ -14,7 +14,7 @@ import crypto from 'node:crypto';
 import pg from 'pg';
 
 import { ANALYTICS } from '../../config/settings.js';
-import { isKnownEvent, propsAllowed } from './taxonomy.js';
+import { EVENTS, isKnownEvent, propsAllowed } from './taxonomy.js';
 
 /** Похоже на адрес: такие значения в событиях не допускаются (R-AN-04). */
 const EMAIL_LIKE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -40,6 +40,46 @@ export function userPseudoId(userId) {
     .update(`pseudo:${userId}`, 'utf8')
     .digest('hex')
     .slice(0, 32);
+}
+
+/**
+ * Пишет серверное событие напрямую.
+ *
+ * Серверные события не ждут клиента и не проходят приёмник: решение
+ * модерации, конец импорта, отправленное письмо пишутся сразу, как
+ * случилось (F-08-01 §4, R-AN-05).
+ *
+ * @param {pg.Pool} pool
+ * @param {object} event
+ * @param {string} event.name имя события из таксономии
+ * @param {object} [event.props] свойства события
+ * @param {number|string|null} [event.userId] человек: пишется псевдоним
+ * @param {string|null} [event.anonId]
+ * @param {string|null} [event.locale]
+ * @param {boolean} [event.isDemo]
+ * @returns {Promise<boolean>} записано ли
+ */
+export async function writeServerEvent(pool, {
+  name, props = {}, userId = null, anonId = null, locale = null, isDemo = false,
+}) {
+  const spec = EVENTS[String(name ?? '')];
+  if (!spec) return false;
+  if (!propsAllowed(name, Object.keys(props))) return false;
+
+  await pool.query(
+    `INSERT INTO e_event (event_id, name, anon_id, user_pseudo_id, props, is_demo)
+     VALUES ($1, $2, $3, $4, $5, $6)
+     ON CONFLICT (event_id) DO NOTHING`,
+    [
+      crypto.randomUUID(),
+      String(name),
+      anonId,
+      userPseudoId(userId),
+      JSON.stringify({ ...props, locale }),
+      isDemo,
+    ],
+  );
+  return true;
 }
 
 /**
@@ -197,6 +237,16 @@ export function pgAnalytics(pool) {
 
       const rejected = list.length - accepted.length;
       return { accepted: accepted.length, rejected, reasons };
+    },
+
+    /**
+     * Пишет серверное событие напрямую.
+     *
+     * @param {object} event
+     * @returns {Promise<boolean>}
+     */
+    async write(event) {
+      return writeServerEvent(pool, event);
     },
 
     /**

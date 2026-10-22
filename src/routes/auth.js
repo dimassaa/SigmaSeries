@@ -58,7 +58,7 @@ async function beginTwoFactor(req, { user, email, roles, kind, configured }) {
   };
 }
 
-export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueue = null }) {
+export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueue = null, analytics = null }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -177,6 +177,13 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueu
     }
 
     const decision = decideAfterCredentials(user, true);
+    // События, влияющие на данные, пишет сервер (R-AN-05): вход и выход
+    // меняют счётчики активности, и клиент о них не знает.
+    await analytics?.write({
+      name: 'login',
+      props: { method: 'password', twofa: 'no' },
+      userId: user.id,
+    });
 
     if (decision.action === 'blocked') {
       // Бан показывается только сейчас: пароль уже верен.
@@ -259,7 +266,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueu
     res.redirect(303, target);
   });
 
-  router.post('/:locale/logout', (req, res, next) => {
+  router.post('/:locale/logout', async (req, res, next) => {
     const locale = req.params.locale;
     if (!isLocale(locale)) return next('route');
     // R-SEC-23: выход меняет состояние на сервере, поэтому токен обязателен.
@@ -273,6 +280,10 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueu
         error: t(locale, 'signin.error.csrf'), returnTo: null,
       }));
     }
+
+    // Выход — событие сервера (R-AN-05): клиент о нём не знает.
+    const userId = req.session?.user?.id ?? null;
+    await analytics?.write({ name: 'logout', props: { method: 'button', twofa: 'no' }, userId });
 
     // Отзыв на сервере плюс очистка cookie: иначе идентификатор продолжит
     // работать, пока не истечёт срок.
