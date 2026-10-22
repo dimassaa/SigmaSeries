@@ -462,13 +462,21 @@ export function pgAnalyticsMetrics(pool) {
   async function moderation({ hours = 168, excludeDemo = true } = {}) {
     const { rows } = await pool.query(
       `SELECT
-         (SELECT count(*)::int FROM e_material WHERE state = 'flagged'
-            AND submitted_at > now() - ($1 || ' hours')::interval
-              AND ($2::boolean IS FALSE OR is_demo = FALSE)) AS flagged,
-         (SELECT count(*)::int FROM e_material WHERE state IN ('published','approved','rejected')
-            AND submitted_at > now() - ($1 || ' hours')::interval
-              AND ($2::boolean IS FALSE OR is_demo = FALSE)) AS decided,
-         (SELECT count(*)::int FROM e_editor_decision WHERE decided_at > now() - ($1 || ' hours')::interval) AS decisions,
+         (SELECT count(*)::int FROM e_material m
+            JOIN e_user u ON u.id = m.author_id
+           WHERE m.state = 'flagged'
+             AND m.submitted_at > now() - ($1 || ' hours')::interval
+             AND ($2::boolean IS FALSE OR u.is_demo = FALSE)) AS flagged,
+         (SELECT count(*)::int FROM e_material m
+            JOIN e_user u ON u.id = m.author_id
+           WHERE m.state IN ('published','approved','rejected')
+             AND m.submitted_at > now() - ($1 || ' hours')::interval
+             AND ($2::boolean IS FALSE OR u.is_demo = FALSE)) AS decided,
+         (SELECT count(*)::int FROM e_editor_decision d
+            JOIN e_material m ON m.id = d.material_id
+            JOIN e_user u ON u.id = m.author_id
+           WHERE d.decided_at > now() - ($1 || ' hours')::interval
+             AND ($2::boolean IS FALSE OR u.is_demo = FALSE)) AS decisions,
          (SELECT count(*)::int FROM e_dictionary_word
             WHERE list = 'allow' AND added_at > now() - ($1 || ' hours')::interval) AS fixed`,
       [String(hours), excludeDemo],

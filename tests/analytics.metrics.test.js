@@ -96,6 +96,14 @@ test('демо-события исключаются, а доля демо ви�
   'с демо активных не меньше');
 });
 
+test('качество модерации читается из таблиц, где есть автор материала', { skip }, async () => {
+  const data = await metrics.moderation({ hours: 168, excludeDemo: true });
+  assert.equal(typeof data.flagged, 'number', 'помеченные материалы посчитаны');
+  assert.equal(typeof data.decided, 'number', 'разобранные материалы посчитаны');
+  assert.equal(typeof data.decisions, 'number', 'решения посчитаны');
+  assert.equal(typeof data.falsePositive, 'number', 'доля ложных срабатываний посчитана');
+});
+
 test('воронка показывает отказы, а не только успехи', { skip }, async () => {
   await put('page_view', { page_type: 'home' });
   const steps = await metrics.funnel({ hours: 168, excludeDemo: true });
