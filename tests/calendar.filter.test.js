@@ -39,8 +39,12 @@ async function withCalendar(run) {
 
   const server = app.listen(0, '127.0.0.1');
   await new Promise((resolve) => server.once('listening', resolve));
+  const address = server.address();
+  if (address === null || typeof address === 'string') {
+    throw new Error('сервер не сообщил TCP-адрес');
+  }
   try {
-    await run(`http://127.0.0.1:${server.address().port}`, seen);
+    await run(`http://127.0.0.1:${address.port}`, seen);
   } finally {
     await new Promise((resolve) => server.close(resolve));
   }
