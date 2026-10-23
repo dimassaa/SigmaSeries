@@ -178,10 +178,6 @@ ${raw(styleLinks)}
   <div class="topbar__controls">
     <button type="button" class="topbar__theme" data-theme-toggle
             data-theme-csrf="${page.account?.csrf ?? ''}"
-            data-consent-title="${t(locale, 'analytics.consent.title')}"
-            data-consent-text="${t(locale, 'analytics.consent.text')}"
-            data-consent-allow="${t(locale, 'analytics.consent.allow')}"
-            data-consent-decline="${t(locale, 'analytics.consent.decline')}"
             aria-label="${t(locale, 'app.theme.toggle')}">◐</button>
     <div class="topbar__locales">${localeLinks}</div>
     ${when(page.account, () => accountMenu({ locale, account: page.account, poll: page.account.pollSeconds ?? 0 }),
@@ -199,6 +195,10 @@ ${footer({ locale })}
 
   return html`<!DOCTYPE html>
 <html lang="${locale}" data-theme="${page.theme ?? page.account?.theme ?? 'system'}"
+      data-consent-title="${t(locale, 'analytics.consent.title')}"
+      data-consent-text="${t(locale, 'analytics.consent.text')}"
+      data-consent-allow="${t(locale, 'analytics.consent.allow')}"
+      data-consent-decline="${t(locale, 'analytics.consent.decline')}"
       data-offline-text="${t(locale, 'error.offline.title')}"
       data-offline-retry="${t(locale, 'error.offline.retry')}">
 <head>

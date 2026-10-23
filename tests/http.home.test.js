@@ -381,3 +381,14 @@ test('статика сжимается, а без сжатия остаётся
     assert.equal(body, raw, 'сжатое тело распаковывается в то же самое');
   });
 });
+
+test('текст согласия на аналитику лежит на <html>, а не на кнопке темы', async () => {
+  // Браузер читает data-consent-* с document.documentElement. Пока атрибуты
+  // висели на кнопке, баннер показывал только две кнопки без объяснения.
+  await withApp(stubData(), async (get) => {
+    const html = await (await get('/ru/')).text();
+    assert.match(html, /<html[^>]+data-consent-text="[^"]+"/);
+    assert.match(html, /<html[^>]+data-consent-allow="Разрешить"/);
+    assert.doesNotMatch(html, /<button[^>]+data-theme-toggle[^>]+data-consent-text/);
+  });
+});
