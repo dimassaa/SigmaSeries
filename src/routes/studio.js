@@ -11,7 +11,8 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { studioListView, studioQueueView } from '../view/studio.js';
 import { studioBannersView } from '../view/studioBanners.js';
-import { bulkPreviewView } from '../view/studioBulk.js';
+import { bulkPreviewView, bulkJobView } from '../view/studioBulk.js';
+import { MAX_BULK } from '../services/studio/bulk.js';
 
 const BASE = '/admin/catalog';
 
@@ -50,9 +51,10 @@ export function createStudioRoutes({
 
     try {
       const filters = readFilters(req.query);
-      const [list, genres] = await Promise.all([
+      const [list, genres, jobs] = await Promise.all([
         studio.list(filters),
         studio.genres(),
+        bulk ? bulk.jobs(10) : [],
       ]);
       return res.status(200).type('html').send(layout({
         account: req.account,
@@ -63,7 +65,7 @@ export function createStudioRoutes({
         noindex: true,
         styles: STYLES,
         body: studioListView({
-          locale, list, genres, filters, csrf: csrfToken(req.session),
+          locale, list, genres, filters, jobs, csrf: csrfToken(req.session),
         }),
       }).__raw);
     } catch (error) {
@@ -83,13 +85,23 @@ export function createStudioRoutes({
           return res.status(403).type('text/plain; charset=utf-8')
             .send(t(locale, 'admin.users.csrf'));
         }
-        const ids = [].concat(body.ids ?? []).map((value) => Number(value)).filter(Number.isInteger);
+        let ids = [].concat(body.ids ?? [])
+          .map((value) => Number(value))
+          .filter((value) => Number.isInteger(value) && value > 0);
         const action = String(body.action ?? '');
         const genre = body.genre ? String(body.genre) : null;
         const reason = body.reason ? String(body.reason) : null;
+        const field = body.field ? String(body.field) : null;
+
+        // «Всё по фильтру» — это тот же фильтр, что построил таблицу. Список
+        // разрешается здесь, а не в браузере: иначе админ применял бы действие
+        // к тому, что успело устареть.
+        if (body.scope === 'filter') {
+          ids = await studio.ids(readFilters(body), MAX_BULK + 1);
+        }
 
         if (body.confirm !== '1') {
-          const plan = await bulk.preview({ action, ids, genre, reason });
+          const plan = await bulk.preview({ action, ids, genre, reason, field });
           if (!plan.ok) {
             return res.status(400).type('text/plain; charset=utf-8')
               .send(t(locale, `studio.bulk.error.${plan.reason}`));
@@ -108,24 +120,107 @@ export function createStudioRoutes({
               action,
               genre,
               reason,
+              field,
               csrf: csrfToken(req.session),
             }),
           }).__raw);
         }
 
-        const result = await bulk.start({ action, ids, genre, reason, byId: req.session.user.id });
+        const result = await bulk.start({
+          action, ids, genre, reason, field, byId: req.session.user.id,
+        });
+        if (!result.ok) {
+          return res.status(400).type('text/plain; charset=utf-8')
+            .send(t(locale, `studio.bulk.error.${result.reason}`));
+        }
         if (audit) {
           await audit.write({
             actorId: req.session.user.id,
             action: 'catalogue.bulk',
-            objectType: 'series',
-            objectId: null,
-            result: result.ok ? 'ok' : 'denied',
+            objectType: 'bulk_job',
+            objectId: result.jobId,
+            result: 'ok',
             reason: `${action}; затронуто ${result.affected ?? 0} из ${result.total ?? 0}`,
             after: { job_id: result.jobId ?? null, affected: result.affected ?? 0 },
           });
         }
-        return res.status(303).set('Location', `/${locale}${BASE}`).end();
+        return res.status(303).set('Location', `/${locale}${BASE}/bulk/${result.jobId}`).end();
+      } catch (error) {
+        return next(error);
+      }
+    });
+
+    // Отчёт по заданию: прогресс и итог по каждому элементу (F-10-11 §6).
+    router.get(`/:locale${BASE}/bulk/:id`, adminOnly, async (req, res, next) => {
+      const { locale } = req.params;
+      if (!isLocale(locale)) return next('route');
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return next('router');
+      try {
+        const job = await bulk.job(id);
+        if (!job) return next('router');
+        return res.status(200).type('html').send(layout({
+          account: req.account,
+          locale,
+          path: `${BASE}/bulk/${id}`,
+          title: pageTitle(locale, t(locale, 'studio.bulk.jobTitle', { id })),
+          description: t(locale, 'studio.bulk.description'),
+          noindex: true,
+          styles: STYLES,
+          body: bulkJobView({ locale, job, csrf: csrfToken(req.session) }),
+        }).__raw);
+      } catch (error) {
+        return next(error);
+      }
+    });
+
+    // Повтор только упавших: успешные карточки не должны выполниться дважды
+    // (EC-S15). Новая операция получает свою запись аудита.
+    router.post(`/:locale${BASE}/bulk/:id/retry`, adminOnly, async (req, res, next) => {
+      const { locale } = req.params;
+      if (!isLocale(locale)) return next('route');
+      const id = Number(req.params.id);
+      if (!Number.isInteger(id) || id <= 0) return next('router');
+      const body = req.body ?? {};
+      try {
+        if (!req.session || !csrfValid(req.session, body.csrf)) {
+          return res.status(403).type('text/plain; charset=utf-8')
+            .send(t(locale, 'admin.users.csrf'));
+        }
+        const job = await bulk.job(id);
+        if (!job) return next('router');
+        if (job.state === 'running') {
+          return res.status(409).type('text/plain; charset=utf-8')
+            .send(t(locale, 'studio.bulk.error.running'));
+        }
+        const ids = job.result.filter((item) => !item.ok).map((item) => Number(item.id));
+        if (!ids.length) {
+          return res.status(303).set('Location', `/${locale}${BASE}/bulk/${id}`).end();
+        }
+        const result = await bulk.start({
+          action: job.action,
+          ids,
+          genre: job.params?.genre ?? null,
+          reason: job.params?.reason ?? null,
+          field: job.params?.field ?? null,
+          byId: req.session.user.id,
+        });
+        if (!result.ok) {
+          return res.status(400).type('text/plain; charset=utf-8')
+            .send(t(locale, `studio.bulk.error.${result.reason}`));
+        }
+        if (audit) {
+          await audit.write({
+            actorId: req.session.user.id,
+            action: 'catalogue.bulk.retry',
+            objectType: 'bulk_job',
+            objectId: result.jobId,
+            result: 'ok',
+            reason: `${job.action}; повтор ${ids.length}`,
+            after: { job_id: result.jobId, parent_job_id: id },
+          });
+        }
+        return res.status(303).set('Location', `/${locale}${BASE}/bulk/${result.jobId}`).end();
       } catch (error) {
         return next(error);
       }
@@ -139,7 +234,10 @@ export function createStudioRoutes({
     try {
       const page = Math.max(1, Number(req.query.page) || 1);
       const reason = String(req.query.reason ?? '');
-      const queue = await studio.incomplete({ page, reason });
+      const [queue, genres] = await Promise.all([
+        studio.incomplete({ page, reason }),
+        studio.genres(),
+      ]);
       return res.status(200).type('html').send(layout({
         account: req.account,
         locale,
@@ -148,7 +246,9 @@ export function createStudioRoutes({
         description: t(locale, 'studio.queue.description'),
         noindex: true,
         styles: STYLES,
-        body: studioQueueView({ locale, queue, reason }),
+        body: studioQueueView({
+          locale, queue, reason, genres, csrf: csrfToken(req.session),
+        }),
       }).__raw);
     } catch (error) {
       return next(error);

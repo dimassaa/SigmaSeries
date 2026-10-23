@@ -7,9 +7,24 @@
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
+import { BULK_ACTIONS, BULK_REASONS } from '../services/studio/bulk.js';
+import { EDITABLE_FIELDS } from '../services/studio/card.js';
 
 /** Адрес списка студии: он же — основа ссылок на страницы. */
 const BASE = '/admin/catalog';
+
+/** Подписи полей в массовой блокировке. */
+const FIELD_LABELS = {
+  title_ru: 'studio.card.titleRu',
+  title_en: 'studio.card.titleEn',
+  title_original: 'studio.card.titleOriginal',
+  year_start: 'studio.card.yearStart',
+  year_end: 'studio.card.yearEnd',
+  description_ru: 'studio.card.descriptionRu',
+  description_en: 'studio.card.descriptionEn',
+  slug: 'studio.card.slug',
+  exit_state: 'studio.column.exit',
+};
 
 /**
  * Ссылка с текущими фильтрами и одним изменённым параметром.
@@ -35,6 +50,103 @@ function linkWith(locale, path, filters, changes) {
   if (all.page && all.page > 1) params.set('page', String(all.page));
   const query = params.toString();
   return `/${locale}${path}${query ? `?${query}` : ''}`;
+}
+
+/**
+ * Панель массовых операций (F-10-11).
+ *
+ * Форма живёт вокруг таблицы: чекбоксы строк должны отправляться вместе с
+ * действием. «Все по фильтру» разрешается на сервере по тем же скрытым полям,
+ * поэтому страница не пытается угадать список.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {any[]} args.genres
+ * @param {any} args.filters
+ * @param {string} args.csrf
+ * @param {number} args.total
+ * @returns {any}
+ */
+function bulkPanel({
+  locale, genres = [], filters = {}, csrf = '', total = 0,
+}) {
+  return html`
+  <div class="studio-bulk__panel">
+    <input type="hidden" name="csrf" value="${csrf}">
+    <label class="field__label" for="bulk-action">${t(locale, 'studio.bulk.action')}</label>
+    <select class="field__input" id="bulk-action" name="action">
+      ${BULK_ACTIONS.map((action) => html`
+      <option value="${action}">${t(locale, `studio.bulk.actions.${action}`)}</option>`)}
+    </select>
+
+    <label class="field__label" for="bulk-genre">${t(locale, 'studio.bulk.genre')}</label>
+    <select class="field__input" id="bulk-genre" name="genre">
+      <option value="">${t(locale, 'studio.filter.any')}</option>
+      ${genres.map((genre) => html`
+      <option value="${genre.code}">${genre.title}</option>`)}
+    </select>
+
+    <label class="field__label" for="bulk-field">${t(locale, 'studio.bulk.field')}</label>
+    <select class="field__input" id="bulk-field" name="field">
+      <option value="">${t(locale, 'studio.filter.any')}</option>
+      ${EDITABLE_FIELDS.map((field) => html`
+      <option value="${field}">${t(locale, FIELD_LABELS[field] ?? field)}</option>`)}
+    </select>
+
+    <label class="field__label" for="bulk-reason">${t(locale, 'studio.bulk.reason')}</label>
+    <select class="field__input" id="bulk-reason" name="reason">
+      <option value="">${t(locale, 'studio.filter.any')}</option>
+      ${BULK_REASONS.map((code) => html`
+      <option value="${code}"><code>${code}</code></option>`)}
+    </select>
+
+    <label class="studio-field__origin">
+      <input type="checkbox" data-bulk-all>
+      <span>${t(locale, 'studio.bulk.checkAll')}</span>
+    </label>
+
+    <fieldset class="studio-bulk__scope">
+      <legend class="field__label">${t(locale, 'studio.bulk.scope')}</legend>
+      <label class="studio-field__origin">
+        <input type="radio" name="scope" value="selected" checked>
+        <span>${t(locale, 'studio.bulk.scopeSelected')}</span>
+      </label>
+      <label class="studio-field__origin">
+        <input type="radio" name="scope" value="filter">
+        <span>${t(locale, 'studio.bulk.scopeFilter', { count: total })}</span>
+      </label>
+    </fieldset>
+
+    ${hiddenFilters(filters)}
+    <button class="button button--primary" type="submit">${t(locale, 'studio.bulk.apply')}</button>
+  </div>`;
+}
+
+/**
+ * Скрытые поля текущих фильтров: «все по фильтру» должно разрешаться тем же
+ * условием, что и таблица.
+ *
+ * @param {any} filters
+ * @returns {any}
+ */
+function hiddenFilters(filters = {}) {
+  const pairs = [
+    ['q', filters.query],
+    ['publication', filters.publication],
+    ['exit', filters.exit],
+    ['level', filters.level],
+    ['genre', filters.genre],
+    ['year_from', filters.yearFrom],
+    ['year_to', filters.yearTo],
+    ['manual', filters.manual ? '1' : ''],
+    ['sort', filters.sort],
+  ];
+  return html`
+    ${pairs.filter(([, value]) => value).map(([name, value]) => html`
+    <input type="hidden" name="${name}" value="${value}">`)}
+    ${(filters.reasons ?? []).map((reason) => html`
+    <input type="hidden" name="reason" value="${reason}">`)}
+  `;
 }
 
 /**
@@ -134,7 +246,9 @@ export function studioListView({
     <ul class="studio-history" role="list">
       ${jobs.map((job) => html`
       <li class="studio-history__item">
-        <span class="studio-history__action">${t(locale, `studio.bulk.actions.${job.action}`)}</span>
+        <a class="studio-history__action" href="/${locale}/admin/catalog/bulk/${job.id}">
+          ${t(locale, `studio.bulk.actions.${job.action}`)}
+        </a>
         <span class="studio-history__reason">${job.done} / ${job.total}</span>
         <span class="studio-history__at">${t(locale, `studio.bulk.state.${job.state}`)}</span>
         ${when(job.failed, () => html`
@@ -147,26 +261,14 @@ export function studioListView({
   <p class="empty">${t(locale, 'studio.list.empty')}</p>`)}
 
   <form class="studio-bulk" method="post" action="/${locale}/admin/catalog/bulk">
-    <input type="hidden" name="csrf" value="${csrf}">
-    <div class="studio-bulk__panel">
-      <label class="field__label" for="bulk-action">${t(locale, 'studio.bulk.action')}</label>
-      <select class="field__input" id="bulk-action" name="action">
-        <option value="publish">${t(locale, 'studio.bulk.actions.publish')}</option>
-        <option value="archive">${t(locale, 'studio.bulk.actions.archive')}</option>
-        <option value="add_genre">${t(locale, 'studio.bulk.actions.add_genre')}</option>
-        <option value="remove_genre">${t(locale, 'studio.bulk.actions.remove_genre')}</option>
-      </select>
-      <label class="field__label" for="bulk-genre">${t(locale, 'studio.bulk.genre')}</label>
-      <input class="field__input" id="bulk-genre" name="genre" type="text" placeholder="drama">
-      <button class="button button--primary" type="submit">${t(locale, 'studio.bulk.apply')}</button>
-    </div>
+    ${bulkPanel({ locale, genres, filters, csrf, total: list.total })}
 
   ${when(list.rows.length > 0, () => html`
   <table class="studio__table">
     <caption class="visually-hidden">${t(locale, 'studio.catalogue.title')}</caption>
     <thead>
       <tr>
-        <th scope="col"><span class="visually-hidden">${t(locale, 'studio.bulk.check')}</span></th>
+        <th scope="col" class="studio__check-head"><span class="visually-hidden">${t(locale, 'studio.bulk.check')}</span></th>
         <th scope="col">${t(locale, 'studio.column.title')}</th>
         <th scope="col">${t(locale, 'studio.column.publication')}</th>
         <th scope="col">${t(locale, 'studio.column.exit')}</th>
@@ -228,9 +330,13 @@ export function studioListView({
  * @param {string} args.locale
  * @param {any} args.queue
  * @param {string} args.reason
+ * @param {any[]} [args.genres]
+ * @param {string} [args.csrf]
  * @returns {any}
  */
-export function studioQueueView({ locale, queue, reason = '' }) {
+export function studioQueueView({
+  locale, queue, reason = '', genres = [], csrf = '',
+}) {
   const reasons = [
     'no_tmdb', 'pair_doubt', 'no_genre', 'no_poster', 'no_overview', 'no_overview_ru',
     'no_people', 'no_backdrop', 'schedule_gap', 'new_genre', 'no_age',
@@ -253,10 +359,13 @@ export function studioQueueView({ locale, queue, reason = '' }) {
   <p class="empty">${t(locale, 'studio.queue.empty')}</p>`)}
 
   ${when(queue.rows.length > 0, () => html`
+  <form class="studio-bulk" method="post" action="/${locale}/admin/catalog/bulk">
+    ${bulkPanel({ locale, genres, filters: { reasons: reason ? [reason] : [] }, csrf, total: queue.total })}
   <table class="studio__table">
     <caption class="visually-hidden">${t(locale, 'studio.queue.title')}</caption>
     <thead>
       <tr>
+        <th scope="col" class="studio__check-head"><span class="visually-hidden">${t(locale, 'studio.bulk.check')}</span></th>
         <th scope="col">${t(locale, 'studio.column.title')}</th>
         <th scope="col">${t(locale, 'studio.column.level')}</th>
         <th scope="col">${t(locale, 'studio.column.reasons')}</th>
@@ -267,6 +376,10 @@ export function studioQueueView({ locale, queue, reason = '' }) {
     <tbody>
       ${queue.rows.map((row) => html`
       <tr class="studio__row">
+        <td class="studio__check">
+          <input type="checkbox" name="ids" value="${row.id}"
+            aria-label="${t(locale, 'studio.bulk.checkOne', { title: row.title })}">
+        </td>
         <th scope="row" class="studio__title-cell">
           <a class="studio__title-link" href="/${locale}/admin/catalog/${row.id}">
             <span class="studio__name">${row.title}</span>
@@ -287,6 +400,7 @@ export function studioQueueView({ locale, queue, reason = '' }) {
       </tr>`)}
     </tbody>
   </table>
+  </form>
 
   ${pagination(locale, queue, `${BASE}/incomplete`, { reason })}`)}
 </div>`;

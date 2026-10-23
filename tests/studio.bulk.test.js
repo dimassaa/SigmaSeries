@@ -42,6 +42,12 @@ test.before(async () => {
     );
     ids.push(Number(series.id));
   }
+  // Первая карточка действительно готова к публикации: у неё есть жанр.
+  // Вторая остаётся без жанра и должна быть пропущена (EC-S15).
+  await pool.query(
+    'INSERT INTO e_series_genre (series_id, genre_code) VALUES ($1, $2) ON CONFLICT DO NOTHING',
+    [ids[0], 'drama'],
+  );
 });
 
 test.after(async () => {
@@ -95,4 +101,75 @@ test('неизвестное действие отвергается', { skip },
   const plan = await bulk.preview({ action: 'взорвать', ids });
   assert.equal(plan.ok, false);
   assert.equal(plan.reason, 'action');
+});
+
+test('блокировка, принятие причины и отчёт по заданию', { skip }, async () => {
+  const locked = await bulk.start({
+    action: 'lock', ids: [ids[0]], field: 'title_ru', byId: null,
+  });
+  assert.equal(locked.ok, true);
+  await locked.work;
+  const job = await bulk.job(locked.jobId);
+  assert.equal(job.state, 'done', 'одна карточка — задание готово');
+  assert.equal(job.done, 1);
+  assert.equal(job.result[0].ok, true);
+
+  const { rows: [lock] } = await pool.query(
+    'SELECT field FROM e_field_lock WHERE series_id = $1', [ids[0]],
+  );
+  assert.equal(lock?.field, 'title_ru', 'поле заблокировано от импорта');
+
+  const { rows: [history] } = await pool.query(
+    `SELECT count(*)::int AS count FROM e_catalog_version
+      WHERE series_id = $1 AND diff ? 'field_lock'`, [ids[0]],
+  );
+  assert.ok(history.count >= 1, 'у карточки появилась версия с причиной');
+
+  const unlocked = await bulk.start({
+    action: 'unlock', ids: [ids[0]], field: 'title_ru', byId: null,
+  });
+  await unlocked.work;
+  const { rows: after } = await pool.query(
+    'SELECT 1 FROM e_field_lock WHERE series_id = $1', [ids[0]],
+  );
+  assert.equal(after.length, 0, 'блокировка снята');
+
+  const accepted = await bulk.start({
+    action: 'accept_reason', ids: [ids[1]], reason: 'no_genre', byId: null,
+  });
+  await accepted.work;
+  const { rows: [series] } = await pool.query(
+    'SELECT reasons FROM e_series WHERE id = $1', [ids[1]],
+  );
+  assert.ok(!series.reasons.includes('no_genre'), 'принятая причина снята');
+});
+
+test('жанр добавляется и убирается массово', { skip }, async () => {
+  const added = await bulk.start({
+    action: 'add_genre', ids: [ids[1]], genre: 'drama', byId: null,
+  });
+  assert.equal(added.ok, true, 'жанр из справочника принят');
+  await added.work;
+  const { rows: [has] } = await pool.query(
+    'SELECT 1 FROM e_series_genre WHERE series_id = $1 AND genre_code = $2', [ids[1], 'drama'],
+  );
+  assert.ok(has, 'жанр появился');
+
+  const removed = await bulk.start({
+    action: 'remove_genre', ids: [ids[1]], genre: 'drama', byId: null,
+  });
+  await removed.work;
+  const { rows: [gone] } = await pool.query(
+    'SELECT 1 FROM e_series_genre WHERE series_id = $1 AND genre_code = $2', [ids[1], 'drama'],
+  );
+  assert.equal(gone, undefined, 'жанр убран');
+});
+
+test('«всё по фильтру» разрешается тем же условием, что и таблица', { skip }, async () => {
+  const { pgStudioCatalogue } = await import('../src/services/studio/catalogue.js');
+  const catalogue = pgStudioCatalogue(pool);
+  const selected = await catalogue.ids({ query: 'Карточка для операции' }, MAX_BULK + 1);
+  assert.ok(selected.includes(ids[0]), 'свой сериал попал в выборку');
+  assert.ok(selected.includes(ids[1]), 'и второй тоже');
+  assert.ok(selected.length <= MAX_BULK + 1, 'лишний нужен только для проверки предела');
 });

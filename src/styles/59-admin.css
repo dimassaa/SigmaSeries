@@ -880,7 +880,31 @@
 
 .studio-bulk__panel .field__label { font-size: var(--text-xs); color: var(--text-secondary); }
 
+.studio-bulk__scope {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.studio-bulk__progress {
+  inline-size: min(100%, 28rem);
+  block-size: var(--space-2);
+  margin-block: var(--space-2) var(--space-4);
+}
+
 .studio__check { inline-size: 32px; }
+
+/* H-48: на узких экранах массовых операций нет — они опасны без плотной
+   таблицы и полного контекста выбранных карточек. Прятать всю форму нельзя:
+   в ней лежит сама таблица каталога. */
+@media (max-width: 1023px) {
+  .studio-bulk__panel,
+  .studio__check,
+  .studio__check-head { display: none; }
+}
 
 /* --- Кадры заставки (F-10-09) --- */
 

@@ -1321,6 +1321,38 @@
     show(navigator.onLine === false);
   }
 
+  // ─── Массовые операции (F-10-11) ──────────────────────────────────────────
+  //
+  // «Выбрать все на странице» — удобство, а не замена серверной выборке: без
+  // скрипта админ отмечает строки по одной или выбирает «всё по фильтру».
+  // Отчёт перезагружается только пока задание идёт; после готовности сервер
+  // отдаёт окончательный результат.
+  function initBulk() {
+    document.querySelectorAll('.studio-bulk').forEach(function (form) {
+      var all = form.querySelector('[data-bulk-all]');
+      var boxes = Array.prototype.slice.call(form.querySelectorAll('input[name="ids"]'));
+      if (!all || !boxes.length) return;
+
+      function sync() {
+        var checked = boxes.filter(function (box) { return box.checked; }).length;
+        all.checked = checked === boxes.length;
+        all.indeterminate = checked > 0 && checked < boxes.length;
+      }
+
+      all.addEventListener('change', function () {
+        boxes.forEach(function (box) { box.checked = all.checked; });
+        all.indeterminate = false;
+      });
+      boxes.forEach(function (box) { box.addEventListener('change', sync); });
+      sync();
+    });
+
+    var job = document.querySelector('[data-bulk-job]');
+    if (job && job.getAttribute('data-bulk-state') === 'running') {
+      window.setTimeout(function () { location.reload(); }, 2500);
+    }
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -1338,6 +1370,7 @@
     initReviewFilters();
     initReviewVotes();
     initReviewReports();
+    initBulk();
     initConfirmations();
     initCarousel();
     initMarquee();

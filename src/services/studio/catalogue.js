@@ -42,7 +42,7 @@ export const LEVELS = ['full', 'displayable', 'minimum'];
 
 /** Сортировки: ключ → выражение ORDER BY. */
 const SORTS = {
-  popular: 'imdb_votes DESC NULLS LAST, s.id',
+  popular: 'r.votes DESC NULLS LAST, s.id',
   updated: 's.added_at DESC, s.id',
   title: 'lower(coalesce(s.title_ru, s.title_original)), s.id',
 };
@@ -70,9 +70,14 @@ export function pgStudioCatalogue(pool) {
    * @param {string} [options.sort]
    * @returns {Promise<{rows: any[], total: number, page: number, pages: number}>}
    */
-  async function list(options = {}) {
+  /**
+   * Общее условие фильтров для списка и выбора «все по фильтру».
+   *
+   * @param {any} [options]
+   * @returns {{whereSql: string, params: any[], orderSql: string}}
+   */
+  function filtersSql(options = {}) {
     const {
-      page = 1,
       query = '',
       publication = '',
       exit = '',
@@ -128,10 +133,18 @@ export function pgStudioCatalogue(pool) {
       where.push("s.source = 'manual'");
     }
 
-    const whereSql = where.length ? `WHERE ${where.join(' AND ')}` : '';
-    const orderSql = SORTS[sort] ?? SORTS.popular;
-    const limitParam = add(PAGE_SIZE);
-    const offsetParam = add((Math.max(1, Number(page) || 1) - 1) * PAGE_SIZE);
+    return {
+      whereSql: where.length ? `WHERE ${where.join(' AND ')}` : '',
+      params,
+      orderSql: SORTS[sort] ?? SORTS.popular,
+    };
+  }
+
+  async function list(options = {}) {
+    const { page = 1 } = options;
+    const { whereSql, params, orderSql } = filtersSql(options);
+    const limitParam = `$${params.length + 1}`;
+    const offsetParam = `$${params.length + 2}`;
 
     const { rows } = await pool.query(`
       SELECT s.id, s.slug,
@@ -163,7 +176,9 @@ export function pgStudioCatalogue(pool) {
         ) pv ON true
         ${whereSql}
        ORDER BY ${orderSql}
-       LIMIT ${limitParam} OFFSET ${offsetParam}`, params);
+       LIMIT ${limitParam} OFFSET ${offsetParam}`,
+    [...params, PAGE_SIZE, (Math.max(1, Number(page) || 1) - 1) * PAGE_SIZE],
+    );
 
     const total = rows.length ? Number(rows[0].total) : 0;
     const pages = Math.max(1, Math.ceil(total / PAGE_SIZE));
@@ -173,6 +188,31 @@ export function pgStudioCatalogue(pool) {
       page: Math.max(1, Number(page) || 1),
       pages,
     };
+  }
+
+  /**
+   * Идентификаторы для «все по фильтру».
+   *
+   * Возвращает не больше limit + 1: лишний нужен только для того, чтобы
+   * вызывающий увидел «больше лимита» и не выполнил операцию молча над
+   * усечённым списком.
+   *
+   * @param {object} options те же фильтры, что у list
+   * @param {number} limit
+   * @returns {Promise<number[]>}
+   */
+  async function ids(options = {}, limit = 200) {
+    const { whereSql, params, orderSql } = filtersSql(options);
+    const { rows } = await pool.query(
+      `SELECT s.id FROM e_series s
+         LEFT JOIN e_external_rating r
+                ON r.series_id = s.id AND r.platform = 'imdb'
+        ${whereSql}
+        ORDER BY ${orderSql}
+        LIMIT $${params.length + 1}`,
+      [...params, limit],
+    );
+    return rows.map((row) => Number(row.id));
   }
 
   /**
@@ -269,7 +309,7 @@ export function pgStudioCatalogue(pool) {
     return rows.map((row) => ({ code: row.code, title: row.title }));
   }
 
-  return { list, incomplete, genres };
+  return { list, ids, incomplete, genres };
 }
 
 /**
