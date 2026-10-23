@@ -5,6 +5,7 @@
 // размножением строк. Зато каждый запрос отвечает на один вопрос и читается
 // отдельно — как и положено источнику, который не знает про разметку.
 
+import { RECO } from '../../config/settings.js';
 import { importSettings } from './settings.js';
 import { RATING } from '../settings.js';
 
@@ -172,42 +173,79 @@ async function imagesOf(pool, seriesId) {
 }
 
 /**
- * Похожие сериалы (F-02-08).
+ * Похожие сериалы (M11 F-11-02).
  *
- * Блок пуст, если пар для сериала нет: значит, считать нечего — и показывать
- * пустое место незачем.
+ * F-02-08 считал пары по IDF и складывал их в `e_series_similar`. F-11-02
+ * заменяет алгоритм в том же слоте: фиксированные веса жанров, людей и слов
+ * из настроек модуля. Считаем по каталогу, а не по старой таблице: причина
+ * должна совпадать с тем вкладом, который действительно поднял карточку.
+ *
+ * Если общих признаков нет, EC-M4 требует не пустоту, а шесть популярных
+ * сериалов в жанре открытого.
+ *
+ * @param {any} pool
+ * @param {number} seriesId
+ * @param {number} [limit]
+ * @returns {Promise<any[]>}
  */
-async function similarOf(pool, seriesId) {
+async function similarOf(pool, seriesId, limit = RECO.similarCount) {
   const { rows } = await pool.query(
-    `SELECT s.id, s.slug, s.title_ru, s.title_original, s.year_start, s.exit_state,
+    `WITH matches AS (
+       SELECT DISTINCT b.series_id AS candidate, $2::int AS weight,
+              'genre'::text AS kind, g.name_ru AS title_ru, g.name_en AS title_en
+         FROM e_series_genre a
+         JOIN e_series_genre b ON b.genre_code = a.genre_code AND b.series_id <> a.series_id
+         JOIN e_genre g ON g.code = a.genre_code
+        WHERE a.series_id = $1 AND g.active AND g.is_raw = FALSE
+       UNION ALL
+       SELECT DISTINCT b.series_id, $3::int, 'person', p.name, p.name
+         FROM e_series_person a
+         JOIN e_series_person b ON b.person_id = a.person_id AND b.series_id <> a.series_id
+         JOIN e_person p ON p.id = a.person_id
+        WHERE a.series_id = $1
+          AND a.role IN ('director','creator') AND b.role IN ('director','creator')
+       UNION ALL
+       SELECT DISTINCT b.series_id, $4::int, 'keyword', k.value, k.value
+         FROM e_series_keyword a
+         JOIN e_series_keyword b ON b.keyword_id = a.keyword_id AND b.series_id <> a.series_id
+         JOIN e_keyword k ON k.id = a.keyword_id
+        WHERE a.series_id = $1
+     ), scored AS (
+       SELECT candidate,
+              sum(weight)::int AS score,
+              sum(CASE WHEN kind = 'genre' THEN weight ELSE 0 END)::int AS genre_score,
+              sum(CASE WHEN kind = 'person' THEN weight ELSE 0 END)::int AS people_score,
+              sum(CASE WHEN kind = 'keyword' THEN weight ELSE 0 END)::int AS keyword_score,
+              array_agg(title_ru ORDER BY title_ru) FILTER (WHERE kind = 'genre') AS genre_titles,
+              array_agg(title_en ORDER BY title_ru) FILTER (WHERE kind = 'genre') AS genre_titles_en,
+              array_agg(title_ru ORDER BY title_ru) FILTER (WHERE kind = 'person') AS people_titles,
+              array_agg(title_ru ORDER BY title_ru) FILTER (WHERE kind = 'keyword') AS keyword_titles
+         FROM matches
+        GROUP BY candidate
+     )
+     SELECT s.id, s.slug, s.title_ru, s.title_original, s.year_start, s.exit_state,
+            sc.score, sc.genre_score, sc.people_score, sc.keyword_score,
+            sc.genre_titles, sc.genre_titles_en, sc.people_titles, sc.keyword_titles,
             (SELECT iv.width FROM e_image i
                JOIN e_image_variant iv ON iv.image_id = i.id
               WHERE i.series_id = s.id AND i.role = 'poster'
-              ORDER BY iv.width LIMIT 1) AS poster_width,
-            (SELECT array_agg(g.name_ru) FROM e_series_genre a
-               JOIN e_series_genre b ON b.genre_code = a.genre_code AND b.series_id = sm.similar_id
-               JOIN e_genre g ON g.code = a.genre_code
-              WHERE a.series_id = sm.series_id) AS common_genres,
-            (SELECT array_agg(g.name_en) FROM e_series_genre a
-               JOIN e_series_genre b ON b.genre_code = a.genre_code AND b.series_id = sm.similar_id
-               JOIN e_genre g ON g.code = a.genre_code
-              WHERE a.series_id = sm.series_id) AS common_genres_en,
-            (SELECT array_agg(p.name) FROM e_series_person a
-               JOIN e_series_person b ON b.person_id = a.person_id AND b.series_id = sm.similar_id
-               JOIN e_person p ON p.id = a.person_id
-              WHERE a.series_id = sm.series_id AND a.role IN ('director','creator')) AS common_people,
-            (SELECT array_agg(k.value) FROM e_series_keyword a
-               JOIN e_series_keyword b ON b.keyword_id = a.keyword_id AND b.series_id = sm.similar_id
-               JOIN e_keyword k ON k.id = a.keyword_id
-              WHERE a.series_id = sm.series_id) AS common_keywords
-       FROM e_series_similar sm
-       JOIN e_series s ON s.id = sm.similar_id
-      WHERE sm.series_id = $1
-        AND s.publication_state = 'published' AND s.archived_at IS NULL
-      ORDER BY sm.weight DESC, s.id
-      LIMIT 6`,
-    [seriesId],
+              ORDER BY iv.width LIMIT 1) AS poster_width
+       FROM scored sc
+       JOIN e_series s ON s.id = sc.candidate
+       LEFT JOIN e_external_rating r
+              ON r.series_id = s.id AND r.platform = 'imdb'
+      WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+      ORDER BY sc.score DESC, r.value DESC NULLS LAST, r.votes DESC NULLS LAST, s.id
+      LIMIT $5`,
+    [
+      seriesId,
+      RECO.similarWeightGenre,
+      RECO.similarWeightPeople,
+      RECO.similarWeightKeyword,
+      limit,
+    ],
   );
+  if (!rows.length) return popularInGenre(pool, seriesId, limit);
   return rows.map((row) => ({
     id: Number(row.id),
     slug: row.slug,
@@ -217,27 +255,97 @@ async function similarOf(pool, seriesId) {
     posterWidth: row.poster_width ? Number(row.poster_width) : null,
     // Причина «похоже на» называет конкретное общее: человека, жанр или
     // слово, а не «похоже» (M11 F-11-02 §8б).
-    reason: reasonOf(row),
+    reason: pickSimilarReason(row),
   }));
 }
 
 /**
- * Причина сходства: одно общее — человек, жанр или слово.
+ * Причина по наибольшему вкладу среди жанров, людей и слов.
  *
- * @param {any} row строка выборки
+ * При равенстве человек важнее жанра, жанр — слова: так приёмка F-11-02 §18
+ * («общий режиссёр и один жанр») называет режиссёра, а не жанр.
+ *
+ * @param {{genre_score?: number, people_score?: number, keyword_score?: number,
+ *   genre_titles?: string[], genre_titles_en?: string[], people_titles?: string[],
+ *   keyword_titles?: string[]}} row
  * @returns {{kind: string, title: string, titleEn?: string}|null}
  */
-function reasonOf(row) {
-  const people = row.common_people ?? [];
-  if (people.length) return { kind: 'person', title: people[0] };
-  const genres = row.common_genres ?? [];
-  const genresEn = row.common_genres_en ?? [];
-  if (genres.length) {
-    return { kind: 'genre', title: genres[0], titleEn: genresEn[0] ?? genres[0] };
-  }
-  const keywords = row.common_keywords ?? [];
-  if (keywords.length) return { kind: 'keyword', title: keywords[0] };
-  return null;
+export function pickSimilarReason(row) {
+  const candidates = [
+    {
+      kind: 'person',
+      score: row.people_score ?? 0,
+      title: row.people_titles?.[0],
+      titleEn: row.people_titles?.[0],
+    },
+    {
+      kind: 'genre',
+      score: row.genre_score ?? 0,
+      title: row.genre_titles?.[0],
+      titleEn: row.genre_titles_en?.[0] ?? row.genre_titles?.[0],
+    },
+    {
+      kind: 'keyword',
+      score: row.keyword_score ?? 0,
+      title: row.keyword_titles?.[0],
+      titleEn: row.keyword_titles?.[0],
+    },
+  ];
+  const winner = candidates.reduce((best, item) => (item.score > best.score ? item : best));
+  if (!winner.score || !winner.title) return null;
+  return { kind: winner.kind, title: winner.title, titleEn: winner.titleEn };
+}
+
+/**
+ * Шесть популярных сериалов в первом жанре открытого (EC-M4).
+ *
+ * Если у сериала нет жанра, показывать нечего: пустой блок честнее выдумки.
+ *
+ * @param {any} pool
+ * @param {number} seriesId
+ * @param {number} limit
+ * @returns {Promise<any[]>}
+ */
+export async function popularInGenre(pool, seriesId, limit) {
+  const { rows } = await pool.query(
+    `WITH main_genre AS (
+       SELECT sg.genre_code, g.name_ru, g.name_en
+         FROM e_series_genre sg
+         JOIN e_genre g ON g.code = sg.genre_code
+        WHERE sg.series_id = $1 AND g.active AND g.is_raw = FALSE
+        ORDER BY g.name_ru
+        LIMIT 1
+     )
+     SELECT s.id, s.slug, s.title_ru, s.title_original, s.year_start, s.exit_state,
+            p.name_ru AS genre_ru, p.name_en AS genre_en,
+            (SELECT iv.width FROM e_image i
+               JOIN e_image_variant iv ON iv.image_id = i.id
+              WHERE i.series_id = s.id AND i.role = 'poster'
+              ORDER BY iv.width LIMIT 1) AS poster_width
+       FROM main_genre p
+       JOIN e_series_genre sg ON sg.genre_code = p.genre_code
+       JOIN e_series s ON s.id = sg.series_id
+       LEFT JOIN e_external_rating r
+              ON r.series_id = s.id AND r.platform = 'imdb'
+      WHERE s.id <> $1
+        AND s.publication_state = 'published' AND s.archived_at IS NULL
+      ORDER BY r.value DESC NULLS LAST, r.votes DESC NULLS LAST, s.id
+      LIMIT $2`,
+    [seriesId, limit],
+  );
+  return rows.map((row) => ({
+    id: Number(row.id),
+    slug: row.slug,
+    title: row.title_ru || row.title_original,
+    yearStart: row.year_start,
+    exitState: row.exit_state,
+    posterWidth: row.poster_width ? Number(row.poster_width) : null,
+    reason: {
+      kind: 'popular',
+      title: row.genre_ru,
+      titleEn: row.genre_en,
+    },
+  }));
 }
 
 async function genresOf(pool, seriesId) {

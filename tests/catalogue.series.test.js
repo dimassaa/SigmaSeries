@@ -8,7 +8,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { createPool } from '../src/db/pool.js';
-import { pgSeries } from '../src/services/catalogue/series.js';
+import { pgSeries, popularInGenre } from '../src/services/catalogue/series.js';
+import { RECO } from '../src/config/settings.js';
 import { DEFAULT_RATING_FLOOR } from '../src/services/catalogue/settings.js';
 import { acquireImportLock } from './helpers/import-lock.js';
 
@@ -128,4 +129,40 @@ test('ближайший выход не из прошлого', { skip }, async
   const found = await series.bySlug(await anySeries());
   if (!found.nextRelease) return;
   assert.ok(found.nextRelease.date >= new Date().toISOString().slice(0, 10));
+});
+test('похожие: не больше лимита и у каждой карточки конкретная причина', { skip }, async () => {
+  const found = await series.bySlug(await anySeries());
+  if (!found.similar.length) return; // у части каталога общих признаков нет — это не дефект
+  assert.ok(found.similar.length <= RECO.similarCount, 'F-11-02 §4: шесть, а не весь каталог');
+  assert.ok(
+    found.similar.every((item) => item.reason?.kind && item.reason?.title),
+    'причина называет конкретное общее, а не «похоже»',
+  );
+});
+
+test('фолбэк: популярное в жанре, когда общих признаков нет', { skip }, async () => {
+  const { rows } = await pool.query(
+    `WITH main_genre AS (
+       SELECT DISTINCT ON (sg.series_id) sg.series_id, sg.genre_code
+         FROM e_series_genre sg
+         JOIN e_genre g ON g.code = sg.genre_code
+        WHERE g.active AND g.is_raw = FALSE
+        ORDER BY sg.series_id, g.name_ru
+     )
+     SELECT p.series_id
+       FROM main_genre p
+       JOIN e_series_genre sg ON sg.genre_code = p.genre_code
+       JOIN e_series s ON s.id = sg.series_id
+      WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+      GROUP BY p.series_id, p.genre_code
+     HAVING count(*) > $1
+      LIMIT 1`,
+    [RECO.similarCount],
+  );
+  if (!rows.length) return; // нет жанра с запасом — проверять нечего
+  const seriesId = Number(rows[0].series_id);
+  const items = await popularInGenre(pool, seriesId, RECO.similarCount);
+  assert.equal(items.length, RECO.similarCount);
+  assert.ok(items.every((item) => item.id !== seriesId));
+  assert.ok(items.every((item) => item.reason?.kind === 'popular' && item.reason.title));
 });

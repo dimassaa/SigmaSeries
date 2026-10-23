@@ -219,6 +219,7 @@ function similarReason(locale, reason) {
   const title = locale === 'en' ? (reason.titleEn ?? reason.title) : reason.title;
   if (reason.kind === 'person') return t(locale, 'series.similar.reason.person', { title });
   if (reason.kind === 'keyword') return t(locale, 'series.similar.reason.keyword', { title });
+  if (reason.kind === 'popular') return t(locale, 'series.similar.reason.popular', { title });
   return t(locale, 'series.similar.reason.genre', { title });
 }
 
@@ -231,6 +232,7 @@ function similarSection({ locale, items, csrf = '', seriesSlug = '' }) {
       <li class="posters__item">
         <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}"
            data-track-impression="reco_impression" data-track-click="reco_click"
+           data-track-props='{"place":"similar","algorithm":"weighted"}'
            data-poster-info="${t(locale, 'poster.card.info')}">
           <span class="poster__frame">
             ${when(item.posterWidth, () => html`<img class="poster__img"

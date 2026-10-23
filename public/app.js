@@ -1524,7 +1524,19 @@
           if (!entry.isIntersecting) return;
           var name = entry.target.getAttribute('data-track-impression');
           if (!name) return;
-          track(name, { position: String(positionOf(entry.target)) });
+          var props = { position: String(positionOf(entry.target)) };
+          var extra = entry.target.getAttribute('data-track-props');
+          if (extra) {
+            try {
+              var parsed = JSON.parse(extra);
+              if (parsed && typeof parsed === 'object') {
+                Object.keys(parsed).forEach(function (key) { props[key] = String(parsed[key]); });
+              }
+            } catch (error) {
+              // Мусор в свойствах — событие уходит без них, как и у кликов.
+            }
+          }
+          track(name, props);
           observer.unobserve(entry.target);
         });
       }, { threshold: 0.5 });
