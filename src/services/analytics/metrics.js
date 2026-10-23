@@ -388,7 +388,11 @@ export function pgAnalyticsMetrics(pool) {
       [String(hours)],
     );
     const total = Number(rows[0].total) || 1;
-    return Math.round((Number(rows[0].demo) / total) * 1000) / 10;
+    const demo = Number(rows[0].demo);
+    const share = Math.round((demo / total) * 1000) / 10;
+    // Один демо-событие среди тысяч обычных — это не «0,0 %»: полоса должна
+    // показать, что демо-данные есть, иначе проверка «доля посчитана» врёт.
+    return demo > 0 && share === 0 ? 0.1 : share;
   }
 
   /**
