@@ -23,6 +23,7 @@ export function collectionView({ locale, collection }) {
          alt="" width="${collection.banner.width}" height="${Math.round(collection.banner.width * 9 / 16)}"
          fetchpriority="high" decoding="async">
     <div class="collection__banner-plate">
+      <span class="collection__banner-scrim" aria-hidden="true"></span>
       <h1 class="collection__title">${collection.title}</h1>
     </div>
   </div>`,

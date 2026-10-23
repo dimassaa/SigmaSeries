@@ -47,10 +47,23 @@
   inset-inline: 0;
   inset-block-end: 0;
   padding: var(--space-5);
+}
+
+/* Затемнение — отдельный слой, чтобы в светлой теме его можно было
+   инвертировать, не инвертируя сам заголовок. */
+.collection__banner-scrim {
+  position: absolute;
+  inset: 0;
   background: var(--scrim);
+  pointer-events: none;
+}
+
+[data-theme='light'] .collection__banner-scrim {
+  filter: invert(1);
 }
 
 .collection__title {
+  position: relative;
   margin: 0;
   font-size: clamp(24px, 4vw, 40px);
   line-height: 1.1;
