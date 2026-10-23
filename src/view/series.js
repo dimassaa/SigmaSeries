@@ -63,25 +63,41 @@ export function seriesView({
   return html`
 <article class="series">
   <header class="series__header">
-    ${when(series.backdropWidth, () => html`
-    <img class="series__backdrop" src="${imageUrl(locale, series.slug, 'backdrop', series.backdropWidth)}"
-         alt="" width="${series.backdropWidth}" height="${Math.round(series.backdropWidth * 9 / 16)}"
-         fetchpriority="high" decoding="async">`,
-      () => html`<div class="series__backdrop series__backdrop--placeholder" aria-hidden="true"></div>`)}
-    ${when(series.posterWidth, () => html`
-    <img class="series__poster" src="${imageUrl(locale, series.slug, 'poster', series.posterWidth)}"
-         alt="${series.title}" width="${series.posterWidth}" height="${Math.round(series.posterWidth * 3 / 2)}"
-         loading="lazy" decoding="async">`)}
+    <div class="series__media">
+      ${when(series.backdropWidth, () => html`
+      <img class="series__backdrop" src="${imageUrl(locale, series.slug, 'backdrop', series.backdropWidth)}"
+           alt="" width="${series.backdropWidth}" height="${Math.round(series.backdropWidth * 9 / 16)}"
+           fetchpriority="high" decoding="async">`,
+        () => html`<div class="series__backdrop series__backdrop--placeholder" aria-hidden="true"></div>`)}
+      <span class="series__scrim" aria-hidden="true"></span>
+      ${when(series.posterWidth, () => html`
+      <img class="series__poster" src="${imageUrl(locale, series.slug, 'poster', series.posterWidth)}"
+           alt="${series.title}" width="${series.posterWidth}" height="${Math.round(series.posterWidth * 3 / 2)}"
+           loading="lazy" decoding="async">`)}
+    </div>
     <div class="series__plate">
-      ${when(status, () => html`
-      ${statusControl({
-        locale,
-        slug: series.slug,
-        status: status.value,
-        signedIn: status.signedIn,
-        csrf: status.csrf,
-        archived: status.archived,
-      })}`)}
+      <h1 class="series__title">${series.title}</h1>
+      ${when(series.titleOriginal !== series.title, () => html`
+      <p class="series__original">${series.titleOriginal}</p>`)}
+      <p class="series__meta">
+        ${yearRange(series)}
+        ${when(series.genres.length > 0, () => html` · ${series.genres.map((g) => g.name_ru).join(', ')}`)}
+      </p>
+      <p class="series__state">${t(locale, STATE_KEY[series.exitState] ?? 'series.state.waiting')}</p>
+
+      ${when(status || ratingBlock, () => html`
+      <div class="series__actions">
+        ${when(status, () => statusControl({
+          locale,
+          slug: series.slug,
+          status: status.value,
+          signedIn: status.signedIn,
+          csrf: status.csrf,
+          archived: status.archived,
+        }))}
+        ${when(ratingBlock?.signedIn, () => html`
+        <a class="button button--quiet" href="#rating">${t(locale, 'rating.submit')}</a>`)}
+      </div>`)}
 
       ${when(subscribe, () => html`
       ${subscribeBell({
@@ -95,14 +111,6 @@ export function seriesView({
       ${when(notice === 'limit', () => html`
       <p class="subs-notice" role="status">${t(locale, 'subs.notice.limit')}</p>`)}
 
-      <h1 class="series__title">${series.title}</h1>
-      ${when(series.titleOriginal !== series.title, () => html`
-      <p class="series__original">${series.titleOriginal}</p>`)}
-      <p class="series__meta">
-        ${yearRange(series)}
-        ${when(series.genres.length > 0, () => html` · ${series.genres.map((g) => g.name_ru).join(', ')}`)}
-      </p>
-      <p class="series__state">${t(locale, STATE_KEY[series.exitState] ?? 'series.state.waiting')}</p>
       ${progressView({ locale, series, progress })}
       ${when(series.nextRelease, () => html`
       <p class="series__next">
@@ -119,8 +127,6 @@ export function seriesView({
         ${rating(locale, 'TMDB', series.ratings.tmdb)}
         ${rating(locale, t(locale, 'series.rating.site'), series.ratings.site)}
       </ul>`)}
-
-      ${when(ratingBlock, () => seriesRatingBlock({ locale, slug: series.slug, rating: ratingBlock, timezone }))}
     </div>
   </header>
 
@@ -186,6 +192,8 @@ export function seriesView({
   ${when(series.similar?.length > 0, () => similarSection({
     locale, items: series.similar, csrf, seriesSlug: series.slug,
   }))}
+
+  ${when(ratingBlock, () => seriesRatingBlock({ locale, slug: series.slug, rating: ratingBlock, timezone }))}
 
   ${when(reviewBlock, () => reviewSection({ locale, slug: series.slug, timezone, ...reviewBlock }))}
 

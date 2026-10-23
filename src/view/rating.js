@@ -243,7 +243,7 @@ export function seriesRatingBlock({ locale, slug, rating: block, timezone = null
   const { summary, own, canRate, reason, signedIn, csrf } = block;
 
   return html`
-<section class="rating" aria-labelledby="h-rating">
+<section class="rating" id="rating" aria-labelledby="h-rating">
   <h2 class="series__section-title" id="h-rating">${t(locale, 'rating.title')}</h2>
 
   ${averageLine({

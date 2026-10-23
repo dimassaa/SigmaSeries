@@ -180,6 +180,29 @@ test.after(async () => {
   await pool.end();
 });
 
+test('действие «Оценить» остаётся в шапке, а форма оценки — вне её', { skip }, async () => {
+  const user = await viewer();
+  const seriesRow = await seriesWith(20);
+  await mark(user.id, seriesRow.episodeId);
+
+  await withServer({
+    user,
+    run: async ({ get }) => {
+      const body = await (await get(`/ru/series/${seriesRow.slug}`)).text();
+      const headerStart = body.indexOf('<header class="series__header">');
+      const headerEnd = body.indexOf('</header>', headerStart);
+      assert.ok(headerStart >= 0 && headerEnd > headerStart, 'шапка сериала есть в разметке');
+      const header = body.slice(headerStart, headerEnd);
+      const afterHeader = body.slice(headerEnd);
+
+      assert.match(header, /href="#rating"/, 'в шапке есть ссылка к своей оценке');
+      assert.ok(!header.includes('id="h-rating"'),
+        'полная форма оценки не должна распирать шапку и прятать заголовок');
+      assert.match(afterHeader, /id="h-rating"/, 'полная форма оценки осталась на странице ниже');
+    },
+  });
+});
+
 test('оценка без отметки просмотра отклоняется сервером (EC-V1)', { skip }, async () => {
   const user = await viewer();
   const seriesRow = await seriesWith(1);

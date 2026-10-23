@@ -19,6 +19,34 @@
 .topbar__nav a { color: var(--text-secondary); text-decoration: none; }
 .topbar__nav a:hover { color: var(--text-primary); }
 
+/* Поиск в шапке: форма — точка отсчёта для слоя подсказок, иначе он
+ * позиционировался бы от окна и накрывал всю страницу. */
+.topbar__search {
+  position: relative;
+  flex: 0 1 220px;
+  min-inline-size: 160px;
+  margin: 0;
+}
+
+.topbar__search-input {
+  inline-size: 100%;
+  min-block-size: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm);
+  background: var(--surface-raised);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.topbar__search-input::placeholder { color: var(--text-secondary); }
+
+.topbar__search-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
 .topbar__controls { display: flex; align-items: center; gap: var(--space-3); }
 
 .topbar__theme {
@@ -35,13 +63,14 @@
 
 .topbar__locales { display: flex; gap: var(--space-1); }
 .topbar__lang {
-  display: inline-flex; align-items: center;
-  min-height: 44px; padding: 0 var(--space-3);
+  display: inline-flex; align-items: center; justify-content: center;
+  min-height: 44px; min-inline-size: 44px; padding: 0 var(--space-3);
   color: var(--text-secondary); text-decoration: none;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
 }
 .topbar__lang:hover { color: var(--text-primary); }
+.topbar__lang-short { display: none; }
 /* Активный язык помечен и цветом, и подчёркиванием: цвет не единственный
    носитель состояния (R-A11Y-19). */
 .topbar__lang[aria-current='true'] {
@@ -65,9 +94,27 @@
   padding: var(--space-6) var(--space-4) var(--space-9);
 }
 
-@media (max-width: 767px) {
+/* До 900 px поиск, переключатели и аккаунт уже не помещаются в одну строку
+   с названием и навигацией: переносим навигацию под них, а не растягиваем
+   страницу горизонтальной прокруткой. */
+@media (max-width: 900px) {
   .topbar { flex-wrap: wrap; }
   .topbar__nav { order: 3; width: 100%; margin-inline-end: 0; }
+}
+
+@media (max-width: 767px) {
+  /* Телефон: название и переключатели — первая строка, поиск и разделы —
+     вторая. Так шапка занимает две строки, а не четыре, и поиск остаётся
+     полноценным полем, а не иконкой без подписи. */
+  .topbar { gap: var(--space-3); }
+  .topbar__brand { order: 1; }
+  .topbar__controls { order: 2; gap: var(--space-2); }
+  .topbar__search { order: 3; flex: 1 1 140px; min-inline-size: 0; }
+  .topbar__nav { order: 4; width: auto; flex: 0 0 auto; }
+  .topbar__lang { padding-inline: var(--space-2); }
+  .topbar__lang-full { display: none; }
+  .topbar__lang-short { display: inline; }
+
   .content { padding: var(--space-5) var(--space-4) var(--space-8); }
 }
 

@@ -153,7 +153,9 @@ ${raw(styleLinks)}
   const localeLinks = LOCALES.map((l) => html`<a class="topbar__lang" href="/${l}${path === '/' ? '/' : path}"
     hreflang="${l}" lang="${l}"
     ${l === locale ? raw('aria-current="true"') : ''}
-    aria-label="${t(locale, 'app.locale.switchTo', { language: LOCALE_NAMES[l] })}">${LOCALE_NAMES[l]}</a>`);
+    aria-label="${t(locale, 'app.locale.switchTo', { language: LOCALE_NAMES[l] })}"><span
+    class="topbar__lang-full">${LOCALE_NAMES[l]}</span><span
+    class="topbar__lang-short" aria-hidden="true">${l.toUpperCase()}</span></a>`);
 
   const bodyHtml = html`<body class="page" data-page-type="${page.pageType ?? 'other'}">
 <a class="skip-link" href="#main">${t(locale, 'app.skipToContent')}</a>

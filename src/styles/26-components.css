@@ -28,6 +28,7 @@
 .banner {
   position: relative;
   display: grid;
+  inline-size: 100%;
   align-content: end;
   gap: var(--space-1);
   /* Кадр 16:9. Без этого высоты картинки и заглушки разъезжаются, и
@@ -181,6 +182,9 @@
 .carousel__slides {
   flex: 1;
   min-inline-size: 0;
+  /* Карусель листает transform'ом; без обрезки её широкий ряд карточек
+     вылезал за страницу и давал горизонтальную прокрутку на планшете. */
+  overflow: hidden;
 }
 
 .carousel__circle[hidden] { display: none; }
