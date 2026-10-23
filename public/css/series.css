@@ -53,6 +53,12 @@
   pointer-events: none;
 }
 
+/* Светлая тема: тот же градиент, но белый — иначе тёмное название стоит на
+   тёмном затемнении. Инверсия сохраняет альфу и не вводит новый цвет. */
+[data-theme='light'] .series__scrim {
+  filter: invert(1);
+}
+
 .series__backdrop--placeholder {
   background: var(--surface-sunken);
 }
