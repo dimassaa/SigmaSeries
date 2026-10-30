@@ -1,0 +1,42 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam activity {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam arrowColor black
+
+start
+if (Автор замьючен\nили превышен лимит?) then (да)
+  :Отказ с причиной и сроком;
+  stop
+else (нет)
+endif
+repeat
+  :Нормализация текста:\nNFKC, регистр, гомоглифы,\nповторы, разделители;
+  :Поиск по словарю RU и EN\nавтоматом Ахо — Корасик;
+  if (Есть совпадения\nвне белого списка?) then (нет)
+    :Опубликован;
+    stop
+  else (да)
+    :Помечен: автору предупреждение\nи фрагмент текста;
+  endif
+  if (Дубль открытого\nкластера?) then (да)
+    :Присоединён к кластеру;
+    stop
+  else (нет)
+  endif
+repeat while (Автор исправил текст?\nне чаще раза в 5 минут) is (да)
+-> нет;
+:Очередь редактора;
+:Решение редактора:\nодобрить или запретить;
+if (Одобрено?) then (да)
+  :Опубликован;
+else (нет)
+  :Отклонён, автору причина;
+endif
+stop
+@enduml

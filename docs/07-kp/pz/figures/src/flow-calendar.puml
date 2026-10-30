@@ -1,0 +1,39 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam activity {
+  BackgroundColor white
+  BorderColor black
+}
+skinparam arrowColor black
+
+start
+:Пояс из cookie tz,\nиначе Europe/Minsk;
+:Сегодня посетителя —\nего, а не сервера;
+:Разбор адреса: вид, фильтр,\nмесяц, день — по белому списку;
+if (Фильтр «Мои», а посетитель гость?) then (да)
+  :Приглашение войти\nвместо пустой сетки;
+  stop
+else (нет)
+endif
+:Диапазон: день, неделя или месяц\nне длиннее предела;
+:Выходы видимых сериалов\nза период — один запрос;
+if (Точность «дата и время»?) then (да)
+  :Пересчёт в пояс посетителя:\nдень может смениться;
+else (нет)
+  :День остаётся датой из базы;
+endif
+:Группировка по дням,\nвнутри дня — время, затем название;
+if (В ячейке больше\nтрёх записей?) then (да)
+  :Три записи и «+N»\nсо ссылкой на список дня;
+else (нет)
+endif
+if (Месяц текущий ± 1?) then (да)
+  :Страница индексируется;
+else (нет)
+  :noindex;
+endif
+stop
+@enduml

@@ -1,0 +1,45 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam componentStyle rectangle
+skinparam packageStyle rectangle
+skinparam nodesep 22
+skinparam ranksep 40
+skinparam ArrowFontSize 13
+
+package "Браузер" {
+  [Серверный HTML] as html
+  [Клиентский JS:\nrail, карусель, модальные окна] as js
+}
+
+package "Процесс Node.js (Express)" {
+  [Маршруты\nразбор, проверка прав] as routes
+  [Сервисы\nOP-01…OP-17] as services
+  [Доступ к данным\nSQL, маппинг строк] as data
+  [Шаблоны\nSSR, локализация] as tpl
+  [node-cron\nпять задач] as cron
+}
+
+package "Внешние системы" {
+  [IMDb datasets] as imdb
+  [TMDB API] as tmdb
+  [SMTP-сервер] as smtp
+}
+
+database "PostgreSQL\n71 таблица" as pg
+
+js --> routes : HTTP
+routes --> html
+routes --> services
+services --> data
+data --> pg
+services --> tpl
+tpl --> routes
+cron --> services
+services --> imdb : импорт
+services --> tmdb : импорт
+services --> smtp : письма
+
+@enduml

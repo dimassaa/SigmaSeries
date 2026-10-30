@@ -1,0 +1,41 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam nodesep 26
+skinparam ranksep 34
+hide empty description
+
+state "Нет" as None
+state "Смотрю" as Watching
+state "В планах" as Planned
+state "Просмотрено" as Watched
+state "Брошено" as Dropped
+state "Отложено" as Hold
+
+[*] --> None
+None --> Watching : поставил сам
+None --> Planned : поставил сам
+None --> Watched : поставил сам
+None --> Dropped : поставил сам
+None --> Hold : поставил сам
+
+Watching --> Planned : смена статуса
+Watching --> Watched : смена статуса\nили все серии отмечены
+Watching --> Dropped : смена статуса
+Watching --> Hold : смена статуса
+Watching --> [*] : «убрать из закладок»
+
+Planned --> Watching : смена статуса
+Watched --> Watching : вернулся к сериалу
+Dropped --> Watching : вернулся к сериалу
+Hold --> Watching : вернулся к сериалу
+
+note right of Watching
+  Подписка на выходы включена (auto).
+  У «Смотрю» и «В планах» — включена,
+  у остальных — выключена,
+  если человек не менял её руками.
+end note
+@enduml

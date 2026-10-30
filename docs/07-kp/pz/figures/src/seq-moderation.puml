@@ -1,0 +1,41 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 150
+autonumber
+
+participant "Зритель" as Z
+participant "Маршрут\nPOST /materials" as R
+participant "Moderation\nService" as S
+database "Словарь\n(БД)" as D
+participant "Очередь\nредактора" as Q
+participant "Редактор" as E
+participant "Уведомления" as N
+
+Z -> R : текст материала, серия или тема
+R -> R : сессия, CSRF, лимит частоты
+R -> S : submit(author, text)
+S -> S : нормализация: NFKC,\nгомоглифы, повторы букв
+S -> D : поиск по словарю RU и EN\n(Ахо — Корасик)
+D --> S : совпадения с позициями
+alt совпадений вне белого списка нет
+  S -> S : state = published
+  S --> Z : материал опубликован
+else найдено слово
+  S -> S : state = flagged
+  S --> Z : предупреждение и фрагмент текста
+  S -> Q : кластер по хэшу и SimHash
+  alt кластер уже решён
+    Q --> S : готовое решение кластера
+  else кластер новый
+    E -> Q : одна карточка за раз
+    E -> S : decide(material, verdict)
+    S -> S : state = approved или rejected
+  end
+  S -> N : уведомить автора о решении
+  N --> Z : статус и причина
+end
+@enduml

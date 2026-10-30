@@ -1,0 +1,211 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 200
+skinparam linetype ortho
+skinparam nodesep 18
+skinparam ranksep 26
+skinparam classAttributeIconSize 0
+hide circle
+hide empty methods
+
+entity "e_user\nПользователь" as user {
+  * id : bigint <<PK>>
+  --
+  * email_enc : bytea
+  * email_hmac : bytea <<UQ>>
+  * nickname : varchar(40) <<UQ>>
+  * status : user_status
+  * locale : char(2)
+  * timezone : varchar(40)
+  created_at : timestamptz
+}
+
+entity "e_series\nСериал" as series {
+  * id : bigint <<PK>>
+  --
+  * slug : varchar(160) <<UQ>>
+  * title_ru : varchar(300)
+  title_en : varchar(300)
+  * year_start : smallint
+  year_end : smallint
+  * release_state : series_state
+  is_archived : boolean
+  * catalog_version : integer
+}
+
+entity "e_season\nСезон" as season {
+  * id : bigint <<PK>>
+  --
+  # series_id : bigint <<FK>>
+  * number : smallint
+  title_ru : varchar(200)
+}
+
+entity "e_episode\nСерия" as episode {
+  * id : bigint <<PK>>
+  --
+  # season_id : bigint <<FK>>
+  * number : smallint
+  title_ru : varchar(200)
+  duration_min : smallint
+}
+
+entity "e_release\nВыход" as release {
+  * id : bigint <<PK>>
+  --
+  # episode_id : bigint <<FK, NULL>>
+  # season_id : bigint <<FK, NULL>>
+  * release_date : date
+  release_time : time
+  * precision : date_precision
+  * state : release_state
+}
+
+entity "e_genre\nЖанр" as genre {
+  * id : smallint <<PK>>
+  --
+  * code : varchar(40) <<UQ>>
+  * title_ru : varchar(80)
+}
+
+entity "e_series_genre\nСериал-жанр" as series_genre {
+  # series_id : bigint <<FK>>
+  # genre_id : smallint <<FK>>
+  --
+  * weight : smallint
+}
+
+entity "e_person\nПерсона" as person {
+  * id : bigint <<PK>>
+  --
+  * slug : varchar(160) <<UQ>>
+  * name_ru : varchar(200)
+  * kind : person_kind
+}
+
+entity "e_series_person\nСериал-персона" as series_person {
+  # series_id : bigint <<FK>>
+  # person_id : bigint <<FK>>
+  --
+  * role : person_role
+  * ord : smallint
+}
+
+entity "e_image\nИзображение" as image {
+  * id : bigint <<PK>>
+  --
+  # series_id : bigint <<FK, NULL>>
+  * role : image_role
+  * mime : varchar(32)
+  * width : smallint
+  * height : smallint
+  * bytes : bytea
+  focus_x : smallint
+  focus_y : smallint
+}
+
+entity "e_watch_status\nСтатус просмотра" as watch_status {
+  # user_id : bigint <<FK>>
+  # series_id : bigint <<FK>>
+  --
+  * state : watch_state
+  * source : status_source
+  * changed_at : timestamptz
+}
+
+entity "e_watch_mark\nОтметка серии" as watch_mark {
+  # user_id : bigint <<FK>>
+  # episode_id : bigint <<FK>>
+  --
+  * marked_at : timestamptz
+  * precision : mark_precision
+  # batch_id : bigint <<FK, NULL>>
+}
+
+entity "e_progress\nПрогресс" as progress {
+  # user_id : bigint <<FK>>
+  # series_id : bigint <<FK>>
+  --
+  * watched_count : smallint
+  * last_episode_id : bigint <<FK, NULL>>
+  * recalculated_at : timestamptz
+}
+
+entity "e_subscription\nПодписка" as subscription {
+  # user_id : bigint <<FK>>
+  # series_id : bigint <<FK>>
+  --
+  * kind : subscription_kind
+  * source : subscription_source
+  * enabled : boolean
+}
+
+entity "e_notification\nУведомление" as notification {
+  * id : bigint <<PK>>
+  --
+  # user_id : bigint <<FK>>
+  * kind : notification_kind
+  * payload : jsonb
+  * dedup_key : text <<UQ>>
+  * read_at : timestamptz
+}
+
+entity "e_rating\nОценка" as rating {
+  * id : bigint <<PK>>
+  --
+  # user_id : bigint <<FK>>
+  # series_id : bigint <<FK>>
+  # episode_id : bigint <<FK, NULL>>
+  * value : smallint
+  * is_demo : boolean
+}
+
+entity "e_material\nМатериал" as material {
+  * id : bigint <<PK>>
+  --
+  # author_id : bigint <<FK>>
+  # series_id : bigint <<FK, NULL>>
+  * kind : material_kind
+  * body : text
+  * state : material_state
+  * version : integer
+}
+
+entity "e_audit_log\nЖурнал аудита" as audit {
+  * id : bigint <<PK>>
+  --
+  # actor_id : bigint <<FK, NULL>>
+  * action : varchar(60)
+  * object_type : varchar(40)
+  * object_id : bigint
+  * result : audit_result
+  * at : timestamptz
+}
+
+series ||--o{ season : "1:N"
+season ||--o{ episode : "1:N"
+episode ||--o{ release : "1:N"
+season ||--o{ release : "0..1:N"
+series ||--o{ series_genre
+genre ||--o{ series_genre
+series ||--o{ series_person
+person ||--o{ series_person
+series ||--o{ image : "0..1:N"
+series ||--o{ watch_status
+user ||--o{ watch_status
+episode ||--o{ watch_mark
+user ||--o{ watch_mark
+series ||--o{ progress
+user ||--o{ progress
+series ||--o{ subscription
+user ||--o{ subscription
+user ||--o{ notification
+series ||--o{ rating
+user ||--o{ rating
+series ||--o{ material
+user ||--o{ material : "автор"
+user ||--o{ audit : "актор"
+
+@enduml

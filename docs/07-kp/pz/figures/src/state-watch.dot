@@ -1,0 +1,38 @@
+digraph watch {
+  rankdir=LR;
+  splines=true;
+  nodesep=0.45;
+  ranksep=1.1;
+  node [shape=box, style="rounded", fontname="DejaVu Sans", fontsize=11,
+        margin="0.14,0.07", penwidth=1.0];
+  edge [fontname="DejaVu Sans", fontsize=9, arrowsize=0.7, penwidth=0.9];
+
+  start [shape=circle, label="", width=0.18, style=filled, fillcolor=black];
+  None [label="Нет"];
+  Watching [label="Смотрю"];
+  Planned [label="В планах"];
+  Watched [label="Просмотрено"];
+  Dropped [label="Брошено"];
+  Hold [label="Отложено"];
+  end [shape=doublecircle, label="", width=0.18];
+  note [shape=note, style="dashed", fontsize=9, label="Снять статус можно\nиз любого состояния"];
+  end -> note [style="dashed", arrowhead=none, penwidth=0.6];
+
+  start -> None;
+  None -> Watching [label="поставил сам"];
+  None -> Planned [label="поставил сам"];
+  None -> Watched [label="поставил сам"];
+  None -> Dropped [label="поставил сам"];
+  None -> Hold [label="поставил сам"];
+
+  Watching -> Planned [label="смена статуса"];
+  Watching -> Watched [label="смена статуса /\nвсе серии отмечены"];
+  Watching -> Dropped [label="смена статуса"];
+  Watching -> Hold [label="смена статуса"];
+  Watching -> end [label="снять статус"];
+
+  Planned -> Watching [label="смена статуса"];
+  Watched -> Watching [label="вернулся\nк сериалу"];
+  Dropped -> Watching [label="вернулся\nк сериалу"];
+  Hold -> Watching [label="вернулся\nк сериалу"];
+}

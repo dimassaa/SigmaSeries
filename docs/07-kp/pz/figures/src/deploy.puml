@@ -1,0 +1,42 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam nodesep 30
+skinparam ranksep 40
+skinparam componentStyle rectangle
+
+node "Рабочая станция\nWindows 10+, браузер" as ws {
+  artifact "HTML, CSS, JS\n(без сборщика)" as browser
+}
+
+node "Сервер приложения\nWindows 10+, Node.js 22" as app {
+  artifact "server.js\nExpress 5" as server
+  artifact "src/services\nбизнес-логика" as svc
+  artifact "templates\nSSR" as tpl
+  artifact "public/css\nсобранные таблицы" as css
+  artifact "node-cron\nрасписание" as cron
+}
+
+node "СУБД\nPostgreSQL 16" as db {
+  database "sigma\n71 таблица" as schema
+}
+
+node "Почтовый сервер" as mail {
+  artifact "SMTP" as smtp
+}
+
+cloud "IMDb / TMDB" as src {
+  artifact "датасеты и API" as files
+}
+
+browser --> server : HTTPS :443
+server --> svc
+server --> tpl
+server --> css
+cron --> svc
+svc --> schema : TCP :5432
+svc --> smtp : SMTP :25/587
+svc --> files : HTTPS
+@enduml

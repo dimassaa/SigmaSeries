@@ -1,0 +1,125 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam linetype ortho
+skinparam nodesep 22
+skinparam ranksep 30
+skinparam classAttributeIconSize 0
+hide circle
+hide empty methods
+
+entity "e_series\nСериал" as series {
+  * id : bigint <<PK>>
+  --
+  * slug : text <<UQ>>
+  title_ru : text
+  title_en : text
+  * title_original : text
+  year_start : integer
+  year_end : integer
+  * exit_state : text
+  * publication_state : text
+}
+
+entity "e_season\nСезон" as season {
+  * id : bigint <<PK>>
+  --
+  # series_id : bigint <<FK>>
+  * number : integer
+  title_ru : text
+}
+
+entity "e_episode\nСерия" as episode {
+  * id : bigint <<PK>>
+  --
+  # season_id : bigint <<FK>>
+  * number : integer
+  title_ru : text
+  runtime_min : integer
+}
+
+entity "e_release\nВыход" as release {
+  * id : bigint <<PK>>
+  --
+  # season_id : bigint <<FK>>
+  * covers_season : boolean
+  * release_date : date
+  release_time : time
+  * precision : text
+  * state : text
+  locked : boolean
+}
+
+entity "e_release_episode\nСостав выхода" as release_episode {
+  # release_id : bigint <<FK, PK>>
+  # episode_id : bigint <<FK, PK>>
+}
+
+entity "e_genre\nЖанр" as genre {
+  * code : text <<PK>>
+  --
+  * name_ru : text
+  * name_en : text
+  active : boolean
+}
+
+entity "e_series_genre\nСериал-жанр" as series_genre {
+  # series_id : bigint <<FK, PK>>
+  # genre_code : text <<FK, PK>>
+}
+
+entity "e_person\nПерсона" as person {
+  * id : bigint <<PK>>
+  --
+  * slug : text <<UQ>>
+  * name : text
+  * kind : text
+  birth_year : integer
+}
+
+entity "e_series_person\nСериал-персона" as series_person {
+  # series_id : bigint <<FK, PK>>
+  # person_id : bigint <<FK, PK>>
+  # role : text <<PK>>
+  * ordinal : integer
+}
+
+entity "e_image\nИзображение" as image {
+  * id : bigint <<PK>>
+  --
+  # series_id : bigint <<FK, NULL>>
+  * role : text
+  * mime : text
+  * width : integer
+  * height : integer
+  file : bytea
+  focal_x : numeric(4,3)
+  focal_y : numeric(4,3)
+}
+
+entity "e_external_rating\nВнешний рейтинг" as ext_rating {
+  * id : bigint <<PK>>
+  --
+  # series_id : bigint <<FK>>
+  * platform : text
+  value : numeric(3,1)
+  * scale_max : numeric(4,1)
+  votes : integer
+  * measured_on : date
+}
+
+series ||--o{ season
+season ||--o{ episode
+season ||--o{ release
+release ||--o{ release_episode
+episode ||--o{ release_episode
+series ||--o{ series_genre
+genre ||--o{ series_genre
+series ||--o{ series_person
+person ||--o{ series_person
+series ||--o{ image
+series ||--o{ ext_rating
+
+@enduml

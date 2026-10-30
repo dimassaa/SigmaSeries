@@ -1,0 +1,108 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam linetype ortho
+skinparam nodesep 18
+skinparam ranksep 30
+skinparam classAttributeIconSize 0
+skinparam class {
+  BackgroundColor white
+  BorderColor black
+}
+hide circle
+hide empty members
+top to bottom direction
+
+package "Маршруты" {
+  class CatalogController {
+    + index(query)
+    + show(slug)
+  }
+  class TrackingController {
+    + mark(episodeId, on)
+    + status(seriesId, state)
+  }
+  class CalendarController {
+    + month(month, filter)
+    + day(date)
+  }
+  class ModerationController {
+    + queue(page)
+    + decide(materialId, verdict)
+  }
+}
+
+package "Сервисы" {
+  class CatalogService {
+    + search(filter)
+    + publish(seriesId)
+  }
+  class TrackingService {
+    + setMark(user, episode, on)
+    + setStatus(user, series, state)
+  }
+  class CalendarService {
+    + build(user, range, tz)
+  }
+  class ModerationService {
+    + check(text)
+    + decide(material, verdict)
+  }
+  class NotificationService {
+    + notify(event)
+  }
+}
+
+package "Доступ к данным" {
+  class SeriesRepository {
+    + findBySlug(slug)
+    + search(filter)
+  }
+  class WatchRepository {
+    + marks(user, series)
+    + progress(user, series)
+  }
+  class MaterialRepository {
+    + queue(limit)
+    + save(material)
+  }
+}
+
+package "Сущности" {
+  class Series {
+    - slug
+    - exitState
+    + isAiring()
+  }
+  class WatchStatus {
+    - state
+    - source
+    + change(state)
+  }
+  class Material {
+    - state
+    - version
+    + canPublish()
+  }
+}
+
+CatalogController --> CatalogService
+TrackingController --> TrackingService
+CalendarController --> CalendarService
+ModerationController --> ModerationService
+
+CatalogService --> SeriesRepository
+TrackingService --> WatchRepository
+CalendarService --> WatchRepository
+CalendarService --> SeriesRepository
+ModerationService --> MaterialRepository
+TrackingService --> NotificationService
+ModerationService --> NotificationService
+
+SeriesRepository --> Series
+WatchRepository --> WatchStatus
+MaterialRepository --> Material
+
+@enduml

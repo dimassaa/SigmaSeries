@@ -1,0 +1,30 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam sequenceMessageAlign left
+skinparam maxMessageSize 150
+autonumber
+
+participant "Зритель" as Z
+participant "Маршрут\nPOST /series/{slug}/mark" as R
+participant "Отметки" as M
+participant "Прогресс" as P
+participant "Статус" as S
+
+Z -> R : csrf, episodeId, on
+R -> R : сессия? CSRF? лимит частоты?
+R -> M : setMark(episodeId, on)
+M -> M : серия существует и видна?
+M -> M : дата выхода ≤ сегодня?
+alt серия ещё не вышла
+  M --> Z : 303 и дата выхода
+else серия вышла
+  M -> M : INSERT или DELETE отметки
+  M -> P : пересчёт прогресса
+  P -> P : запись в кэш e_progress
+  M -> S : статус по H-69,\nесли источник не ручной
+  M --> Z : 303 на страницу сериала
+end
+@enduml

@@ -1,0 +1,39 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam nodesep 26
+skinparam ranksep 30
+hide empty description
+
+state "Черновик" as Draft
+state "Проверка" as Checking
+state "Опубликован" as Published
+state "Помечен,\nждёт редактора" as Flagged
+state "Отклонён" as Rejected
+state "Скрыт,\nавтор заблокирован" as Hidden
+state "Удалён" as Deleted
+
+[*] --> Draft : автор начал материал
+Draft --> Checking : автор отправил
+Checking --> Published : слов из словаря нет
+Checking --> Flagged : найдено слово
+Flagged --> Published : редактор одобрил
+Flagged --> Rejected : редактор запретил
+Flagged --> Checking : автор исправил,\nне чаще раза в 5 минут
+Published --> Checking : автор правит
+Published --> Flagged : жалобы выше порога
+Published --> Deleted : автор или редактор удалил
+Published --> Hidden : бан с флажком\n«скрыть материалы»
+Hidden --> Published : разбан
+Hidden --> Deleted : админ удалил
+Rejected --> Deleted : срок хранения истёк
+Deleted --> [*]
+
+note right of Flagged
+  Решение по кластеру
+  применяется ко всем
+  его материалам
+end note
+@enduml

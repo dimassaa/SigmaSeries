@@ -14,6 +14,9 @@ docs/_packs/
 # Зависимости будущего приложения.
 node_modules/
 
+# Байт-код Python-инструментов (tools/figures, tools/idef0).
+__pycache__/
+
 .DS_Store
 *.log
 

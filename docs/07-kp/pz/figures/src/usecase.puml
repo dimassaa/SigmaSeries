@@ -1,0 +1,67 @@
+@startuml
+skinparam monochrome true
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam nodesep 16
+skinparam ranksep 30
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor white
+  BorderColor black
+}
+
+actor "Гость" as guest
+actor "Зритель" as viewer
+actor "Редактор" as editor
+actor "Администратор" as admin
+actor "Аналитик" as analyst
+
+viewer --|> guest
+
+rectangle "Сервис SigmaSeries" {
+  usecase "Просмотреть каталог" as UC1
+  usecase "Найти сериал\nпо фильтрам" as UC2
+  usecase "Открыть карточку\nсериала" as UC3
+  usecase "Посмотреть календарь\nвыходов" as UC4
+  usecase "Отметить серию\nпросмотренной" as UC5
+  usecase "Задать статус\nсериала" as UC6
+  usecase "Подписаться\nна выходы" as UC7
+  usecase "Получить\nуведомление" as UC8
+  usecase "Поставить оценку" as UC9
+  usecase "Написать отзыв\nили комментарий" as UC10
+  usecase "Пожаловаться\nна материал" as UC11
+  usecase "Проверить материал\nпо словарю" as UC12
+  usecase "Принять решение\nпо материалу" as UC13
+  usecase "Управлять словарём\nпроверки" as UC14
+  usecase "Заблокировать\nпользователя" as UC15
+  usecase "Запустить импорт\nкаталога" as UC16
+  usecase "Посмотреть отчёты\nи статистику" as UC17
+  usecase "Настроить профиль\nи 2FA" as UC18
+}
+
+guest --> UC1
+guest --> UC2
+guest --> UC3
+guest --> UC4
+
+viewer --> UC5
+viewer --> UC6
+viewer --> UC7
+viewer --> UC8
+viewer --> UC9
+viewer --> UC10
+viewer --> UC11
+viewer --> UC18
+
+editor --> UC12
+editor --> UC13
+editor --> UC14
+
+admin --> UC14
+admin --> UC15
+admin --> UC16
+
+analyst --> UC17
+
+@enduml

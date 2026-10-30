@@ -1,0 +1,86 @@
+@startuml
+skinparam monochrome true
+left to right direction
+skinparam shadowing false
+skinparam defaultFontName "DejaVu Sans"
+skinparam dpi 160
+skinparam linetype ortho
+skinparam nodesep 20
+skinparam ranksep 28
+skinparam classAttributeIconSize 0
+hide circle
+hide empty methods
+
+entity "e_user\nПользователь" as user {
+  * id : bigint <<PK>>
+  --
+  * nickname : text
+  * status : text
+  * locale : text
+  * timezone : text
+  * email_confirmed : boolean
+  registered_at : timestamptz
+}
+
+entity "e_rating\nОценка" as rating {
+  # user_id : bigint <<FK>>
+  # series_id : bigint <<FK>>
+  # episode_id : bigint <<FK, NULL>>
+  --
+  * object_type : text
+  * value : smallint
+  * counted : boolean
+  * is_demo : boolean
+  * updated_at : timestamptz
+}
+
+entity "e_material\nМатериал" as material {
+  * id : bigint <<PK>>
+  --
+  # author_id : bigint <<FK>>
+  # series_id : bigint <<FK, NULL>>
+  * kind : text
+  * state : text
+  * version : integer
+  * submitted_at : timestamptz
+}
+
+entity "e_editor_decision\nРешение редактора" as decision {
+  * id : bigint <<PK>>
+  --
+  # material_id : bigint <<FK>>
+  # editor_id : bigint <<FK>>
+  # cluster_id : bigint <<FK, NULL>>
+  * decision : text
+  * reason : text
+  matched_word : text
+  * decided_at : timestamptz
+}
+
+entity "e_moderation_cluster\nКластер дублей" as cluster {
+  * id : bigint <<PK>>
+  --
+  * signature : text <<UQ>>
+  decision : text
+  applied : boolean
+}
+
+entity "e_audit_log\nЖурнал аудита" as audit {
+  * id : bigint <<PK>>
+  --
+  # actor_id : bigint <<FK, NULL>>
+  * at : timestamptz
+  * action : text
+  * object_type : text
+  object_id : bigint
+  * result : text
+}
+
+user ||--o{ rating
+user ||--o{ material
+material ||--o{ decision
+user ||--o{ decision : "редактор"
+cluster ||--o{ decision
+user ||--o{ audit
+
+@enduml
