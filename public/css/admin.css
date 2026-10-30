@@ -288,7 +288,134 @@
 
 .admin-overview__facts dt { color: var(--text-secondary); }
 
-/* --- Резервные копии (S-82) --- */
+/* --- Здоровье системы (S-82) --- */
+
+.admin-health__title { margin-block-end: var(--space-3); }
+
+.admin-health__lead { color: var(--text-secondary); margin-block-end: var(--space-6); }
+
+.admin-health__list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  margin-block-end: var(--space-6);
+}
+
+.admin-health__row {
+  display: grid;
+  grid-template-columns: minmax(7rem, auto) minmax(8rem, 1fr) auto minmax(12rem, 2fr) auto;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-inline-start: 4px solid var(--border-strong);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+/* Проблема видна и словом, и полосой: цвет здесь не единственный носитель
+   состояния (R-DES-09). */
+.admin-health__row--problem { border-inline-start-color: var(--danger); }
+.admin-health__row--warning { border-inline-start-color: var(--warning); }
+.admin-health__row--unknown { border-inline-start-style: dashed; }
+
+.admin-health__state {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+  text-transform: lowercase;
+}
+
+.admin-health__row--problem .admin-health__state { color: var(--danger); }
+.admin-health__row--warning .admin-health__state { color: var(--warning); }
+.admin-health__row--ok .admin-health__state { color: var(--positive); }
+
+.admin-health__label { font-weight: 500; }
+
+.admin-health__value {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.admin-health__text { color: var(--text-secondary); }
+
+.admin-health__link { color: var(--accent); white-space: nowrap; }
+
+.admin-health__row[data-health-focus]:focus {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.admin-health__verify {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  margin-block-end: var(--space-6);
+}
+
+.admin-health__hint { color: var(--text-secondary); font-size: var(--text-sm); }
+
+.admin-health__section-title { font-size: var(--text-lg); margin-block-end: var(--space-3); }
+
+.admin-health__chart { margin-block-end: var(--space-3); }
+
+.admin-health__chart summary { cursor: pointer; padding-block: var(--space-2); }
+
+.admin-health__table {
+  inline-size: 100%;
+  border-collapse: collapse;
+  text-align: start;
+}
+
+.admin-health__table th,
+.admin-health__table td {
+  padding: var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+  text-align: start;
+  vertical-align: middle;
+}
+
+.admin-health__table thead th {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  font-weight: 500;
+}
+
+.admin-health__route {
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+
+.admin-health__table-wrap { overflow-x: auto; }
+
+.admin-health__task-error {
+  color: var(--danger);
+  overflow-wrap: anywhere;
+}
+
+.admin-health__bar { inline-size: 100%; accent-color: var(--accent); }
+
+.admin-health__skeleton-row {
+  display: block;
+  block-size: 3.5rem;
+  margin-block-end: var(--space-3);
+  border-radius: var(--radius-md);
+  background: var(--surface-raised);
+}
+
+@media (max-width: 640px) {
+  .admin-health__row {
+    grid-template-columns: auto 1fr;
+  }
+
+  .admin-health__value { grid-column: 2; }
+  .admin-health__text { grid-column: 1 / -1; }
+  .admin-health__link { grid-column: 1 / -1; }
+}
+
+/* --- Резервные копии (S-83) --- */
 
 .admin-backups__title { margin-block-end: var(--space-4); }
 
@@ -320,7 +447,7 @@
 .admin-backups__size,
 .admin-backups__checked { color: var(--text-secondary); white-space: nowrap; }
 
-/* --- Настройки системы (S-83) --- */
+/* --- Настройки системы (S-85) --- */
 
 .admin-settings__title { margin-block-end: var(--space-3); }
 

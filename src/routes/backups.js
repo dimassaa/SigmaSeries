@@ -1,4 +1,4 @@
-// Резервные копии: журнал, расписание и ручной запуск (F-09-04, S-82).
+// Резервные копии: журнал, расписание и ручной запуск (F-09-04, S-83).
 //
 // Статус копии важнее её размера: «проверена» означает, что копию на самом
 // деле восстановили во временную базу и она ответила (F-09-04 §8а). Ротация
@@ -61,8 +61,19 @@ export function createBackupRoutes({
     }
   });
 
-  router.post(`/:locale${BASE}/run`, adminOnly, async (req, res, next) => {
-    const { locale } = req.params;
+  /**
+   * Общий запуск копии: ручной запуск и проверка восстановления делают одно
+   * и то же — снимок с фактическим восстановлением. Разные только запись в
+   * аудите и адрес возврата: кнопка на S-82 возвращает на S-82.
+   *
+   * @param {import('express').Request} req
+   * @param {import('express').Response} res
+   * @param {import('express').NextFunction} next
+   * @param {{action: string, returnParam: boolean}} options
+   * @returns {Promise<any>}
+   */
+  async function runCopy(req, res, next, { action, returnParam }) {
+    const locale = String(req.params.locale ?? '');
     if (!isLocale(locale)) return next('route');
 
     const body = req.body ?? {};
@@ -80,19 +91,30 @@ export function createBackupRoutes({
       if (audit) {
         await audit.write({
           actorId: req.session.user.id,
-          action: 'backup.run',
+          action,
           objectType: 'backup',
           objectId: null,
           result: result?.status === 'verified' ? 'ok' : 'error',
           reason: `status=${result?.status ?? 'unknown'}; bytes=${result?.bytes ?? 0}`,
         });
       }
-      const back = `/${locale}${BASE}`;
+      const back = returnParam && body.return === 'health'
+        ? `/${locale}/admin/health`
+        : `/${locale}${BASE}`;
       return res.status(303).set('Location', back).end();
     } catch (error) {
       return next(error);
     }
-  });
+  }
+
+  router.post(`/:locale${BASE}/run`, adminOnly, (req, res, next) => (
+    runCopy(req, res, next, { action: 'backup.run', returnParam: false })
+  ));
+
+  // Кнопка «проверить восстановление» прямо на S-82 (F-09-06 §8г).
+  router.post(`/:locale${BASE}/verify`, adminOnly, (req, res, next) => (
+    runCopy(req, res, next, { action: 'backup.verify', returnParam: true })
+  ));
 
   return router;
 }

@@ -1353,6 +1353,15 @@
     }
   }
 
+  // Фокальная точка S-82 — первая проблема, а не первая строка. Сервер
+  // помечает её data-атрибутом; фокус переносим без прокрутки, чтобы
+  // человек не терял место, с которого начал читать.
+  function initHealthFocus() {
+    var target = document.querySelector('.admin-health [data-health-focus]');
+    if (!target || window.location.hash) return;
+    target.focus({ preventScroll: true });
+  }
+
   function boot() {
     var path = location.pathname;
     initTimezone();
@@ -1372,6 +1381,7 @@
     initReviewReports();
     initBulk();
     initConfirmations();
+    initHealthFocus();
     initCarousel();
     initMarquee();
     initSplash();

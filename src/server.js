@@ -31,6 +31,8 @@ import { pgAnomalySensor } from './services/rating/anomalies.js';
 import { pgModerationBudget } from './services/moderation/budget.js';
 import { loadSettings } from './services/settings.js';
 import { pgSystemHealth } from './services/admin/health.js';
+import { createRequestMetrics } from './services/admin/metrics.js';
+import { createTaskRegistry } from './services/admin/tasks.js';
 import { pgStudioCatalogue } from './services/studio/catalogue.js';
 import { pgEditorialPicks } from './services/studio/picks.js';
 import { pgStudioCard } from './services/studio/card.js';
@@ -111,6 +113,9 @@ if (missing.length) {
 
 const baseUrl = `http://${HOST}:${PORT}`;
 const journal = createJournal();
+// Реестр задач нужен уже баннерам: S-82 показывает последний результат
+// каждого работника, а не только тех, что запускаются после создания экрана.
+const taskRegistry = createTaskRegistry();
 const mailer = consoleMailer();
 
 // Такт работника уведомлений: раз в час (F-03-08 §3(а)). Отдельного ключа в
@@ -187,35 +192,47 @@ async function refreshBanners() {
 
 // Проверка раз в минуту: час смены даты наступает один раз в сутки, и
 // сравнение дешевле, чем пересчёт по расписанию.
-const bannerWorker = setInterval(() => {
+const bannerTick = taskRegistry.wrap('banners', async () => {
   const date = localDate();
   const hour = new Date().getHours();
-  const settings = homeSettings(pool).then((values) => {
-    if (hour !== values.reloadHour) return null;
-    if (bannerDay === date) return null;
-    return bannerSelection.recompute({ date, settings: values })
-      .then((picked) => {
-        bannerDay = date;
-        console.log(`[баннеры] ${date}: ${picked.length} мест занято`);
-      });
-  });
-  settings.catch((e) => console.error(`[баннеры] ${e.message}`));
+  const settings = await homeSettings(pool);
+  if (hour !== settings.reloadHour) return;
+  if (bannerDay === date) return;
+  const picked = await bannerSelection.recompute({ date, settings });
+  bannerDay = date;
+  console.log(`[баннеры] ${date}: ${picked.length} мест занято`);
+});
+const bannerWorker = setInterval(() => {
+  bannerTick().catch((e) => console.error(`[баннеры] ${e.message}`));
 }, 60_000);
 bannerWorker.unref();
-refreshBanners().catch((e) => console.error(`[баннеры] ${e.message}`));
+const initialBanners = taskRegistry.wrap('banners', refreshBanners);
+initialBanners().catch((e) => console.error(`[баннеры] ${e.message}`));
+
+// Здоровье системы (F-09-06): метрики запросов, задачи и очередь модерации
+// живут в одном процессе и передаются экрану S-82. Создаются до воркеров,
+// потому что воркеры пишут в реестр задач, а экран читает их результат.
+const moderationBudget = pgModerationBudget(pool);
+const backups = pgBackupJobs(pool);
+const systemMetrics = createRequestMetrics();
+const systemHealth = pgSystemHealth(pool, {
+  metrics: systemMetrics,
+  tasks: taskRegistry,
+  budget: moderationBudget,
+  backups,
+});
 
 // Число людей в сети: раз в час считается и пишется в базу (F-09-05).
 // Пропущенный час — разрыв, а не ноль.
-const systemHealth = pgSystemHealth(pool);
+const sampleOnline = taskRegistry.wrap('online', () => systemHealth.sample());
 const onlineWorker = setInterval(() => {
-  systemHealth.sample().catch((e) => console.error(`[онлайн] ${e.message}`));
+  sampleOnline().catch((e) => console.error(`[онлайн] ${e.message}`));
 }, 60 * 60_000);
 onlineWorker.unref();
 // Первый замер — сразу: час пустого ряда перед первым значением был бы
 // разрывом, которого никто не видел бы.
-systemHealth.sample().catch((e) => console.error(`[онлайн] ${e.message}`));
+sampleOnline().catch((e) => console.error(`[онлайн] ${e.message}`));
 
-const moderationBudget = pgModerationBudget(pool);
 const auth = pgAuthStore(pool);
 
 // Очередь хеширования пароля (EC-A16, F-01-11 §8б): не больше двух
@@ -253,7 +270,8 @@ const notificationSweep = createNotificationSweep({
   log: (line) => console.log(line),
 });
 
-const sweepNotifications = () => notificationSweep.run()
+const notificationsTask = taskRegistry.wrap('notifications', () => notificationSweep.run());
+const sweepNotifications = () => notificationsTask()
   .catch((error) => console.error(`[уведомления] ${error.message}`));
 
 const notificationWorker = setInterval(sweepNotifications, NOTIFY_SWEEP_MS);
@@ -263,12 +281,13 @@ sweepNotifications();
 
 // Приглашение к персональным итогам (M7, F-07-01 §3): раз в год, и только
 // тем, у кого уже есть точные отметки и кто ещё не получал приглашения.
+const recapTask = taskRegistry.wrap('recap', () => runRecapInvites(pool));
 const recapInviteWorker = setInterval(() => {
-  runRecapInvites(pool).catch(() => {});
+  recapTask().catch(() => {});
 }, 24 * HOUR);
 recapInviteWorker.unref();
 
-runRecapInvites(pool).catch(() => {});
+recapTask().catch(() => {});
 
 // Оценки аккаунтов, дожидающих возраста, вводятся в агрегат (EC-V4), и тем же
 // ежечасным проходом пересчитывается среднее по сайту C (F-04-03): C — среднее
@@ -297,19 +316,19 @@ const refreshSite = () => ratings.refreshSiteAverage(new Date())
 const scanAnomalies = () => anomalies.scan(new Date())
   .then((found) => {
     if (found) console.log(`[аномалии] открыто событий: ${found}`);
-  })
-  .catch((error) => console.error(`[аномалии] ${error.message}`));
+  });
 
 /** Ежечасная работа с оценками: дозревание, среднее по сайту C, датчик аномалий. */
-const hourlyRatings = () => countMatured()
+const hourlyRatings = taskRegistry.wrap('ratings', () => countMatured()
   .then(refreshSite)
-  .then(scanAnomalies)
+  .then(scanAnomalies));
+const runHourlyRatings = () => hourlyRatings()
   .catch((error) => console.error(`[оценки] ${error.message}`));
 
-const maturedWorker = setInterval(hourlyRatings, NOTIFY_SWEEP_MS);
+const maturedWorker = setInterval(runHourlyRatings, NOTIFY_SWEEP_MS);
 maturedWorker.unref();
 
-hourlyRatings();
+runHourlyRatings();
 
 const app = createApp({
   data: pgData(pool, { recommendations }),
@@ -375,14 +394,16 @@ const app = createApp({
   studioImages: pgStudioImages(pool),
   picks: pgEditorialPicks(pool),
   adminUsers: pgAdminUsers(pool),
-  adminOverview: pgAdminOverview(pool, { backups: pgBackupJobs(pool), health: systemHealth }),
-  backups: pgBackupJobs(pool),
+  adminOverview: pgAdminOverview(pool, { backups, health: systemHealth }),
+  adminHealth: systemHealth,
+  metrics: systemMetrics,
+  backups,
   backupSchedule: () => readSchedule(pool),
   // Ручной запуск копии: тот же снимок, что и по расписанию, с проверкой
   // восстановления во временную базу (F-09-04 §8а).
   backupRunner: async () => {
     const result = await createSnapshotBackup({ pool, keepFile: true });
-    await pgBackupJobs(pool).record({
+    await backups.record({
       status: result.status,
       sizeBytes: result.bytes,
       filePath: result.file ?? null,
@@ -432,16 +453,16 @@ const app = createApp({
 // «пора ли» — раз в четверть часа, сама копия снимается только когда назначенный
 // час прошёл, а копии за сегодня ещё нет. Так сервер, поднятый после обеда,
 // всё равно сделает копию за день: пропущенная копия хуже поздней.
-const backups = pgBackupJobs(pool);
 const backupTask = createBackupTask({
   pool, backups, log: (line) => console.log(line),
 });
 
-const backupTick = () => backupTask.due()
-  .then((due) => (due ? backupTask.run() : null))
+const backupTick = taskRegistry.wrap('backup', () => backupTask.due()
+  .then((due) => (due ? backupTask.run() : null)));
+const runBackupTick = () => backupTick()
   .catch((error) => console.error(`[копия] ${error.message}`));
 
-const backupWorker = setInterval(backupTick, BACKUP_TICK_MS);
+const backupWorker = setInterval(runBackupTick, BACKUP_TICK_MS);
 backupWorker.unref();
 
 // Первой проверки сразу при старте здесь нет, в отличие от задач уведомлений и
@@ -465,8 +486,9 @@ const server = app.listen(PORT, HOST, async () => {
 // «Осторожный» режим модерации (F-05-03): доля помеченных пересчитывается
 // по расписанию. Решение о режиме принимает система, а не сама отправка
 // материала: иначе решение зависело бы от того, кто отправил последним.
+const moderationTask = taskRegistry.wrap('moderation', () => moderationBudget.refresh());
 const moderationWorker = setInterval(() => {
-  moderationBudget.refresh()
+  moderationTask()
     .then((state) => {
       if (state.cautious) {
         console.log(`[модерация] осторожный режим: помечено ${state.flagged} из ${state.total}`);
@@ -475,13 +497,14 @@ const moderationWorker = setInterval(() => {
     .catch((e) => console.error(`[модерация] ${e.message}`));
 }, 60_000);
 moderationWorker.unref();
-moderationBudget.refresh().catch((e) => console.error(`[модерация] ${e.message}`));
+moderationTask().catch((e) => console.error(`[модерация] ${e.message}`));
 
 // Работник очереди писем. Запускается вместе с сервером, а не по требованию:
 // письмо, поставленное в очередь, должно уйти и тогда, когда никто не
 // открывает страницу.
+const mailTask = taskRegistry.wrap('mail', () => mailQueue.processDue());
 const worker = setInterval(() => {
-  mailQueue.processDue().catch((e) => {
+  mailTask().catch((e) => {
     console.error(`[mail] ${e.message}`);
   });
 }, MAIL_SETTINGS.tickMs);
@@ -493,11 +516,13 @@ worker.unref();
 // где можно забыть про срок. Сразу при старте, а не через первый интервал:
 // сервер мог быть выключен в день срока, и ждать ещё четверти часа значило бы
 // держать чужие данные в рабочем виде (EC-A17).
+const deletionTask = taskRegistry.wrap('deletion', () => runDeletionSweep({ auth, journal }));
+const unverifiedTask = taskRegistry.wrap('unverified', () => runUnverifiedSweep({ auth, journal }));
 const anonymize = () => {
-  runDeletionSweep({ auth, journal }).catch((e) => {
+  deletionTask().catch((e) => {
     console.error(`[удаление] ${e.message}`);
   });
-  runUnverifiedSweep({ auth, journal }).catch((e) => {
+  unverifiedTask().catch((e) => {
     console.error(`[неподтверждённый] ${e.message}`);
   });
 };
@@ -509,21 +534,26 @@ anonymize();
 
 // Сборка выгрузок (F-01-10 §4). Тоже сразу при старте: заказ, сделанный, пока
 // сервер был выключен, иначе ждал бы минуту после каждого перезапуска.
+const purgeTask = taskRegistry.wrap('mail_purge', () => mailQueue.purge());
 const purgeWorker = setInterval(() => {
-  mailQueue.purge().catch((e) => {
+  purgeTask().catch((e) => {
     console.error(`[почта] очистка: ${e.message}`);
   });
 }, MAIL_SETTINGS.purgeTickMs);
 purgeWorker.unref();
 
+const exportTask = taskRegistry.wrap(
+  'export',
+  () => runExportSweep({ auth, mailQueue, journal, baseUrl }),
+);
 const exportWorker = setInterval(() => {
-  runExportSweep({ auth, mailQueue, journal, baseUrl }).catch((e) => {
+  exportTask().catch((e) => {
     console.error(`[экспорт] ${e.message}`);
   });
 }, EXPORT_TICK_MS);
 exportWorker.unref();
 
-runExportSweep({ auth, mailQueue, journal, baseUrl }).catch((e) => {
+exportTask().catch((e) => {
   console.error(`[экспорт] ${e.message}`);
 });
 
@@ -551,9 +581,10 @@ if (process.env.TMDB_TOKEN) {
   // `unref` — как у остальных работников: таймер не должен держать процесс.
   // `noOverlap` — такт длиннее минуты (ночная задача идёт минуты) не должен
   // наезжать сам на себя.
+  const importTask = taskRegistry.wrap('import', () => scheduler.tick());
   schedulerTask = cron.schedule('* * * * *', async () => {
     try {
-      const { ran, skipped, reason } = await scheduler.tick();
+      const { ran, skipped, reason } = await importTask();
       for (const kind of ran) console.log(`[планировщик] ${kind} выполнен`);
       for (const kind of skipped) console.warn(`[планировщик] ${kind} пропущен`);
       if (reason === 'defence') console.warn('[планировщик] режим защиты: импорт не запускается');
@@ -595,6 +626,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
     clearInterval(deletionWorker);
     clearInterval(exportWorker);
     clearInterval(purgeWorker);
+    systemMetrics.stop();
     // Импорт, начатый до остановки, не ждёт: его прогон останется `running`,
     // разомкнётся по `STALE_HOURS` и будет помечен как пропущенный (F-12-09).
     schedulerTask?.stop();

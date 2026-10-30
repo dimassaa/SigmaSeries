@@ -34,6 +34,7 @@ import { createMyContentRoutes } from './routes/myContent.js';
 import { createAdminUsersRoutes } from './routes/adminUsers.js';
 import { createAuditRoutes } from './routes/auditLog.js';
 import { createOverviewRoutes } from './routes/adminOverview.js';
+import { createHealthRoutes } from './routes/adminHealth.js';
 import { createBackupRoutes } from './routes/backups.js';
 import { createStudioRoutes } from './routes/studio.js';
 import { createImportRoutes } from './routes/studioImport.js';
@@ -108,6 +109,8 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
  * @param {any} [deps.myMaterials]
  * @param {any} [deps.adminUsers]
  * @param {any} [deps.adminOverview]
+ * @param {any} [deps.adminHealth] снимок здоровья системы (S-82)
+ * @param {any} [deps.metrics] сборщик запросов (S-82)
  * @param {any} [deps.backups]
  * @param {any} [deps.studio]
  * @param {any} [deps.studioCollections]
@@ -187,6 +190,8 @@ export function createApp({
   myMaterials = null,
   adminUsers = null,
   adminOverview = null,
+  adminHealth = null,
+  metrics = null,
   backups = null,
   studio = null,
   studioCollections = null,
@@ -254,6 +259,10 @@ export function createApp({
   app.use(express.urlencoded({ extended: false, limit: '16kb' }));
   app.use(express.json({ limit: '16kb' }));
 
+  // Метрики S-82: 5xx и p95 по маршрутам. Статику сборщик отбрасывает сам,
+  // иначе её время разбавляло бы отклик приложения.
+  if (metrics?.middleware) app.use(metrics.middleware);
+
   // Сжатие статики: таблицы стилей и скрипт отдаются gzip'ом, если клиент
   // его понимает. Файла нет — запрос уходит дальше, к обычной отдаче.
   app.use(compressedStatic(publicDir));
@@ -313,9 +322,9 @@ export function createApp({
   if (auth) app.use(createThemeRoutes({ auth, sessionMw }));
   // Решения редактора по материалам (F-05-04): служебный POST, экран — S-50.
   // Раздел администрирования: пользователи и карточка человека (S-71, S-72).
-  // Настройки системы (S-83): пороги и параметры, которые действуют.
+  // Настройки системы (S-85): пороги и параметры, которые действуют.
   if (pool) app.use(createSystemSettingsRoutes({ pool, audit, sessionMw }));
-  // Резервные копии (S-82): журнал, расписание, ручной запуск.
+  // Резервные копии (S-83): журнал, расписание, ручной запуск.
   if (backups) app.use(createBackupRoutes({
     backups, readSchedule: backupSchedule, runBackup: backupRunner, audit, sessionMw,
   }));
@@ -345,6 +354,8 @@ export function createApp({
   }));
   // Системный обзор (S-70): онлайн, очереди, аномалии, копии.
   if (adminOverview) app.use(createOverviewRoutes({ overview: adminOverview, sessionMw }));
+  // Здоровье системы (S-82): 5xx, p95, цикл событий, задачи, диск, копия.
+  if (adminHealth) app.use(createHealthRoutes({ health: adminHealth, sessionMw }));
   // Журнал аудита (S-81): только чтение, фильтры.
   if (audit) app.use(createAuditRoutes({ audit, sessionMw }));
   if (adminUsers) app.use(createAdminUsersRoutes({
