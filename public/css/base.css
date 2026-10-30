@@ -211,6 +211,85 @@ a:hover { color: var(--accent-hover); }
 .topbar__nav a { color: var(--text-secondary); text-decoration: none; }
 .topbar__nav a:hover { color: var(--text-primary); }
 
+/* Меню жанров (UI-03): раскрытие на <details>, как и у меню аккаунта, поэтому
+   работает без скрипта. Стекло здесь не ставится: по MATERIALS-GLASS слой
+   с размытием допустим только над изображением, а под панелью идёт содержимое
+   страницы — панель на обычной поднятой поверхности. */
+.gmenu { position: relative; }
+.gmenu__toggle {
+  list-style: none;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+.gmenu__toggle::-webkit-details-marker { display: none; }
+.gmenu__toggle:hover { color: var(--text-primary); }
+.gmenu__toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.gmenu[open] .gmenu__toggle { color: var(--text-primary); }
+
+.gmenu__panel {
+  position: absolute;
+  top: calc(100% + var(--space-2));
+  left: 0;
+  z-index: 20;
+  min-inline-size: min(560px, calc(100vw - var(--space-4) * 2));
+  padding: var(--space-3);
+  background: var(--surface-raised);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-float);
+}
+/* Движение только transform и opacity: раскладка панели не пересчитывается,
+   и открытие не двигает содержимое страницы (R-DES-25). */
+@media (prefers-reduced-motion: no-preference) {
+  .gmenu__panel { transform: translateY(calc(-1 * var(--space-1))); opacity: 0; }
+  .gmenu[open] .gmenu__panel { transform: translateY(0); opacity: 1; }
+}
+
+.gmenu__all {
+  display: block;
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  margin-block-end: var(--space-2);
+  border-block-end: 1px solid var(--border-subtle);
+  color: var(--text-primary);
+  font-weight: 600;
+  text-decoration: none;
+}
+.gmenu__all:hover { background: var(--surface-hover); }
+.gmenu__all:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Колонки по алфавиту (F-02-04): 20 жанров в три колонки читаются сверху
+   вниз, поиск по ним не нужен. */
+.gmenu__list {
+  columns: 3;
+  column-gap: var(--space-5);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.gmenu__entry { break-inside: avoid; margin-block: 2px; }
+.gmenu__item {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-3);
+  min-height: 44px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  text-decoration: none;
+}
+.gmenu__item:hover { background: var(--surface-hover); }
+.gmenu__item:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; }
+
+/* Число сериалов: факт, а не украшение (R-DES-04), поэтому моноширинная цифра
+   приглушённого цвета, но контраст держит порог 4,5:1 к подложке панели. */
+.topbar__genres-count {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+
 /* Поиск в шапке: форма — точка отсчёта для слоя подсказок, иначе он
  * позиционировался бы от окна и накрывал всю страницу. */
 .topbar__search {
@@ -292,17 +371,34 @@ a:hover { color: var(--accent-hover); }
 @media (max-width: 900px) {
   .topbar { flex-wrap: wrap; }
   .topbar__nav { order: 3; width: 100%; margin-inline-end: 0; }
+
+  /* Панель жанров — во всю ширину строки навигации: узкая колонка у левого
+     края на телефоне бесполезна, а выезжать за правый край она не должна.
+     Контекст позиционирования берёт на себя строка навигации: у .gmenu
+     он был бы шириной с toggle, и панель не растянулась бы. Колонки две,
+     третья не помещается. */
+  .gmenu { position: static; }
+  .topbar__nav { position: relative; }
+  .gmenu__panel { inset-inline: 0; min-inline-size: 0; }
+  .gmenu__list { columns: 2; }
+}
+
+@media (max-width: 480px) {
+  .gmenu__list { columns: 1; }
 }
 
 @media (max-width: 767px) {
   /* Телефон: название и переключатели — первая строка, поиск и разделы —
      вторая. Так шапка занимает две строки, а не четыре, и поиск остаётся
      полноценным полем, а не иконкой без подписи. */
-  .topbar { gap: var(--space-3); }
+  .topbar { gap: var(--space-3); position: relative; }
   .topbar__brand { order: 1; }
   .topbar__controls { order: 2; gap: var(--space-2); }
   .topbar__search { order: 3; flex: 1 1 140px; min-inline-size: 0; }
-  .topbar__nav { order: 4; width: auto; flex: 0 0 auto; }
+  /* Навигация снова узкая (width: auto), поэтому своей строкой панель
+     жанров не разложить: точку обязан держать topbar, панель ложится на
+     всю ширину шапки, к контенту за нижним краем строки разделов. */
+  .topbar__nav { order: 4; width: auto; flex: 0 0 auto; position: static; }
   .topbar__lang { padding-inline: var(--space-2); }
   .topbar__lang-full { display: none; }
   .topbar__lang-short { display: inline; }

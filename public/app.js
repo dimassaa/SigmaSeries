@@ -567,6 +567,81 @@
     if (document.visibilityState !== 'hidden') start();
   }
 
+  // Меню жанров в шапке (UI-03, F-02-04).
+  //
+  // Основа — <details>: раскрытие, переключение по Enter и «клик по toggle»
+  // работают без скрипта. Скрипт добавляет то, чего у details нет: закрытие
+  // по Esc и клику мимо панели, открытие по наведению на десктопе и стрелочную
+  // навигацию по пунктам (R-A11Y-05). aria-expanded синхронизируется на toggle,
+  // иначе озвучка рассказывала бы «закрыто» при открытом меню.
+  function initGenresMenu() {
+    var menu = document.querySelector('[data-genres-menu]');
+    if (!menu) return;
+    var toggle = menu.querySelector('summary');
+    var pointer = window.matchMedia('(hover: hover)');
+    var leaveTimer = null;
+
+    function links() {
+      return Array.prototype.slice.call(menu.querySelectorAll('.gmenu__panel a'));
+    }
+
+    function open(opened) {
+      menu.open = opened;
+      toggle.setAttribute('aria-expanded', opened ? 'true' : 'false');
+    }
+
+    menu.addEventListener('toggle', function () {
+      toggle.setAttribute('aria-expanded', menu.open ? 'true' : 'false');
+      if (!menu.open && leaveTimer) {
+        clearTimeout(leaveTimer);
+        leaveTimer = null;
+      }
+    });
+
+    document.addEventListener('click', function (event) {
+      if (!menu.open || menu.contains(event.target)) return;
+      open(false);
+    });
+
+    document.addEventListener('keydown', function (event) {
+      var inside = menu.contains(event.target);
+      if (menu.open && event.key === 'Escape' && inside) {
+        open(false);
+        toggle.focus();
+        return;
+      }
+      // Стрелки двигают по пунктам только изнутри: когда фокус где-то на
+      // странице, стрелки остаются скроллом, а не крадут управление.
+      // Со сводки ArrowDown открывает меню и ставит фокус в первый пункт —
+      // иначе первый пункт недостижим без Tab мимо всех ссылок каталога.
+      if (!inside) return;
+      var items = links();
+      if (!items.length) return;
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        if (!menu.open) event.preventDefault();
+        open(true);
+        var index = items.indexOf(document.activeElement);
+        var step = event.key === 'ArrowDown' ? 1 : -1;
+        var next = index === -1 ? (step === 1 ? 0 : items.length - 1) : index + step;
+        items[(next + items.length) % items.length].focus();
+      }
+    });
+
+    // Наведение — только для тех, у кого оно есть: на touch «наведение»
+    // совпадает с нажатием, и меню не закрывалось бы вовсе. Таймеры —
+    // те же правила задержки, что у левого меню из F-00-01: немного
+    // простить дрожание курсора, не привязывая панель к точности руки.
+    if (pointer.matches) {
+      menu.addEventListener('mouseenter', function () {
+        if (leaveTimer) clearTimeout(leaveTimer);
+        leaveTimer = setTimeout(function () { open(true); }, 120);
+      });
+      menu.addEventListener('mouseleave', function () {
+        leaveTimer = setTimeout(function () { open(false); }, 250);
+      });
+    }
+  }
+
   // ─── Резервные коды: «Скачать» и «Печать» (F-01-05 §4, §19) ──────────────
 
   // Коды читаются из разметки, а не кладутся в обработчик: второй экземпляр
@@ -1375,6 +1450,7 @@
     initCalendarDefaultView();
     initUndoWindow();
     initUnreadPoll();
+    initGenresMenu();
     initReviews();
     initReviewFilters();
     initReviewVotes();

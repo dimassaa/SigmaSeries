@@ -163,3 +163,11 @@
 }
 
 .pagination__gap { color: var(--text-secondary); padding-inline: var(--space-1); }
+/* Страница жанра (S-03): между названием и сеткой — описание из справочника.
+   Блок рисуется только когда есть чем ответить: пустой справочник оставляет
+   заголовок и счётчик рядом друг с другом, без резерва под пустоту. */
+.genre__description {
+  max-inline-size: 60ch;
+  margin-block: var(--space-2) var(--space-4);
+  color: var(--text-primary);
+}

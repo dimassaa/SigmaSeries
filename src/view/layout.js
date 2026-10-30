@@ -10,6 +10,7 @@ import { fileURLToPath } from 'node:url';
 
 import { html, raw, attr, esc, when } from './render.js';
 import { t, LOCALES, LOCALE_NAMES, DEFAULT_LOCALE } from '../i18n/strings.js';
+import { tPlural } from '../i18n/plural.js';
 import { SEARCH_SETTINGS } from '../config/settings.js';
 import { styleGroups } from '../config/styles.js';
 
@@ -75,6 +76,8 @@ export function pageTitle(locale, middle) {
  * @param {string[]} [page.styles] группы таблиц стилей, нужные странице;
  *   без списка подключаются все (см. `src/config/styles.js`)
  * @param {string} [page.panel] готовая разметка правой панели; без неё панели нет
+ * @param {any[]} [page.genres] пункты меню жанров (UI-03); без списка —
+ *   вместо меню простая ссылка «Каталог» (F-00-01 §5)
  * @param {{nickname: string, unread: number, pollSeconds?: number}|null} [page.account]
  *   меню аккаунта; `null` — гость, и вместо меню показывается вход
  */
@@ -97,6 +100,42 @@ function footer({ locale }) {
     <a href="/${locale}/privacy">${t(locale, 'page.privacy.title')}</a>
   </nav>
 </footer>`;
+}
+
+/**
+ * Меню жанров в шапке (UI-03, F-02-04).
+ *
+ * Без скрипта: раскрытие на `<details>`, как и меню аккаунта, поэтому панель
+ * работает и при выключенном JavaScript. Пункты — жанры с числом сериалов
+ * (EC-K7), наверху панели — ссылка на весь каталог, поэтому меню «Сериалы»
+ * ведёт туда же, куда вело простое «Каталог».
+ *
+ * Стекло здесь не поставлено намеренно: по `MATERIALS-GLASS` оно допустимо
+ * только над изображением, а под панелью — содержимое страницы.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {Array<{code: string, nameRu: string, nameEn: string, count: number}>} args.genres
+ * @returns {any}
+ */
+function genresMenu({ locale, genres }) {
+  return html`
+<details class="gmenu" data-genres-menu>
+  <summary class="gmenu__toggle" aria-expanded="false">${t(locale, 'nav.series')}</summary>
+  <div class="gmenu__panel">
+    <a class="gmenu__all" href="/${locale}/series">${t(locale, 'nav.allSeries')}</a>
+    <ul class="gmenu__list" role="list">
+      ${genres.map((genre) => html`
+      <li class="gmenu__entry">
+        <a class="gmenu__item" href="/${locale}/genres/${genre.code}"
+           aria-label="${locale === 'en' ? genre.nameEn : genre.nameRu} — ${tPlural(locale, 'genre.count', genre.count)}">
+          <span>${locale === 'en' ? genre.nameEn : genre.nameRu}</span>
+          <span class="topbar__genres-count">${genre.count}</span>
+        </a>
+      </li>`)}
+    </ul>
+  </div>
+</details>`;
 }
 
 export function layout(page) {
@@ -163,7 +202,9 @@ ${raw(styleLinks)}
 <header class="topbar">
   <a class="topbar__brand" href="/${locale}/">${t(locale, 'app.title')}</a>
   <nav class="topbar__nav" aria-label="${t(locale, 'nav.catalog')}">
-    <a href="/${locale}/series">${t(locale, 'nav.catalog')}</a>
+    ${page.genres?.length
+      ? genresMenu({ locale, genres: page.genres })
+      : html`<a href="/${locale}/series">${t(locale, 'nav.catalog')}</a>`}
     <a href="/${locale}/calendar">${t(locale, 'nav.calendar')}</a>
   </nav>
   <form class="topbar__search" method="get" action="/${locale}/search" role="search"

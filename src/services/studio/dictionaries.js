@@ -19,13 +19,14 @@ const COUNTRY_CODES = [
  */
 export function pgStudioDictionaries(pool) {
   /**
-   * Жанры.
+   * Жанры с полями страницы S-03: описания, порядок и флаг меню.
    *
    * @returns {Promise<any[]>}
    */
   async function genres() {
     const { rows } = await pool.query(
       `SELECT g.code, g.name_ru, g.name_en, g.active, g.is_raw,
+              g.description_ru, g.description_en, g.display_order, g.show_in_menu,
               (SELECT count(*)::int FROM e_series_genre sg WHERE sg.genre_code = g.code) AS series_count
          FROM e_genre g
         ORDER BY g.name_ru`,
@@ -39,30 +40,58 @@ export function pgStudioDictionaries(pool) {
       // Сырые жанры импорта правке не подлежат: у них нет названия, и они не
       // из справочника.
       raw: Boolean(row.is_raw),
+      descriptionRu: row.description_ru ?? null,
+      descriptionEn: row.description_en ?? null,
+      displayOrder: row.display_order,
+      showInMenu: Boolean(row.show_in_menu),
     }));
   }
 
   /**
-   * Сохранить жанр.
+   * Сохранить жанр: добавить или перезаписать запись по тому же коду.
+   *
+   * Порядок нормализуется на входе: пустая строка — «порядка нет», прочие
+   * нецелые или нечисловые значения отклоняются, иначе «порядок 3.5» молча
+   * превратился бы в ничего (F-10-10 §8). Описания админ может не заполнять:
+   * с пустыми страница жанра живёт на автотемплейте описания (F-10-10 §4).
    *
    * @param {object} input
- * @param {any} [input.active]
- * @param {any} [input.code]
- * @param {any} [input.nameEn]
- * @param {any} [input.nameRu]
+   * @param {any} [input.active]
+   * @param {any} [input.code]
+   * @param {any} [input.nameEn]
+   * @param {any} [input.nameRu]
+   * @param {any} [input.descriptionRu]
+   * @param {any} [input.descriptionEn]
+   * @param {any} [input.displayOrder]
+   * @param {any} [input.showInMenu]
    * @returns {Promise<{ok: boolean, reason?: string}>}
    */
-  async function saveGenre({ code, nameRu, nameEn, active = true }) {
+  async function saveGenre({
+    code, nameRu, nameEn, active = true,
+    descriptionRu = null, descriptionEn = null, displayOrder = null, showInMenu = true,
+  }) {
     if (!/^[a-z0-9-]{1,60}$/.test(String(code ?? ''))) return { ok: false, reason: 'code' };
     const ru = String(nameRu ?? '').trim();
     const en = String(nameEn ?? '').trim();
     if (!ru || ru.length > 100) return { ok: false, reason: 'name' };
+
+    const dRu = String(descriptionRu ?? '').trim();
+    const dEn = String(descriptionEn ?? '').trim();
+    const orderRaw = String(displayOrder ?? '').trim();
+    const order = orderRaw ? Number(orderRaw) : null;
+    if (orderRaw && (!Number.isFinite(order) || order !== Math.trunc(order))) {
+      return { ok: false, reason: 'order' };
+    }
+
     const { rowCount } = await pool.query(
-      `INSERT INTO e_genre (code, name_ru, name_en, active)
-       VALUES ($1, $2, $3, $4)
+      `INSERT INTO e_genre (code, name_ru, name_en, active,
+                            description_ru, description_en, display_order, show_in_menu)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
        ON CONFLICT (code) DO UPDATE
-         SET name_ru = EXCLUDED.name_ru, name_en = EXCLUDED.name_en, active = EXCLUDED.active`,
-      [code, ru, en || ru, active],
+         SET name_ru = EXCLUDED.name_ru, name_en = EXCLUDED.name_en, active = EXCLUDED.active,
+             description_ru = EXCLUDED.description_ru, description_en = EXCLUDED.description_en,
+             display_order = EXCLUDED.display_order, show_in_menu = EXCLUDED.show_in_menu`,
+      [code, ru, en || ru, active, dRu || null, dEn || null, order, Boolean(showInMenu)],
     );
     return { ok: rowCount > 0 };
   }

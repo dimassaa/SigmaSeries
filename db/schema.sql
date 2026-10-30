@@ -324,7 +324,18 @@ CREATE TABLE e_genre (
   active  BOOLEAN NOT NULL DEFAULT TRUE,
   -- Жанр пришёл из импорта, а не из справочника: названия у него нет, и в
   -- фильтрах он лишний (F-10-10 §5).
-  is_raw  BOOLEAN NOT NULL DEFAULT FALSE
+  is_raw  BOOLEAN NOT NULL DEFAULT FALSE,
+  -- Описание жанра для страницы S-03 (F-10-10 §4): пока пусто — страница
+  -- жанра идёт без описания, а шаблон описания для поиска собирается из числа
+  -- сериалов. Тексты пишет админ на S-80, импорт их не трогает.
+  description_ru TEXT,
+  description_en TEXT,
+  -- Порядок в меню жанров (UI-03): меньший выше; пусто — жанры идут по
+  -- алфавиту локали (F-10-10 §4).
+  display_order INTEGER,
+  -- Флаг «показывать в меню» (F-10-10 §8): скрытый жанр не показывается в
+  -- меню, но сериалы с ним остаются в каталоге и на фильтрах.
+  show_in_menu BOOLEAN NOT NULL DEFAULT TRUE
 );
 CREATE TABLE e_series_genre (
   series_id BIGINT NOT NULL REFERENCES e_series(id) ON DELETE CASCADE,

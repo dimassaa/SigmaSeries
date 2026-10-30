@@ -72,6 +72,7 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
  * @param {any} [deps.series]
  * @param {any} [deps.posterCard]
  * @param {any} [deps.catalogue]
+ * @param {any} [deps.genres] меню жанров (UI-03) и страница жанра (S-03)
  * @param {any} [deps.search]
  * @param {any} [deps.searchRatePerIp]
  * @param {any} [deps.seasons]
@@ -146,6 +147,7 @@ export function createApp({
   series = null,
   posterCard = null,
   catalogue = null,
+  genres = null,
   search = null,
   searchRatePerIp = null,
   seasons = null,
@@ -280,13 +282,13 @@ export function createApp({
     },
   }));
 
-  app.use(createHomeRoutes({ data, sessionMw, panel }));
+  app.use(createHomeRoutes({ data, sessionMw, panel, genres }));
 
   // Каталог и карточка сериала подключаются, когда есть источник: без него
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
-  if (catalogue) app.use(createCatalogueRoutes({ catalogue, sessionMw, panel }));
+  if (catalogue) app.use(createCatalogueRoutes({ catalogue, genres, sessionMw, panel }));
   if (search) app.use(createSearchRoutes({
-    search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined, analytics,
+    search, sessionMw, panel, ratePerIp: searchRatePerIp ?? undefined, analytics, genres,
   }));
   if (seasons) app.use(createSeasonRoutes({ seasons, sessionMw, series, ratings, ratingLimiter, analytics }));
   // Слой подробной карточки постера (F-02-07): спрашивается по намерению.
@@ -379,7 +381,7 @@ export function createApp({
     sessionMw,
   }));
   if (anomalies && audit) app.use(createAdminRoutes({ anomalies, audit, sessionMw }));
-  if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel }));
+  if (collections && person) app.use(createCollectionRoutes({ collections, person, sessionMw, panel, genres }));
   // Календарь спрашивает сессию: фильтр «Мои» доступен вошедшим.
   if (calendar) app.use(createCalendarRoutes({ calendar, sessionMw }));
   // Статус меняется по POST с CSRF и проверкой сессии: без них кнопка

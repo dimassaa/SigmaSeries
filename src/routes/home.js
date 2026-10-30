@@ -9,6 +9,7 @@ import express from 'express';
 import { layout } from '../view/layout.js';
 import { csrfToken } from '../services/auth/session.js';
 import { panelFor } from './panel.js';
+import { menuGenres } from './menuGenres.js';
 import { homeView } from '../view/home.js';
 import { collectHomeData } from '../services/home/data.js';
 import { t, isLocale, DEFAULT_LOCALE } from '../i18n/strings.js';
@@ -21,7 +22,7 @@ const STYLES = [];
 /** Страницы, которые не попадают в индекс (R-SEO-06). */
 const NOINDEX_PATHS = ['/search', '/signin', '/signup', '/settings', '/notifications'];
 
-export function createHomeRoutes({ data, sessionMw = null, panel = null }) {
+export function createHomeRoutes({ data, genres = null, sessionMw = null, panel = null }) {
   // strict: без него Express считает /ru и /ru/ одним адресом, и маршрут
   // «локо��ь без слеша» перехватывал бы /ru/, редиректя его на себя же.
   const router = express.Router({ strict: true });
@@ -53,6 +54,7 @@ export function createHomeRoutes({ data, sessionMw = null, panel = null }) {
         description: t(locale, 'home.banners.empty'),
         body: homeView({ locale, data: homeData, csrf: req.session ? csrfToken(req.session) : '' }),
         panel: await panelFor({ panel, locale, req }),
+        genres: await menuGenres(genres, locale),
         noindex: NOINDEX_PATHS.includes('/'),
       });
       res.type('html').send(page.__raw);

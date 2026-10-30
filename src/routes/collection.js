@@ -9,6 +9,7 @@ import express from 'express';
 
 import { layout, pageTitle } from '../view/layout.js';
 import { panelFor } from './panel.js';
+import { menuGenres } from './menuGenres.js';
 import { collectionView } from '../view/collection.js';
 import { personView } from '../view/person.js';
 import { notFound } from './home.js';
@@ -20,7 +21,7 @@ const STYLES = ['collection'];
 
 const rawHtml = (page) => page.__raw;
 
-export function createCollectionRoutes({ collections, person, sessionMw = null, panel = null }) {
+export function createCollectionRoutes({ collections, person, genres = null, sessionMw = null, panel = null }) {
   const router = express.Router({ strict: true });
   // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
   // вход вместо аватара, и верхняя панель выглядела бы по-разному в
@@ -50,6 +51,7 @@ export function createCollectionRoutes({ collections, person, sessionMw = null, 
         noindex: locale === 'en',
         jsonLd: collectionJsonLd({ locale, collection: found }),
         panel: await panelFor({ panel, locale, req }),
+        genres: await menuGenres(genres, locale),
         body: collectionView({ locale, collection: found }),
       })));
     } catch (error) {
@@ -82,6 +84,7 @@ export function createCollectionRoutes({ collections, person, sessionMw = null, 
         // (F-02-09 §3).
         noindex: found.thin,
         jsonLd: personJsonLd({ locale, person: found }),
+        genres: await menuGenres(genres, locale),
         body: personView({ locale, person: found }),
       })));
     } catch (error) {

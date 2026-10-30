@@ -202,6 +202,10 @@ export function createStudioLibraryRoutes({
           nameRu: body.name_ru,
           nameEn: body.name_en,
           active: body.active === '1' || body.active === 'on',
+          descriptionRu: body.description_ru,
+          descriptionEn: body.description_en,
+          displayOrder: body.display_order,
+          showInMenu: body.show_in_menu === '1' || body.show_in_menu === 'on',
         });
       } else {
         result = await dictionaries.savePlatform({

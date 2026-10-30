@@ -10,6 +10,7 @@ import { pgData } from './services/home/data.js';
 import { pgSeries } from './services/catalogue/series.js';
 import { pgPosterCard } from './services/catalogue/card.js';
 import { pgCatalogueList } from './services/catalogue/list.js';
+import { pgCatalogueGenres } from './services/catalogue/genres.js';
 import { pgSearch } from './services/search/service.js';
 import { pgSeasons } from './services/catalogue/season.js';
 import { pgCollections } from './services/catalogue/collection.js';
@@ -347,6 +348,8 @@ const app = createApp({
   series: pgSeries(pool),
   posterCard: pgPosterCard(pool),
   catalogue: pgCatalogueList(pool),
+  // Жанры: меню в шапке (UI-03) и страница жанра (S-03).
+  genres: pgCatalogueGenres(pool),
   search: pgSearch(pool),
   searchRatePerIp,
   anomalies,

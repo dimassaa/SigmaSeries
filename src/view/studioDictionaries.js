@@ -14,6 +14,10 @@ import { t } from '../i18n/strings.js';
  * @property {boolean} active
  * @property {number} seriesCount
  * @property {boolean} raw сырой жанр импорта: правке не подлежит
+ * @property {string|null} descriptionRu описание для страницы жанра (S-03)
+ * @property {string|null} descriptionEn
+ * @property {number|null} displayOrder порядок в меню жанров (UI-03)
+ * @property {boolean} showInMenu показывать ли жанр в меню
  */
 
 /**
@@ -59,6 +63,10 @@ export function studioDictionariesView({
           <th scope="col">${t(locale, 'studio.dictionaries.column.code')}</th>
           <th scope="col">${t(locale, 'studio.dictionaries.column.nameRu')}</th>
           <th scope="col">${t(locale, 'studio.dictionaries.column.nameEn')}</th>
+          <th scope="col">${t(locale, 'studio.dictionaries.column.descriptionRu')}</th>
+          <th scope="col">${t(locale, 'studio.dictionaries.column.descriptionEn')}</th>
+          <th scope="col">${t(locale, 'studio.dictionaries.column.order')}</th>
+          <th scope="col">${t(locale, 'studio.dictionaries.column.menu')}</th>
           <th scope="col">${t(locale, 'studio.dictionaries.column.series')}</th>
           <th scope="col">${t(locale, 'studio.dictionaries.column.active')}</th>
         </tr>
@@ -73,6 +81,10 @@ export function studioDictionariesView({
           </th>
           <td>${genre.nameRu ?? ''}</td>
           <td>${genre.nameEn ?? ''}</td>
+          <td>${genre.descriptionRu ?? ''}</td>
+          <td>${genre.descriptionEn ?? ''}</td>
+          <td>${genre.displayOrder ?? ''}</td>
+          <td>${genre.showInMenu ? t(locale, 'studio.dictionaries.yes') : t(locale, 'studio.dictionaries.no')}</td>
           <td>${genre.seriesCount}</td>
           <td>${genre.active ? t(locale, 'studio.dictionaries.yes') : t(locale, 'studio.dictionaries.no')}</td>
         </tr>`)}
@@ -89,6 +101,21 @@ export function studioDictionariesView({
       <input class="field__input" id="genre-ru" name="name_ru" type="text" maxlength="100" required>
       <label class="field__label" for="genre-en">${t(locale, 'studio.dictionaries.column.nameEn')}</label>
       <input class="field__input" id="genre-en" name="name_en" type="text" maxlength="100">
+      <label class="field__label" for="genre-desc-ru">${t(locale, 'studio.dictionaries.column.descriptionRu')}</label>
+      <textarea class="field__input" id="genre-desc-ru" name="description_ru" rows="3"
+                placeholder="${t(locale, 'studio.dictionaries.descriptionHint')}"></textarea>
+      <label class="field__label" for="genre-desc-en">${t(locale, 'studio.dictionaries.column.descriptionEn')}</label>
+      <textarea class="field__input" id="genre-desc-en" name="description_en" rows="3"></textarea>
+      <label class="field__label" for="genre-order">${t(locale, 'studio.dictionaries.column.order')}</label>
+      <input class="field__input" id="genre-order" name="display_order" type="number" step="1">
+      <label class="studio-dictionary__check">
+        <input type="checkbox" name="show_in_menu" value="1" checked>
+        <span>${t(locale, 'studio.dictionaries.column.menu')}</span>
+      </label>
+      <label class="studio-dictionary__check">
+        <input type="checkbox" name="active" value="1" checked>
+        <span>${t(locale, 'studio.dictionaries.column.active')}</span>
+      </label>
       <p class="studio-card__actions">
         <button class="button button--primary" type="submit">${t(locale, 'studio.dictionaries.save')}</button>
       </p>

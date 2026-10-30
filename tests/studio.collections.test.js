@@ -5,6 +5,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 import pg from 'pg';
 
 import { pgStudioCollections, MIN_VISIBLE_SERIES } from '../src/services/studio/collections.js';
@@ -120,6 +121,35 @@ test('справочник жанров читается и правится (F-
   assert.ok(after.some((genre) => genre.code === 'check-genre'));
 
   await pool.query('DELETE FROM e_genre WHERE code = $1', ['check-genre']);
+});
+
+test('подпорка описания: пустое имя не принимается, форма с описанием правится (F-10-10 §4)', { skip }, async () => {
+  // Сохранение жанров затирает дружественные названия через upsert, поэтому
+  // фикстура удаляется сразу после.
+  const code = `check-genre-${crypto.randomUUID().slice(0, 8)}`;
+  const saved = await dictionaries.saveGenre({
+    code, nameRu: 'Жанр с описанием', nameEn: 'Described genre', active: true,
+    descriptionRu: 'Описаний много не бывает',
+    descriptionEn: 'More descriptions',
+    displayOrder: 3,
+    showInMenu: true,
+  });
+  assert.equal(saved.ok, true);
+
+  const row = (await dictionaries.genres()).find((genre) => genre.code === code);
+  assert.ok(row, 'жанр из формы перечитан');
+  assert.equal(row.descriptionRu, 'Описаний много не бывает');
+  assert.equal(row.descriptionEn, 'More descriptions');
+  assert.equal(row.displayOrder, 3);
+  assert.equal(row.showInMenu, true, 'флаг «показывать в меню» сохранён');
+
+  const bad = await dictionaries.saveGenre({
+    code, nameRu: 'Жанр', active: true, displayOrder: 'два',
+  });
+  assert.equal(bad.ok, false);
+  assert.equal(bad.reason, 'order', 'нечисловой порядок отклонён');
+
+  await pool.query('DELETE FROM e_genre WHERE code = $1', [code]);
 });
 
 test('шкалу платформы с оценками менять нельзя (F-10-10 §8)', { skip }, async () => {

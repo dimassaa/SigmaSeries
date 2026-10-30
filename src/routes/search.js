@@ -8,6 +8,7 @@ import express from 'express';
 
 import { layout } from '../view/layout.js';
 import { panelFor } from './panel.js';
+import { menuGenres } from './menuGenres.js';
 import { searchView } from '../view/search.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { DEFAULT_RATE_PER_MINUTE } from '../services/search/limits.js';
@@ -58,6 +59,7 @@ export function searchLimited(ip, rate, now = Date.now()) {
 
 export function createSearchRoutes({
   search, ratePerIp = DEFAULT_RATE_PER_MINUTE, sessionMw = null, panel = null, analytics = null,
+  genres = null,
 }) {
   const router = express.Router({ strict: true });
   // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
@@ -85,6 +87,7 @@ export function createSearchRoutes({
           description: t(locale, 'search.description'),
           noindex: true,
           panel: await panelFor({ panel, locale, req }),
+          genres: await menuGenres(genres, locale),
           body: searchView({ locale, query, result: null, genres: await popularGenres(search) }),
         })));
     }
@@ -120,6 +123,7 @@ export function createSearchRoutes({
         // самостоятельный адрес (`SCREENS` §9, S-17 — noindex).
         noindex: true,
         panel: await panelFor({ panel, locale, req }),
+        genres: await menuGenres(genres, locale),
         body: searchView({
           locale,
           query,

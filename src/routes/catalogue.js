@@ -8,21 +8,30 @@ import express from 'express';
 
 import { layout, pageTitle } from '../view/layout.js';
 import { panelFor } from './panel.js';
+import { menuGenres } from './menuGenres.js';
 import { catalogueView, href } from '../view/catalogue.js';
+import { genreView } from '../view/genre.js';
+import { notFound } from './home.js';
 import { t, isLocale } from '../i18n/strings.js';
+import { tPlural } from '../i18n/plural.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
 const STYLES = ['catalogue'];
-
 
 const rawHtml = (page) => page.__raw;
 
 /** Сортировки, о которых знает страница; порядок — как в фильтре. */
 const SORT_KEYS = ['popular', 'rating', 'new', 'title'];
 
+/**
+ * Порог noindex страницы жанра: меньше шести сериалов — тонкий контент, в
+ * поисковый индекс страница не отдаётся (F-02-04 §3).
+ */
+const NOINDEX_MIN_SERIES = 6;
+
 const STATES = ['airing', 'waiting', 'announced', 'ended', 'cancelled'];
 
-export function createCatalogueRoutes({ catalogue, sessionMw = null, panel = null }) {
+export function createCatalogueRoutes({ catalogue, genres = null, sessionMw = null, panel = null }) {
   const router = express.Router({ strict: true });
   // Сессия ради меню аккаунта: без неё вошедший видел бы на этой странице
   // вход вместо аватара, и верхняя панель выглядела бы по-разному в
@@ -62,6 +71,7 @@ export function createCatalogueRoutes({ catalogue, sessionMw = null, panel = nul
         description: t(locale, 'catalog.description'),
         noindex,
         panel: await panelFor({ panel, locale, req }),
+        genres: await menuGenres(genres, locale),
         body: catalogueView({ locale, page, bounds, filters, sorts: SORT_KEYS, states: STATES }),
       })));
     } catch (error) {
@@ -69,7 +79,89 @@ export function createCatalogueRoutes({ catalogue, sessionMw = null, panel = nul
     }
   });
 
+  // Жанр (S-03): страница — тот же движок каталога, но фильтр жанра задаёт
+  // сервер, а не человек. Поэтому жанр берётся из адреса, и параметры запроса
+  // ему изменить не могут; сортировки и страницы — из белого списка каталога.
+  // жанр из запроса (`?genre=`) игнорируется молча: это не ошибка адреса, а
+  // чужой параметр, который страница не воспринимает.
+  router.get('/:locale/genres/:code', async (req, res, next) => {
+    const { locale, code } = req.params;
+    if (!isLocale(locale)) return next('route');
+
+    try {
+      const genre = genres ? await genres.one(code) : null;
+      if (!genre) {
+        // Неизвестный, сырой, выключенный и скрытый для меню жанр — 404
+        // (F-02-04): у адреса нет ни замены, ни редиректа.
+        return res.status(404).type('html').send(notFound(locale, req.account).__raw);
+      }
+
+      const filters = parseQuery(req.query);
+      const page = await catalogue.list({ genres: [genre.code], sort: filters.sort, page: filters.page });
+      // Эк-К6, как в каталоге: страница за концом — 301 на последнюю.
+      if (filters.page > page.pages) {
+        return res.redirect(301, genreHrefOf(locale, genre.code, filters.sort, page.pages));
+      }
+
+      return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
+        account: req.account,
+        locale,
+        path: `/genres/${genre.code}`,
+        title: pageTitle(locale, locale === 'en' ? genre.nameEn : genre.nameRu),
+        // Описание — из справочника; там пусто — автотемплейт из числа
+        // сериалов (F-10-10 §4): мета никогда не остаётся обманчивой.
+        description: genreMetaDescription(locale, genre, page.total),
+        // Тонкий контент не индексируется: порог из фичи, а не из вкуса.
+        noindex: page.total < NOINDEX_MIN_SERIES,
+        panel: await panelFor({ panel, locale, req }),
+        genres: await menuGenres(genres, locale),
+        body: genreView({ locale, genre, page, sorts: SORT_KEYS }),
+      })));
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   return router;
+}
+
+/**
+ * Адрес страницы жанра с сортировкой и постраничностью для 301.
+ *
+ * Стандартные значения в адрес не пишем: народный адрес — без параметров.
+ *
+ * @param {string} locale
+ * @param {string} code
+ * @param {string} sort ключ из белого списка
+ * @param {number} page
+ */
+function genreHrefOf(locale, code, sort, page) {
+  const params = new URLSearchParams();
+  if (sort && sort !== 'popular') params.set('sort', sort);
+  if (page > 1) params.set('page', String(page));
+  const query = params.toString();
+  return `/${locale}/genres/${code}${query ? `?${query}` : ''}`;
+}
+
+/**
+ * Текст meta description: описание справочника, а без него — автотемплейт
+ * с числом сериалов (F-10-10 §4).
+ *
+ * Обрезать — как в подборке (S-05): в поисковую выдачу смысл вышли вытянут
+ * сами, а обманчивой полноты не обещаем.
+ *
+ * @param {string} locale
+ * @param {{nameRu: string, nameEn: string, descriptionRu: string|null,
+ *   descriptionEn: string|null}} genre
+ * @param {number} count число видимых сериалов жанра
+ */
+function genreMetaDescription(locale, genre, count) {
+  const name = locale === 'en' ? genre.nameEn : genre.nameRu;
+  const own = ((locale === 'en' ? genre.descriptionEn : genre.descriptionRu) ?? '').trim();
+  const other = ((locale === 'en' ? genre.descriptionRu : genre.descriptionEn) ?? '').trim();
+  const text = own || other;
+  return (text || tPlural(locale, 'genre.meta', count, { name })).slice(0, 160);
 }
 
 /**
