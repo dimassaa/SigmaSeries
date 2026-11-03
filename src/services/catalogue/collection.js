@@ -14,7 +14,7 @@
 
 import pg from 'pg';
 
-import { bannerOf } from './banner.js';
+import { bannerOf, pickVariantWidth } from './banner.js';
 
 /** Порог видимости подборки (F-02-05 §3, EC-C6). */
 export const MIN_VISIBLE_SERIES = 6;
@@ -84,6 +84,84 @@ export function pgCollections(pool) {
         [limit, MIN_VISIBLE_SERIES],
       );
       return rows;
+    },
+
+    /**
+     * Все видимые подборки для сетки S-04 (F-02-05 §1).
+     *
+     * Порог один с `collection()` и `list()` (EC-C6): подборка из пяти видимых
+     * сериалов — её нет ни на одной странице. Порядок — вес администратора
+     * (H-31: автопорядок по просмотрам задаётся позже, и закрепления у него
+     * нет в P0). Баннер каждой собран тем же правилом, что у страницы:
+     * картинка админа, а без неё — фон первого по порядку админа видимого
+     * сериала; если и того нет, карточка остаётся плиткой без картинки.
+     *
+     * @returns {Promise<Array<{slug: string, titleRu: string,
+     *   titleEn: string|null, bannerWidth: number|null}>>}
+     */
+    async grid() {
+      const { rows: found } = await pool.query(
+        `SELECT c.id, c.slug, c.title_ru AS "titleRu", c.title_en AS "titleEn"
+           FROM e_collection c
+           JOIN e_collection_item ci ON ci.collection_id = c.id
+           JOIN e_series s ON s.id = ci.series_id
+          WHERE c.active AND NOT c.is_demo
+            AND s.publication_state = 'published' AND s.archived_at IS NULL
+          GROUP BY c.id
+         HAVING count(*) >= $1
+          ORDER BY c.weight DESC, c.title_ru`,
+        [MIN_VISIBLE_SERIES],
+      );
+      if (!found.length) return [];
+
+      // Баннеры одним запросом: правило выбора картинки — копия `bannerOf`,
+      // потому при несогласованности эти две записи разъехались бы незаметно.
+      const { rows: banners } = await pool.query(
+        `SELECT c.id,
+                coalesce(c.banner_image_id, first_backdrop.image_id) AS image_id
+           FROM e_collection c
+           LEFT JOIN LATERAL (
+             SELECT i.id AS image_id
+               FROM e_collection_item ci
+               JOIN e_series s ON s.id = ci.series_id
+               JOIN e_image i ON i.series_id = s.id AND i.role = 'backdrop'
+              WHERE ci.collection_id = c.id
+                AND s.publication_state = 'published' AND s.archived_at IS NULL
+              ORDER BY ci.ordinal, s.id, i.focal_x
+              LIMIT 1
+           ) first_backdrop ON c.banner_image_id IS NULL
+          WHERE c.id = ANY($1::bigint[]) AND c.active AND NOT c.is_demo`,
+        [found.map((row) => row.id)],
+      );
+
+      // Ширины вариантов пачкой: перебирать `bannerOf` на каждую карточку —
+      // два запроса на подборку, а бюджет страницы — до 15 запросов (M2 §0).
+      const widthsByImage = new Map();
+      const ids = banners.map((row) => row.image_id).filter((id) => id !== null);
+      if (ids.length) {
+        const { rows: variants } = await pool.query(
+          'SELECT image_id, width FROM e_image_variant WHERE image_id = ANY($1::bigint[])',
+          [ids],
+        );
+        for (const { image_id, width } of variants) {
+          const widths = widthsByImage.get(image_id) ?? [];
+          widths.push(width);
+          widthsByImage.set(image_id, widths);
+        }
+      }
+
+      const bannerWidthById = new Map();
+      for (const row of banners) {
+        if (row.image_id === null) continue;
+        bannerWidthById.set(row.id, pickVariantWidth(widthsByImage.get(row.image_id) ?? []));
+      }
+
+      return found.map((row) => ({
+        slug: row.slug,
+        titleRu: row.titleRu,
+        titleEn: row.titleEn,
+        bannerWidth: bannerWidthById.get(row.id) ?? null,
+      }));
     },
   };
 }

@@ -220,6 +220,12 @@ const MESSAGES = {
 
     // S-05 и S-15 — подборка и персона (F-02-05, F-02-09)
     'collection.series': 'Сериалы в подборке ({count})',
+
+    // S-04 — сетка всех подборок (F-02-05 §1)
+    'collections.title': 'Подборки',
+    'collections.meta': 'Тематические подборки сериалов, собранные редакцией, — одним списком.',
+    'collections.empty.title': 'Подборок пока нет',
+    'collections.empty.text': 'Как только редакция соберёт подборки, они появятся здесь.',
     'person.series': 'Сериалы ({count})',
     'person.description': 'Сериалы каталога с участием: {name}',
     'person.role.actor': 'актёр',
@@ -2061,6 +2067,12 @@ const MESSAGES = {
 
     // S-05 and S-15 — collection and person (F-02-05, F-02-09)
     'collection.series': 'Series in this collection ({count})',
+
+    // S-04 — collections grid (F-02-05 §1)
+    'collections.title': 'Collections',
+    'collections.meta': 'Themed series selections put together by the editors.',
+    'collections.empty.title': 'No collections yet',
+    'collections.empty.text': 'Collections will appear here as soon as the editors put them together.',
     'person.series': 'Series ({count})',
     'person.description': 'Series from the catalogue featuring: {name}',
     'person.role.actor': 'actor',

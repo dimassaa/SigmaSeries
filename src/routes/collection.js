@@ -10,7 +10,7 @@ import express from 'express';
 import { layout, pageTitle } from '../view/layout.js';
 import { panelFor } from './panel.js';
 import { menuGenres } from './menuGenres.js';
-import { collectionView } from '../view/collection.js';
+import { collectionView, collectionsView } from '../view/collection.js';
 import { personView } from '../view/person.js';
 import { notFound } from './home.js';
 import { t, isLocale } from '../i18n/strings.js';
@@ -29,6 +29,32 @@ export function createCollectionRoutes({ collections, person, genres = null, ses
   // cookie сессии, значит и запроса в базу не будет.
   if (sessionMw) router.use('/:locale{/:rest}', sessionMw);
 
+
+  router.get('/:locale/collections', async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+
+    try {
+      const items = await collections.grid();
+      return res.status(200).type('html').send(rawHtml(layout({
+        styles: STYLES,
+        account: req.account,
+        locale,
+        path: '/collections',
+        title: pageTitle(locale, t(locale, 'collections.title')),
+        description: t(locale, 'collections.meta'),
+        // Пустая сетка — настоящая страница в ожидании контента, а не жалоба
+        // на адрес: 200 с пустым состоянием и noindex, как на жанре без
+        // сериалов; «мягкой 404» (200-пустышка в индексе) не получится
+        // (R-SEO-15).
+        noindex: items.length === 0,
+        genres: await menuGenres(genres, locale),
+        body: collectionsView({ locale, items }),
+      })));
+    } catch (error) {
+      return next(error);
+    }
+  });
 
   router.get('/:locale/collections/:slug', async (req, res, next) => {
     const { locale, slug } = req.params;

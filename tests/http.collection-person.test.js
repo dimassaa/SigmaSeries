@@ -27,6 +27,9 @@ const MIN_VISIBLE = 6;
 let pool;
 let server;
 let baseUrl;
+/** Сервер пустой сетки: живёт только внутри одного теста. */
+let stubServer;
+let stubBase;
 
 test.before(async () => {
   if (!available) return;
@@ -160,6 +163,141 @@ test('баннер подборки отдаётся своим адресом �
   } finally {
     await fixture.cleanup();
   }
+});
+
+// ---------- S-04: сетка всех подборок (F-02-05 §1) ----------
+
+/**
+ * Фон с вариантами нужных ширин для карточки сетки: байты фикстуре не нужны,
+ * правило выбора ширины работает по индексу (image_id, width).
+ *
+ * @param {number} seriesId
+ * @param {number[]} widths
+ * @param {string} tag подложка чек-сумм
+ * @returns {Promise<number>} идентификатор картинки для уборки после теста
+ */
+async function backdropFixture(seriesId, widths, tag) {
+  const { rows: [image] } = await pool.query(
+    "INSERT INTO e_image (series_id, role, mime, width, height) VALUES ($1, 'backdrop', 'image/webp', 1280, 720) RETURNING id",
+    [seriesId],
+  );
+  for (const width of widths) {
+    await pool.query(
+      `INSERT INTO e_image_variant (image_id, width, height, file, mime, bytes, checksum)
+       VALUES ($1, $2, $3, $4, 'image/webp', 1, $5)`,
+      [image.id, width, Math.round(width * 9 / 16), Buffer.from([0]), `${tag}-${width}`],
+    );
+  }
+  return image.id;
+}
+
+test('сетка подборок открывается, индексируется и показывает карточку с баннером', { skip }, async () => {
+  const series = await sixVisibleSeries();
+  // Фон у первого сериала фикстуры раскладки: карточка обязана предъявить
+  // баннер и его размер заранее (CLS = 0, R-PERF-03).
+  const fixture = await withCollection();
+  const imageId = await backdropFixture(series[0], [1280], 'test-http-grid');
+  try {
+    const response = await get('/ru/collections');
+    const body = await response.text();
+
+    assert.equal(response.status, 200);
+    assert.match(body, /<h1[^>]*>Подборки<\/h1>/);
+    assert.match(body, /<link rel="canonical" href="\/ru\/collections">/);
+    assert.ok(!body.includes('noindex'), 'сетка с подборками индексируется');
+    assert.ok(body.includes(`href="/ru/collections/${fixture.slug}"`),
+      'карточка ведёт на страницу подборки');
+    assert.match(body, new RegExp(`src="/ru/collections/${fixture.slug}/banner-1280\\.webp"`),
+      'баннер отдаётся адресом страницы картинок');
+    assert.ok(body.includes('width="1280"'), 'место под баннеру зарезервировано атрибутами');
+  } finally {
+    await fixture.cleanup();
+    await pool.query('DELETE FROM e_image WHERE id = $1', [imageId]);
+  }
+});
+
+test('английская сетка берёт английские названия, а при их отсутствии — русские с пометкой', { skip }, async () => {
+  const series = await sixVisibleSeries();
+  const { rows: [english] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, title_en, weight) VALUES ($1, $2, $3, 10) RETURNING id, slug",
+    ['test-http-collection-grid-en', 'Русский заголовок', 'English title'],
+  );
+  const { rows: [borrowed] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 9) RETURNING id, slug",
+    ['test-http-collection-grid-ru', 'Русский заголовок сетки'],
+  );
+  for (const [index, id] of series.entries()) {
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [english.id, id, index],
+    );
+  }
+  for (const [index, id] of series.entries()) {
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [borrowed.id, id, index],
+    );
+  }
+
+  try {
+    const body = await (await get('/en/collections')).text();
+    assert.match(body, /<span class="collection-card__title">English title<\/span>/,
+      'есть перевод — показывается перевод');
+    assert.match(body, /<span class="collection-card__title" lang="ru">Русский заголовок сетки<\/span>/,
+      'перевода нет — русское название с пометкой языка (R-I18N-06)');
+    assert.equal((await get('/ru/collections')).status, 200, 'русская сетка тоже отвечает');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE slug LIKE \'test-http-collection-grid-%\'');
+  }
+});
+
+test('мусорные параметры не меняют сетку', { skip }, async () => {
+  const fixture = await withCollection();
+  try {
+    const response = await get('/ru/collections?page=99&sort=drafts');
+    const body = await response.text();
+    assert.equal(response.status, 200);
+    assert.match(body, /<link rel="canonical" href="\/ru\/collections">/);
+    assert.ok(!body.includes('page=99'), 'параметры не попадают ни в адрес, ни в текст');
+  } finally {
+    await fixture.cleanup();
+  }
+});
+
+test('пустая сетка — noindex и пустое состояние, а не ошибка и не мягкая 404', { skip }, async () => {
+  // Своё приложение с заглушкой: очищать живую базу под тест нельзя,
+  // «пусто» имитируется на уровне источника.
+  const app = createApp({
+    data: stubData(),
+    series: pgSeries(pool),
+    catalogue: pgCatalogueList(pool),
+    seasons: pgSeasons(pool),
+    person: pgPerson(pool),
+    collections: {
+      list: async () => [],
+      collection: async () => null,
+      grid: async () => [],
+    },
+    pool,
+  });
+  await new Promise((resolve) => {
+    stubServer = app.listen(0, '127.0.0.1', () => {
+      stubBase = `http://127.0.0.1:${stubServer.address().port}`;
+      resolve(undefined);
+    });
+  });
+  try {
+    const body = await (await fetch(`${stubBase}/ru/collections`)).text();
+    assert.ok(body.includes('noindex'), 'пустая сетка не индексируется');
+    assert.ok(body.includes('Подборок пока нет'), 'пустое состояние нарисовано');
+    assert.ok(!body.includes('collections__grid'), 'сетка без подборок не рисуется');
+  } finally {
+    await new Promise((resolve) => stubServer.close(resolve));
+  }
+});
+
+test('неизвестная локаль — 404 (F-00-02)', { skip }, async () => {
+  assert.equal((await get('/xx/collections')).status, 404);
 });
 
 test('страница человека открывается, имя и сериалы на месте', { skip }, async () => {

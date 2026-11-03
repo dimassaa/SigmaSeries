@@ -57,6 +57,22 @@ export async function bannerOf(pool, slug) {
 }
 
 /**
+ * Правило выбора ширины: подходящая — не больше нужной и самая крупная из
+ * таких; если все крупнее — самая маленькая. Живёт отдельно от `variantOf`,
+ * потому что правило спрашивают двое: страница подборки по одной картинке и
+ * сетка S-04 пачкой (batched) — а два места, где правилась бы ширина,
+ * разъехались бы на первом же админском баннере.
+ *
+ * @param {number[]} widths
+ * @returns {number|null} `null`, если вариантов нет
+ */
+export function pickVariantWidth(widths) {
+  if (!widths.length) return null;
+  const fit = widths.filter((value) => value <= WANTED_WIDTH).sort((a, b) => b - a);
+  return fit[0] ?? Math.min(...widths);
+}
+
+/**
  * Вариант нужной ширины и точка кадрирования.
  *
  * Ширина выбирается та, что не больше нужной и самая большая из таких: на
@@ -79,9 +95,6 @@ export async function variantOf(pool, imageId) {
   );
   if (!rows.length) return null;
 
-  const widths = rows.map((row) => row.width);
-  const width = widths.filter((value) => value <= WANTED_WIDTH).sort((a, b) => b - a)[0]
-    ?? widths[0];
-
+  const width = pickVariantWidth(rows.map((row) => row.width));
   return { imageId, width };
 }

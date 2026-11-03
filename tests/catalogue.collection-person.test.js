@@ -1,4 +1,4 @@
-// Подборка (F-02-05, S-05) и персона (F-02-09, S-15).
+// Подборка (F-02-05, S-05), сетка подборок (S-04) и персона (F-02-09, S-15).
 //
 // Оба адреса строятся по одной и той же причине: поиск и главная предлагают
 // эти ссылки, а они вели в 404. Проверяется главное правило каждой страницы —
@@ -34,6 +34,25 @@ async function sixVisibleSeries() {
     [MIN_VISIBLE],
   );
   return rows.map((row) => row.id);
+}
+
+/**
+ * Варианты картинки нужных ширин: байты фикстуре не нужны, правило выбора
+ * ширины работает по индексу (e_image_variant.image_id, width).
+ *
+ * @param {any} target пул или клиент
+ * @param {number} imageId
+ * @param {number[]} widths
+ * @param {string} tag уникальная подложка чек-сумм фикстуры
+ */
+async function addVariants(target, imageId, widths, tag) {
+  for (const width of widths) {
+    await target.query(
+      `INSERT INTO e_image_variant (image_id, width, height, file, mime, bytes, checksum)
+       VALUES ($1, $2, $3, $4, 'image/webp', 1, $5)`,
+      [imageId, width, Math.round(width * 9 / 16), Buffer.from([0]), `${tag}-${width}`],
+    );
+  }
 }
 
 test.before(async () => {
@@ -262,6 +281,162 @@ test('список подборок на главной тоже знает пр
     assert.ok(!slugs.includes(thin.slug), 'подборка из пяти на главной не появляется');
   } finally {
     await pool.query('DELETE FROM e_collection WHERE id IN ($1, $2)', [row.id, thin.id]);
+  }
+});
+
+// ---------- S-04: сетка всех подборок (F-02-05 §1) ----------
+
+test('сетка S-04: полные подборки по весу админа, тонкая с большим весом не пробивается', { skip }, async () => {
+  const series = await sixVisibleSeries();
+  const { rows: [heavy] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 20) RETURNING id, slug",
+    ['test-data-collection-grid-heavy', 'Тяжёлая подборка'],
+  );
+  const { rows: [light] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 10) RETURNING id, slug",
+    ['test-data-collection-grid-light', 'Лёгкая подборка'],
+  );
+  const { rows: [thin] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 99) RETURNING id, slug",
+    ['test-data-collection-grid-thin', 'Тонкая с большим весом'],
+  );
+  for (const [index, id] of series.entries()) {
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [heavy.id, id, index],
+    );
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [light.id, id, index],
+    );
+  }
+  for (const id of series.slice(0, MIN_VISIBLE - 1)) {
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [thin.id, id, 0],
+    );
+  }
+
+  try {
+    const grid = await collections.grid();
+    const slugs = grid.map((item) => item.slug);
+    assert.ok(slugs.includes(heavy.slug) && slugs.includes(light.slug),
+      'обе полные подборки видны в сетке');
+    assert.ok(!slugs.includes(thin.slug),
+      'порог в шесть сериалов один и для главной, и для сетки (EC-C6)');
+    assert.ok(slugs.indexOf(heavy.slug) < slugs.indexOf(light.slug),
+      'сначала подборка с большим весом (H-31: порядок задаёт администратор)');
+  } finally {
+    // Пункты уходят каскадом вместе с подборкой.
+    await pool.query("DELETE FROM e_collection WHERE slug LIKE 'test-data-collection-grid%'");
+  }
+});
+
+test('сетка S-04: баннер админа сильнее фона первого сериала, чужого фона не подставляем', { skip }, async () => {
+  const series = await sixVisibleSeries();
+
+  // Свои сериалы без картинок: для подборки без баннера нужен сериал, у
+  // которого фона нет гарантированно, а не «в живой базе не случилось».
+  const own = [];
+  for (let index = 0; index < MIN_VISIBLE; index += 1) {
+    const { rows: [row] } = await pool.query(
+      `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state)
+       VALUES ($1, $2, $3, $4, 'published', 'ended') RETURNING id`,
+      [`test-data-collection-grid-series-${index}`, `Без картинок ${index}`, `No images ${index}`, 999000030 + index],
+    );
+    own.push(row.id);
+  }
+
+  // Фон у заёмного первого сериала, варианты 640/1280/1920.
+  const { rows: [backdrop] } = await pool.query(
+    "INSERT INTO e_image (series_id, role, mime, width, height) VALUES ($1, 'backdrop', 'image/webp', 1280, 720) RETURNING id",
+    [series[0]],
+  );
+  await addVariants(pool, backdrop.id, [640, 1280, 1920], 'grid-backdrop');
+
+  // Баннер админа — отдельная картинка без сериала-владельца, один вариант.
+  const { rows: [admin] } = await pool.query(
+    "INSERT INTO e_image (role, mime, width, height) VALUES ('banner', 'image/webp', 1280, 720) RETURNING id",
+  );
+  await addVariants(pool, admin.id, [960], 'grid-admin');
+
+  const { rows: [fallback] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 10) RETURNING id, slug",
+    ['test-data-collection-grid-fallback', 'С фоном первого'],
+  );
+  await pool.query(
+    'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, 0)',
+    [fallback.id, series[0]],
+  );
+  for (const [index, id] of own.entries()) {
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [fallback.id, id, index + 1],
+    );
+  }
+
+  const { rows: [withAdmin] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, banner_image_id, weight) VALUES ($1, $2, $3, 20) RETURNING id, slug",
+    ['test-data-collection-grid-admin', 'С баннером админа', admin.id],
+  );
+  for (const [index, id] of own.entries()) {
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [withAdmin.id, id, index],
+    );
+  }
+
+  const { rows: [without] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, weight) VALUES ($1, $2, 30) RETURNING id, slug",
+    ['test-data-collection-grid-none', 'Без картинок вовсе'],
+  );
+  for (const [index, id] of own.entries()) {
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [without.id, id, index],
+    );
+  }
+
+  try {
+    const grid = await collections.grid();
+    const bySlug = new Map(grid.map((item) => [item.slug, item]));
+    assert.equal(bySlug.get('test-data-collection-grid-fallback')?.bannerWidth, 1280,
+      'фон первого сериала стал баннером; из вариантов взята подходящая ширина');
+    assert.equal(bySlug.get('test-data-collection-grid-admin')?.bannerWidth, 960,
+      'баннер админа перебивает фон первого сериала');
+    assert.equal(bySlug.get('test-data-collection-grid-none')?.bannerWidth, null,
+      'нет ни баннера админа, ни фона первого сериала — плитка без картинки');
+    const slugs = grid.map((item) => item.slug);
+    assert.ok(slugs.indexOf('test-data-collection-grid-none') < slugs.indexOf('test-data-collection-grid-admin'),
+      'порядок по весу не зависит от картинок');
+  } finally {
+    await pool.query("DELETE FROM e_collection WHERE slug LIKE 'test-data-collection-grid%'");
+    await pool.query("DELETE FROM e_series WHERE slug LIKE 'test-data-collection-grid-series-%'");
+    await pool.query('DELETE FROM e_image WHERE id IN ($1, $2)', [backdrop.id, admin.id]);
+  }
+});
+
+test('сетка S-04 отдаёт названия обоих языков как есть, резерв — работа вида', { skip }, async () => {
+  const series = await sixVisibleSeries();
+  const { rows: [row] } = await pool.query(
+    "INSERT INTO e_collection (slug, title_ru, title_en, weight) VALUES ($1, $2, $3, 10) RETURNING id, slug",
+    ['test-data-collection-grid-titles', 'Название по-русски', 'English title'],
+  );
+  for (const [index, id] of series.entries()) {
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [row.id, id, index],
+    );
+  }
+
+  try {
+    const grid = await collections.grid();
+    const found = grid.find((item) => item.slug === row.slug);
+    assert.ok(found, 'полная подборка видна и в сетке');
+    assert.equal(found.titleRu, 'Название по-русски');
+    assert.equal(found.titleEn, 'English title');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE id = $1', [row.id]);
   }
 });
 
