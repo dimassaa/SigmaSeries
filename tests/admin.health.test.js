@@ -159,6 +159,26 @@ test('старый бэкап — проблема с текстом, а не т
   assert.equal(backup.textKey, 'admin.health.text.backup.stale');
 });
 
+// #231: ветка «в норме» обязана заполнить textParams, как slow и warning:
+// вид подставляет textParams в строку, а она читает {ms} — иначе экран печатает
+// сырую скобку в штатном, самом частом состоянии отклика.
+test('отклик в норме — текст с числом, а не сырой {ms}', () => {
+  const data = {
+    online: { now: 0, average: 0, peak: 0, dataPoints: 0 },
+    errors: { count: 0, series: [] },
+    response: { p95: 120, routes: [], series: [] },
+    eventLoop: { delayMs: 12 },
+    moderation: { waiting: 0, oldestMinutes: 0, growing: false, cautious: false },
+    tasks: { items: [], failed: 0, unknown: 0 },
+    disk: { freePercent: 41, freeBytes: 41, totalBytes: 100 },
+    backup: { last: { status: 'verified' }, verifiedAgeHours: 1 },
+  };
+  const response = classifyHealth(data).find((item) => item.key === 'response');
+  assert.equal(response.severity, 'ok');
+  assert.equal(response.textKey, 'admin.health.text.response.ok');
+  assert.deepEqual(response.textParams, { ms: 120 });
+});
+
 test('экран показывает последний результат задач, а не только счётчик', () => {
   const data = {
     metrics: [],

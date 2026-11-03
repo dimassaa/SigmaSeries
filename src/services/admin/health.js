@@ -378,7 +378,8 @@ export function classifyHealth(data = {}) {
   } else {
     rows.push({
       key: 'response', severity: 'ok', state: 'ok',
-      textKey: 'admin.health.text.response.ok', value: response.p95, unit: 'ms',
+      textKey: 'admin.health.text.response.ok',
+      textParams: { ms: response.p95 }, value: response.p95, unit: 'ms',
       link: '/admin',
     });
   }
