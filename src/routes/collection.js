@@ -10,7 +10,7 @@ import express from 'express';
 import { layout, pageTitle } from '../view/layout.js';
 import { panelFor } from './panel.js';
 import { menuGenres } from './menuGenres.js';
-import { collectionView, collectionsView } from '../view/collection.js';
+import { collectionView, collectionsView, cardTitleOf } from '../view/collection.js';
 import { personView } from '../view/person.js';
 import { notFound } from './home.js';
 import { t, isLocale } from '../i18n/strings.js';
@@ -48,6 +48,10 @@ export function createCollectionRoutes({ collections, person, genres = null, ses
         // сериалов; «мягкой 404» (200-пустышка в индексе) не получится
         // (R-SEO-15).
         noindex: items.length === 0,
+        // Разметка ItemList описывает наполненную сетку; у пустой списка
+        // нет — разметка пустого обещала бы поисковику контент, которого
+        // на странице не появится вместе с noindex.
+        jsonLd: items.length > 0 ? collectionsJsonLd({ locale, items }) : null,
         genres: await menuGenres(genres, locale),
         body: collectionsView({ locale, items }),
       })));
@@ -121,16 +125,54 @@ export function createCollectionRoutes({ collections, person, genres = null, ses
   return router;
 }
 
+/**
+ * Разметка страницы подборки — `ItemList` по таблице SEO §2 (Q-21): у страницы
+ * был `CollectionPage` с `hasPart`, документ с 03.11 ведёт. Список — видимые
+ * сериалы в порядке администратора: разметка повторяет содержимое страницы.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {{slug: string, title: string, total: number,
+ *   series: Array<{slug: string, title: string}>}} args.collection
+ * @returns {any}
+ */
 function collectionJsonLd({ locale, collection: found }) {
   return {
     '@context': 'https://schema.org',
-    '@type': 'CollectionPage',
+    '@type': 'ItemList',
     name: found.title,
     url: `/${locale}/collections/${found.slug}`,
-    hasPart: found.series.map((item) => ({
-      '@type': 'TVSeries',
-      name: item.title,
+    itemListElement: found.series.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
       url: `/${locale}/series/${item.slug}`,
+      name: item.title,
+    })),
+  };
+}
+
+/**
+ * Разметка сетки подборок S-04 — `ItemList` по таблице SEO §2 (строка
+ * добавлена решением автора 03.11, Q-21). Названия позиций идут по цепочке
+ * резервов вида карточки, иначе разметка и экран разошлись бы на первого
+ * подборку без перевода.
+ *
+ * @param {object} args
+ * @param {string} args.locale
+ * @param {Array<{slug: string, titleRu: string, titleEn: string|null}>} args.items
+ * @returns {any}
+ */
+function collectionsJsonLd({ locale, items }) {
+  return {
+    '@context': 'https://schema.org',
+    '@type': 'ItemList',
+    name: t(locale, 'collections.title'),
+    url: `/${locale}/collections`,
+    itemListElement: items.map((item, index) => ({
+      '@type': 'ListItem',
+      position: index + 1,
+      url: `/${locale}/collections/${item.slug}`,
+      name: cardTitleOf(locale, item).text,
     })),
   };
 }

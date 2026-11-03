@@ -60,11 +60,16 @@ export function collectionView({ locale, collection }) {
  * локали с пометкой языка (R-I18N-06). Оба пусты — подпись из адреса: ссылка
  * без имени недоступна с клавиатуры и не имеет смысла, а титул обязателен.
  *
+ * Цепочка живёт здесь, а не в двух местах, потому что её читают двое: вид
+ * карточки (текст с пометкой языка) и JSON-LD сетки (маршрут — только
+ * текст): расхождение разметки и экрана заметили бы по тегу `lang` лишь
+ * случайно.
+ *
  * @param {string} locale
  * @param {{slug: string, titleRu: string, titleEn: string|null}} item
  * @returns {{text: string, lang: string|null}}
  */
-function cardTitleOf(locale, item) {
+export function cardTitleOf(locale, item) {
   const own = ((locale === 'en' ? item.titleEn : item.titleRu) ?? '').trim();
   const other = ((locale === 'en' ? item.titleRu : item.titleEn) ?? '').trim();
   const text = own || other || item.slug;

@@ -15,6 +15,7 @@ import { pgCatalogueList } from '../src/services/catalogue/list.js';
 import { pgSeasons } from '../src/services/catalogue/season.js';
 import { pgCollections } from '../src/services/catalogue/collection.js';
 import { pgPerson } from '../src/services/catalogue/person.js';
+import { pgCatalogueGenres } from '../src/services/catalogue/genres.js';
 import { stubData } from '../src/services/home/data.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
@@ -41,6 +42,9 @@ test.before(async () => {
     seasons: pgSeasons(pool),
     collections: pgCollections(pool),
     person: pgPerson(pool),
+    // Меню жанров шапки: пункт «Подборки» живёт в одном списке с жанрами,
+    // поэтому без подключённого справочника разметки меню и не видно.
+    genres: pgCatalogueGenres(pool),
     // Баннер подборки отдаётся маршрутом картинок — без подключения страница
     // ссылалась бы в пустоту.
     pool,
@@ -109,6 +113,27 @@ test('страница подборки открывается и показыв
     assert.equal((body.match(/class="poster"/g) ?? []).length, MIN_VISIBLE,
       'в сетке все шесть постеров');
     assert.match(body, /Описание подборки для проверки/);
+    // Таблица SEO §2 задаёт подборке ItemList (Q-21): страница отдавала
+    // CollectionPage с hasPart — иначе, чем таблица. Решение автора 03.11:
+    // код следует документу. В списке сериалы с проверкой порядка админа,
+    // у страниц каталога позиция ведёт отсчёт с единицы.
+    const match = body.match(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/);
+    assert.ok(match, 'разметка на странице подборки присутствует');
+    const ld = JSON.parse(match[1]);
+    assert.equal(ld['@type'], 'ItemList');
+    assert.ok(!body.includes('"CollectionPage"'), 'старый CollectionPage снят');
+    assert.equal(ld.name, 'Подборка для страницы');
+    assert.equal(ld.itemListElement.length, MIN_VISIBLE, 'в списке все шесть сериалов');
+    ld.itemListElement.forEach((entry, index) => {
+      assert.equal(entry.position, index + 1, 'позиции идут с единицы');
+      assert.match(entry.url, /^\/ru\/series\//, 'элемент ведёт на страницу сериала');
+      assert.ok(String(entry.name ?? '').length > 0, 'название элемента задано');
+    });
+    // Пункт меню (Q-20) строится той же шапкой: на страницах каталога и сетки
+    // он считается той же разметкой, но настоящий вариант проверяем в двух
+    // разделах сразу — страница сборки и сетка.
+    assert.match(body, /<a class="gmenu__all" href="\/ru\/collections">Подборки<\/a>/,
+      'пункт «Подборки» есть в меню «Сериалы» и на странице подборки');
   } finally {
     await fixture.cleanup();
   }
@@ -210,6 +235,20 @@ test('сетка подборок открывается, индексирует
     assert.match(body, new RegExp(`src="/ru/collections/${fixture.slug}/banner-1280\\.webp"`),
       'баннер отдаётся адресом страницы картинок');
     assert.ok(body.includes('width="1280"'), 'место под баннеру зарезервировано атрибутами');
+    // Вход в сетку по решению автора 03.11 (Q-20): пункт «Подборки» во втором
+    // меню UI-03, рядом с «Все сериалы». Страница предоставляет разметку
+    // шапки, собираемой одной функцией layout() на всех экранах.
+    assert.match(body, /<a class="gmenu__all" href="\/ru\/collections">Подборки<\/a>/,
+      'пункт «Подборки» стоит в меню «Сериалы» рядом с «Все сериалы»');
+    // Разметка сетки — ItemList по таблице SEO §2 (Q-21): раньше строки в
+    // таблице не было вовсе, разметка не отдавалась.
+    const ldMatch = body.match(/<script type="application\/ld\+json">([\s\S]+?)<\/script>/);
+    assert.ok(ldMatch, 'разметка ItemList присутствует на сетке');
+    const ld = JSON.parse(ldMatch[1]);
+    assert.equal(ld['@type'], 'ItemList');
+    const ldCard = ld.itemListElement.find((item) => item.url === `/ru/collections/${fixture.slug}`);
+    assert.ok(ldCard, 'карточка фикстуры есть в списке разметки');
+    assert.ok(ldCard.position >= 1 && Boolean(ldCard.name), 'позиция и название на месте');
   } finally {
     await fixture.cleanup();
     await pool.query('DELETE FROM e_image WHERE id = $1', [imageId]);
