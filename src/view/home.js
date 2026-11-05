@@ -8,6 +8,7 @@
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
+import { posterList } from './seriesCards.js';
 
 /**
  * Адрес картинки.
@@ -21,24 +22,8 @@ const imageUrl = (locale, slug, role, width) => (width ? `/${locale}/images/${sl
  * @param {object} page
  * @param {string} page.locale
  * @param {any} page.data результат data.js
+ * @param {string} [page.csrf] токен для кнопок «Не интересно»
  */
-/**
- * Причина рекомендации — текстом интерфейса (M11 §11).
- *
- * Название сериала или жанра — данные каталога, и они на двух языках;
- * сама формулировка причины переводима.
- *
- * @param {string} locale
- * @param {{kind: string, titleRu: string, titleEn: string}} reason
- * @returns {string}
- */
-function reasonText(locale, reason) {
-  const title = locale === 'en' ? reason.titleEn : reason.titleRu;
-  if (reason.kind === 'like') return t(locale, 'reco.reason.like', { title });
-  if (reason.kind === 'genre') return t(locale, 'reco.reason.genre', { title });
-  return t(locale, 'reco.reason.marked', { title });
-}
-
 export function homeView({ locale, data, csrf = '' }) {
   // Ряд «Для вас» для вошедшего и «Популярное» для гостя — одна и та же
   // геометрия, разный только заголовок (F-06-06 §19).
@@ -79,33 +64,8 @@ export function homeView({ locale, data, csrf = '' }) {
   <h2 class="block__title" id="h-foryou">
     ${t(locale, forYou.personalized ? 'home.foryou.heading' : 'home.foryou.popular')}
   </h2>
-  ${when(forYou.items.length > 0, () => html`
-  <ol class="posters" role="list">
-    ${forYou.items.map((s) => html`
-    <li class="posters__item">
-      <a class="poster" href="/${locale}/series/${s.slug}" data-poster-card="${s.slug}" data-poster-info="${t(locale, 'poster.card.info')}"
-         data-track-impression="reco_impression" data-track-click="reco_click"
-         aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
-        <span class="poster__frame">
-          ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
-             alt="" width="185" height="278" loading="lazy" decoding="async">`)}
-          ${when(!s.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
-        </span>
-        <span class="poster__title">${s.title}</span>
-        ${when(s.reason, () => html`
-        <span class="poster__reason">${reasonText(locale, s.reason)}</span>`)}
-        <span class="poster__meta">${s.year}</span>
-      </a>
-      ${when(s.reason, () => html`
-      <form class="posters__dismiss" method="post" action="/${locale}/reco/dismiss">
-        <input type="hidden" name="csrf" value="${csrf}">
-        <input type="hidden" name="series" value="${s.slug}">
-        <input type="hidden" name="back" value="/${locale}/">
-        <button class="button button--quiet" type="submit" data-track-click="reco_dismiss"
-          >${t(locale, 'reco.dismiss')}</button>
-      </form>`)}
-    </li>`)}
-  </ol>`)}
+  ${when(forYou.items.length > 0, () =>
+    posterList({ locale, items: forYou.items, csrf, back: `/${locale}/` }))}
 </section>
 
 <section class="block block--fresh" aria-labelledby="h-fresh">

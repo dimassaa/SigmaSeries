@@ -4,6 +4,10 @@
 // отмена. Все — POST с CSRF и проверкой сессии, потому что отметка пишет в базу
 // от имени человека (R-SEC-23, R-SEC-08).
 //
+// Кэш «для вас» считается по этим же отметкам, поэтому после любой отметки
+// он сбрасывается: иначе строка жила бы десять минут со старым списком
+// (EC-M2), и «не смотрели бы» продолжало бы предлагаться по новым отметкам.
+//
 // Отказ «серия не вышла» возвращается на страницу с сообщением и датой выхода
 // (EC-T2): человек должен понять, что кнопка работает и серия просто ещё не
 // вышла, а не гадать, где он ошибся.
@@ -21,7 +25,7 @@ const WINDOW_MS = 60_000;
 
 const defaultLimiter = createRateLimiter({ limit: RATE_PER_MINUTE, windowMs: WINDOW_MS });
 
-export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLimiter, analytics = null }) {
+export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLimiter, analytics = null, recommendations = null }) {
   const router = express.Router({ strict: true });
   router.use('/:locale{/:rest}', sessionMw);
 
@@ -66,6 +70,8 @@ export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLi
           return res.redirect(303, `${back}?mark=soon&date=${encodeURIComponent(result.date ?? '')}`);
         }
         if (!result.ok) return res.redirect(303, `${back}?mark=${result.reason}`);
+        // Первое из четырёх место сброса: почему — в шапке файла (EC-M2).
+        recommendations?.invalidate?.(userId);
         // Отметка меняет прогресс, поэтому событие пишет сервер (R-AN-05).
         await analytics?.write({
           name: 'episode_mark',
@@ -78,6 +84,7 @@ export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLi
       if (action === 'season') {
         const result = await marks.markSeason({ userId, seasonId: number(req.body?.seasonId), today });
         if (!result.ok) return res.redirect(303, `${back}?mark=${result.reason}`);
+        recommendations?.invalidate?.(userId);
         // Массовая отметка — ретро: человек отметил всё до этой серии одним
         // нажатием, и в «любимое время суток» такая отметка не годится.
         await analytics?.write({
@@ -97,11 +104,13 @@ export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLi
           today,
         });
         if (!result.ok) return res.redirect(303, `${back}?mark=${result.reason}`);
+        recommendations?.invalidate?.(userId);
         return res.redirect(303, `${back}?mark=done&marked=${result.marked}&batch=${result.batchId}`);
       }
 
       if (action === 'undo') {
         await marks.undo({ userId, batchId: number(req.body?.batch), today });
+        recommendations?.invalidate?.(userId);
         return res.redirect(303, `${back}?mark=undone`);
       }
 

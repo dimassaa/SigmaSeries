@@ -315,5 +315,17 @@ export function pgRecommendations(pool) {
     return rows.length > 0;
   }
 
-  return { forUser, dismiss, history };
+  /**
+   * Сбрасывает кэш человека: отметка меняет и то, что он смотрел, и жанры
+   * вкуса. Строка обязана пересчитаться на следующем запросе, а не через
+   * десять минут (EC-M2).
+   *
+   * @param {number|null} userId
+   */
+  function invalidate(userId) {
+    if (userId == null) return;
+    cache.delete(String(userId));
+  }
+
+  return { forUser, dismiss, history, invalidate };
 }

@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 
 import { createHomeRoutes, createNotFoundRoutes, errorHandler, robots } from './routes/home.js';
+import { createForYouRoutes } from './routes/forYou.js';
 import { createAuthRoutes } from './routes/auth.js';
 import { createRegisterRoutes } from './routes/register.js';
 import { createTasteRoutes } from './routes/register-taste.js';
@@ -284,6 +285,11 @@ export function createApp({
 
   app.use(createHomeRoutes({ data, sessionMw, panel, genres }));
 
+  // «Для вас» (S-34): тот же ряд рекомендаций, что и на главной, отдельным
+  // адресом. Страница noindex: строка персональная, виндекс ей не нужен
+  // (R-SEO-06), поэтому — после главной, но раньше зависимых от источников.
+  if (data) app.use(createForYouRoutes({ data, genres, sessionMw }));
+
   // Каталог и карточка сериала подключаются, когда есть источник: без него
   // страница отвечала бы 404 на любой адрес, что выглядит как «сервис пуст».
   if (catalogue) app.use(createCatalogueRoutes({ catalogue, genres, sessionMw, panel }));
@@ -394,9 +400,10 @@ export function createApp({
   // Закладки читают сессию: гостю показывается вход, вошедшему — свой список.
   if (library && sessionMw) app.use(createLibraryRoutes({ library, sessionMw, progress, subscriptions }));
   // Отметки серий: POST с CSRF, лимитом частоты и проверкой «вышла ли серия».
+  // recommendations — ради сброса кэша «для вас» после отметки (EC-M2).
   if (marks && series && sessionMw) {
     app.use(createMarkRoutes({
-      marks, series, sessionMw, limiter: markLimiter ?? undefined, analytics,
+      marks, series, sessionMw, limiter: markLimiter ?? undefined, analytics, recommendations,
     }));
   }
   // Лента уведомлений (F-03-09). Живёт рядом с подпиской: колокольчик
