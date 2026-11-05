@@ -281,9 +281,11 @@ test('выход серии несёт номер и дату', { skip }, async 
        JOIN e_series s ON s.id = se.series_id
       WHERE r.release_date > CURRENT_DATE AND se.number > 0
         AND s.publication_state = 'published' AND s.archived_at IS NULL
+        AND NOT r.covers_season
+        AND (SELECT count(*) FROM e_release_episode x WHERE x.release_id = r.id) = 1
       LIMIT 1`,
   );
-  if (!rows.length) return;   // будущих выходов серий нет
+  if (!rows.length) return;   // будущих одиночных выходов серий нет
 
   const page = await calendar.days({ from: rows[0].date, to: rows[0].date });
   const entries = page.days.get(rows[0].date) ?? [];
