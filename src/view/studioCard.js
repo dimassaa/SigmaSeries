@@ -249,7 +249,8 @@ export function studioCardView({
 
       ${when(card.publishBlockers.length, () => html`
       <p class="studio-card__blockers">
-        ${t(locale, 'studio.card.publishBlockers')}: ${card.publishBlockers.join(', ')}
+        ${t(locale, 'studio.card.publishBlockers')}: ${card.publishBlockers
+          .map((code) => t(locale, `studio.card.blockers.${code}`)).join(', ')}
       </p>`)}
 
       <h3 class="studio__subsection-title">${t(locale, 'studio.card.dependencies')}</h3>

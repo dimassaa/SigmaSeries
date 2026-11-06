@@ -154,3 +154,21 @@ test('возврат версии сделан отдельной формой, 
     'форма возврата версии на месте');
   assert.equal(formDepth(markup), 1);
 });
+
+test('причины блокировки публикации названы словами, а не кодами (№247)', () => {
+  const ru = markupOf({
+    locale: 'ru', card: { ...CARD, publishBlockers: ['no_title', 'no_genre'] },
+    history: [], genres: [], schedule: [], images: [], tab: 'service', csrf: 'токен',
+  });
+  assert.ok(ru.includes('Нет названия'), 'причина названия словами');
+  assert.ok(ru.includes('Нет жанра'), 'причина жанра словами');
+  assert.ok(!ru.includes('no_title'), 'сырой код названия на страницу не попадает');
+  assert.ok(!ru.includes('no_genre'), 'сырой код жанра на страницу не попадает');
+
+  const en = markupOf({
+    locale: 'en', card: { ...CARD, publishBlockers: ['no_year'] },
+    history: [], genres: [], schedule: [], images: [], tab: 'service', csrf: 'токен',
+  });
+  assert.ok(en.includes('No year'), 'причина года по-английски');
+  assert.ok(!en.includes('no_year'), 'сырой код года на английской странице не появляется');
+});
