@@ -594,6 +594,16 @@
 /* Подборка под порогом (EC-C6): цвет дублирует текст состояния, а не заменяет его. */
 .studio__state--warning { color: var(--warning); }
 
+/* Причины запрета публикации (F-10-07 §5) на форме создания: запрет назван
+   словами, цвет подсказывает, что перечень мешает публикации. */
+.studio__blockers {
+  margin: 0 0 var(--space-4);
+  padding: 0;
+  list-style: none;
+  font-size: var(--text-sm);
+  color: var(--warning);
+}
+
 .studio__place {
   display: inline-block;
   margin: 0 var(--space-1) var(--space-1) 0;

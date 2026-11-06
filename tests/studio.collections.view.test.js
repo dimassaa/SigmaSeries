@@ -9,7 +9,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { studioCollectionsView } from '../src/view/studioCollections.js';
+import { studioCollectionsView, studioCollectionView } from '../src/view/studioCollections.js';
 
 /**
  * Строка списка — форма совпадает с выдачей источника.
@@ -31,7 +31,6 @@ function row(over) {
     isDemo: false,
     visibleSeries: 6,
     totalSeries: 6,
-    publishBlockers: [],
     state: 'published',
     ...over,
   };
@@ -72,4 +71,29 @@ test('состояния подписаны по-английски, когда 
   assert.ok(page.includes('Hidden automatically'));
   assert.ok(page.includes('Draft'));
   assert.ok(!page.includes('few_series'));
+});
+
+test('в списке есть вход на создание — единственная, где пусто (№246)', () => {
+  const page = markup([row()]);
+  assert.ok(page.includes('/ru/admin/collections/new'),
+    'создание доступно в один переход со списка');
+  assert.ok(page.includes('Создать'));
+});
+
+test('форма создания пустая, но с теми же полями и запретом пустого названия', () => {
+  const page = String(studioCollectionView({ locale: 'ru', collection: null }).__raw);
+  assert.ok(page.includes('/ru/admin/collections/new'),
+    'форма отправляется на адрес создания, а не на правку без slug');
+  assert.ok(page.includes('Новая подборка'));
+  assert.ok(/name="title_ru"[^>]*required/.test(page), 'название ru обязательное');
+  assert.ok(/name="weight"[^>]*value="0"/.test(page), 'вес — выбранное ноль для старта');
+  assert.ok(!/name="active"[^>]*checked/.test(page), 'создание начинается черновиком');
+  assert.ok(!page.includes('name="series_ids"'), 'сериals добавляются уже в правке');
+});
+
+test('форма создания показывает список причин в словах, не кодами', () => {
+  const page = String(studioCollectionView({ locale: 'ru', collection: null }).__raw);
+  assert.ok(page.includes('Видимых сериалов меньше шести'),
+    'причина «мало» названа словами рядом с формой');
+  assert.ok(!page.includes('few_series'), 'сырые коды на страницу не попадают');
 });

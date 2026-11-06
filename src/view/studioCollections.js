@@ -22,7 +22,6 @@ import { t } from '../i18n/strings.js';
  * @property {number} visibleSeries
  * @property {number} totalSeries
  * @property {'published'|'auto_hidden'|'draft'} state
- * @property {string[]} publishBlockers
  */
 
 /**
@@ -69,6 +68,9 @@ export function studioCollectionsView({ locale, list = [] }) {
   return html`
 <div class="studio">
   <h1 class="studio__title">${t(locale, 'studio.collections.title')}</h1>
+  <p class="studio-card__actions">
+    <a class="button button--primary" href="/${locale}/admin/collections/new">${t(locale, 'studio.collections.new')}</a>
+  </p>
   <p class="studio__note">${t(locale, 'studio.collections.note')}</p>
 
   ${when(list.length === 0, () => html`
@@ -109,61 +111,80 @@ export function studioCollectionsView({ locale, list = [] }) {
 }
 
 /**
- * Правка подборки.
+ * Создание и правка подборки — одна форма (F-10-07 §4).
+ *
+ * `collection === null` — создание: поля пустые, адрес `/new`, сериалы и
+ * счётчик не показываются (их нет), а перечень причин публикации видим сразу:
+ * пустая форма не опубликуется сама, и человек должен видеть почему до
+ * отправки, а не после отказа (R-A11Y-11: ошибки названы и связаны с полем).
  *
  * @param {object} args
  * @param {string} args.locale
- * @param {StudioCollection} args.collection
+ * @param {StudioCollection|null} args.collection
  * @param {string} [args.csrf]
  * @returns {any}
  */
 export function studioCollectionView({ locale, collection, csrf = '' }) {
+  const creating = collection === null;
+  const action = creating
+    ? `/${locale}/admin/collections/new`
+    : `/${locale}/admin/collections/${collection.slug}`;
+  const blockers = creating
+    ? ['few_series', 'no_description_ru', 'no_banner']
+    : collection.publishBlockers;
+
   return html`
 <div class="studio">
-  <h1 class="studio__title">${collection.title}</h1>
-  <p class="studio__note">
-    ${t(locale, 'studio.collections.seriesCount', { count: collection.visibleSeries })} ·
-    ${collection.publishBlockers.length
-      ? t(locale, 'studio.collections.blocked')
-      : t(locale, 'studio.collections.ready')}
-  </p>
+  <h1 class="studio__title">${creating
+    ? t(locale, 'studio.collections.create')
+    : collection.title}</h1>
+  ${when(creating, () => html`
+  <!-- Пустая форма не позволит опубликовать себя сама (F-10-07 §5): -->
+  <ul class="studio__blockers">
+    ${blockers.map((code) => html`<li>${t(locale, `studio.collections.blockers.${code}`)}</li>`)}
+  </ul>`)}
 
-  <form class="studio-card__form" method="post" action="/${locale}/admin/collections/${collection.slug}">
+  <form class="studio-card__form" method="post" action="${action}">
     <input type="hidden" name="csrf" value="${csrf}">
 
     <label class="field__label" for="collection-title">${t(locale, 'studio.collections.column.title')}</label>
     <input class="field__input" id="collection-title" name="title_ru" type="text" maxlength="100"
-      value="${collection.title}" required>
+      value="${collection?.title ?? ''}" required>
 
     <label class="field__label" for="collection-title-en">${t(locale, 'studio.collections.titleEn')}</label>
     <input class="field__input" id="collection-title-en" name="title_en" type="text" maxlength="100"
-      value="${collection.titleEn ?? ''}">
+      value="${collection?.titleEn ?? ''}">
 
     <label class="field__label" for="collection-description">${t(locale, 'studio.collections.description')}</label>
     <textarea class="field__input" id="collection-description" name="description_ru" rows="3"
-      maxlength="500">${collection.description ?? ''}</textarea>
+      maxlength="500">${collection?.description ?? ''}</textarea>
 
     <label class="field__label" for="collection-description-en">${t(locale, 'studio.collections.descriptionEn')}</label>
     <textarea class="field__input" id="collection-description-en" name="description_en" rows="3"
-      maxlength="500">${collection.descriptionEn ?? ''}</textarea>
+      maxlength="500">${collection?.descriptionEn ?? ''}</textarea>
 
     <label class="field__label" for="collection-weight">${t(locale, 'studio.collections.column.weight')}</label>
     <input class="field__input" id="collection-weight" name="weight" type="number" min="0" max="999"
-      value="${collection.weight}">
+      value="${collection?.weight ?? 0}">
 
     <label class="studio-field__origin">
-      <input type="checkbox" name="active" value="1" ${collection.active ? 'checked' : ''}>
+      <input type="checkbox" name="active" value="1" ${collection?.active ? 'checked' : ''}>
       <span>${t(locale, 'studio.collections.visible')}</span>
     </label>
 
+    ${when(!creating, () => html`
     <input type="hidden" name="series_ids"
       value="${collection.items.map((item) => item.seriesId).join(',')}">
+    `)}
 
     <p class="studio-card__actions">
-      <button class="button button--primary" type="submit">${t(locale, 'studio.collections.save')}</button>
+      <button class="button button--primary" type="submit">
+        ${creating ? t(locale, 'studio.collections.create') : t(locale, 'studio.collections.save')}
+      </button>
     </p>
   </form>
 
+  ${when(!creating, () => html`
   <section class="studio__section">
     <h2 class="studio__section-title">${t(locale, 'studio.collections.series')}</h2>
     ${when(collection.items.length === 0, () => html`
@@ -194,5 +215,6 @@ export function studioCollectionView({ locale, collection, csrf = '' }) {
       </li>`)}
     </ol>
   </section>
+  `)}
 </div>`;
 }

@@ -54,8 +54,6 @@ export function pgStudioCollections(pool) {
       // Состояние строки — готовое имя из §6 фичи: вид решает по нему вместо
       // того, чтобы строить свой второй статус, расползшийся с выдачей.
       state: collectionState(Boolean(row.active), Number(row.visible_series)),
-      // Публикация заблокирована, если видимых сериалов меньше шести.
-      publishBlockers: publishBlockers(Number(row.visible_series)),
     }));
   }
 
@@ -92,6 +90,10 @@ export function pgStudioCollections(pool) {
     const visible = items.filter((item) => item.publication_state === 'published'
       && !item.archived_at).length;
 
+    const backdrop = row.banner_image_id == null
+      ? await hasBackdrop(pool, Number(row.id))
+      : false;
+
     return {
       id: Number(row.id),
       slug: row.slug,
@@ -104,7 +106,8 @@ export function pgStudioCollections(pool) {
       isDemo: Boolean(row.is_demo),
       hasBanner: row.banner_image_id !== null,
       visibleSeries: visible,
-      publishBlockers: publishBlockers(visible),
+      publishBlockers: publishBlockers(row, visible, backdrop),
+      state: collectionState(Boolean(row.active), visible),
       items: items.map((item) => ({
         seriesId: Number(item.series_id),
         ordinal: Number(item.ordinal),
@@ -130,7 +133,8 @@ export function pgStudioCollections(pool) {
  * @param {any} [input.title]
  * @param {any} [input.titleEn]
  * @param {any} [input.weight]
-   * @returns {Promise<{ok: boolean, reason?: string, slug?: string}>}
+   * @returns {Promise<{ok: boolean, reason?: string, slug?: string, blockers?: string[]}>}
+   *   blockers — перечень причин §5 при reason 'blocked'
    */
   async function save({
     slug = null, title, titleEn = null, description = '', descriptionEn = null,
@@ -150,6 +154,42 @@ export function pgStudioCollections(pool) {
     }
     const cleanSlug = String(slug ?? '').trim().toLowerCase();
     if (cleanSlug && !/^[a-z0-9-]{1,120}$/.test(cleanSlug)) return { ok: false, reason: 'slug' };
+
+    // §5: публикация закрывается перечнем причин, и отказ происходит до
+    // транзакции — иначе «нельзя опубликовать» оставило бы после себя
+    // половину записей. Блокируется только перевод в «публичную» видимость:
+    // уже активная строка (даже опустевшая по EC-C6) правится как прежде,
+    // а создание черновика ничего о ней не проверяет.
+    let original = null;
+    if (cleanSlug) {
+      const { rows } = await pool.query(
+        'SELECT id, active, banner_image_id FROM e_collection WHERE slug = $1',
+        [cleanSlug],
+      );
+      original = rows[0] ?? null;
+    }
+    if (active && (!original || !original.active)) {
+      // Состав и описание с шага придут из формы, баннер в ней не меняется:
+      // судить надо по будущему состоянию строки, иначе публикация
+      // «включить с шестью добавленными сериалами» отвергалась бы по
+      // прошлому (пустому) составу, и порог доезжал бы только за два шага.
+      const keepCurrent = original !== null && seriesIds === null;
+      const [visible, backdrop] = keepCurrent
+        ? await Promise.all([
+            visibleCountOf(pool, Number(original.id)),
+            hasBackdrop(pool, Number(original.id)),
+          ])
+        : await Promise.all([
+            visibleAmongIds(pool, cleanSeriesIds(seriesIds)),
+            backdropAmongIds(pool, cleanSeriesIds(seriesIds)),
+          ]);
+      const blockers = publishBlockers(
+        { banner_image_id: original ? original.banner_image_id : null, description_ru: cleanDescription },
+        visible,
+        backdrop,
+      );
+      if (blockers.length) return { ok: false, reason: 'blocked', blockers };
+    }
 
     const client = await pool.connect();
     try {
@@ -177,15 +217,16 @@ export function pgStudioCollections(pool) {
       } else {
         const generated = `${slugify(cleanTitle)}-${crypto.randomUUID().slice(0, 6)}`;
         const { rows: created } = await client.query(
-          `INSERT INTO e_collection (slug, title, description, weight, active, is_demo)
-           VALUES ($1, $2, $3, $4, $5, FALSE) RETURNING id`,
-          [generated, cleanTitle, cleanDescription, cleanWeight, active],
+          `INSERT INTO e_collection
+             (slug, title_ru, title_en, description_ru, description_en, weight, active, is_demo)
+           VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE) RETURNING id`,
+          [generated, cleanTitle, cleanTitleEn, cleanDescription, cleanDescriptionEn, cleanWeight, active],
         );
         id = created[0].id;
       }
 
       if (seriesIds !== null) {
-        const ids = [...new Set(seriesIds.map(Number).filter(Number.isInteger))];
+        const ids = cleanSeriesIds(seriesIds);
         if (ids.length > MAX_SERIES) {
           await client.query('ROLLBACK');
           return { ok: false, reason: 'too_many' };
@@ -252,13 +293,126 @@ export function pgStudioCollections(pool) {
 }
 
 /**
- * Что мешает публикации подборки.
+ * Причина закрытой публикации.
  *
- * @param {number} visible
+ * §5 перечисляет три причины в одном порядке — сериалы, описание, баннер;
+ * этот порядок не поменяется: его читают тесты и админ.
+ *
+ * @param {object} row строка e_collection
+ * @param {number} row.banner_image_id идентификатор своего баннера или null
+ * @param {string|null} row.description_ru
+ * @param {number} visible видимых сериaлов сегодня
+ * @param {boolean} backdrop найдётся ли фон у видимых сериaлов (то же правило,
+ *   по которому `bannerOf` берёт fallback)
  * @returns {string[]}
  */
-function publishBlockers(visible) {
-  return visible >= MIN_VISIBLE_SERIES ? [] : ['few_series'];
+function publishBlockers({ banner_image_id, description_ru }, visible, backdrop) {
+  const blockers = [];
+  if (visible < MIN_VISIBLE_SERIES) blockers.push('few_series');
+  if (!String(description_ru ?? '').trim()) blockers.push('no_description_ru');
+  if (banner_image_id == null && !backdrop) blockers.push('no_banner');
+  return blockers;
+}
+
+/**
+ * Есть ли у подборки фон на первом видимом сериале.
+ *
+ * Это тот же выбор, что у `bannerOf` (catalogue/banner.js): «первый» — по
+ * порядку админа среди видимых, и любой такой фон годится. Правило одно
+ * в обоих местах, иначе админ заблокирует публикацию по причине, которой
+ * на странице не будет.
+ *
+ * @param {import('pg').Pool} pool
+ * @param {number} collectionId
+ * @returns {Promise<boolean>}
+ */
+async function hasBackdrop(pool, collectionId) {
+  const { rows } = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1
+         FROM e_collection_item ci
+         JOIN e_series s ON s.id = ci.series_id
+         JOIN e_image i ON i.series_id = s.id AND i.role = 'backdrop'
+        WHERE ci.collection_id = $1
+          AND s.publication_state = 'published' AND s.archived_at IS NULL
+     ) AS found`,
+    [collectionId],
+  );
+  return Boolean(rows[0].found);
+}
+
+/**
+ * Сколько из названных сериалов видно.
+ *
+ * Оценка будущего состава: транзакция запишет ровно эти сериалы, так что
+ * решение о публикации принимается по ним, а не по составу прошлой строки.
+ *
+ * @param {import('pg').Pool} pool
+ * @param {number[]} ids
+ * @returns {Promise<number>}
+ */
+async function visibleAmongIds(pool, ids) {
+  if (!ids.length) return 0;
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS n
+       FROM e_series
+      WHERE id = ANY($1::int[])
+        AND publication_state = 'published' AND archived_at IS NULL`,
+    [ids],
+  );
+  return rows[0].n;
+}
+
+/**
+ * Есть ли у названных сериалов фон.
+ *
+ * То же правило fallback-баннера, что у `bannerOf`: любого сериала с фоном
+ * хватит, порядок не важен для существования.
+ *
+ * @param {import('pg').Pool} pool
+ * @param {number[]} ids
+ * @returns {Promise<boolean>}
+ */
+async function backdropAmongIds(pool, ids) {
+  if (!ids.length) return false;
+  const { rows } = await pool.query(
+    `SELECT EXISTS (
+       SELECT 1 FROM e_image
+        WHERE series_id = ANY($1::int[]) AND role = 'backdrop'
+     ) AS found`,
+    [ids],
+  );
+  return Boolean(rows[0].found);
+}
+
+/**
+ * Список сериалов формы — очистка в точности как в транзакции записи,
+ * иначе прекCheck и запись разъехались бы на «1, 1, a» и «1».
+ *
+ * @param {any[]} list значения формы
+ * @returns {number[]}
+ */
+function cleanSeriesIds(list) {
+  return [...new Set((list ?? []).map(Number).filter(Number.isInteger))];
+}
+
+/**
+ * Сколько видимых сериалов в подборке.
+ *
+ * @param {import('pg').Pool} pool
+ * @param {number} collectionId
+ * @returns {Promise<number>}
+ */
+async function visibleCountOf(pool, collectionId) {
+  const { rows } = await pool.query(
+    `SELECT count(*)::int AS n
+       FROM e_collection_item ci
+       JOIN e_series s ON s.id = ci.series_id
+      WHERE ci.collection_id = $1
+        AND s.publication_state = 'published' AND s.archived_at IS NULL`,
+    [collectionId],
+  );
+  return rows[0].n;
 }
 
 /**

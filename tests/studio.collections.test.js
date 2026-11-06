@@ -49,13 +49,13 @@ test.after(async () => {
   if (pool) await pool.end();
 });
 
-test('подборка создаётся и видна в списке (F-10-07 §4)', { skip }, async () => {
+test('черновик создаётся и виден в списке (F-10-07 §4)', { skip }, async () => {
   const saved = await collections.save({
     slug,
     title: 'Подборка для проверки',
     description: 'Описание подборки.',
     weight: 5,
-    active: true,
+    active: false,
     seriesIds: [],
   });
   assert.equal(saved.ok, true);
@@ -65,73 +65,149 @@ test('подборка создаётся и видна в списке (F-10-07
   const found = list.find((item) => item.slug === slug);
   assert.ok(found, 'подборка в списке');
   assert.equal(found.weight, 5);
+  assert.equal(found.state, 'draft');
 });
 
-test('включённая подборка без сериалов скрыта автоматически, а не «опубликована» (№232, EC-C6)', { skip }, async () => {
-  const list = await collections.list();
-  const row = list.find((item) => item.slug === slug);
-  assert.equal(row.state, 'auto_hidden',
-    'активная подборка ниже порога видимых сериалов — состояние «скрыта автоматически»');
+test('публикация пустой подборки закрыта с перечнем причин (F-10-07 §5)', { skip }, async () => {
+  const attempt = await collections.save({
+    slug, title: 'Подборка для проверки', description: 'Описание подборки.',
+    weight: 5, active: true, seriesIds: [],
+  });
+  assert.equal(attempt.ok, false, 'пустую подборку опубликовать нельзя');
+  assert.equal(attempt.reason, 'blocked');
+  assert.deepEqual(attempt.blockers, ['few_series', 'no_banner'],
+    'перечень назван в порядке §5: сериалы, затем баннер');
+  const row = (await collections.list()).find((item) => item.slug === slug);
+  assert.equal(row.state, 'draft', 'после отказа ничего не сместилось');
 });
 
-test('состояние следует за жизнью подборки: черновик, авто-скрытие, публикация (§6, EC-C6)', { skip }, async () => {
+test('состояние следует за жизнью: причины на пустой, публикация с шестью, авто-скрытие (§5, §6, EC-C6)', { skip }, async () => {
   const mine = `check-state-${crypto.randomUUID().slice(0, 8)}`;
   try {
-    // Черновик: скрыт из выдачи вручную, выставлен в форме.
+    // Черновик без описания: публиковать нечего, перечислены все причины.
     const draft = await collections.save({
       slug: mine, title: 'Проверка состояний', weight: 1, active: false, seriesIds: [],
     });
     assert.equal(draft.ok, true);
-    let row = (await collections.list()).find((item) => item.slug === mine);
-    assert.equal(row.state, 'draft');
+    let one = await collections.one(mine);
+    assert.deepEqual(one.publishBlockers, ['few_series', 'no_description_ru', 'no_banner'],
+      'порядок причин — как в §5: сериалы, описание, баннер');
+    assert.equal(one.state, 'draft');
 
-    // Включили при нуле сериалов: EC-C6 — с главной она скрыта, у админа пометка.
-    await collections.save({
+    // Включение при нуле сериaлов отказано:IRONMENT_visible=0, нужно описание, баннер ни своего, ни фона.
+    const emptyPublish = await collections.save({
       slug: mine, title: 'Проверка состояний', weight: 1, active: true, seriesIds: [],
     });
-    row = (await collections.list()).find((item) => item.slug === mine);
-    assert.equal(row.state, 'auto_hidden');
+    assert.equal(emptyPublish.ok, false);
+    assert.equal(emptyPublish.reason, 'blocked');
+    one = await collections.one(mine);
+    assert.equal(one.state, 'draft', 'после отказа состояние — черновик');
 
-    // Взяли шесть видимых сериалов — подборка публикуется как есть.
-    const { rows } = await pool.query(
+    // Взяли шесть видимых сериaлов и назначили свой баннер: закрыта только причина описания.
+    const { rows: six } = await pool.query(
       `SELECT id FROM e_series
         WHERE publication_state = 'published' AND archived_at IS NULL
        ORDER BY id LIMIT $1`,
       [MIN_VISIBLE_SERIES],
     );
+    const ids = six.map((row) => row.id);
     await collections.save({
-      slug: mine, title: 'Проверка состояний', weight: 1, active: true,
-      seriesIds: rows.map((row2) => row2.id),
+      slug: mine, title: 'Проверка состояний', weight: 1, active: false, seriesIds: ids,
     });
-    row = (await collections.list()).find((item) => item.slug === mine);
-    assert.equal(row.state, 'published');
+    // Баннер «свой»: тест обязан быть детерминированным, а не зависеть от того,
+    // есть ли фон у первого сериаала из выборки.
+    await pool.query(
+      `UPDATE e_collection SET banner_image_id =
+         (SELECT id FROM e_image WHERE role = 'backdrop' ORDER BY id LIMIT 1)
+        WHERE slug = $1`,
+      [mine],
+    );
+    one = await collections.one(mine);
+    assert.deepEqual(one.publishBlockers, ['no_description_ru']);
+
+    const withoutDescription = await collections.save({
+      slug: mine, title: 'Проверка состояний', weight: 1, active: true, seriesIds: ids,
+    });
+    assert.equal(withoutDescription.ok, false);
+    assert.deepEqual(withoutDescription.blockers, ['no_description_ru']);
+
+    const published = await collections.save({
+      slug: mine, title: 'Проверка состояний', description: 'Описание.',
+      weight: 1, active: true, seriesIds: ids,
+    });
+    assert.equal(published.ok, true);
+    one = await collections.one(mine);
+    assert.equal(one.state, 'published');
+
+    // Пара серий снялась: EC-C6 — подборка скрывается сама, блокировок нет.
+    await pool.query(
+      'DELETE FROM e_collection_item WHERE collection_id = $1 AND series_id >= $2',
+      [one.id, ids[4]],
+    );
+    one = await collections.one(mine);
+    assert.equal(one.state, 'auto_hidden', 'опустевшая активная подборка — авто-скрытие');
+    assert.deepEqual(one.publishBlockers, ['few_series']);
   } finally {
     await pool.query('DELETE FROM e_collection_item WHERE collection_id = (SELECT id FROM e_collection WHERE slug = $1)', [mine]);
     await pool.query('DELETE FROM e_collection WHERE slug = $1', [mine]);
   }
 });
 
-test('пустой подборке публиковаться нельзя (F-10-07 §5)', { skip }, async () => {
-  const one = await collections.one(slug);
-  assert.deepEqual(one.publishBlockers, ['few_series'],
-    'при меньше шести видимых сериалов публикация закрыта');
+test('создание подборки без slug: авто-имя и правильные столбцы INSERT (№246)', { skip }, async () => {
+  const auto = await collections.save({
+    slug: null, title: 'Создание по авто-slug', description: 'Создано из пустой формы обращения.',
+    weight: 2, active: false, seriesIds: null,
+  });
+  assert.equal(auto.ok, true);
+  assert.match(auto.slug ?? '', /^[a-z0-9-]{1,120}$/, 'slug сгенерирован из названия');
+  const list = await collections.list();
+  const row = list.find((item) => item.slug === auto.slug);
+  assert.ok(row, 'созданная подборка попала в список');
+  assert.equal(row.title, 'Создание по авто-slug', 'название и столбцы записались целиком');
+
+  await pool.query('DELETE FROM e_collection WHERE slug = $1', [auto.slug]);
 });
 
-test('порог публикации — шесть видимых сериалов', { skip }, async () => {
+test('порог публикации — шесть видимых сериалов (F-10-07 §5)', { skip }, async () => {
   const { rows } = await pool.query(
     `SELECT id FROM e_series
       WHERE publication_state = 'published' AND archived_at IS NULL
       ORDER BY id LIMIT $1`,
     [MIN_VISIBLE_SERIES],
   );
+  const ids = rows.map((row) => row.id);
+  await pool.query(
+    `UPDATE e_collection SET banner_image_id =
+       (SELECT id FROM e_image WHERE role = 'backdrop' ORDER BY id LIMIT 1)
+      WHERE slug = $1`,
+    [slug],
+  );
   const saved = await collections.save({
-    slug, title: 'Подборка для проверки', weight: 5, active: true,
-    seriesIds: rows.map((row) => row.id),
+    slug, title: 'Подборка для проверки', description: 'Описание подборки.', weight: 5,
+    active: true, seriesIds: ids,
   });
   assert.equal(saved.ok, true);
   const one = await collections.one(slug);
   assert.equal(one.visibleSeries, MIN_VISIBLE_SERIES);
   assert.deepEqual(one.publishBlockers, [], 'при шести сериалах публикация открыта');
+
+  // Пять сериалов — уже опубликованную подборку правим свободно, §5 закрывает
+  // только переход в публикацию; EC-C6 показывает «скрыта автоматически».
+  const short = await collections.save({
+    slug, title: 'Подборка для проверки', description: 'Описание подборки.', weight: 5,
+    active: true, seriesIds: ids.slice(0, MIN_VISIBLE_SERIES - 1),
+  });
+  assert.equal(short.ok, true, 'правка активной подборки не блокируется');
+  const afterShort = await collections.one(slug);
+  assert.equal(afterShort.visibleSeries, MIN_VISIBLE_SERIES - 1);
+  assert.equal(afterShort.state, 'auto_hidden',
+    'сократившаяся активная подборка скрыта автоматикой, а не отказом формы');
+
+  // Состав вернули на шесть: фикстура остаётся «опубликованной» для соседних тестов.
+  await collections.save({
+    slug, title: 'Подборка для проверки', description: 'Описание подборки.', weight: 5,
+    active: true, seriesIds: ids,
+  });
 });
 
 test('порядок меняется кнопками так же, как перетаскиванием (F-10-07 §18)', { skip }, async () => {

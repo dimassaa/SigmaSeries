@@ -56,6 +56,76 @@ export function createStudioLibraryRoutes({
     }
   });
 
+  // Создание — общий адрес до «:slug», иначе express матчит «new» за slug.
+  router.get('/:locale/admin/collections/new', adminOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+    return res.status(200).type('html').send(layout({
+      account: req.account,
+      locale,
+      path: '/admin/collections/new',
+      title: pageTitle(locale, t(locale, 'studio.collections.create')),
+      description: t(locale, 'studio.collections.description'),
+      noindex: true,
+      styles: STYLES,
+      body: studioCollectionView({
+        locale,
+        collection: null,
+        csrf: req.session ? csrfToken(req.session) : '',
+      }),
+    }).__raw);
+  });
+
+  router.post('/:locale/admin/collections/new', adminOnly, async (req, res, next) => {
+    const { locale } = req.params;
+    if (!isLocale(locale)) return next('route');
+    const body = req.body ?? {};
+    try {
+      if (!req.session || !csrfValid(req.session, body.csrf)) {
+        return res.status(403).type('text/plain; charset=utf-8')
+          .send(t(locale, 'admin.users.csrf'));
+      }
+      const result = await collections.save({
+        // slug выдаёт источник: авто-имя из названия (F-10-07 §4).
+        slug: null,
+        title: body.title_ru,
+        titleEn: body.title_en,
+        description: body.description_ru,
+        descriptionEn: body.description_en,
+        weight: body.weight,
+        active: body.active === '1' || body.active === 'on' || body.active === 'true',
+        seriesIds: null, // на форме создания сериалов нет — они добавляются в правке
+      });
+      if (!result.ok) {
+        if (result.reason === 'blocked') {
+          // R-A11Y-11: отказ назван и перечислен, а не «ошибка формы».
+          const reasons = (result.blockers ?? [])
+            .map((code) => t(locale, `studio.collections.blockers.${code}`));
+          return res.status(400).type('text/plain; charset=utf-8')
+            .send(`${t(locale, 'studio.collections.error.blocked')}\n${reasons.join('\n')}`);
+        }
+        return res.status(400).type('text/plain; charset=utf-8')
+          .send(t(locale, `studio.collections.error.${result.reason}`));
+      }
+      if (audit) {
+        await audit.write({
+          actorId: req.session.user.id,
+          action: 'collection.create',
+          objectType: 'collection',
+          objectId: null,
+          result: 'ok',
+          reason: result.slug,
+          after: { slug: result.slug },
+        });
+      }
+      return res.status(303)
+        .set('Location', `/${locale}/admin/collections/${result.slug}`)
+        .end();
+    } catch (error) {
+      return next(error);
+    }
+  });
+
   router.get('/:locale/admin/collections/:slug', adminOnly, async (req, res, next) => {
     const { locale } = req.params;
     if (!isLocale(locale)) return next('route');
