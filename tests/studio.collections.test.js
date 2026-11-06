@@ -67,6 +67,50 @@ test('подборка создаётся и видна в списке (F-10-07
   assert.equal(found.weight, 5);
 });
 
+test('включённая подборка без сериалов скрыта автоматически, а не «опубликована» (№232, EC-C6)', { skip }, async () => {
+  const list = await collections.list();
+  const row = list.find((item) => item.slug === slug);
+  assert.equal(row.state, 'auto_hidden',
+    'активная подборка ниже порога видимых сериалов — состояние «скрыта автоматически»');
+});
+
+test('состояние следует за жизнью подборки: черновик, авто-скрытие, публикация (§6, EC-C6)', { skip }, async () => {
+  const mine = `check-state-${crypto.randomUUID().slice(0, 8)}`;
+  try {
+    // Черновик: скрыт из выдачи вручную, выставлен в форме.
+    const draft = await collections.save({
+      slug: mine, title: 'Проверка состояний', weight: 1, active: false, seriesIds: [],
+    });
+    assert.equal(draft.ok, true);
+    let row = (await collections.list()).find((item) => item.slug === mine);
+    assert.equal(row.state, 'draft');
+
+    // Включили при нуле сериалов: EC-C6 — с главной она скрыта, у админа пометка.
+    await collections.save({
+      slug: mine, title: 'Проверка состояний', weight: 1, active: true, seriesIds: [],
+    });
+    row = (await collections.list()).find((item) => item.slug === mine);
+    assert.equal(row.state, 'auto_hidden');
+
+    // Взяли шесть видимых сериалов — подборка публикуется как есть.
+    const { rows } = await pool.query(
+      `SELECT id FROM e_series
+        WHERE publication_state = 'published' AND archived_at IS NULL
+       ORDER BY id LIMIT $1`,
+      [MIN_VISIBLE_SERIES],
+    );
+    await collections.save({
+      slug: mine, title: 'Проверка состояний', weight: 1, active: true,
+      seriesIds: rows.map((row2) => row2.id),
+    });
+    row = (await collections.list()).find((item) => item.slug === mine);
+    assert.equal(row.state, 'published');
+  } finally {
+    await pool.query('DELETE FROM e_collection_item WHERE collection_id = (SELECT id FROM e_collection WHERE slug = $1)', [mine]);
+    await pool.query('DELETE FROM e_collection WHERE slug = $1', [mine]);
+  }
+});
+
 test('пустой подборке публиковаться нельзя (F-10-07 §5)', { skip }, async () => {
   const one = await collections.one(slug);
   assert.deepEqual(one.publishBlockers, ['few_series'],

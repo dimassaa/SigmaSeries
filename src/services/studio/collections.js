@@ -51,6 +51,9 @@ export function pgStudioCollections(pool) {
       isDemo: Boolean(row.is_demo),
       visibleSeries: Number(row.visible_series),
       totalSeries: Number(row.total_series),
+      // Состояние строки — готовое имя из §6 фичи: вид решает по нему вместо
+      // того, чтобы строить свой второй статус, расползшийся с выдачей.
+      state: collectionState(Boolean(row.active), Number(row.visible_series)),
       // Публикация заблокирована, если видимых сериалов меньше шести.
       publishBlockers: publishBlockers(Number(row.visible_series)),
     }));
@@ -256,6 +259,23 @@ export function pgStudioCollections(pool) {
  */
 function publishBlockers(visible) {
   return visible >= MIN_VISIBLE_SERIES ? [] : ['few_series'];
+}
+
+/**
+ * Состояние подборки из §6 фичи.
+ *
+ * Здесь не «флаг видимости», а то, чем живёт публичная выдача: правила
+ * один с бегущей строкой главной — активна и не ниже порога видимых
+ * сериалов (EC-C6). Опустевшая подборка остаётся у админа с пометкой,
+ * а не исчезает из списка.
+ *
+ * @param {boolean} active
+ * @param {number} visible видимых сериалов сегодня
+ * @returns {'published'|'auto_hidden'|'draft'}
+ */
+export function collectionState(active, visible) {
+  if (!active) return 'draft';
+  return visible >= MIN_VISIBLE_SERIES ? 'published' : 'auto_hidden';
 }
 
 /**

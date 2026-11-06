@@ -582,6 +582,9 @@
 .studio__reason--placement { border-color: var(--warning); color: var(--warning); }
 .studio__reason--info { color: var(--text-secondary); }
 
+/* Подборка под порогом (EC-C6): цвет дублирует текст состояния, а не заменяет его. */
+.studio__state--warning { color: var(--warning); }
+
 .studio__place {
   display: inline-block;
   margin: 0 var(--space-1) var(--space-1) 0;

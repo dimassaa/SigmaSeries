@@ -21,6 +21,7 @@ import { t } from '../i18n/strings.js';
  * @property {boolean} isDemo
  * @property {number} visibleSeries
  * @property {number} totalSeries
+ * @property {'published'|'auto_hidden'|'draft'} state
  * @property {string[]} publishBlockers
  */
 
@@ -81,7 +82,6 @@ export function studioCollectionsView({ locale, list = [] }) {
         <th scope="col">${t(locale, 'studio.collections.column.title')}</th>
         <th scope="col">${t(locale, 'studio.collections.column.series')}</th>
         <th scope="col">${t(locale, 'studio.collections.column.weight')}</th>
-        <th scope="col">${t(locale, 'studio.collections.column.visibility')}</th>
         <th scope="col">${t(locale, 'studio.collections.column.state')}</th>
       </tr>
     </thead>
@@ -94,11 +94,13 @@ export function studioCollectionsView({ locale, list = [] }) {
         </th>
         <td>${item.visibleSeries} / ${item.totalSeries}</td>
         <td>${item.weight}</td>
-        <td>${item.active ? t(locale, 'studio.collections.visible') : t(locale, 'studio.collections.hidden')}</td>
         <td>
-          ${when(item.publishBlockers.length, () => html`
-          <span class="studio__reason studio__reason--warning">${item.publishBlockers.join(', ')}</span>`,
-          () => html`<span class="studio__state studio__state--published">${t(locale, 'studio.collections.ready')}</span>`)}
+          ${when(item.state === 'published', () => html`
+          <span class="studio__state">${t(locale, 'studio.collections.state.published')}</span>`)}
+          ${when(item.state === 'auto_hidden', () => html`
+          <span class="studio__state studio__state--warning">${t(locale, 'studio.collections.state.autoHidden')}</span>`)}
+          ${when(item.state === 'draft', () => html`
+          <span class="studio__state">${t(locale, 'studio.collections.state.draft')}</span>`)}
         </td>
       </tr>`)}
     </tbody>
