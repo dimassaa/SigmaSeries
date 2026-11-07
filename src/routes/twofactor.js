@@ -196,9 +196,14 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
     }
 
     await auth.enableTwoFactor(pending.userId, setup.secret, setup.backupHashes);
-    // Коды кладутся в сессию ровно на один переход: в базе только хеши, и
-    // второй раз показать их неоткуда (F-01-05 §4). После просмотра они
-    // забываются вместе с сессией.
+    // Настройка завершена тем же POST'ом: человек уже доказал владение
+    // секретом верным кодом (F-01-05 §4 «ввод 6-значного кода → включено»).
+    // Сессия сразу доверенная (§17), иначе человеку пришлось бы вводить
+    // пароль и код второй раз через минуту после настройки — находка №248.
+    await enterService(req, pending);
+    // Коды кладутся в сессию после смены её идентификатора: regenerate()
+    // стирает данные, а страницы кодов ждут их на следующем GET. В базе
+    // только хеши, и второй раз показать их неоткуда (F-01-05 §4).
     req.session.backupCodes = setup.codes;
     journal?.security({
       event: 'two_factor_enabled',
@@ -217,12 +222,15 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
     const locale = req.params.locale;
     if (!isLocale(locale)) return next('route');
 
-    const pending = req.session.pendingTwoFactor;
-    if (!pending?.configured || !req.session.backupCodes?.length) {
-      // Коды не хранятся в базе, только хеши: второй раз показать их нечем.
+    // Настройка стала доверенной сессией (№248): коды живут в сессии ровно
+    // до первого показа, аккаунт уже ему принадлежит. Сессия без пользователя
+    // или без кодов — это не поток настройки, и показывать нечего.
+    if (!req.session.user || !req.session.backupCodes?.length) {
       return res.redirect(303, `/${locale}/login`);
     }
 
+    const codes = req.session.backupCodes;
+    req.session.backupCodes = null;
     const page = layout({
       styles: STYLES,
       account: req.account,
@@ -231,16 +239,26 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
       title: `${t(locale, 'twoFactor.backup.title')} — ${t(locale, 'app.title')}`,
       description: t(locale, 'twoFactor.backup.lead'),
       noindex: true,
-      body: backupCodesView({ locale, codes: pending.backupCodes }),
+      body: backupCodesView({ locale, codes }),
     });
     return respond(res, 200, page);
   });
 
   /** Вход в сервис после успешной проверки. */
   async function finish(req, res, locale, pending) {
-    // Идентификатор сессии меняется на этом шаге: до проверки кода сессия
-    // была «наполовину доверенной», и её идентификатор уже был известен
-    // человеку с того момента, как он ввёл пароль (R-SEC-02).
+    await enterService(req, pending);
+    return res.redirect(303, `/${locale}/`);
+  }
+
+  /**
+   * Перевод сессии в доверенную после пройденной проверки.
+   *
+   * Идентификатор сессии меняется на этом шаге: до кода сессия была
+   * «наполовину доверенной», и её идентификатор уже был известен человеку
+   * с момента ввода пароля (R-SEC-02). Один вход — и для проверки кода,
+   * и для настройки (№248), иначе настройки могло не существовать.
+   */
+  async function enterService(req, pending) {
     await regenerate(req);
     req.session.user = pending.user;
     req.session.twoFactorPassed = true;
@@ -249,8 +267,6 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
 
     // Полноценная сессия — устройство пишется в список (F-01-03 §4).
     await noteSession(auth, req, pending.user.id);
-
-    return res.redirect(303, `/${locale}/`);
   }
 
   /** Проверка резервного кода: он одноразовый. */

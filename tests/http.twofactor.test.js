@@ -413,3 +413,48 @@ test('на экране кода сказано, сколько резервны
     },
   });
 });
+
+// ─── Первичная настройка завершается сессией (№248, F-01-05 §4/§17) ──────────
+
+test('настройка 2FA принята — сессия сразу доверенная, без повторного входа', async () => {
+  const user = await staffUser();
+  await withServer({
+    user,
+    roles: { 10: ['admin'] },
+    twoFactor: null,
+    run: async ({ signIn, get, post, csrfOf, sessions }) => {
+      await signIn(user.email);
+
+      const setupPage = await (await get('/ru/2fa/setup')).text();
+      const secret = setupPage.match(/setup__secret[^>]*>([^<]+)</)?.[1];
+      assert.ok(secret, 'страница настройки показывает ключ текстом');
+      const res = await post('/ru/2fa/setup', {
+        code: totpAt(secret, NOW), csrf: csrfOf(setupPage),
+      });
+      assert.equal(res.status, 303);
+      assert.equal(res.headers.get('location'), '/ru/2fa/backup',
+        'после настройки — страница резервных кодов');
+
+      // F-01-05 §17: признак «2FA пройдена» ставится здесь, а не после
+      // повторного входа. Маршруты читают сессию из хранилища — проверяем
+      // хранилище напрямую: пользователь, признак, экран настройки отпущен.
+      const store = await sessions();
+      const withUser = store.find((s) => s.user);
+      assert.ok(withUser, 'в сессии пользователь');
+      assert.equal(withUser.user.id, 10);
+      assert.equal(withUser.twoFactorPassed, true, '2FA пройдена');
+      assert.equal(withUser.pendingTwoFactor, undefined, 'экран настройки отпущен');
+      // HTTP-доказательство той же доверенности: страница кодов требует
+      // пользователя в сессии и после смены идентификатора отвечает 200.
+      const backup = await get('/ru/2fa/backup');
+      assert.equal(backup.status, 200);
+      const backupPage = await backup.text();
+      const shown = (backupPage.match(/codes__item/g) ?? []).length;
+      assert.ok(shown >= 10, `десять кодов на странице, а не ${shown}`);
+
+      const again = await get('/ru/2fa/backup');
+      assert.equal(again.status, 303, 'второй показ — нельзя');
+      assert.equal(again.headers.get('location'), '/ru/login');
+    },
+  });
+});
