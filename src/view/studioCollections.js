@@ -163,6 +163,15 @@ export function studioCollectionView({ locale, collection, csrf = '' }) {
     <textarea class="field__input" id="collection-description-en" name="description_en" rows="3"
       maxlength="500">${collection?.descriptionEn ?? ''}</textarea>
 
+    <label class="field__label" for="collection-slug">${t(locale, 'studio.collections.slug')}</label>
+    <!-- Адрес правится, пока подборка не активна (№249, §4): заморозка видна
+         в поле и объяснена текстом, а решение повторно проверяется на сервере
+         — скрытие поля не защита (R-SEC-09). -->
+    <input class="field__input" id="collection-slug" name="slug" type="text" maxlength="120"
+      ${collection?.active ? 'readonly' : ''} value="${collection?.slug ?? ''}">
+    <p class="studio__note">${t(locale, collection?.active
+      ? 'studio.collections.slugLocked' : 'studio.collections.slugNote')}</p>
+
     <label class="field__label" for="collection-weight">${t(locale, 'studio.collections.column.weight')}</label>
     <input class="field__input" id="collection-weight" name="weight" type="number" min="0" max="999"
       value="${collection?.weight ?? 0}">

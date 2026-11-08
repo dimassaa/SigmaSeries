@@ -284,3 +284,146 @@ test('шкалу платформы с оценками менять нельз�
   assert.equal(result.ok, false);
   assert.equal(result.reason, 'scale_in_use', 'шкала защищена');
 });
+
+// ─── Правка адреса подборки (№249, F-10-07 §4 «авто, можно править до публикации») ─
+
+test('у черновика адрес правится, строка остаётся одна (№249)', { skip }, async () => {
+  const mine = `check-slug-${crypto.randomUUID().slice(0, 8)}`;
+  const target = `check-slug-${crypto.randomUUID().slice(0, 8)}`;
+  try {
+    const created = await collections.save({
+      slug: mine, title: 'Адресная правка', weight: 0, active: false,
+    });
+    assert.equal(created.ok, true);
+
+    const renamed = await collections.save({
+      slug: mine, newSlug: target,
+      title: 'Адресная правка', weight: 0, active: false,
+    });
+    assert.equal(renamed.ok, true);
+    assert.equal(renamed.slug, target, 'адрес заменён введённым, а не старым');
+    const { rows: counted } = await pool.query(
+      'SELECT count(*)::int AS n FROM e_collection WHERE slug = $1 OR slug = $2',
+      [mine, target],
+    );
+    assert.equal(counted[0].n, 1, 'строка одна: правка, а не создание второй');
+    const one = await collections.one(target);
+    assert.ok(one, 'строка открывается по новому адресу');
+    assert.equal(one.title, 'Адресная правка', 'поля переехали целиком');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE slug = $1 OR slug = $2', [mine, target]);
+  }
+});
+
+test('активной подборке адрес не правится: заморозка после публикации (№249, §4)', { skip }, async () => {
+  // Активная строка сидируется прямым INSERT: состояние «активна» без
+  // состава — дневной свет EC-C6, запрещать его правку теперь обязан сервис.
+  const active = `check-slug-locked-${crypto.randomUUID().slice(0, 8)}`;
+  try {
+    await pool.query(
+      `INSERT INTO e_collection (slug, title_ru, description_ru, weight, active, is_demo)
+       VALUES ($1, 'Активная для адреса', 'Описание.', 0, TRUE, FALSE)`,
+      [active],
+    );
+    const attempt = await collections.save({
+      slug: active, newSlug: `check-slug-x-${crypto.randomUUID().slice(0, 8)}`,
+      title: 'Активная для адреса', weight: 0, active: true,
+    });
+    assert.equal(attempt.ok, false, 'адрес активной подборки не меняется');
+    assert.equal(attempt.reason, 'slug_locked');
+    const one = await collections.one(active);
+    assert.ok(one, 'строка осталась на исходном адресе');
+
+    // Очистка поля на активной строке — тоже попытка смены адреса: авто-имя
+    // выдалось бы новым, чтобы заморозка разворачивает и её.
+    const cleared = await collections.save({
+      slug: active, newSlug: '',
+      title: 'Активная для адреса', weight: 0, active: true,
+    });
+    assert.equal(cleared.ok, false, 'очищенное поле адреса — та же заморозка');
+    assert.equal(cleared.reason, 'slug_locked');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE slug = $1', [active]);
+  }
+});
+
+test('переадресация на чужой адрес отклонена, обе подборки целы (№249, §9)', { skip }, async () => {
+  const first = `check-slug-a-${crypto.randomUUID().slice(0, 8)}`;
+  const second = `check-slug-b-${crypto.randomUUID().slice(0, 8)}`;
+  try {
+    for (const one of [first, second]) {
+      const made = await collections.save({ slug: one, title: 'Занято', weight: 0, active: false });
+      assert.equal(made.ok, true);
+    }
+    const clash = await collections.save({
+      slug: first, newSlug: second, title: 'Занято', weight: 0, active: false,
+    });
+    assert.equal(clash.ok, false);
+    assert.equal(clash.reason, 'slug', 'адрес уникален, второй родитель не перезаписывается');
+    const a = await collections.one(first);
+    const b = await collections.one(second);
+    assert.ok(a && b, 'обе подборки на своих адресах');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE slug = $1 OR slug = $2', [first, second]);
+  }
+});
+
+test('правка по устаревшему адресу не создаёт дубль — отказ (№249)', { skip }, async () => {
+  // Форма, открытая до чужой переадресации, шлёт старый адрес строки:
+  // раньше так появлялась вторая подборка, теперь — полный отказ.
+  const stale = `check-slug-stale-${crypto.randomUUID().slice(0, 8)}`;
+  try {
+    const attempt = await collections.save({
+      slug: stale, newSlug: stale, title: 'Призрак', weight: 0, active: false,
+    });
+    assert.equal(attempt.ok, false);
+    assert.equal(attempt.reason, 'missed');
+    const { rows: counted } = await pool.query(
+      'SELECT count(*)::int AS n FROM e_collection WHERE slug = $1', [stale],
+    );
+    assert.equal(counted[0].n, 0, 'никакой вставки на месте несуществующей правки');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE slug = $1', [stale]);
+  }
+});
+
+test('при создании адрес можно задать вручную (№249, §4)', { skip }, async () => {
+  const manual = `check-slug-manual-${crypto.randomUUID().slice(0, 8)}`;
+  try {
+    const made = await collections.save({
+      slug: null, newSlug: manual,
+      title: 'Ручной адрес', weight: 1, active: false,
+    });
+    assert.equal(made.ok, true);
+    assert.equal(made.slug, manual, 'введённый адрес использован, авто-имя не подставлено');
+
+    const bad = await collections.save({
+      slug: null, newSlug: 'Недопустимый адрес!',
+      title: 'Ручной адрес', weight: 1, active: false,
+    });
+    assert.equal(bad.ok, false, 'адрес не из латиницы, цифр и дефиса не принят');
+    assert.equal(bad.reason, 'slug');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE slug = $1', [manual]);
+  }
+});
+
+test('очищенное поле адреса — авто-имя из нового названия (№249)', { skip }, async () => {
+  const mine = `check-slug-auto-${crypto.randomUUID().slice(0, 8)}`;
+  try {
+    const created = await collections.save({
+      slug: mine, title: 'Старое название', weight: 0, active: false,
+    });
+    assert.equal(created.ok, true);
+    const readdressed = await collections.save({
+      slug: mine, newSlug: '', title: 'Совсем другое имя', weight: 0, active: false,
+    });
+    assert.equal(readdressed.ok, true);
+    assert.notEqual(readdressed.slug, mine, 'адрес сгенерирован заново');
+    assert.match(readdressed.slug ?? '', /^[a-z0-9-]+-[0-9a-fA-F]{6}$/,
+      'формат авто-адреса сохранён: имя из названия и соль');
+    assert.ok(await collections.one(readdressed.slug), 'строка открывается по новому адресу');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE slug = $1', [mine]);
+  }
+});

@@ -97,3 +97,55 @@ test('форма создания показывает список причин
     'причина «мало» названа словами рядом с формой');
   assert.ok(!page.includes('few_series'), 'сырые коды на страницу не попадают');
 });
+
+/**
+ * Полная строка правки — состав как у источника.
+ *
+ * @param {Partial<import('../src/view/studioCollections.js').StudioCollection>} [over]
+ *   отклонения от базовой подборки
+ * @returns {import('../src/view/studioCollections.js').StudioCollection}
+ */
+function full(over) {
+  return {
+    id: 7,
+    slug: 'check-edit',
+    title: 'Правка',
+    titleEn: null,
+    description: 'Описание.',
+    descriptionEn: null,
+    weight: 3,
+    active: false,
+    isDemo: false,
+    hasBanner: false,
+    visibleSeries: 0,
+    publishBlockers: ['no_banner'],
+    items: [],
+    ...over,
+  };
+}
+
+test('у черновика адрес правится: поле с текущим значением, без заморозки (№249)', () => {
+  const page = String(studioCollectionView({ locale: 'ru', collection: full() }).__raw);
+  assert.ok(page.includes('name="slug"'), 'поле адреса на форме правки');
+  assert.ok(page.includes('value="check-edit"'), 'адрес предзаполнен текущим');
+  assert.ok(!page.includes('readonly'), 'черновику заморозка не нужна');
+  assert.ok(page.includes('Латиница, цифры'), 'правило адреса названо у поля');
+  assert.ok(!page.includes('закреплён'), 'формулировки заморозки на черновике нет');
+});
+
+test('активная подборка: адрес только для чтения и назван замороженным (№249, §4)', () => {
+  const page = String(studioCollectionView({
+    locale: 'ru', collection: full({ active: true, visibleSeries: 6, publishBlockers: [] }),
+  }).__raw);
+  assert.ok(page.includes('name="slug"'), 'адрес виден и на активной строке');
+  assert.ok(page.includes('readonly'), 'поле заморожено');
+  assert.ok(page.includes('закреплён после публикации'),
+    'причина заморозки названа текстом, не только самим полем');
+});
+
+test('форма создания понимает адрес (№249): поле есть, заморозки нет', () => {
+  const page = String(studioCollectionView({ locale: 'ru', collection: null }).__raw);
+  assert.ok(page.includes('name="slug"'), 'адрес задаётся уже при создании');
+  assert.ok(page.includes('Латиница, цифры'), 'правило адреса названо у поля');
+  assert.ok(!page.includes('закреплён'), 'заморозки на создании нет');
+});

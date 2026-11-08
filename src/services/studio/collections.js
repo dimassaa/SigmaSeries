@@ -128,6 +128,7 @@ export function pgStudioCollections(pool) {
  * @param {any} [input.active]
  * @param {any} [input.description]
  * @param {any} [input.descriptionEn]
+ * @param {any} [input.newSlug]
  * @param {any} [input.seriesIds]
  * @param {any} [input.slug]
  * @param {any} [input.title]
@@ -137,7 +138,7 @@ export function pgStudioCollections(pool) {
    *   blockers — перечень причин §5 при reason 'blocked'
    */
   async function save({
-    slug = null, title, titleEn = null, description = '', descriptionEn = null,
+    slug = null, newSlug, title, titleEn = null, description = '', descriptionEn = null,
     weight = 0, active = true, seriesIds = null,
   }) {
     const cleanTitle = String(title ?? '').trim();
@@ -154,6 +155,8 @@ export function pgStudioCollections(pool) {
     }
     const cleanSlug = String(slug ?? '').trim().toLowerCase();
     if (cleanSlug && !/^[a-z0-9-]{1,120}$/.test(cleanSlug)) return { ok: false, reason: 'slug' };
+    const cleanNewSlug = String(newSlug ?? '').trim().toLowerCase();
+    if (cleanNewSlug && !/^[a-z0-9-]{1,120}$/.test(cleanNewSlug)) return { ok: false, reason: 'slug' };
 
     // §5: публикация закрывается перечнем причин, и отказ происходит до
     // транзакции — иначе «нельзя опубликовать» оставило бы после себя
@@ -167,6 +170,42 @@ export function pgStudioCollections(pool) {
         [cleanSlug],
       );
       original = rows[0] ?? null;
+    }
+
+    // Правка адреса (№249). Форма шлёт поле всегда: отсутствие поля — признак
+    // старой вкладки, открытой под другой версией страницы, ей смены адреса
+    // не положено. Активной подборке адрес заморожен (§4: правка «до
+    // публикации»; адрес уже мог попасть в закладки и карту сайта). Целевой
+    // адрес проверяется на занятость чужой строкой ещё до транзакции —
+    // 23505 возвращается страховкой на гонку проверок.
+    const formCarriesSlug = newSlug !== undefined;
+    if (original) {
+      // Заморозка адреса (№249, §4): активной подборке адрес не меняется —
+      // ни явной переадресацией, ни очисткой поля с авто-именем, а иным
+      // способом адрес этой строки не станет другим. Адрес мог попасть в
+      // закладки и карту сайта, пока подборка была видимой.
+      if (original.active && formCarriesSlug && cleanNewSlug !== cleanSlug) {
+        return { ok: false, reason: 'slug_locked' };
+      }
+      if (formCarriesSlug && cleanNewSlug && cleanNewSlug !== cleanSlug) {
+        const { rows: taken } = await pool.query(
+          'SELECT id FROM e_collection WHERE slug = $1 AND slug <> $2',
+          [cleanNewSlug, cleanSlug],
+        );
+        if (taken.length) return { ok: false, reason: 'slug' };
+      }
+    } else if (cleanSlug && formCarriesSlug) {
+      // Форма открыта по адресу строки, которой уже нет: её переадресовали
+      // или удалили, пока человек печатал. Прежде такая правка вставляла
+      // вторую подборку под старым адресом — теперь отказ, дубля не будет.
+      return { ok: false, reason: 'missed' };
+    } else if (cleanNewSlug) {
+      // Создание с ручным адресом: адрес не может совпасть с чужим — иначе
+      // «создание» тихо перезаписало бы чужую подборку целиком.
+      const { rows: taken } = await pool.query(
+        'SELECT id FROM e_collection WHERE slug = $1', [cleanNewSlug],
+      );
+      if (taken.length) return { ok: false, reason: 'slug' };
     }
     if (active && (!original || !original.active)) {
       // Состав и описание с шага придут из формы, баннер в ней не меняется:
@@ -195,32 +234,38 @@ export function pgStudioCollections(pool) {
     try {
       await client.query('BEGIN');
       let id;
-      if (cleanSlug) {
+      if (original) {
+        // Правка: адрес едет вместе с полями. Активной строке переадресация
+        // отсечена выше, поэтому никакой отдельной развилки тут не нужно:
+        // поле формы пусто — адрес строится из названия заново («авто» §4);
+        // поле отсутствует — остаётся прежний адрес.
+        const targetSlug = formCarriesSlug ? (cleanNewSlug || `${slugify(cleanTitle)}-${crypto.randomUUID().slice(0, 6)}`) : cleanSlug;
         const { rows } = await client.query(
           `UPDATE e_collection
-              SET title_ru = $2, title_en = $3, description_ru = $4, description_en = $5,
-                  weight = $6, active = $7
+              SET slug = $2, title_ru = $3, title_en = $4, description_ru = $5, description_en = $6,
+                  weight = $7, active = $8
             WHERE slug = $1 RETURNING id`,
-          [cleanSlug, cleanTitle, cleanTitleEn, cleanDescription, cleanDescriptionEn, cleanWeight, active],
+          [cleanSlug, targetSlug, cleanTitle, cleanTitleEn, cleanDescription, cleanDescriptionEn,
+            cleanWeight, active],
         );
         if (!rows.length) {
-          const { rows: created } = await client.query(
-            `INSERT INTO e_collection
-               (slug, title_ru, title_en, description_ru, description_en, weight, active, is_demo)
-             VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE) RETURNING id`,
-            [cleanSlug, cleanTitle, cleanTitleEn, cleanDescription, cleanDescriptionEn, cleanWeight, active],
-          );
-          id = created[0].id;
-        } else {
-          id = rows[0].id;
+          // Строку переадресовали между выборкой и UPDATE: транзакция уже
+          // открыта, закрываем её явно, иначе клиент вернётся в пул с
+          // незавершённой транзакцией.
+          await client.query('ROLLBACK');
+          return { ok: false, reason: 'missed' };
         }
+        id = rows[0].id;
       } else {
-        const generated = `${slugify(cleanTitle)}-${crypto.randomUUID().slice(0, 6)}`;
+        // Создание: легаси-вызов с адресом в `slug` и маршрут создания из
+        // формы — с адресом в `newSlug`, пусто значит авто-имя.
+        const targetSlug = cleanSlug || cleanNewSlug
+          || `${slugify(cleanTitle)}-${crypto.randomUUID().slice(0, 6)}`;
         const { rows: created } = await client.query(
           `INSERT INTO e_collection
              (slug, title_ru, title_en, description_ru, description_en, weight, active, is_demo)
            VALUES ($1, $2, $3, $4, $5, $6, $7, FALSE) RETURNING id`,
-          [generated, cleanTitle, cleanTitleEn, cleanDescription, cleanDescriptionEn, cleanWeight, active],
+          [targetSlug, cleanTitle, cleanTitleEn, cleanDescription, cleanDescriptionEn, cleanWeight, active],
         );
         id = created[0].id;
       }

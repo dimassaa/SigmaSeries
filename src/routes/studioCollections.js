@@ -86,8 +86,10 @@ export function createStudioLibraryRoutes({
           .send(t(locale, 'admin.users.csrf'));
       }
       const result = await collections.save({
-        // slug выдаёт источник: авто-имя из названия (F-10-07 §4).
+        // slug выдаёт источник: авто-имя из названия (F-10-07 §4). Адрес в
+        // поле формы необязателен (№249): пусто — авто, занят — отказ.
         slug: null,
+        newSlug: body.slug ?? '',
         title: body.title_ru,
         titleEn: body.title_en,
         description: body.description_ru,
@@ -161,13 +163,18 @@ export function createStudioLibraryRoutes({
           .send(t(locale, 'admin.users.csrf'));
       }
       // Список сериалов приходит строкой через запятую: в одной форме
-      // несколько полей с одним именем не нужны.
+      // несколько полей с одним именем не нужны. Пустая строка — пустой
+      // список: `Number('')` даёт 0, а сериала с номером ноль не существует —
+      // без отсечения нуля INSERT падал внешним ключом (№249).
       const seriesIds = body.series_ids === undefined
         ? null
         : String(body.series_ids).split(',').map((value) => Number(value.trim()))
-          .filter(Number.isInteger);
+          .filter((id) => Number.isInteger(id) && id > 0);
       const result = await collections.save({
         slug: req.params.slug,
+        // Адрес — поле формы (№249): пусто — авто-имя из названия, отсутствие
+        // поля (вкладка из-под старой страницы) — прежний адрес без смены.
+        newSlug: body.slug !== undefined ? body.slug : req.params.slug,
         title: body.title_ru,
         titleEn: body.title_en,
         description: body.description_ru,
@@ -177,6 +184,10 @@ export function createStudioLibraryRoutes({
         seriesIds,
       });
       if (!result.ok) {
+        // Адрес строки, которую правит форма, исчез (переадресован конкурентом,
+        // №249): страница под таким адресом сама по себе 404, так же отвечает
+        // и GET по несуществующему slug.
+        if (result.reason === 'missed') return next('route');
         return res.status(400).type('text/plain; charset=utf-8')
           .send(t(locale, `studio.collections.error.${result.reason}`));
       }
