@@ -24,6 +24,7 @@ const LABELS = {
 const TASK_LABELS = {
   banners: 'admin.health.task.banners',
   online: 'admin.health.task.online',
+  'collection-rules': 'admin.health.task.collectionRules',
   notifications: 'admin.health.task.notifications',
   recap: 'admin.health.task.recap',
   ratings: 'admin.health.task.ratings',

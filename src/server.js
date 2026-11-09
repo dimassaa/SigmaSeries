@@ -14,6 +14,7 @@ import { pgCatalogueGenres } from './services/catalogue/genres.js';
 import { pgSearch } from './services/search/service.js';
 import { pgSeasons } from './services/catalogue/season.js';
 import { pgCollections } from './services/catalogue/collection.js';
+import { pgCollectionRules } from './services/catalogue/collectionRules.js';
 import { pgPerson } from './services/catalogue/person.js';
 import { pgCalendar } from './services/catalogue/calendar.js';
 import { pgWatchStatus } from './services/tracking/status.js';
@@ -209,6 +210,35 @@ const bannerWorker = setInterval(() => {
 bannerWorker.unref();
 const initialBanners = taskRegistry.wrap('banners', refreshBanners);
 initialBanners().catch((e) => console.error(`[баннеры] ${e.message}`));
+
+// Подборки по правилам (OP-18). Пересчёт ежедневно, но фиксированного часа в
+// настройках нет: «ежедневно» — обещание частоты, а не конкретной минуты,
+// поэтому интервал отсчитывается от запуска. Первый прогон идёт сразу, иначе
+// правило, заведённое перед демонстрацией, ждало бы сутки.
+const collectionRules = pgCollectionRules(pool);
+const applyCollectionRules = taskRegistry.wrap('collection-rules', () => collectionRules.apply());
+
+/**
+ * Пересчитать подборки и записать итог в журнал.
+ *
+ * @returns {Promise<void>}
+ */
+async function runCollectionRules() {
+  try {
+    const result = await applyCollectionRules();
+    console.log(`[подборки] пересчитано ${result.collections}, позиций ${result.series}`);
+    if (result.skipped.length) {
+      const skipped = result.skipped.map((row) => `${row.slug} (${row.reason})`).join(', ');
+      console.warn(`[подборки] пропущено: ${skipped}`);
+    }
+  } catch (e) {
+    console.error(`[подборки] ${e.message}`);
+  }
+}
+
+const collectionRulesWorker = setInterval(runCollectionRules, 24 * 60 * 60 * 1000);
+collectionRulesWorker.unref();
+runCollectionRules();
 
 // Здоровье системы (F-09-06): метрики запросов, задачи и очередь модерации
 // живут в одном процессе и передаются экрану S-82. Создаются до воркеров,
