@@ -38,46 +38,52 @@ export function pgImportReport(pool) {
      */
     async overview({ now = new Date() } = {}) {
       const until = densityUntil(now);
-      const [states, cover, weeks] = await Promise.all([
-        pool.query(
-          `SELECT exit_state, count(*)::int AS n
+      // Все три числа — из одного запроса и, значит, из одного снимка базы
+      // (№252): пока импорт пишет, «всего выходящих» и «из них выходящих с
+      // датами» не могут разойтись на строку, вставленную между запросами.
+      const { rows: [row] } = await pool.query(
+        `WITH published AS (
+           SELECT id, exit_state
              FROM e_series
             WHERE publication_state = 'published' AND archived_at IS NULL
-            GROUP BY exit_state`,
-        ),
-        pool.query(
-          `SELECT count(*)::int AS total,
-                  count(*) FILTER (WHERE d.dates > 0)::int AS with_dates
-             FROM e_series s
-             LEFT JOIN (
-               SELECT se.series_id, count(*) AS dates
-                 FROM e_release r JOIN e_season se ON se.id = r.season_id
-                GROUP BY se.series_id
-             ) d ON d.series_id = s.id
-            WHERE s.exit_state = 'airing'
-              AND s.publication_state = 'published'
-              AND s.archived_at IS NULL`,
-        ),
-        // Окно — от сегодня до конца года: плотность нужна для будущего
-        // календаря, а весь прошлый календарь в графике только мешает.
-        pool.query(
-          `SELECT to_char(date_trunc('week', r.release_date), 'YYYY-MM-DD') AS week,
+         ),
+         dated AS (
+           SELECT se.series_id, count(*) AS n
+             FROM e_release r JOIN e_season se ON se.id = r.season_id
+            GROUP BY se.series_id
+         ),
+         state_counts AS (
+           SELECT exit_state, count(*)::int AS n FROM published GROUP BY exit_state
+         ),
+         cover AS (
+           SELECT count(*)::int AS total,
+                  count(*) FILTER (WHERE COALESCE(d.n, 0) > 0)::int AS with_dates
+             FROM published p LEFT JOIN dated d ON d.series_id = p.id
+            WHERE p.exit_state = 'airing'
+         ),
+         weeks AS (
+           SELECT to_char(date_trunc('week', r.release_date), 'YYYY-MM-DD') AS week,
                   count(*)::int AS n
              FROM e_release r
             WHERE r.release_date >= $2 AND r.release_date <= $1
-            GROUP BY 1 ORDER BY 1`,
-          [until, now.toISOString().slice(0, 10)],
-        ),
-      ]);
+            GROUP BY 1
+         )
+         SELECT
+           (SELECT jsonb_object_agg(exit_state, n) FROM state_counts) AS states,
+           (SELECT jsonb_build_object('total', total, 'with_dates', with_dates) FROM cover) AS cover,
+           (SELECT coalesce(jsonb_agg(jsonb_build_object('week', week, 'count', n)
+                                     ORDER BY week), '[]'::jsonb) FROM weeks) AS weeks`,
+        [until, now.toISOString().slice(0, 10)],
+      );
 
       const counters = {};
-      for (const row of states.rows) counters[row.exit_state] = row.n;
+      for (const [state, n] of Object.entries(row.states ?? {})) counters[state] = n;
 
       return {
-        withDates: cover.rows[0].with_dates,
-        total: cover.rows[0].total,
+        withDates: row.cover.with_dates,
+        total: row.cover.total,
         states: counters,
-        weeks: weeks.rows.map((row) => ({ week: row.week, count: row.n })),
+        weeks: row.weeks,
         until,
       };
     },

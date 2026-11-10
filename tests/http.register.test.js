@@ -75,6 +75,11 @@ async function withServer(run, users = {}) {
     mailQueue,
   });
   const server = await new Promise((r) => { const s = app.listen(0, '127.0.0.1', () => r(s)); });
+  // Соединение переиспользуется (keep-alive), а регистрация под нагрузкой идёт
+  // медленно: при паузе больше штатных 5 с сервер закрывает простаивающий
+  // сокет, и следующий fetch падает ECONNRESET до запроса (№252). Для проверки
+  // это неотличимо от «сервер не ответил», хотя ответа и не запрашивалось.
+  server.keepAliveTimeout = 60_000;
   const base = `http://127.0.0.1:${server.address().port}`;
   let jar = '';
 

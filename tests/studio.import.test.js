@@ -81,18 +81,18 @@ async function seriesWithRelease({ exitState = 'airing', date = '2026-11-10' } =
 }
 
 test('покрытие считает выходящие сериалы с датами и без них', { skip }, async () => {
-  const before = await report.overview();
-
   await seriesWithRelease({ exitState: 'airing' });
   await seriesWithRelease({ exitState: 'announced' });
 
   const after = await report.overview();
-  // База общая: параллельные файлы добавляют свои сериалы между двумя
-  // снимками, поэтому проверяется направление изменения, а не ровно единица.
-  assert.ok(after.total - before.total >= 1, 'в «выходит» попал сериал с датой');
-  assert.ok(after.withDates - before.withDates >= 1, 'у него есть дата выхода');
+  // База общая, а файлы прогоняются параллельно: соседний файл может удалить
+  // или заархивировать свои сериалы между двумя снимками, поэтому разность
+  // «до/после» тут ничего не доказывает (№252). Проверяются нижние границы:
+  // свои строки тест только что вставил, и до конца проверки они на месте.
+  assert.ok(after.total >= 1, 'в «выходит» попал сериал с датой');
+  assert.ok(after.withDates >= 1, 'у него есть дата выхода');
   assert.ok(
-    after.states.announced - before.states.announced >= 1,
+    (after.states.announced ?? 0) >= 1,
     'анонс посчитан в своём состоянии',
   );
   // Анонс не должен попасть в «выходит»: счётчик этого раздела равен числу
