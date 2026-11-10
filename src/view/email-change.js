@@ -34,7 +34,7 @@ export function emailChangeView(ctx) {
   <form class="form" method="post" action="/${locale}/settings/email-change" novalidate>
     <input type="hidden" name="csrf" value="${ctx.csrf}">
     <input type="hidden" name="token" value="${token}">
-    <button class="button form__submit" type="submit"
+    <button class="button button--primary form__submit" type="submit"
       >${t(locale, 'settings.email.confirm')}</button>
   </form>`)}
 

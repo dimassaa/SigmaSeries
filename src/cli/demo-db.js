@@ -27,6 +27,7 @@ import { createSnapshotBackup } from '../services/backup/snapshot.js';
 import { pgBackupJobs } from '../services/backup/store.js';
 import { pgAuthStore } from '../services/auth/store.js';
 import { hashPassword } from '../services/auth/password.js';
+import { demoNickname } from './demo-nickname.js';
 
 const exec = promisify(execFile);
 
@@ -153,7 +154,7 @@ async function createAccount(pool, { nickname, role }) {
   const password = makePassword();
   const user = await pgAuthStore(pool).createUser({
     email,
-    nickname: `${nickname} ${suffix}`,
+    nickname: demoNickname(nickname, suffix),
     passwordHash: await hashPassword(password),
     tokenHash: crypto.randomBytes(24).toString('base64url'),
     timezone: 'Europe/Minsk',

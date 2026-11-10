@@ -36,7 +36,7 @@ export function progressView({ locale, series, progress }) {
 
   ${when(nextEpisode !== null, () => html`
   <p class="progress__next">
-    <a class="button" href="/${locale}/series/${series.slug}/seasons/${nextSeason}/episodes/${nextEpisode}"
+    <a class="button button--primary" href="/${locale}/series/${series.slug}/seasons/${nextSeason}/episodes/${nextEpisode}"
        >${t(locale, 'progress.continue', { season: nextSeason, episode: nextEpisode })}</a>
     ${when(nextDate, () => html`<span class="progress__next-date">${fullDate(locale, nextDate)}</span>`)}
   </p>`)}

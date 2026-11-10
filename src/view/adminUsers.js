@@ -144,7 +144,7 @@ export function adminUserView({ locale, user, csrf = null, twoFactor = false, is
     <dd>${t(locale, `admin.user.status.${user.status}`)}</dd>
     <dt>${t(locale, 'admin.user.fact.roles')}</dt>
     <dd>${user.roles.length ? user.roles.map((role) => t(locale, `admin.role.${role}`)).join(', ') : '—'}</dd>
-    <dt>${t(locale, 'admin.user.fact.counts')}</dt>
+    <dt>${t(locale, 'admin.user.fact.countsLabel')}</dt>
     <dd>${t(locale, 'admin.user.fact.counts', { ratings: user.ratings, materials: user.materials })}</dd>
   </dl>
 

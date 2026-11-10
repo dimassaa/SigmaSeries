@@ -73,7 +73,7 @@ ${state === 'await' ? html`
 <form class="form" method="post" action="/${locale}/verify">
   <input type="hidden" name="csrf" value="${csrf}">
   <input type="hidden" name="token" value="${token ?? ''}">
-  <button class="button form__submit" type="submit">${t(locale, 'verify.submit')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'verify.submit')}</button>
 </form>` : ''}
 
 ${state === 'stale' ? html`
@@ -203,7 +203,7 @@ function stepOne(ctx) {
     <label for="consent">${t(locale, 'register.consent')}</label>
   </div>
 
-  <button class="button form__submit" type="submit">${t(locale, 'register.submit')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'register.submit')}</button>
 </form>
 
 <p class="form__links">

@@ -58,7 +58,7 @@ export function setupView(ctx) {
         ${when(bad, () => html`<p class="field__error" id="setup-error">${error}</p>`)}
       </div>
 
-      <button class="button form__submit" type="submit">${t(locale, 'twoFactor.setup.submit')}</button>
+      <button class="button button--primary form__submit" type="submit">${t(locale, 'twoFactor.setup.submit')}</button>
     </form>
   </div>
 </section>`;

@@ -99,7 +99,7 @@ export function posterCardView({ locale, data, open = false }) {
 
   ${when(open, () => html`
   <p class="poster-card__open">
-    <a class="button" href="/${locale}/series/${data.slug}">${t(locale, 'poster.card.open')}</a>
+    <a class="button button--primary" href="/${locale}/series/${data.slug}">${t(locale, 'poster.card.open')}</a>
   </p>`)}
 </div>`;
 }

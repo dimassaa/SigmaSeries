@@ -54,7 +54,7 @@ ${when(state.guestInvite, () => html`
 <section class="calendar__invite" aria-labelledby="h-calendar-invite">
   <h2 class="calendar__section-title" id="h-calendar-invite">${t(locale, 'calendar.mine.title')}</h2>
   <p class="calendar__invite-text">${t(locale, 'calendar.mine.guest')}</p>
-  <p><a class="button" href="/${locale}/login">${t(locale, 'nav.signIn')}</a></p>
+  <p><a class="button button--primary" href="/${locale}/login">${t(locale, 'nav.signIn')}</a></p>
 </section>`)}
 
 ${when(!state.guestInvite, () => html`

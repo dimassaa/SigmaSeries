@@ -112,7 +112,7 @@ export function discussionsListView({ locale, series, topics, page = 1, user = n
     </p>
   </form>`, () => html`
   <p class="discussions__signin">
-    <a class="button" href="/${locale}/signin">${t(locale, 'discussions.signIn')}</a>
+    <a class="button button--primary" href="/${locale}/signin">${t(locale, 'discussions.signIn')}</a>
   </p>`)}
 
   ${when(topics.rows.length === 0, () => html`
@@ -192,7 +192,7 @@ export function discussionTopicView({ locale, topic, user = null, csrf = '' }) {
     </p>
   </form>`, () => html`
   <p class="discussions__signin">
-    <a class="button" href="/${locale}/signin">${t(locale, 'discussions.signIn')}</a>
+    <a class="button button--primary" href="/${locale}/signin">${t(locale, 'discussions.signIn')}</a>
   </p>`)}
 </div>`;
 }

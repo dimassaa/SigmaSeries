@@ -628,31 +628,50 @@ a:hover { color: var(--accent-hover); }
 .message__title { font-size: var(--text-2xl); margin-block-end: var(--space-3); }
 .message__text { color: var(--text-secondary); margin-block-end: var(--space-5); }
 
+/* Кнопка. Базовая — вторичное действие: прозрачный фон и рамка. Акцент
+   принадлежит только `.button--primary`; иначе на экране с тремя действиями
+   все три выглядят главными, и человек угадывает, какое из них основное
+   (R-DES-06). */
 .button {
   display: inline-flex; align-items: center;
   min-height: 44px; padding: 0 var(--space-6);
-  background: var(--accent); color: var(--accent-contrast);
-  border-radius: var(--radius-sm); text-decoration: none; font-weight: 600;
+  background: transparent; color: var(--text-primary);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-sm); text-decoration: none; font-weight: 500;
 }
-.button:hover { background: var(--accent-hover); color: var(--accent-contrast); }
+.button:hover {
+  background: var(--surface-hover); color: var(--text-primary);
+  border-color: var(--border-strong);
+}
 
-/* Модификаторы кнопки. Разметка их использовала и раньше (экран удаления,
-   отметки, лента уведомлений), но правил не было: тихая и опасная кнопки
-   выглядели как обычная — то есть главное действие на экране оказывалось
-   невыделенным, а разрушающее выглядело так же, как безопасное. */
+/* Главное действие: акцентный фон. На экран — один (R-DES-06). */
+.button--primary {
+  background: var(--accent); color: var(--accent-contrast);
+  border-color: transparent; font-weight: 600;
+}
+.button--primary:hover {
+  background: var(--accent-hover); color: var(--accent-contrast);
+  border-color: transparent;
+}
 
-/* Тихая: вторичное действие рядом с главным. Главная на экране одна
-   (R-DES-24), поэтому тихих может быть сколько угодно. */
+/* Уровни кнопки. Разметка использовала модификаторы и раньше, но правил не
+   было: тихая и опасная кнопки выглядели как обычная — то есть главное
+   действие на экране оказывалось невыделенным, а разрушающее выглядело так
+   же, как безопасное. */
+
+/* Тихая: третичное действие рядом с главным. Главная на экране одна
+   (R-DES-24), поэтому тихих может быть сколько угодно. Рамки нет — этим она
+   и отличается от вторичной базовой кнопки. */
 .button--quiet {
   background: transparent;
-  color: var(--text-primary);
-  border: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+  border-color: transparent;
   font-weight: 500;
 }
 .button--quiet:hover {
   background: var(--surface-hover);
   color: var(--text-primary);
-  border-color: var(--border-strong);
+  border-color: transparent;
 }
 
 /* Опасная: цветом и рамкой, а не только цветом — иначе при плохом зрении
@@ -661,6 +680,7 @@ a:hover { color: var(--accent-hover); }
   background: transparent;
   color: var(--danger);
   border: 1px solid var(--danger);
+  font-weight: 600;
 }
 .button--danger:hover { background: var(--danger); color: var(--text-inverse); }
 

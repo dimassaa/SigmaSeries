@@ -91,7 +91,7 @@ export function guidesListView({ locale, list = { rows: [], total: 0 }, series =
     </p>
   </form>`, () => html`
   <p class="guides__signin">
-    <a class="button" href="/${locale}/signin">${t(locale, 'guides.signIn')}</a>
+    <a class="button button--primary" href="/${locale}/signin">${t(locale, 'guides.signIn')}</a>
   </p>`)}
 
   ${when(list.rows.length === 0, () => html`

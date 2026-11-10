@@ -265,6 +265,8 @@ test('пустой фильтр предлагает сбросить, а пус
     run: async ({ get }) => {
       const filtered = await (await get('/ru/library?status=watched')).text();
       assert.match(filtered, /Сбросить/, 'пустой фильтр объясняет, что делать дальше');
+      assert.equal((filtered.match(/button--primary/g) ?? []).length, 1,
+        'акцент один — «Применить» над списком, а не подсказка (R-DES-06)');
 
       const library = pgLibrary(pool);
       const page = await library.list({ userId: other.id, today: '2026-10-15' });

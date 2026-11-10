@@ -10,6 +10,7 @@
 
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { AUTH } from '../config/settings.js';
 import { dateTime } from './dates.js';
 import { initialsOf } from './avatar.js';
 import { backupCodesList } from './twofactor-backup.js';
@@ -112,7 +113,7 @@ function profile({ locale, csrf, user, error, values, history = [], changedAt = 
     }</p>`)}
   </div>
 
-  <button class="button form__submit" type="submit">${t(locale, 'settings.apply')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'settings.apply')}</button>
 </form>
 
 ${when(history.length, () => html`
@@ -193,7 +194,7 @@ function notifications({ locale, csrf, user, matrix = null, staff = false }) {
     </div>
   </fieldset>
 
-  <button class="button form__submit" type="submit">${t(locale, 'settings.apply')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'settings.apply')}</button>
 </form>`;
 }
 
@@ -303,10 +304,12 @@ function security({
     <label class="field__label" for="new_password">${t(locale, 'settings.security.new')}</label>
     <input class="field__input" id="new_password" name="password" type="password"
            autocomplete="new-password" required>
-    <p class="field__hint">${t(locale, 'settings.security.new.hint')}</p>
+    <p class="field__hint">${t(locale, 'settings.security.new.hint', {
+      min: AUTH.passwordMin,
+    })}</p>
   </div>
 
-  <button class="button form__submit" type="submit">${t(locale, 'settings.security.change')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'settings.security.change')}</button>
 </form>
 
 <form class="form settings__form" method="post" action="/${locale}/settings/security" novalidate>
@@ -403,6 +406,8 @@ ${when(devices.length && !devices.some((device) => device.current), () => html`
            autocomplete="current-password" required>
   </div>
 
+  <!-- Смена адреса — вторичное действие раздела: главное здесь пароль,
+       иначе на одной странице два акцента и человек угадывает (R-DES-06). -->
   <button class="button form__submit" type="submit"
     >${t(locale, 'settings.security.emailChange')}</button>
 </form>`;
@@ -439,7 +444,7 @@ function data({ locale, csrf, user, exportJob = null }) {
            autocomplete="current-password" required>
   </div>
 
-  <button class="button form__submit" type="submit"
+  <button class="button button--primary form__submit" type="submit"
     >${t(locale, 'settings.data.export.action')}</button>
 </form>
 
@@ -562,7 +567,7 @@ function appearance({ locale, csrf, user, error, values, themes, locales, locale
     </select>
   </div>
 
-  <button class="button form__submit" type="submit">${t(locale, 'settings.apply')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'settings.apply')}</button>
 </form>`;
 }
 
@@ -593,7 +598,7 @@ function privacy({ locale, csrf, user, error }) {
     t(locale, 'settings.privacy.recs.hint'), on('recs_enabled', true))}
   </fieldset>
 
-  <button class="button form__submit" type="submit">${t(locale, 'settings.apply')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'settings.apply')}</button>
 </form>`;
 }
 

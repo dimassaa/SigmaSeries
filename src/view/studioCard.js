@@ -242,7 +242,7 @@ export function studioCardView({
           ${t(locale, 'studio.card.archive')}
         </button>`)}
         ${when(card.archived, () => html`
-        <button class="button" type="submit" formaction="${saveAction}/restore">
+        <button class="button button--primary" type="submit" formaction="${saveAction}/restore">
           ${t(locale, 'studio.card.restoreFromArchive')}
         </button>`)}
       </form>

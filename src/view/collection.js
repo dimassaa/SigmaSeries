@@ -98,7 +98,7 @@ ${when(items.length === 0, () => html`
 <div class="empty-state">
   <p class="empty-state__title">${t(locale, 'collections.empty.title')}</p>
   <p class="empty-state__text">${t(locale, 'collections.empty.text')}</p>
-  <p><a class="button" href="/${locale}/series">${t(locale, 'nav.allSeries')}</a></p>
+  <p><a class="button button--primary" href="/${locale}/series">${t(locale, 'nav.allSeries')}</a></p>
 </div>`)}
 ${when(items.length > 0, () => html`
 <ol class="collections__grid" role="list">

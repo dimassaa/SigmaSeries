@@ -86,7 +86,7 @@ function requestForm({ locale, csrf, state, email = '' }) {
     <input class="field__input" id="email" name="email" type="email"
            autocomplete="email" value="${email}" required>
   </div>
-  <button class="button form__submit" type="submit">
+  <button class="button button--primary form__submit" type="submit">
     ${t(locale, stale ? 'reset.stale.submit' : 'reset.submit')}
   </button>
 </form>`;
@@ -119,7 +119,7 @@ function newPasswordForm({ locale, csrf, token = '', problems = [] }) {
     }</p>`)}
   </div>
 
-  <button class="button form__submit" type="submit">${t(locale, 'reset.change')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'reset.change')}</button>
 </form>`;
 }
 

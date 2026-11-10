@@ -57,7 +57,7 @@ export function notificationText(locale, row) {
   switch (row.kind) {
     case 'recap_ready':
       return {
-        title: t(locale, 'notify.recap_ready.title'),
+        title: t(locale, 'notify.recap_ready.title', { year: params.year ?? '' }),
         body: t(locale, 'notify.recap_ready.body', { year: params.year ?? '' }),
       };
     case 'import_key_rejected':

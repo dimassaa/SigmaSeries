@@ -74,7 +74,7 @@ export function mailboxView(ctx) {
              autocomplete="current-password" required>
     </div>
 
-    <button class="button form__submit" type="submit"
+    <button class="button button--primary form__submit" type="submit"
       >${t(locale, `mailbox.mode.switch.${next}`)}</button>
   </form>
 </section>`;

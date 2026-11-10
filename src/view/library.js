@@ -43,7 +43,7 @@ ${tabs({ locale, library })}
     <option value="${key}" ${library.sort === key ? 'selected' : ''}>${t(locale, SORT_LABEL[key])}</option>`)}
   </select>
   ${viewToggle({ locale, view: library.view })}
-  <button class="button" type="submit">${t(locale, 'library.apply')}</button>
+  <button class="button button--primary" type="submit">${t(locale, 'library.apply')}</button>
 </form>
 
 ${when(library.items.length === 0, () => emptyView({ locale, library }))}
@@ -251,7 +251,11 @@ const SORT_LABEL = {
   year: 'library.sort.year',
 };
 
-/** Пустое состояние: пустой список и фильтр без результата — разные вещи. */
+/** Пустое состояние: пустой список и фильтр без результата — разные вещи.
+ *
+ * Кнопки здесь вторичные: над списком остаётся форма с «Применить», а два
+ * акцентных действия на одном экране заставляют угадывать главное (R-DES-06).
+ */
 function emptyView({ locale, library }) {
   if (library.status || library.query) {
     return html`

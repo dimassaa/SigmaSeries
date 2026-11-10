@@ -71,7 +71,7 @@ function codeForm({ locale, csrf, error, codesLeft }) {
     t(locale, 'twoFactor.codesFew', { count: codesLeft })
   }</p>`)}
 
-  <button class="button form__submit" type="submit">${t(locale, 'twoFactor.submit')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'twoFactor.submit')}</button>
 </form>
 
 <!--
@@ -122,6 +122,6 @@ function backupForm({ locale, csrf, error }) {
     ${when(error, () => html`<p class="field__error" id="backup-error">${error}</p>`)}
   </div>
 
-  <button class="button form__submit" type="submit">${t(locale, 'twoFactor.backupSubmit')}</button>
+  <button class="button button--primary form__submit" type="submit">${t(locale, 'twoFactor.backupSubmit')}</button>
 </form>`;
 }

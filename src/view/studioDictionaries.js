@@ -117,7 +117,9 @@ export function studioDictionariesView({
         <span>${t(locale, 'studio.dictionaries.column.active')}</span>
       </label>
       <p class="studio-card__actions">
-        <button class="button button--primary" type="submit">${t(locale, 'studio.dictionaries.save')}</button>
+        <!-- Две равноправные формы на одной странице: акцент у обеих значил бы
+             бы «главное — любое», то есть ничего (R-DES-06). -->
+        <button class="button" type="submit">${t(locale, 'studio.dictionaries.save')}</button>
       </p>
     </form>
   </section>
@@ -158,7 +160,9 @@ export function studioDictionariesView({
       <label class="field__label" for="platform-scale">${t(locale, 'studio.dictionaries.column.scale')}</label>
       <input class="field__input" id="platform-scale" name="scale_max" type="number" step="0.1" min="1" value="10" required>
       <p class="studio-card__actions">
-        <button class="button button--primary" type="submit">${t(locale, 'studio.dictionaries.save')}</button>
+        <!-- Две равноправные формы на одной странице: акцент у обеих значил бы
+             бы «главное — любое», то есть ничего (R-DES-06). -->
+        <button class="button" type="submit">${t(locale, 'studio.dictionaries.save')}</button>
       </p>
     </form>
   </section>

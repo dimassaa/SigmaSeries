@@ -118,7 +118,9 @@ function bulkPanel({
     </fieldset>
 
     ${hiddenFilters(filters)}
-    <button class="button button--primary" type="submit">${t(locale, 'studio.bulk.apply')}</button>
+    <!-- Предпросмотр массовой операции — не главное действие экрана: над ним
+         стоит фильтр с «Применить», и акцент на обоих сбивает (R-DES-06). -->
+    <button class="button" type="submit">${t(locale, 'studio.bulk.apply')}</button>
   </div>`;
 }
 

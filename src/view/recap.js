@@ -139,7 +139,7 @@ export function recapView({
     <form method="post" action="/${locale}/recap/share" hidden>
       <input type="hidden" name="csrf" value="${csrf}">
       <input type="hidden" name="period" value="${period}">
-      <button class="button" type="submit">${t(locale, 'recap.share.download')}</button>
+      <button class="button button--primary" type="submit">${t(locale, 'recap.share.download')}</button>
     </form>
   </dialog>`)}
 </div>`;

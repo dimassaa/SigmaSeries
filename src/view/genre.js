@@ -146,7 +146,7 @@ ${when(text, () => html`
   <div class="empty-state">
     <p class="empty-state__title">${t(locale, 'genre.empty.title')}</p>
     <p class="empty-state__text">${t(locale, 'genre.empty.text')}</p>
-    <p><a class="button" href="/${locale}/series">${t(locale, 'nav.allSeries')}</a></p>
+    <p><a class="button button--primary" href="/${locale}/series">${t(locale, 'nav.allSeries')}</a></p>
   </div>`)}
 
   ${when(page.pages > 1, () => pagination({ locale, genre, page, sortParam }))}

@@ -49,7 +49,7 @@ export function deletedView(ctx) {
     </ul>
 
     <div class="settings__actions">
-      <button class="button" type="submit" name="action" value="cancel"
+      <button class="button button--primary" type="submit" name="action" value="cancel"
         >${t(locale, 'settings.deletePending.cancel')}</button>
       <button class="button button--quiet" type="submit" name="action" value="continue"
         >${t(locale, 'settings.deletePending.continue')}</button>

@@ -68,7 +68,7 @@ export function signinView(ctx) {
       error: t(locale, 'signin.error.required'),
     })}
 
-    <button class="button form__submit" type="submit">${t(locale, 'signin.submit')}</button>
+    <button class="button button--primary form__submit" type="submit">${t(locale, 'signin.submit')}</button>
   </form>
 
   <p class="form__links">

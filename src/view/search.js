@@ -40,7 +40,7 @@ export function searchView({ locale, query, result, genres }) {
   <input class="search__input" id="search-q" type="search" name="q" value="${query}"
          placeholder="${t(locale, 'search.placeholder')}" autocomplete="off"
          enterkeyhint="search">
-  <button class="button" type="submit">${t(locale, 'search.submit')}</button>
+  <button class="button button--primary" type="submit">${t(locale, 'search.submit')}</button>
 </form>
 
 ${when(result?.layoutFixed, () => html`

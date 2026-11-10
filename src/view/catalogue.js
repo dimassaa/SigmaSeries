@@ -237,7 +237,7 @@ export function catalogueView({ locale, page, bounds, filters, sorts, states }) 
     </fieldset>
 
     <div class="filters__actions">
-      <button class="button" type="submit">${t(locale, 'catalog.filters.apply')}</button>
+      <button class="button button--primary" type="submit">${t(locale, 'catalog.filters.apply')}</button>
       ${when(withFilters, () => html`<a class="filters__reset" href="/${locale}/series">${t(locale, 'catalog.filters.reset')}</a>`)}
     </div>
   </form>
@@ -291,6 +291,8 @@ function emptyView({ locale, filters }) {
   <p class="empty-state__title">${t(locale, 'catalog.empty.title')}</p>
   <p class="empty-state__text">${t(locale, 'catalog.empty.text')}</p>
   ${when(hint, () => html`<p class="empty-state__hint">${t(locale, hint.key, { value: hint.value })}</p>`)}
+  <!-- Сброс — не главное действие экрана: главное — «Показать» в панели
+       фильтров, которая на пустой выдаче остаётся на месте. -->
   <p><a class="button" href="/${locale}/series">${t(locale, 'catalog.filters.reset')}</a></p>
 </div>`;
 }
