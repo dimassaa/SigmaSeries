@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import { createPool } from '../src/db/pool.js';
 import { createApp } from '../src/app.js';
 import { pgCatalogueList } from '../src/services/catalogue/list.js';
+import { pgCatalogueGenres } from '../src/services/catalogue/genres.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -41,7 +42,12 @@ test.before(async () => {
     },
     end: () => pool.end(),
   };
-  const app = createApp({ data: stubData(), catalogue: pgCatalogueList(counted) });
+  const app = createApp({
+    data: stubData(),
+    catalogue: pgCatalogueList(counted),
+    // Жанр нужен, чтобы проверить страницу жанра (S-03) и её разметку.
+    genres: pgCatalogueGenres(counted),
+  });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {
       baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -68,6 +74,9 @@ test('каталог открывается и отдаёт карточки', {
   assert.ok(!/<meta name="robots"/.test(body),
     'непустой каталог индексируется: запрета индексации на нём нет');
   assert.match(body, /href="\/ru\/series\/[a-z0-9-]+"/, 'в выдаче есть карточки сериалов');
+  // ItemList только на индексируемом каталоге (таблица SEO §2, №241).
+  assert.match(body, /"@type":"ItemList"/, 'списковая страница отдаёт ItemList');
+  assert.match(body, /"name":"/, 'в разметке названия, которые видно на странице');
 
   assert.ok(queries <= 15, `к БД ${queries} запросов на страницу, бюджет 15`);
 });
@@ -75,8 +84,9 @@ test('каталог открывается и отдаёт карточки', {
 test('канонический адрес не меняется от фильтров', { skip }, async () => {
   const body = await (await get('/ru/series?genre=drama&sort=rating&page=2')).text();
   assert.match(body, /<link rel="canonical" href="\/ru\/series">/);
-  // Заголовок — по шаблону SEO §2: середина страницы и бренд.
-  assert.match(await (await get('/ru/series')).text(), /<title>Каталог сериалов · SigmaSeries<\/title>/);
+  // Заголовок — по шаблону SEO §2: середина страницы и бренд (№242).
+  assert.match(await (await get('/ru/series')).text(),
+    /<title>Сериалы — каталог, рейтинги, новинки · SigmaSeries<\/title>/);
 });
 
 test('постраничность — настоящие ссылки', { skip }, async () => {
@@ -112,8 +122,7 @@ test('недопустимая страница показывается как 
   }
 });
 
-test('пустая выдача — noindex, «Сбросить» и подсказка', { skip }, async () => {
-  const response = await get('/ru/series?genre=drama&state=cancelled&rating=9.9');
+test('пустая выдача — noindex, «Сбросить» и подсказка', { skip }, async () => {  const response = await get('/ru/series?genre=drama&state=cancelled&rating=9.9');
   const body = await response.text();
 
   assert.equal(response.status, 200);
@@ -121,6 +130,31 @@ test('пустая выдача — noindex, «Сбросить» и подск�
     'пустая выдача не индексируется (R-SEO-02)');
   assert.match(body, /\/ru\/series"/, 'есть ссылка «Сбросить» — базовый список');
   assert.match(body, /ratingFrom|rating/, 'подсказка называет фильтр, который стоит убрать');
+  assert.ok(!/"@type":"ItemList"/.test(body),
+    'на пустой выдаче размечать нечего: список на ней не показан (R-SEO-18)');
+});
+
+test('страница жанра отдаёт ItemList и крошки (таблица SEO §2, №241)', { skip }, async () => {
+  // Жанр для проверки берётся из справочника по порогу маршрута: меньше шести
+  // сериалов страница закрыта от индекса, и разметки на ней не должно быть.
+  const { rows: [genre] } = await pool.query(
+    `SELECT g.code FROM e_genre g
+       JOIN e_series_genre sg ON sg.genre_code = g.code
+       JOIN e_series s ON s.id = sg.series_id
+      WHERE g.active AND NOT g.is_raw
+        AND s.publication_state = 'published' AND s.archived_at IS NULL
+      GROUP BY g.code
+     HAVING count(*) >= 6
+      ORDER BY count(*) DESC LIMIT 1`,
+  );
+  const response = await get(`/ru/genres/${genre.code}`);
+  const body = await response.text();
+
+  assert.equal(response.status, 200);
+  assert.match(body, /"@type":"ItemList"/, 'жанр — это ItemList');
+  assert.match(body, /"@type":"BreadcrumbList"/, 'и BreadcrumbList рядом с ним');
+  assert.match(body, /"item":"\/ru\/series"/, 'крошки ведут на каталог');
+  assert.ok(!/<meta name="robots"/.test(body), 'жанр с шестью сериалами индексируется');
 });
 
 test('мусор в адресе не попадает в страницу', { skip }, async () => {

@@ -11,6 +11,8 @@ import { fileURLToPath } from 'node:url';
 import express from 'express';
 
 import { createHomeRoutes, createNotFoundRoutes, errorHandler, robots } from './routes/home.js';
+import { createSitemapRoutes } from './routes/sitemap.js';
+import { pgSitemap } from './services/seo/sitemap.js';
 import { createForYouRoutes } from './routes/forYou.js';
 import { createAuthRoutes } from './routes/auth.js';
 import { createRegisterRoutes } from './routes/register.js';
@@ -253,7 +255,7 @@ export function createApp({
 
   // Корень всегда русский, независимо от заголовков запроса (ADR-003).
   app.get('/', (_req, res) => res.redirect(301, `/${DEFAULT_LOCALE}/`));
-  app.get('/robots.txt', (_req, res) => res.type('text/plain').send(robots()));
+  app.get('/robots.txt', (_req, res) => res.type('text/plain').send(robots(baseUrl)));
 
   // Разбор тела запроса. Без него req.body пуст, и любая проверка CSRF
   // отклоняет всё подряд — форма выглядит сломанной без видимой причины.
@@ -284,6 +286,10 @@ export function createApp({
   }));
 
   app.use(createHomeRoutes({ data, sessionMw, panel, genres }));
+
+  // Карта сайта (F-02-11): только когда есть база — адреса сериалов, сезонов,
+  // серий, жанров, подборок и людей берутся из неё.
+  if (pool) app.use(createSitemapRoutes({ sitemap: pgSitemap(pool), baseUrl }));
 
   // «Для вас» (S-34): тот же ряд рекомендаций, что и на главной, отдельным
   // адресом. Страница noindex: строка персональная, виндекс ей не нужен

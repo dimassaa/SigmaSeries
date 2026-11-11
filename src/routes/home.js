@@ -13,6 +13,7 @@ import { menuGenres } from './menuGenres.js';
 import { homeView } from '../view/home.js';
 import { collectHomeData } from '../services/home/data.js';
 import { t, isLocale, DEFAULT_LOCALE } from '../i18n/strings.js';
+import { websiteJsonLd } from '../services/seo/jsonld.js';
 import { html, raw } from '../view/render.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
@@ -45,17 +46,22 @@ export function createHomeRoutes({ data, genres = null, sessionMw = null, panel 
 
     try {
       const homeData = await collectHomeData(data, locale, req.session?.user?.id ?? null);
+      // Заголовок по таблице SEO §2 (№242): бренд в середине, суффикс pageTitle
+      // сюда не входит.
+      const noindex = NOINDEX_PATHS.includes('/');
       const page = layout({
         styles: STYLES,
         account: req.account,
         locale,
         path: '/',
-        title: t(locale, 'home.title'),
+        title: t(locale, 'seo.title.home', { brand: t(locale, 'app.title') }),
         description: t(locale, 'home.banners.empty'),
         body: homeView({ locale, data: homeData, csrf: req.session ? csrfToken(req.session) : '' }),
         panel: await panelFor({ panel, locale, req }),
         genres: await menuGenres(genres, locale),
-        noindex: NOINDEX_PATHS.includes('/'),
+        noindex,
+        // WebSite на главной, когда она индексируется (таблица SEO §2, №241).
+        jsonLd: noindex ? null : websiteJsonLd({ name: t(locale, 'app.title'), locale }),
       });
       res.type('html').send(page.__raw);
     } catch (e) {
@@ -158,13 +164,13 @@ export function errorHandler(locale) {
   };
 }
 
-export const robots = () => `# Служебные разделы закрыты от индексации (R-SEO-06).
+export const robots = (baseUrl = '') => `# Служебные разделы закрыты от индексации (R-SEO-06).
 Disallow: /*/admin
 Disallow: /*/mod
 Disallow: /*/analytics
 Disallow: /*/api
 
-Sitemap: /sitemap.xml
+Sitemap: ${baseUrl}/sitemap.xml
 `;
 
 export { raw };

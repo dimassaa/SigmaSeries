@@ -17,8 +17,9 @@ import { stubData } from '../src/services/home/data.js';
 const RU = 'http://127.0.0.1';
 
 /** Поднимает сервер на свободном порту и отдаёт функцию get. */
-async function withApp(data, run) {
-  const app = createApp({ data });
+/** Третий аргумент — зависимости createApp: карта сайта нужна baseUrl (F-02-11). */
+async function withApp(data, run, deps = {}) {
+  const app = createApp({ data, ...deps });
   const server = await new Promise((res) => {
     const s = app.listen(0, '127.0.0.1', () => res(s));
   });
@@ -160,7 +161,17 @@ test('robots.txt закрывает админский раздел', async () =
   await withApp(stubData(), async (get) => {
     const body = await (await get('/robots.txt')).text();
     assert.match(body, /^Disallow: .*\/admin/m);
-    assert.match(body, /Sitemap:/);
+    // Адрес карты в протоколе обязан быть абсолютным (R-SEO-05).
+    assert.match(body, /^Sitemap: https?:\/\/[^/]+\/sitemap\.xml$/m);
+  }, { baseUrl: 'https://sigmaseries.test' });
+});
+
+test('главная отдаёт заголовок и WebSite по таблице SEO §2 (№241, №242)', async () => {
+  await withApp(stubData(), async (get) => {
+    const html = await (await get('/ru/')).text();
+    assert.match(html, /<title>SigmaSeries: календарь выхода серий, рейтинги и отзывы на сериалы<\/title>/);
+    assert.match(html, /"@type":"WebSite"/, 'главная размечена как WebSite');
+    assert.match(html, /"inLanguage":"ru"/);
   });
 });
 

@@ -164,7 +164,9 @@ export function createSeriesRoutes({
       account: req.account,
       locale,
       path: `/series/${slug}`,
-      title: pageTitle(locale, found.title),
+      title: pageTitle(locale, found.yearStart
+        ? t(locale, 'seo.title.series', { title: found.title, year: found.yearStart })
+        : t(locale, 'seo.title.seriesNoYear', { title: found.title })),
       description: found.description.slice(0, 160),
       noindex: locale === 'en' && !found.descriptionRu,
       jsonLd: seriesJsonLd({ locale, series: found, rating }),

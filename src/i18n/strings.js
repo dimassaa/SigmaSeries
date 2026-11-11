@@ -255,6 +255,15 @@ const MESSAGES = {
 
     // S-02 — каталог сериалов (F-02-03)
     'catalog.title': 'Каталог сериалов',
+    // Заголовки поисковой выдачи — таблица SEO §2: средняя часть шаблона,
+    // суффикс «· бренд» добавляет pageTitle.
+    'seo.title.catalogue': 'Сериалы — каталог, рейтинги, новинки',
+    'seo.title.genre': '{genre}: лучшие сериалы',
+    'seo.title.collection': '{title} — сериалы',
+    'seo.title.series': '{title} ({year}) — рейтинг, даты серий, отзывы',
+    'seo.title.seriesNoYear': '{title} — рейтинг, даты серий, отзывы',
+    'seo.title.person': '{name}: сериалы',
+    'seo.crumb.home': 'Главная',
     'catalog.description': 'Сериалы с фильтрами по жанру, году, рейтингу и состоянию выхода.',
     'catalog.results': 'Найдено: {count}',
     'catalog.filters.title': 'Фильтры',
@@ -1429,6 +1438,9 @@ const MESSAGES = {
     'series.gone.home': 'На главную',
 
     'home.title': 'Сериалы: что выходит и что смотреть',
+    // Заголовок выдачи по таблице SEO §2: бренд здесь в середине, поэтому
+    // pageTitle с его суффиксом главной не нужен.
+    'seo.title.home': '{brand}: календарь выхода серий, рейтинги и отзывы на сериалы',
     'home.banners.heading': 'Баннеры',
     'home.banners.reason.new': 'Новинка',
     'home.banners.reason.classic': 'Классика',
@@ -2120,6 +2132,14 @@ const MESSAGES = {
 
     // S-02 — catalogue (F-02-03)
     'catalog.title': 'Series catalogue',
+    // Search-result titles — SEO table §2: the middle part; pageTitle adds the brand suffix.
+    'seo.title.catalogue': 'Series — catalogue, ratings, new releases',
+    'seo.title.genre': '{genre}: best series',
+    'seo.title.collection': '{title} — series',
+    'seo.title.series': '{title} ({year}) — rating, episode dates, reviews',
+    'seo.title.seriesNoYear': '{title} — rating, episode dates, reviews',
+    'seo.title.person': '{name}: series',
+    'seo.crumb.home': 'Home',
     'catalog.description': 'Series filtered by genre, year, rating and exit state.',
     'catalog.results': 'Found: {count}',
     'catalog.filters.title': 'Filters',
@@ -3290,6 +3310,8 @@ const MESSAGES = {
     'series.gone.home': 'Back to home',
 
     'home.title': 'TV series: what airs and what to watch',
+    // Search title per SEO table §2: the brand sits in the middle, so pageTitle's suffix is not used here.
+    'seo.title.home': '{brand}: release calendar, ratings and series reviews',
     'home.banners.heading': 'Featured',
     'home.banners.reason.new': 'New release',
     'home.banners.reason.classic': 'Classic',

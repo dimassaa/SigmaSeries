@@ -73,7 +73,7 @@ export function createCollectionRoutes({ collections, person, genres = null, ses
         account: req.account,
         locale,
         path: `/collections/${slug}`,
-        title: pageTitle(locale, found.title),
+        title: pageTitle(locale, t(locale, 'seo.title.collection', { title: found.title })),
         description: found.description.slice(0, 160),
         // Описание подборки — текст редакции, перевода на английский у него
         // нет, поэтому английский адрес остаётся открытым, но не индексируется
@@ -107,7 +107,7 @@ export function createCollectionRoutes({ collections, person, genres = null, ses
         account: req.account,
         locale,
         path: `/people/${slug}`,
-        title: pageTitle(locale, found.name),
+        title: pageTitle(locale, t(locale, 'seo.title.person', { name: found.name })),
         description: t(locale, 'person.description', { name: found.name }),
         // Человек с одним сериалом в индексе не нужен: странице нечего
         // предложить, кроме имени, которое и так видно в выдаче сериала

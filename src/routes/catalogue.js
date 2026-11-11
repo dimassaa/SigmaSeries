@@ -14,6 +14,7 @@ import { genreView } from '../view/genre.js';
 import { notFound } from './home.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
+import { itemListJsonLd, breadcrumbJsonLd, jsonLdGraph } from '../services/seo/jsonld.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
 const STYLES = ['catalogue'];
@@ -67,9 +68,12 @@ export function createCatalogueRoutes({ catalogue, genres = null, sessionMw = nu
         account: req.account,
         locale,
         path: '/series',
-        title: pageTitle(locale, t(locale, 'catalog.title')),
+        title: pageTitle(locale, t(locale, 'seo.title.catalogue')),
         description: t(locale, 'catalog.description'),
         noindex,
+        // ItemList только на индексируемой странице (№241): разметка описывает
+        // то, что видно, а на пустой выдаче показывать нечего (R-SEO-18).
+        jsonLd: noindex ? null : itemListJsonLd({ locale, items: page.items }),
         panel: await panelFor({ panel, locale, req }),
         genres: await menuGenres(genres, locale),
         body: catalogueView({ locale, page, bounds, filters, sorts: SORT_KEYS, states: STATES }),
@@ -108,12 +112,26 @@ export function createCatalogueRoutes({ catalogue, genres = null, sessionMw = nu
         account: req.account,
         locale,
         path: `/genres/${genre.code}`,
-        title: pageTitle(locale, locale === 'en' ? genre.nameEn : genre.nameRu),
+        title: pageTitle(locale, t(locale, 'seo.title.genre', {
+          genre: locale === 'en' ? genre.nameEn : genre.nameRu,
+        })),
         // Описание — из справочника; там пусто — автотемплейт из числа
         // сериалов (F-10-10 §4): мета никогда не остаётся обманчивой.
         description: genreMetaDescription(locale, genre, page.total),
         // Тонкий контент не индексируется: порог из фичи, а не из вкуса.
         noindex: page.total < NOINDEX_MIN_SERIES,
+        // ItemList и крошки в одном блоке (№241): разметка только на
+        // индексируемой странице (R-SEO-18).
+        jsonLd: page.total < NOINDEX_MIN_SERIES ? null : jsonLdGraph([
+          itemListJsonLd({ locale, items: page.items }),
+          breadcrumbJsonLd({
+            trail: [
+              { name: t(locale, 'seo.crumb.home'), path: `/${locale}/` },
+              { name: t(locale, 'catalog.title'), path: `/${locale}/series` },
+              { name: locale === 'en' ? genre.nameEn : genre.nameRu },
+            ],
+          }),
+        ]),
         panel: await panelFor({ panel, locale, req }),
         genres: await menuGenres(genres, locale),
         body: genreView({ locale, genre, page, sorts: SORT_KEYS }),
