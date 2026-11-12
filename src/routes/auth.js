@@ -56,6 +56,11 @@ async function beginTwoFactor(req, { user, email, roles, kind, configured }) {
       confirmed: Boolean(user.email_confirmed),
     },
   };
+  // express-session коммитит сессию в хуке res.end и не дожидается
+  // хранилища: ответ редиректа печатается раньше, чем pendingTwoFactor
+  // попадает в базу, и первый же запрос приходит с пустой сессией (№262).
+  // Альтернатива — оставить запись на finish, но её окно гонки и есть дефект.
+  await commitSession(req);
 }
 
 /**
@@ -274,6 +279,7 @@ export function createAuthRoutes({ auth, limitsApi = limits, sessionMw, hashQueu
     const target = decision.action === 'confirm_email'
       ? `/${locale}/verify`
       : localized(locale, returnTo);
+    await commitSession(req);
     res.redirect(303, target);
   });
 
@@ -341,6 +347,20 @@ function renderForm(ctx) {
 function regenerate(req) {
   return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     req.session.regenerate((e) => (e ? reject(e) : resolve()));
+  }));
+}
+
+/**
+ * Явная запись сессии до редиректа.
+ *
+ * express-session сохраняет сессию в хуке `res.end` и, не дожидаясь
+ * хранилища, сразу печатает заголовки ответа: 303 уходит раньше, чем новая
+ * сессия появляется в базе, и следующий запрос приходит с пустой сессией
+ * (№262).
+ */
+function commitSession(req) {
+  return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
+    req.session.save((e) => (e ? reject(e) : resolve()));
   }));
 }
 

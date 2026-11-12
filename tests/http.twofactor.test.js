@@ -96,7 +96,7 @@ function browser(base) {
  * `twoFactor` — состояние 2FA аккаунта; тесты задают его напрямую, потому
  * что настройка идёт через QR, который проверяется настоящим декодированием.
  */
-async function withServer({ user, roles = {}, twoFactor = null, run }) {
+async function withServer({ user, roles = {}, twoFactor = null, setDelay = 0, run }) {
   const auth = stubAuthStore({ [user.email]: user }, roles);
   if (twoFactor) auth.setTwoFactor(user.id, twoFactor);
 
@@ -104,6 +104,13 @@ async function withServer({ user, roles = {}, twoFactor = null, run }) {
   const journal = { security: (e) => logged.push(e) };
   const pool = { query: async () => ({ rows: [] }), on: () => {} };
   const memStore = createMemorySessionStore();
+  if (setDelay > 0) {
+    // Гонка из №262 в чистом виде: express-session печатает ответ редиректа,
+    // не дождавшись записи в хранилище (res.end-хук вызывает save() и тут же
+    // writetop()). Задержка set делает окно гонки длинным и стабильным.
+    const plain = memStore.set.bind(memStore);
+    memStore.set = (sid, sess, cb) => setTimeout(() => plain(sid, sess, cb), setDelay);
+  }
   const app = createApp({
     data: stubData(),
     auth,
@@ -168,6 +175,29 @@ test('зритель после пароля входит сразу: 2FA у н�
     run: async ({ signIn }) => {
       const res = await signIn(user.email);
       assert.equal(res.headers.get('location'), '/ru/', 'зрителя не заставляют настраивать 2FA');
+    },
+  });
+});
+
+test('редирект после пароля уходит только после записи сессии (№262)', async () => {
+  // express-session коммитит сессию в хуке res.end и не ждёт её: ответ
+  // печатается раньше, чем новая сессия попадает в хранилище. Первый же
+  // запрос после редиректа приходил с пустой сессией и уходил на вход,
+  // хотя пароль был принят. Фикс явно ждёт session.save() до редиректа.
+  const user = await staffUser();
+  await withServer({
+    user,
+    roles: { 10: ['admin'] },
+    twoFactor: null,
+    setDelay: 100,
+    run: async ({ signIn, get }) => {
+      const redirect = await signIn(user.email);
+      assert.equal(redirect.status, 303);
+      assert.equal(redirect.headers.get('location'), '/ru/2fa/setup');
+
+      const setup = await get('/ru/2fa/setup');
+      assert.equal(setup.status, 200,
+        'страница настройки видна сразу после пароля, а не отбрасывает на вход');
     },
   });
 });

@@ -205,6 +205,8 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
     // стирает данные, а страницы кодов ждут их на следующем GET. В базе
     // только хеши, и второй раз показать их неоткуда (F-01-05 §4).
     req.session.backupCodes = setup.codes;
+    // Коды лежат только в сессии и на следующем GET должны уже быть там (№262).
+    await commitSession(req);
     journal?.security({
       event: 'two_factor_enabled',
       requestId: req.requestId,
@@ -267,6 +269,9 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
 
     // Полноценная сессия — устройство пишется в список (F-01-03 §4).
     await noteSession(auth, req, pending.user.id);
+    // Явная запись до редиректа: express-session печатает ответ, не дожидаясь
+    // хранилища, и первый запрос после кода приходил с пустой сессией (№262).
+    await commitSession(req);
   }
 
   /** Проверка резервного кода: он одноразовый. */
@@ -378,5 +383,17 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
 function regenerate(req) {
   return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     req.session.regenerate((e) => (e ? reject(e) : resolve()));
+  }));
+}
+
+/**
+ * Явная запись сессии до редиректа.
+ *
+ * express-session печатает ответ редиректа, не дожидаясь записи в
+ * хранилище: первый запрос после кода приходил с пустой сессией (№262).
+ */
+function commitSession(req) {
+  return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
+    req.session.save((e) => (e ? reject(e) : resolve()));
   }));
 }

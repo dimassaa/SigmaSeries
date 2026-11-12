@@ -440,6 +440,9 @@ export function createRegisterRoutes({
     // Дальше — шаг 3 «Выберите любимые» (F-01-01 §4): индикатор обещал его с
     // самого начала регистрации, а человек попадал на главную. Шаг можно
     // пропустить, поэтому он не запирает человека в себе.
+    // Явная запись до редиректа: express-session печатает ответ, не дожидаясь
+    // хранилища, и шаг 3 приходил с пустой сессией (№262).
+    await commitSession(req);
     return res.redirect(303, tasteStep ? `/${locale}/register/taste` : `/${locale}/`);
   });
 
@@ -528,6 +531,18 @@ function pick(body) {
 function regenerate(req) {
   return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
     req.session.regenerate((e) => (e ? reject(e) : resolve()));
+  }));
+}
+
+/**
+ * Явная запись сессии до редиректа.
+ *
+ * express-session печатает ответ редиректа, не дожидаясь записи в
+ * хранилище: шаг 3 регистрации приходил с пустой сессией (№262).
+ */
+function commitSession(req) {
+  return /** @type {Promise<void>} */ (new Promise((resolve, reject) => {
+    req.session.save((e) => (e ? reject(e) : resolve()));
   }));
 }
 
