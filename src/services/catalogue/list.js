@@ -46,9 +46,11 @@ const BASE_SELECT = `
          s.year_end,
          s.exit_state,
          (SELECT g.code FROM e_series_genre sg JOIN e_genre g ON g.code = sg.genre_code
-           WHERE sg.series_id = s.id ORDER BY g.code LIMIT 1) AS genre_code,
+           WHERE sg.series_id = s.id AND NOT g.is_raw ORDER BY g.code LIMIT 1) AS genre_code,
          (SELECT g.name_ru FROM e_series_genre sg JOIN e_genre g ON g.code = sg.genre_code
-           WHERE sg.series_id = s.id ORDER BY g.code LIMIT 1) AS genre_name,
+           WHERE sg.series_id = s.id AND NOT g.is_raw ORDER BY g.code LIMIT 1) AS genre_name,
+         (SELECT g.name_en FROM e_series_genre sg JOIN e_genre g ON g.code = sg.genre_code
+           WHERE sg.series_id = s.id AND NOT g.is_raw ORDER BY g.code LIMIT 1) AS genre_name_en,
          r.value::float AS rating,
          r.votes,
          first.first_release,
@@ -166,6 +168,7 @@ export function pgCatalogueList(pool) {
           exitState: row.exit_state,
           genreCode: row.genre_code,
           genreName: row.genre_name,
+          genreNameEn: row.genre_name_en,
           // Рейтинг показывается только за порогом голосов: карточка в каталоге
           // и карточка сериала показывают одно и то же число (M2 §0).
           rating: row.votes !== null && row.votes >= ratingFloor ? row.rating : null,

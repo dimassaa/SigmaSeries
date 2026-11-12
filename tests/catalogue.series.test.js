@@ -4,6 +4,7 @@
 // сериал, и запрос, который работает на фикстуре из трёх строк, может развалиться
 // на сезонах и выходах. Пропускается, если PG* не заданы.
 
+import crypto from 'node:crypto';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
@@ -63,7 +64,18 @@ test('опубликованный сериал читается целиком'
 });
 
 test('жанры приходят с русскими названиями', { skip }, async () => {
-  const found = await series.bySlug(await anySeries());
+  // Выбирается сериал, у которого жанры настоящие: сырые жанры импорта
+  // (`is_raw`) в слое не показываются, и у опубликованного сериала их может
+  // не быть вовсе — это отдельная история данных (IMPROVEMENTS №260).
+  const { rows } = await pool.query(
+    `SELECT s.slug FROM e_series s
+       JOIN e_series_genre sg ON sg.series_id = s.id
+       JOIN e_genre g ON g.code = sg.genre_code
+      WHERE s.publication_state = 'published' AND s.archived_at IS NULL
+        AND s.year_start IS NOT NULL AND NOT g.is_raw
+      ORDER BY s.year_start DESC LIMIT 1`,
+  );
+  const found = await series.bySlug(rows[0].slug);
   assert.ok(found.genres.length > 0, 'без жанров сериал не публикуется (EC-K2)');
   assert.ok(found.genres.every((genre) => genre.name_ru), 'название без перевода в фильтр не годится');
 });
@@ -93,17 +105,53 @@ test('рейтинги площадок приходят числами', { skip
 });
 
 test('серии отдаются с датами, спецвыпуски не попадают', { skip }, async () => {
-  const found = await series.bySlug(await anySeries());
-  if (!found.seasons.length) return;
-  assert.ok(found.seasons.every((season) => season.number > 0), 'сезон 0 скрыт по умолчанию (H-38)');
-  const episodes = found.seasons.flatMap((season) => season.episodes);
-  assert.ok(episodes.length > 0);
-  const withDate = episodes.filter((episode) => episode.date);
-  assert.ok(withDate.length > 0, 'у импортированных сериалов даты есть');
-  assert.ok(
-    withDate.every((episode) => /^\d{4}-\d{2}-\d{2}$/.test(episode.date)),
-    'дата приходит строкой YYYY-MM-DD, а не объектом Date',
+  // Своя фикстура вместо чужого сериала: выборка «самый свежий
+  // опубликованный» ловила чужую уборку посреди прогона — сезоны уже сняты,
+  // серии пусты, тест краснел вне своей вины. Спецвыпуск — сезон 0 (H-38).
+  const slug = `forspecial-${crypto.randomUUID().slice(0, 8)}`;
+  const { rows: [fixture] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Даты серий', 'Episode dates', 970000002, 'published', 'airing', 2021)
+     RETURNING id`,
+    [slug],
   );
+  const { rows: [special] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 0) RETURNING id', [fixture.id],
+  );
+  const { rows: [season] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [fixture.id],
+  );
+  const { rows: [specialEpisode] } = await pool.query(
+    'INSERT INTO e_episode (season_id, number, title_ru) VALUES ($1, 1, $2) RETURNING id',
+    [special.id, 'Спецвыпуск'],
+  );
+  const { rows: [episode] } = await pool.query(
+    'INSERT INTO e_episode (season_id, number, title_ru, runtime_min) VALUES ($1, 1, $2, 45) RETURNING id',
+    [season.id, 'Пилот'],
+  );
+  const today = new Date();
+  const date = new Date(today.getTime() - 30 * 86_400_000).toISOString().slice(0, 10);
+  const { rows: [release] } = await pool.query(
+    'INSERT INTO e_release (season_id, release_date, state) VALUES ($1, $2, $3) RETURNING id',
+    [season.id, date, 'aired'],
+  );
+  await pool.query('INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)',
+    [release.id, episode.id]);
+
+  try {
+    const found = await series.bySlug(slug);
+    assert.ok(found.seasons.every((one) => one.number > 0), 'сезон 0 скрыт по умолчанию (H-38)');
+    assert.deepEqual(found.seasons.map((one) => one.number), [1], 'и спецвыпуск не приезжает списком');
+    const episodes = found.seasons.flatMap((one) => one.episodes);
+    assert.deepEqual(episodes.map((one) => one.number), [1], 'у спецвыпуска серий в выдаче нет');
+    assert.equal(episodes[0].date, date, 'дата приходит строкой YYYY-MM-DD, а не объектом Date');
+  } finally {
+    // Выход раньше сезона: e_release_episode тянет за собой строку e_release.
+    await pool.query('DELETE FROM e_release WHERE id = $1', [release.id]);
+    await pool.query('DELETE FROM e_season WHERE series_id = $1', [fixture.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [fixture.id]);
+    void specialEpisode;
+  }
 });
 
 test('неопубликованный сериал для посетителя не существует', { skip }, async () => {

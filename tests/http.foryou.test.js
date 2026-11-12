@@ -111,11 +111,13 @@ test.before(async () => {
 
   // Свой жанр без сериалов в справочнике: кандидаты рекомендаций — только
   // фикстуры, кем что угодно ещё в базе — сид, другие тесты — не мешает.
-  // is_raw прячет его от меню жанров и каталога (F-10-10 §5).
+  // Жанр настоящий (NOT is_raw): подбор вкуса совпадает только по настоящим
+  // жанрам (№260). От меню его прячет `show_in_menu = FALSE`, а не `is_raw`,
+  // как раньше: роль `is_raw` — внутренние коды импорта, а не укрытие.
   const tags = `test-foryou-${crypto.randomUUID().slice(0, 8)}`;
   const { rows: [genreRow] } = await pool.query(
-    `INSERT INTO e_genre (code, name_ru, name_en, active, is_raw)
-     VALUES ($1, $2, $3, TRUE, TRUE) RETURNING code, name_ru, name_en`,
+    `INSERT INTO e_genre (code, name_ru, name_en, active, is_raw, show_in_menu)
+     VALUES ($1, $2, $3, TRUE, FALSE, FALSE) RETURNING code, name_ru, name_en`,
     [tags, `Почерк ${tags}`, `Fixture ${tags}`],
   );
   genre = genreRow;

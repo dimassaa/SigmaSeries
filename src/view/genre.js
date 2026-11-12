@@ -50,6 +50,11 @@ function years(item) {
   return item.yearEnd ? `${item.yearStart}–${item.yearEnd}` : String(item.yearStart);
 }
 
+/** Название жанра на языке читателя: без перевода — русское (R-I18N-02). */
+function itemGenre(item, locale) {
+  return locale === 'en' ? (item.genreNameEn || item.genreName) : item.genreName;
+}
+
 function imageUrl(locale, item) {
   return item.posterWidth ? `/${locale}/images/${item.slug}/poster-${item.posterWidth}.webp` : null;
 }
@@ -81,7 +86,7 @@ function descriptionOf(locale, genre) {
  * @typedef {object} ListingPage
  * @property {Array<{slug: string, title: string, yearStart: number|null,
  *   yearEnd: number|null, exitState: string, genreCode: string|null,
- *   genreName: string|null, rating: number|null, posterWidth: number|null}>} items
+ *   genreName: string|null, genreNameEn: string|null, rating: number|null, posterWidth: number|null}>} items
  * @property {number} total
  * @property {number} page
  * @property {number} pages
@@ -134,7 +139,7 @@ ${when(text, () => html`
           </span>
           <span class="poster__title">${item.title}</span>
           <span class="poster__meta">
-            ${years(item)}${when(item.genreName, () => html` · ${item.genreName}`)}${when(item.rating != null, () => html` · ${rating(item.rating, locale)}`)}
+            ${years(item)}${when(itemGenre(item, locale), () => html` · ${itemGenre(item, locale)}`)}${when(item.rating != null, () => html` · ${rating(item.rating, locale)}`)}
           </span>
           <span class="visually-hidden">${t(locale, STATE_KEY[item.exitState])}</span>
         </a>

@@ -52,11 +52,11 @@ export function pgTaste(pool) {
         `SELECT s.id, s.slug,
                 coalesce(s.title_ru, s.title_original, s.slug) AS title,
                 (SELECT g.code FROM e_series_genre sg JOIN e_genre g ON g.code = sg.genre_code
-                  WHERE sg.series_id = s.id ORDER BY g.code LIMIT 1) AS genre_code,
+                  WHERE sg.series_id = s.id AND NOT g.is_raw ORDER BY g.code LIMIT 1) AS genre_code,
                 (SELECT g.name_ru FROM e_series_genre sg JOIN e_genre g ON g.code = sg.genre_code
-                  WHERE sg.series_id = s.id ORDER BY g.code LIMIT 1) AS genre_ru,
+                  WHERE sg.series_id = s.id AND NOT g.is_raw ORDER BY g.code LIMIT 1) AS genre_ru,
                 (SELECT g.name_en FROM e_series_genre sg JOIN e_genre g ON g.code = sg.genre_code
-                  WHERE sg.series_id = s.id ORDER BY g.code LIMIT 1) AS genre_en,
+                  WHERE sg.series_id = s.id AND NOT g.is_raw ORDER BY g.code LIMIT 1) AS genre_en,
                 -- Роль «постер» живёт в e_image, а не в e_image_variant, и
                 -- берётся самая узкая картинка — та же, что показывает каталог.
                 (SELECT iv.width FROM e_image_variant iv

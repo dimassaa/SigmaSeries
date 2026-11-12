@@ -81,13 +81,14 @@ function cut(text) {
   return `${text.slice(0, DESCRIPTION_LIMIT).trimEnd()}…`;
 }
 
-/** Все жанры сериала: в слое показываются все, а не один, как в каталоге. */
+/** Все настоящие жанры сериала: в слое показываются все, а не один, как в каталоге.
+ *  Сырые жанры (`is_raw`) — это внутренние коды импорта, читателю они не жанры. */
 async function genresOf(pool, seriesId) {
   const { rows } = await pool.query(
     `SELECT g.code, g.name_ru, g.name_en
        FROM e_series_genre sg
        JOIN e_genre g ON g.code = sg.genre_code
-      WHERE sg.series_id = $1 AND g.active
+      WHERE sg.series_id = $1 AND g.active AND NOT g.is_raw
       ORDER BY g.name_ru`,
     [seriesId],
   );

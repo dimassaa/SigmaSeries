@@ -75,7 +75,8 @@ export function pgRecommendations(pool) {
     const { rows } = await pool.query(
       `SELECT sg.genre_code, count(DISTINCT sg.series_id)::int AS n
          FROM e_series_genre sg
-        WHERE sg.series_id = ANY($1::bigint[])
+         JOIN e_genre g ON g.code = sg.genre_code
+        WHERE sg.series_id = ANY($1::bigint[]) AND NOT g.is_raw
         GROUP BY sg.genre_code
         ORDER BY n DESC`,
       [seriesIds],

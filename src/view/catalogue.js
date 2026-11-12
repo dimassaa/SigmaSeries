@@ -49,6 +49,7 @@ import { t } from '../i18n/strings.js';
  * @property {number|null} yearStart
  * @property {number|null} yearEnd
  * @property {string} [genreName]
+ * @property {string} [genreNameEn]
  * @property {number|null} [rating]
  * @property {string} exitState
  * @property {number|null} [posterWidth]
@@ -115,6 +116,12 @@ function rating(value, locale) {
 function years(item) {
   if (!item.yearStart) return '';
   return item.yearEnd ? `${item.yearStart}–${item.yearEnd}` : String(item.yearStart);
+}
+
+/** Название жанра на языке читателя: перевод есть не у всех жанров,
+ *  тогда отдаётся русское название (R-I18N-02). */
+function itemGenre(item, locale) {
+  return locale === 'en' ? (item.genreNameEn || item.genreName) : item.genreName;
 }
 
 function imageUrl(locale, item) {
@@ -268,7 +275,7 @@ export function catalogueView({ locale, page, bounds, filters, sorts, states }) 
           </span>
           <span class="poster__title">${item.title}</span>
           <span class="poster__meta">
-            ${years(item)}${when(item.genreName, () => html` · ${item.genreName}`)}${when(item.rating != null, () => html` · ${rating(item.rating, locale)}`)}
+            ${years(item)}${when(itemGenre(item, locale), () => html` · ${itemGenre(item, locale)}`)}${when(item.rating != null, () => html` · ${rating(item.rating, locale)}`)}
           </span>
           <span class="visually-hidden">${t(locale, STATE_KEY[item.exitState])}</span>
         </a>

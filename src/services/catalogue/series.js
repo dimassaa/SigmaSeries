@@ -352,7 +352,7 @@ async function genresOf(pool, seriesId) {
   const { rows } = await pool.query(
     `SELECT g.code, g.name_ru FROM e_series_genre sg
        JOIN e_genre g ON g.code = sg.genre_code
-      WHERE sg.series_id = $1 AND g.active
+      WHERE sg.series_id = $1 AND g.active AND NOT g.is_raw
       ORDER BY g.name_ru`,
     [seriesId],
   );
