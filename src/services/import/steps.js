@@ -19,7 +19,7 @@ import { selectFromDatasets } from './imdb.js';
 import { matchCandidates } from './match.js';
 import { enrichAll, itemsFromEnrichment } from './enrich.js';
 import { collectPeople, collectGenres } from './people.js';
-import { writeSeries, loadSlugs, genresFor } from './write.js';
+import { writeSeries, loadSlugs, publishableOf, isReadableGenre } from './write.js';
 import { computeExitState, computeCompleteness, carryOverReasons, levelOf } from './catalogue.js';
 import { isKeyRejected } from './tmdb.js';
 import { notifyAdmins } from './notify.js';
@@ -486,14 +486,10 @@ async function dryCatalogue({ pool, store, runId, rows, now, log }) {
       backdrop: roles.get(row.tconst)?.has('backdrop') ?? false,
     };
     const exitState = computeExitState({ raw, today: now });
-    const computed = computeCompleteness({ raw, images, now });
+    const computed = computeCompleteness({ raw, images, now, readableGenre: isReadableGenre });
     const reasons = carryOverReasons(computed.reasons, found?.reasons ?? [], []);
     const level = levelOf(reasons);
-    const publishable = Boolean(
-      (raw?.titles?.original?.text || raw?.titles?.ru?.text)
-      && raw?.years?.start
-      && genresFor(raw).length,
-    );
+    const publishable = publishableOf(raw);
 
     let outcome = 'unchanged';
     if (!found) {

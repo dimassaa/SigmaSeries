@@ -239,6 +239,24 @@ test('сериал без жанров остаётся неопубликова
   assert.ok(series.reasons.includes('no_genre'));
 });
 
+test('только сырые жанры импорта публикацию не дают (EC-K2, №260)', { skip }, async () => {
+  // Жанр «War & Crime» словарём не маппится: он пишет в справочник как
+  // скрытый код `imdb:war-crime`, и читателю жанра он не показывает.
+  // Публиковать такой сериал — значит нарушить EC-K2 на данных.
+  const result = await writeAndCleanup(raw({ imdbGenres: ['War & Crime'] }));
+  const series = await row(result.seriesId);
+  assert.equal(series.publication_state, 'imported',
+    'EC-K2: без настоящего жанра публикации нет');
+  assert.ok(series.reasons.includes('no_genre'),
+    'и причина та же, что у сериала совсем без жанров');
+});
+
+test('сырой жанр рядом с настоящим публикацию не ломает (№260)', { skip }, async () => {
+  const result = await writeAndCleanup(raw({ imdbGenres: ['Drama', 'War & Crime'] }));
+  const series = await row(result.seriesId);
+  assert.equal(series.publication_state, 'published');
+});
+
 test('причины и уровень записываются в карточку', { skip }, async () => {
   const result = await writeAndCleanup(raw());
   const series = await row(result.seriesId);

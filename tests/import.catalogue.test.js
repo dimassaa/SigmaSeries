@@ -131,6 +131,25 @@ test('полная карточка без причин', () => {
   assert.equal(result.level, 'full');
 });
 
+test('сырые жанры считаются отсутствующими, если об этом сказали (№260)', () => {
+  // Правило знает только write.js (словарь там), поэтому предикат передаётся:
+  // без него поведение прежнее — любое имя жанра считается жанром.
+  const args = {
+    raw: raw({ imdbGenres: ['War & Crime'], ageRating: { code: 'RU', rating: '18' } }),
+    images: { poster: true, backdrop: true },
+    now: TODAY,
+  };
+  assert.deepEqual(computeCompleteness(args).reasons, [],
+    'без предиката — прежнее поведение');
+
+  const result = computeCompleteness({
+    ...args,
+    readableGenre: (name) => name !== 'War & Crime',
+  });
+  assert.ok(result.reasons.includes('no_genre'),
+    'только сырые жанры — причина как при полном их отсутствии');
+});
+
 test('без фона причина размещения, а полнота теряется', () => {
   const result = computeCompleteness({
     raw: raw({ ageRating: { code: 'RU', rating: '18' } }),

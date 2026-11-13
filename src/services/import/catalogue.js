@@ -83,9 +83,14 @@ export function computeExitState({ raw, today = new Date() }) {
  * @param {Date} [options.now]
  * @param {string[]} [options.unchecked] коды, которых этот прогон не проверял:
  *   они не добавляются, но и не исчезают — см. `carryOverReasons`
+ * @param {((name: string) => boolean)} [options.readableGenre] жанр, который
+ *   читается человеку (№260, EC-K2); словарь знает write.js, поэтому сюда
+ *   передаётся предикат — без него жанром считается любое имя
  * @returns {{reasons: string[], level: 'full'|'displayable'|'minimum'}}
  */
-export function computeCompleteness({ raw, images = {}, now = new Date(), unchecked = [] }) {
+export function computeCompleteness({
+  raw, images = {}, now = new Date(), unchecked = [], readableGenre = null,
+}) {
   const reasons = [];
   const skip = new Set(unchecked);
   const add = (code) => {
@@ -98,9 +103,13 @@ export function computeCompleteness({ raw, images = {}, now = new Date(), unchec
   if (!raw?.tmdbId) add('no_tmdb');
   // Жанры приходят из IMDb, а у новинок без IMDb-идентификатора — из TMDB
   // (см. `genresFor` в write.js). Отсутствие жанров в обоих источниках —
-  // вот настоящая причина `no_genre`.
+  // вот настоящая причина `no_genre`. С №260 жанром считается только тот,
+  // кто читается человеку: сырые коды импорта (`imdb:…`) жанрами не
+  // считаются (EC-K2). Правило знает словарь write.js, поэтому сюда
+  // передаётся предикат; без него поведение прежнее.
   const genres = raw?.imdbGenres?.length ? raw.imdbGenres : (raw?.genres ?? []).map((g) => g.name);
-  if (!genres.length) add('no_genre');
+  const counted = readableGenre ? genres.filter(readableGenre) : genres;
+  if (!counted.length) add('no_genre');
   if (!images.poster) add('no_poster');
   if (!raw?.descriptions?.ru?.text && !raw?.descriptions?.en?.text) add('no_overview');
   // `no_overview_ru` — это «русского нет, английский есть»: показать можно,

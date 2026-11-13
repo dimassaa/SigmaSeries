@@ -60,6 +60,32 @@ export function genreCode(name) {
   return `imdb:${name.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 }
 
+/**
+ * Настоящий ли это жанр: есть ли маппинг в справочник (№260, EC-K2).
+ *
+ * Сырые коды (`imdb:…`) читателю не показываются, поэтому жанром для
+ * публикации они не считаются.
+ */
+export function isReadableGenre(name) {
+  return Boolean(GENRE_DICTIONARY[name]);
+}
+
+/**
+ * Публикуется ли сериал из сырых данных (EC-K2, №260).
+ *
+ * Минимум: название, год, состояние выхода и хотя бы один настоящий жанр.
+ * Состояние выхода проверяется выше по конвейеру; сырые жанры импорта
+ * («War & Crime» без маппинга) жанрами не считаются — иначе публикация
+ * обходила бы EC-K2, а карточка оставалась бы без читаемого жанра.
+ */
+export function publishableOf(raw) {
+  return Boolean(
+    (raw?.titles?.original?.text || raw?.titles?.ru?.text)
+    && raw?.years?.start
+    && genresFor(raw).some(isReadableGenre),
+  );
+}
+
 /** Русское название жанра из словаря; у неизвестного — само имя IMDb. */
 export function genreNameRu(name) {
   return GENRE_DICTIONARY[name]?.[1] ?? name;
@@ -126,7 +152,9 @@ export async function writeSeries({ pool, raw, slugs, now = new Date(), unchecke
     const images = await loadImages(client, existing?.id);
 
     const exitState = computeExitState({ raw, today: now });
-    const computed = computeCompleteness({ raw, images, now, unchecked });
+    // №260 (EC-K2): жанром считается только настоящий жанр, читаемый
+    // человеку, — и порог публикации, и причина `no_genre` считают по нему.
+    const computed = computeCompleteness({ raw, images, now, unchecked, readableGenre: isReadableGenre });
     const reasons = carryOverReasons(computed.reasons, existing?.reasons ?? [], unchecked);
     const level = levelOf(reasons);
 
@@ -138,13 +166,10 @@ export async function writeSeries({ pool, raw, slugs, now = new Date(), unchecke
       fallback: raw.titles?.en?.text ?? '',
     });
 
-    // Публикуется только минимум: название, год, жанр, состояние выхода
-    // (§4(6)). Всё остальное — бейдж на карточке, а не повод не публиковать.
-    const published = Boolean(
-      (raw.titles?.original?.text || raw.titles?.ru?.text)
-      && raw.years?.start
-      && genresFor(raw).length,
-    );
+    // Публикуется только минимум: название, год, состояние выхода, настоящий
+    // жанр (§4(6), EC-K2). Всё остальное — бейдж на карточке, а не повод не
+    // публиковать.
+    const published = publishableOf(raw);
     // Архивный сериал обновляет данные, но остаётся архивным (§5).
     const publication = existing
       ? await currentPublication(client, existing.id, published)
