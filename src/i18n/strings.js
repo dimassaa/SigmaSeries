@@ -263,6 +263,11 @@ const MESSAGES = {
     'seo.title.series': '{title} ({year}) — рейтинг, даты серий, отзывы',
     'seo.title.seriesNoYear': '{title} — рейтинг, даты серий, отзывы',
     'seo.title.person': '{name}: сериалы',
+    // №259: название сериала в этих трёх шаблонах берётся из данных
+    // маршрута (руководство и тема — от источника, месяц — из адреса).
+    'seo.title.guide': '{title} — {series}',
+    'seo.title.discussion': '{title} — обсуждение «{series}»',
+    'seo.title.calendar': 'Календарь выхода серий — {month}',
     'seo.crumb.home': 'Главная',
     'catalog.description': 'Сериалы с фильтрами по жанру, году, рейтингу и состоянию выхода.',
     'catalog.results': 'Найдено: {count}',
@@ -2139,6 +2144,10 @@ const MESSAGES = {
     'seo.title.series': '{title} ({year}) — rating, episode dates, reviews',
     'seo.title.seriesNoYear': '{title} — rating, episode dates, reviews',
     'seo.title.person': '{name}: series',
+    // №259: see the Russian block for where the pieces come from.
+    'seo.title.guide': '{title} — {series}',
+    'seo.title.discussion': '{title} — discussion of “{series}”',
+    'seo.title.calendar': 'Release calendar — {month}',
     'seo.crumb.home': 'Home',
     'catalog.description': 'Series filtered by genre, year, rating and exit state.',
     'catalog.results': 'Found: {count}',

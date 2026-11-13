@@ -17,6 +17,7 @@
 import express from 'express';
 
 import { layout, pageTitle } from '../view/layout.js';
+import { monthTitle } from '../view/dates.js';
 import { calendarView, VIEWS, FILTERS } from '../view/calendar.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
@@ -73,7 +74,14 @@ export function createCalendarRoutes({ calendar, sessionMw = null }) {
         // Путь без параметров: `canonical` в оболочке собирается из пути, а
         // фильтры и месяц канонизируются на базовый адрес (R-SEO-02).
         path: '/calendar',
-        title: pageTitle(locale, t(locale, 'calendar.title')),
+        // SEO §2: «Календарь выхода серий — {месяц год}» (№259). Месяц —
+        // из адреса, название месяца — по локали; в других видах прежний
+        // заголовок, шаблон §2 обещан только месяцу.
+        title: pageTitle(locale, state.view === 'month'
+          ? t(locale, 'seo.title.calendar', {
+              month: monthTitle(locale, state.year, state.month),
+            })
+          : t(locale, 'calendar.title')),
         description: t(locale, 'calendar.description'),
         noindex: guestInvite || !indexable(state, today),
         body: calendarView({ locale, calendar: data, state: { ...state, guestInvite } }),

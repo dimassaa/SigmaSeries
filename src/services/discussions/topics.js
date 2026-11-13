@@ -126,7 +126,8 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
   async function topic(topicId, { page = 1, perPage = 50, userId = null } = {}) {
     const { rows: [head] } = await pool.query(
       `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.state, m.series_id,
-              u.nickname, u.id AS author_id, u.status AS author_status, s.slug AS series_slug
+              u.nickname, u.id AS author_id, u.status AS author_status, s.slug AS series_slug,
+              coalesce(s.title_ru, s.title_original) AS series_title
          FROM e_material m
          JOIN e_user u ON u.id = m.author_id
          JOIN e_series s ON s.id = m.series_id
@@ -161,6 +162,8 @@ export function pgDiscussions(pool, { limits = null, restrictions = null } = {})
     return {
       ...decorateTopic(head),
       seriesSlug: head.series_slug,
+      // Название сериала в теме нужно заголовку страницы (SEO §2, №259).
+      seriesTitle: head.series_title,
       state: head.state,
       posts: posts.map((post) => ({
         id: post.id,

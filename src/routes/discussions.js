@@ -132,7 +132,14 @@ export function createDiscussionRoutes({
         account: req.account,
         locale,
         path: `${BASE}/${id}`,
-        title: pageTitle(locale, found.title || t(locale, 'discussions.topicTitle')),
+        // SEO §2: «{Тема} — обсуждение «{Название}»» (№259). Без названия —
+        // прежний заголовок темы.
+        title: pageTitle(locale, found.seriesTitle
+          ? t(locale, 'seo.title.discussion', {
+              title: found.title || t(locale, 'discussions.topicTitle'),
+              series: found.seriesTitle,
+            })
+          : found.title || t(locale, 'discussions.topicTitle')),
         description: t(locale, 'discussions.description'),
         styles: STYLES,
         body: discussionTopicView({

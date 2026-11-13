@@ -90,7 +90,13 @@ export function createGuideRoutes({
         account: req.account,
         locale,
         path: `${BASE}/${guide.slug}`,
-        title: pageTitle(locale, guide.title),
+        // SEO §2: «{Заголовок руководства} — {Название}». Название сериала
+        // приходит из источника (№259); без него — просто заголовок статьи.
+        title: pageTitle(locale, guide.seriesTitle
+          ? t(locale, 'seo.title.guide', {
+              title: guide.title, series: guide.seriesTitle,
+            })
+          : guide.title),
         description: guide.excerpt,
         styles: STYLES,
         body: guideView({ locale, guide, user: writer(req) }),

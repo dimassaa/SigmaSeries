@@ -132,6 +132,23 @@ test('ответ попадает в тему и виден в ней (F-05-07 �
   assert.equal(topic.posts[0].body, 'Ответ: посмотрел, и второго сезона не жалею.');
 });
 
+test('тема несёт название сериала: заголовок SEO строится из данных (№259)', { skip }, async () => {
+  // SEO §2 обещает «{Тема} — обсуждение «{Название}»» — название сериала
+  // должен вернуть источник, а не собирать маршрут отдельным запросом.
+  const created = await discussions.createTopic({
+    userId,
+    seriesId,
+    title: 'Тема с названием сериала',
+    body: 'Текст темы, достаточной длины, чтобы про проверку словаря.',
+    dictionary: DICTIONARY,
+  });
+  assert.equal(created.ok, true);
+
+  const topic = await discussions.topic(created.id, { userId });
+  assert.equal(topic.seriesTitle, 'Сериал для обсуждений',
+    'название сериала в теме');
+});
+
 test('ответ к несуществующей теме отклоняется (F-05-07 §4)', { skip }, async () => {
   const reply = await discussions.reply({
     userId,
