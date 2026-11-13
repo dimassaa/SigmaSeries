@@ -202,6 +202,36 @@ test('редирект после пароля уходит только пос�
   });
 });
 
+test('экраны 2FA посреди входа рисуются в теме профиля, а не в теме системы (№263)', async () => {
+  // До завершения входа `req.account` ещё пуст: сессия не знает `user`,
+  // поэтому разметка падает на «system» и у администратора с тёмной темой
+  // экран кода светлеет между двумя тёмными. Снимок темы лежит в
+  // `pendingTwoFactor.user.theme` — его и должен взять экран.
+  // Пользователь на каждый сервер свой: setTwoFactor в заглушке пишет
+  // состояние прямо в объект аккаунта, и общий объект сделал бы второй
+  // сервер «уже настроенным».
+  await withServer({
+    user: await staffUser(),
+    roles: { 10: ['admin'] },
+    twoFactor: { secret: generateSecret(), lastStep: null, backup: [] },
+    run: async ({ signIn, get }) => {
+      await signIn((await staffUser()).email);
+      const code = await (await get('/ru/2fa')).text();
+      assert.match(code, /data-theme="dark"/, 'экран кода в тёмной теме профиля');
+    },
+  });
+  await withServer({
+    user: await staffUser(),
+    roles: { 10: ['admin'] },
+    twoFactor: null,
+    run: async ({ signIn, get }) => {
+      await signIn((await staffUser()).email);
+      const setup = await (await get('/ru/2fa/setup')).text();
+      assert.match(setup, /data-theme="dark"/, 'экран настройки в тёмной теме профиля');
+    },
+  });
+});
+
 test('зритель с настроенной 2FA после пароля ещё не внутри (F-01-05 §4)', async () => {
   // Решение автора (21.10): код спрашивается у того, кто настроил проверку, —
   // и зрителю тоже. DEC-015 делает проверку обязательной для служебных ролей,

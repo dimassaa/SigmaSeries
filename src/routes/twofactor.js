@@ -337,6 +337,10 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
       account: req.account,
       locale,
       path: CODE_PATH,
+      // Посреди входа `req.account` ещё пуст (сессия без `user`), и без
+      // явной темы разметка падает на «system» (№263). Тема человека —
+      // в снимке сессии, сделанном при вводе пароля.
+      theme: req.session.pendingTwoFactor?.user.theme,
       title: `${t(locale, 'twoFactor.title')} — ${t(locale, 'app.title')}`,
       description: t(locale, 'twoFactor.lead'),
       noindex: true,
@@ -357,6 +361,8 @@ export function createTwoFactorRoutes({ auth, sessionMw, journal, mailQueue, lim
       account: req.account,
       locale,
       path: SETUP_PATH,
+      // Тема профиля посреди входа, см. комментарий в renderCode (№263).
+      theme: req.session.pendingTwoFactor?.user.theme,
       title: `${t(locale, 'twoFactor.setup.title')} — ${t(locale, 'app.title')}`,
       description: t(locale, 'twoFactor.setup.lead'),
       noindex: true,
