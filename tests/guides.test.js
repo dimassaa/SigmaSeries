@@ -106,4 +106,7 @@ test('статья создаётся и видна по адресу (F-05-06 �
 
   const list = await guides.list({ seriesId });
   assert.equal(list.total, 1, 'статья в списке сериала');
+  // Ссылка карточки списка собирается из slug материала: без него ссылка
+  // превращается в `/{locale}/guides/` и ведёт на 404 (IMPROVEMENTS №264).
+  assert.equal(list.rows[0].slug, result.slug, 'в строке списка есть адрес статьи');
 });

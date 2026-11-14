@@ -38,7 +38,7 @@ export function pgGuides(pool, { limits = null, restrictions = null } = {}) {
    */
   async function list({ seriesId = null, page = 1, perPage = 20 } = {}) {
     const { rows } = await pool.query(
-      `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.sections, m.series_id,
+      `SELECT m.id, m.body, m.spoiler, m.created_at, m.title, m.sections, m.series_id, m.slug,
               s.slug AS series_slug, coalesce(s.title_ru, s.title_original) AS series_title,
               u.nickname, u.status AS author_status
          FROM e_material m
