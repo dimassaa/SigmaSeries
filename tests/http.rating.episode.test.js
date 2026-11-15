@@ -335,7 +335,7 @@ test('оценка серии сохраняется и видна на стра
   assert.equal(stored.rows[0].value, 9);
 });
 
-test('снятие оценки серии убирает голос', { skip }, async () => {
+test('снятие оценки серии убирает голос (№266)', { skip }, async () => {
   const user = await viewer();
   const row = await seriesWith(7);
   await mark(user.id, row.aired);
@@ -346,7 +346,11 @@ test('снятие оценки серии убирает голос', { skip },
       const page = await (await get(episodePath(row))).text();
       await post(`${episodePath(row)}/rating`, { value: '7', csrf: csrfOf(page) });
 
-      const removed = await post(`${episodePath(row)}/rating`, { value: '0', csrf: csrfOf(page) });
+      // Тело повторяет настоящий клик по кнопке «Убрать оценку»: радио
+      // остаётся выбранным и уходит в форму вместе с кнопкой (№266).
+      const removed = await post(`${episodePath(row)}/rating`, [
+        ['value', '7'], ['csrf', csrfOf(page)], ['clear', '0'],
+      ]);
       assert.equal(removed.status, 303);
 
       const after = await (await get(episodePath(row))).text();
@@ -359,6 +363,27 @@ test('снятие оценки серии убирает голос', { skip },
     [user.id, row.aired],
   );
   assert.equal(stored.rows[0].n, 0);
+});
+
+test('мусорное значение оценки получает отказ, а не молчаливый редирект (№266)', { skip }, async () => {
+  const user = await viewer();
+  const row = await seriesWith(9);
+  await mark(user.id, row.aired);
+
+  await withServer({
+    user,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(episodePath(row))).text();
+      const res = await post(`${episodePath(row)}/rating`, { value: '8,0', csrf: csrfOf(page) });
+      assert.equal(res.status, 400, 'значение вне 1–10 отклоняется сервером');
+
+      const stored = await pool.query(
+        'SELECT count(*)::int AS n FROM e_rating WHERE user_id = $1 AND episode_id = $2',
+        [user.id, row.aired],
+      );
+      assert.equal(stored.rows[0].n, 0, 'ничего не записано');
+    },
+  });
 });
 
 test('список серий: среднее видно всем, шкала — у отмеченной серии', { skip }, async () => {

@@ -360,10 +360,10 @@ export function createSeriesRoutes({
         const found = await series.bySlug(slug);
         if (!found) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'rating.error.missing'));
 
-        const raw = String(req.body?.value ?? '').trim();
-        // Пустое значение — это «убрать оценку», а не «ноль»: ноль вне
-        // диапазона и должен быть отвергнут, а человек хочет снять своё.
-        if (raw === '' || raw === '0') {
+        // Кнопка «Убрать оценку» шлёт отдельное поле `clear` и не делит имя
+        // с радио: раньше оба поля назывались `value`, и тело склеивалось в
+        // '8,0' — снятие молча не выполнялось (№266).
+        if (req.body?.clear !== undefined) {
           await ratings.removeSeriesRating({ userId: user.id, seriesId: found.id });
           // Оценка меняет данные, поэтому событие пишет сервер (R-AN-05).
           await analytics?.write({
@@ -376,7 +376,16 @@ export function createSeriesRoutes({
           // скрипта данные остаются в целости (см. `rating.clear.confirm`).
           if (reviews) await reviews.deleteOwn({ userId: user.id, seriesId: found.id });
         } else {
-          await ratings.setSeriesRating({ userId: user.id, seriesId: found.id, value: Number(raw) });
+          const raw = String(req.body?.value ?? '').trim();
+          const value = Number(raw);
+          if (!Number.isInteger(value) || value < 1 || value > 10) {
+            return res.status(400).type('text/plain; charset=utf-8')
+              .send(t(locale, 'rating.error.range'));
+          }
+          // Отказ сервиса (например, отметки больше нет) в адрес не кладётся:
+          // страница объяснит словами (`rateReason` считает ту же базу, что и
+          // запись) — редирект на неё же.
+          await ratings.setSeriesRating({ userId: user.id, seriesId: found.id, value });
           await analytics?.write({
             name: 'rating_set',
             props: { value: raw, object: 'series' },

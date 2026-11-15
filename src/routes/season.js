@@ -197,18 +197,29 @@ export function createSeasonRoutes({
               .send(t(locale, 'rating.error.missing'));
           }
 
-          const raw = String(req.body?.value ?? '').trim();
-          // Пустое значение — это «убрать оценку», а не «ноль»: ноль вне
-          // диапазона и должен быть отвергнут, а человек хочет снять своё.
-          const result = raw === '' || raw === '0'
-            ? await ratings.removeEpisodeRating({ userId: user.id, episodeId: ref.episodeId })
-            : await ratings.setEpisodeRating({
+          // Кнопка «Убрать оценку» шлёт отдельное поле `clear` и не делит имя
+          // с радио: раньше оба поля назывались `value`, и тело склеивалось в
+          // '8,0' — снятие молча не выполнялось (№266).
+          if (req.body?.clear !== undefined) {
+            await ratings.removeEpisodeRating({ userId: user.id, episodeId: ref.episodeId });
+          } else {
+            const raw = String(req.body?.value ?? '').trim();
+            const value = Number(raw);
+            if (!Number.isInteger(value) || value < 1 || value > 10) {
+              return res.status(400).type('text/plain; charset=utf-8')
+                .send(t(locale, 'rating.error.range'));
+            }
+            // Отказ сервиса (например, отметка снята, пока форма была открыта)
+            // в адрес не кладётся: страница объяснит словами (`rateReason`
+            // считает ту же базу, что и запись) — редирект на неё же.
+            await ratings.setEpisodeRating({
               userId: user.id,
               seriesId: ref.seriesId,
               episodeId: ref.episodeId,
-              value: Number(raw),
+              value,
               today,
             });
+          }
 
           // Якорь возвращает к строке списка: после оценки сезона из двадцати
           // четырёх серий страница длинная, и оказаться в её начале — значит

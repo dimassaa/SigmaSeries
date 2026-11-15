@@ -318,6 +318,33 @@ test('оценка сохраняется и видна на странице с
   assert.equal(stored.rows[0].value, 8);
 });
 
+test('снятие оценки сериала убирает голос (№266)', { skip }, async () => {
+  const user = await viewer();
+  const seriesRow = await seriesWith(6);
+  await mark(user.id, seriesRow.episodeId);
+
+  await withServer({
+    user,
+    run: async ({ get, post, csrfOf }) => {
+      const page = await (await get(`/ru/series/${seriesRow.slug}`)).text();
+      await post(`/ru/series/${seriesRow.slug}/rating`, { value: '8', csrf: csrfOf(page) });
+
+      // Тело повторяет настоящий клик по кнопке «Убрать оценку»: радио
+      // остаётся выбранным и уходит в форму вместе с кнопкой (№266).
+      const removed = await post(`/ru/series/${seriesRow.slug}/rating`, [
+        ['value', '8'], ['csrf', csrfOf(page)], ['clear', '0'],
+      ]);
+      assert.equal(removed.status, 303);
+
+      const stored = await pool.query(
+        'SELECT count(*)::int AS n FROM e_rating WHERE user_id = $1 AND series_id = $2',
+        [user.id, seriesRow.id],
+      );
+      assert.equal(stored.rows[0].n, 0, 'оценки больше нет в базе');
+    },
+  });
+});
+
 // ─── Рейтинг сайта и гистограмма (F-04-03) ──────────────────────────────────
 
 /**

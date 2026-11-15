@@ -338,7 +338,11 @@ test('снятие оценки удаляет отзыв (H-75)', { skip }, asy
       const page = await (await get(`/ru/series/${series.slug}`)).text();
       const csrf = csrfOf(page);
       await post(`/ru/series/${series.slug}/reviews`, { value: '6', body: BODY, csrf });
-      const res = await post(`/ru/series/${series.slug}/rating`, { value: '0', csrf });
+      // Тело как у настоящего клика по кнопке «Убрать оценку»: радио уходит
+      // в форму вместе с кнопкой очистки (№266).
+      const res = await post(`/ru/series/${series.slug}/rating`, [
+        ['value', '6'], ['csrf', csrf], ['clear', '0'],
+      ]);
       assert.equal(res.status, 303);
       assert.equal(await pgReviews(pool).ownReview(user.id, series.id), null, 'отзыв удалён вместе с оценкой');
       assert.equal(await pgRatings(pool).ownRating(user.id, series.id), null);

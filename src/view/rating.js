@@ -122,7 +122,9 @@ function scaleForm({
   <button class="button button--primary" type="submit"
     >${submit}${when(submitFor, () => html`<span class="visually-hidden"> ${submitFor}</span>`)}</button>
   ${when(own !== null, () => html`
-  <button class="button button--quiet" type="submit" name="value" value="0"
+  <!-- Кнопка не должна делить имя value с радио: тело склеивалось бы в
+       '8,0' и снятие молча не выполнялось (№266). -->
+  <button class="button button--quiet" type="submit" name="clear" value="0"
     ${clearConfirm ? html`data-confirm="${clearConfirm}"` : ''}
     >${clear}${when(clearFor, () => html`<span class="visually-hidden"> ${clearFor}</span>`)}</button>`)}
 </form>`;
