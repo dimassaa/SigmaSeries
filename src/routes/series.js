@@ -95,6 +95,20 @@ export function createSeriesRoutes({
   const composePage = async ({ req, locale, slug, found, reviewState = null }) => {
     const session = req.session ?? null;
     const user = session?.user ?? null;
+    // EN-версия предпочитает перевод (R-I18N-06: en → ru → оригинал): пока
+    // перевод лежит в данных, EN-страница не должна показывать русский текст.
+    // Пустая строка в базе — «перевода нет», а не показ пустоты: нормализация
+    // на null совпадает с btrim-условием `has_en` в карте сайта.
+    const titleEn = found.titleEn?.trim() ? found.titleEn : null;
+    const descriptionEn = found.descriptionEn?.trim() ? found.descriptionEn : null;
+    const en = locale === 'en';
+    const page = en
+      ? { ...found, title: titleEn ?? found.title, description: descriptionEn ?? found.description }
+      : found;
+    // Индексация EN — по R-SEO-04: переведены и заголовок, и описание. Это
+    // то же условие, что `has_en` в карте сайта, иначе hreflang звал робота
+    // на страницу, которую сама страница запрещает (№267).
+    const noindex = en && !(titleEn && descriptionEn);
     // Прогресс считается только вошедшему: гостю нечего «продолжать», а
     // пустая полоса на странице сериала выглядит как ошибка вёрстки.
     const watchProgress = progress && user
@@ -165,16 +179,16 @@ export function createSeriesRoutes({
       account: req.account,
       locale,
       path: `/series/${slug}`,
-      title: pageTitle(locale, found.yearStart
-        ? t(locale, 'seo.title.series', { title: found.title, year: found.yearStart })
-        : t(locale, 'seo.title.seriesNoYear', { title: found.title })),
-      description: found.description.slice(0, 160),
-      noindex: locale === 'en' && !found.descriptionRu,
-      jsonLd: seriesJsonLd({ locale, series: found, rating }),
+      title: pageTitle(locale, page.yearStart
+        ? t(locale, 'seo.title.series', { title: page.title, year: page.yearStart })
+        : t(locale, 'seo.title.seriesNoYear', { title: page.title })),
+      description: page.description.slice(0, 160),
+      noindex,
+      jsonLd: seriesJsonLd({ locale, series: page, rating }),
       body: seriesView({
       csrf: req.session ? csrfToken(req.session) : '',
         locale,
-        series: found,
+        series: page,
         status: watch ? { value: watch.status, csrf: watch.csrf, signedIn: watch.signedIn, archived: watch.archived } : null,
         progress: watchProgress,
         subscribe: bell,

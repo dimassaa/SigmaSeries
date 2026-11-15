@@ -123,6 +123,7 @@ export function pgSeries(pool) {
         // Английский адрес без перевода отдаётся как есть, но помечается
         // noindex: переводить описание «на лету» нечем (R-SEO-04).
         descriptionRu: series.description_ru,
+        descriptionEn: series.description_en,
         exitState: series.exit_state,
         archived: series.archived_at !== null,
         level: series.level,

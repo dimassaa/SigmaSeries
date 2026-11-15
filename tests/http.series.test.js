@@ -145,3 +145,81 @@ test('описание экранируется, разметка из исто�
     await pool.query('DELETE FROM e_series WHERE id = $1', [rows[0].id]);
   }
 });
+
+// №267: EN-версия страницы сериала. Проверяются обе половины R-SEO-04:
+test('EN-страница показывает перевод названия и описания, когда он есть (№267)', { skip }, async () => {
+  const slug = `en-translated-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, title_en, description_ru, description_en, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Во все тяжкие', 'Breaking Bad', 'Breaking Bad', 'Учитель химии варит метамфетамин.', 'A chemistry teacher cooks meth.', 2008, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`],
+  );
+  try {
+    const body = await (await get(`/en/series/${slug}`)).text();
+    assert.match(body, /<h1 class="series__title">Breaking Bad<\/h1>/,
+      'заголовок h1 — перевод, а не русское название');
+    assert.match(body, /<title>Breaking Bad/, '<title> — перевод');
+    assert.match(body, /content="A chemistry teacher cooks meth\."/,
+      'мета-описание — перевод');
+    assert.ok(!body.includes('name="robots" content="noindex'),
+      'страница с переведёнными заголовком и описанием индексируется (R-SEO-04)');
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [rows[0].id]);
+  }
+});
+
+test('EN-страница без перевода описания — noindex (R-SEO-04, №267)', { skip }, async () => {
+  const slug = `en-untranslated-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, title_en, description_ru, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Во все тяжкие', 'Breaking Bad', 'Breaking Bad', 'Учитель химии варит метамфетамин.', 2008, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`],
+  );
+  try {
+    const body = await (await get(`/en/series/${slug}`)).text();
+    assert.match(body, /name="robots" content="noindex, follow"/,
+      'без перевода описания страница не индексируется (R-SEO-04)');
+    // Название-то переведено: EN-версия показывает его, даже когда индексации нет.
+    assert.match(body, /<h1 class="series__title">Breaking Bad<\/h1>/);
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [rows[0].id]);
+  }
+});
+
+test('EN-страница без перевода названия — noindex даже с переведённым описанием (R-SEO-04, №267)', { skip }, async () => {
+  const slug = `en-no-title-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, description_ru, description_en, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Во все тяжкие', 'Breaking Bad', 'Учитель химии варит метамфетамин.', 'A chemistry teacher cooks meth.', 2008, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`],
+  );
+  try {
+    const body = await (await get(`/en/series/${slug}`)).text();
+    assert.match(body, /<h1 class="series__title">Во все тяжкие<\/h1>/,
+      'без перевода названия показывается русское');
+    assert.match(body, /name="robots" content="noindex, follow"/,
+      'R-SEO-04 требует перевода и заголовка, и описания — как has_en в карте сайта');
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [rows[0].id]);
+  }
+});
+
+test('русская страница индексируется, перевод ей не нужен (№267)', { skip }, async () => {
+  const slug = `en-untranslated-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, title_en, description_ru, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Во все тяжкие', 'Breaking Bad', 'Breaking Bad', 'Учитель химии варит метамфетамин.', 2008, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`],
+  );
+  try {
+    const body = await (await get(`/ru/series/${slug}`)).text();
+    assert.ok(!body.includes('name="robots" content="noindex'));
+    assert.match(body, /<h1 class="series__title">Во все тяжкие<\/h1>/);
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [rows[0].id]);
+  }
+});
