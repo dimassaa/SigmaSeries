@@ -11,6 +11,7 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { myContentView } from '../view/myContent.js';
 import { safeReturnTo } from '../services/auth/login.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/my/content';
 
@@ -73,19 +74,16 @@ export function createMyContentRoutes({ materials, sessionMw = null }) {
 
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id < 1) {
-      return res.status(404).type('text/plain; charset=utf-8')
-        .send(t(locale, 'my.content.missing'));
+      return refuse(res, locale, 404, t(locale, 'my.content.missing'));
     }
 
     try {
       if (!csrfValid(req.session, req.body?.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'my.content.csrf'));
+        return refuse(res, locale, 403, t(locale, 'my.content.csrf'));
       }
       const removed = await materials.remove({ materialId: id, userId: req.session.user.id });
       if (!removed) {
-        return res.status(404).type('text/plain; charset=utf-8')
-          .send(t(locale, 'my.content.missing'));
+        return refuse(res, locale, 404, t(locale, 'my.content.missing'));
       }
       const back = req.body?.back ? safeReturnTo(req.body.back) : `/${locale}${BASE}`;
       return res.status(303).set('Location', back).end();

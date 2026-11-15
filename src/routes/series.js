@@ -24,6 +24,7 @@ import { REPORT_CODES } from '../services/reviews/reports.js';
 import { reportStateFor, voteNumber, voteStateFor } from './review-actions.js';
 import { cooldownLeft, REASONS } from '../services/reviews/store.js';
 import { checkMaterial } from '../services/moderation/check.js';
+import { refuse } from '../view/refusal.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
 const STYLES = ['series', 'reviews', 'tracking'];
@@ -347,18 +348,15 @@ export function createSeriesRoutes({
         return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(back)}`);
       }
       if (!csrfValid(req.session, req.body?.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'rating.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'rating.error.csrf'));
       }
       if (ratingLimiter && !ratingLimiter.allow(String(user.id))) {
-        return res.status(429)
-          .set('Retry-After', String(Math.ceil((ratingLimiter.windowMs ?? HOUR) / 1000)))
-          .type('text/plain; charset=utf-8')
-          .send(t(locale, 'rating.error.rate'));
+        refuse(res.set('Retry-After', String(Math.ceil((ratingLimiter.windowMs ?? HOUR) / 1000))), locale, 429, t(locale, 'rating.error.rate'));
       }
 
       try {
         const found = await series.bySlug(slug);
-        if (!found) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'rating.error.missing'));
+        if (!found) return refuse(res, locale, 404, t(locale, 'rating.error.missing'));
 
         // Кнопка «Убрать оценку» шлёт отдельное поле `clear` и не делит имя
         // с радио: раньше оба поля назывались `value`, и тело склеивалось в
@@ -379,8 +377,7 @@ export function createSeriesRoutes({
           const raw = String(req.body?.value ?? '').trim();
           const value = Number(raw);
           if (!Number.isInteger(value) || value < 1 || value > 10) {
-            return res.status(400).type('text/plain; charset=utf-8')
-              .send(t(locale, 'rating.error.range'));
+            return refuse(res, locale, 400, t(locale, 'rating.error.range'));
           }
           // Отказ сервиса (например, отметки больше нет) в адрес не кладётся:
           // страница объяснит словами (`rateReason` считает ту же базу, что и
@@ -427,7 +424,7 @@ export function createSeriesRoutes({
         return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(back)}`);
       }
       if (!csrfValid(req.session, req.body?.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'review.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'review.error.csrf'));
       }
       // Потолки сети и устройства (R-MOD-10) — до обращения к базе: их
       // задача не пропустить поток, а не разобрать его. Счёт отдельный от
@@ -438,16 +435,13 @@ export function createSeriesRoutes({
         [reviewDeviceLimiter, `dev:${deviceKey(req)}`],
       ]) {
         if (limiter && !limiter.allow(key)) {
-          return res.status(429)
-            .set('Retry-After', String(Math.ceil((limiter.windowMs ?? HOUR) / 1000)))
-            .type('text/plain; charset=utf-8')
-            .send(t(locale, 'review.error.rate'));
+          refuse(res.set('Retry-After', String(Math.ceil((limiter.windowMs ?? HOUR) / 1000))), locale, 429, t(locale, 'review.error.rate'));
         }
       }
 
       try {
         const found = await series.bySlug(slug);
-        if (!found) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.error.missing'));
+        if (!found) return refuse(res, locale, 404, t(locale, 'review.error.missing'));
 
         /** Отказ формы: та же страница, форма открыта, значения сохранены. */
         const reject = async (state) => {
@@ -566,12 +560,12 @@ export function createSeriesRoutes({
         return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(back)}`);
       }
       if (!csrfValid(req.session, req.body?.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'review.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'review.error.csrf'));
       }
 
       try {
         const found = await series.bySlug(slug);
-        if (!found) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.error.missing'));
+        if (!found) return refuse(res, locale, 404, t(locale, 'review.error.missing'));
 
         // Мьют удалению не помеха: удалять своё можно всегда (F-05-08 §4).
         await reviews.deleteOwn({ userId: user.id, seriesId: found.id });
@@ -602,24 +596,21 @@ export function createSeriesRoutes({
         return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(safeReturnTo(req.body?.back))}`);
       }
       if (!csrfValid(req.session, req.body?.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'review.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'review.error.csrf'));
       }
       // Потолок один и по пользователю (M4 §0): голос без владельца — не голос.
       if (helpfulLimiter && !helpfulLimiter.allow(String(user.id))) {
-        return res.status(429)
-          .set('Retry-After', String(Math.ceil((helpfulLimiter.windowMs ?? HOUR) / 1000)))
-          .type('text/plain; charset=utf-8')
-          .send(t(locale, 'review.error.rate'));
+        refuse(res.set('Retry-After', String(Math.ceil((helpfulLimiter.windowMs ?? HOUR) / 1000))), locale, 429, t(locale, 'review.error.rate'));
       }
 
       const to = String(req.body?.to ?? '');
       if (to !== 'set' && to !== 'unset') {
-        return res.status(400).type('text/plain; charset=utf-8').send(t(locale, 'review.vote.error.to'));
+        return refuse(res, locale, 400, t(locale, 'review.vote.error.to'));
       }
       const back = safeReturnTo(req.body?.back);
       const materialId = voteNumber(reviewId);
       if (materialId === null) {
-        return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.vote.missing'));
+        return refuse(res, locale, 404, t(locale, 'review.vote.missing'));
       }
 
       try {
@@ -627,16 +618,15 @@ export function createSeriesRoutes({
         // именем («сериала нет») обязан называться 404, даже если найдётся
         // отзыв по id.
         const header = await series.lite(slug);
-        if (!header) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.error.missing'));
+        if (!header) return refuse(res, locale, 404, t(locale, 'review.error.missing'));
 
         const result = to === 'set'
           ? await votes.set({ userId: user.id, materialId, seriesId: header.id })
           : await votes.unset({ userId: user.id, materialId, seriesId: header.id });
         if (!result.ok) {
           const missing = result.reason === 'missing' || result.reason === 'kind';
-          return res.status(missing ? 404 : 403)
-            .type('text/plain; charset=utf-8')
-            .send(t(locale, missing ? 'review.vote.missing' : `review.vote.${result.reason ?? ''}`));
+          return refuse(res, locale, missing ? 404 : 403,
+            t(locale, missing ? 'review.vote.missing' : `review.vote.${result.reason ?? ''}`));
         }
 
         if (req.accepts(['html', 'json']) === 'json') {
@@ -669,15 +659,12 @@ export function createSeriesRoutes({
         return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(safeReturnTo(req.body?.back))}`);
       }
       if (!csrfValid(req.session, req.body?.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'review.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'review.error.csrf'));
       }
       // Потолок — сутки на аккаунт (M4 §0): жалоба — решение, а не поток.
       // Отсекает запись, но не портит её: спрос спрашивается раньше правды.
       if (reportLimiter && !reportLimiter.allow(String(user.id))) {
-        return res.status(429)
-          .set('Retry-After', String(Math.ceil((reportLimiter.windowMs ?? DAY) / 1000)))
-          .type('text/plain; charset=utf-8')
-          .send(t(locale, 'review.error.rate'));
+        refuse(res.set('Retry-After', String(Math.ceil((reportLimiter.windowMs ?? DAY) / 1000))), locale, 429, t(locale, 'review.error.rate'));
       }
 
       const reason = String(req.body?.reason ?? '');
@@ -686,7 +673,7 @@ export function createSeriesRoutes({
       const comment = String(req.body?.comment ?? '').slice(0, 400).trim();
       const materialId = voteNumber(reviewId);
       if (materialId === null) {
-        return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.report.missing'));
+        return refuse(res, locale, 404, t(locale, 'review.report.missing'));
       }
       const back = safeReturnTo(req.body?.back) ?? `/${locale}`;
       const withState = (marker) => `${back}${back.includes('?') ? '&' : '?'}${marker}`;
@@ -705,7 +692,7 @@ export function createSeriesRoutes({
         // Соседи проверяют сериал с адреса раньше сервиса: отзыв чужой
         // витрины из адреса обязан называться 404, как и у голоса.
         const header = await series.lite(slug);
-        if (!header) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'review.error.missing'));
+        if (!header) return refuse(res, locale, 404, t(locale, 'review.error.missing'));
 
         const result = await reports.submit({
           userId: user.id, materialId, seriesId: header.id, reason, comment,
@@ -716,9 +703,8 @@ export function createSeriesRoutes({
             return res.redirect(303, withState(`reported=${materialId}&again=1`));
           }
           const missing = result.reason === 'missing' || result.reason === 'kind';
-          return res.status(missing ? 404 : 403)
-            .type('text/plain; charset=utf-8')
-            .send(t(locale, missing ? 'review.report.missing' : `review.report.${result.reason ?? ''}`));
+          return refuse(res, locale, missing ? 404 : 403,
+            t(locale, missing ? 'review.report.missing' : `review.report.${result.reason ?? ''}`));
         }
         if (wantsJson) return res.status(200).json({ reported: true });
         return res.redirect(303, withState(`reported=${materialId}`));

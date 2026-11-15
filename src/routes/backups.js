@@ -10,6 +10,7 @@ import { isLocale, t } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { backupsView } from '../view/backups.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/admin/backups';
 
@@ -79,12 +80,10 @@ export function createBackupRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.backups.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.backups.csrf'));
       }
       if (!runBackup) {
-        return res.status(501).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.backups.unavailable'));
+        return refuse(res, locale, 501, t(locale, 'admin.backups.unavailable'));
       }
 
       const result = await runBackup();

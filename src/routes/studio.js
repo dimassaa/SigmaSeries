@@ -13,6 +13,7 @@ import { studioListView, studioQueueView } from '../view/studio.js';
 import { studioBannersView } from '../view/studioBanners.js';
 import { bulkPreviewView, bulkJobView } from '../view/studioBulk.js';
 import { MAX_BULK } from '../services/studio/bulk.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/admin/catalog';
 
@@ -82,8 +83,7 @@ export function createStudioRoutes({
       const body = req.body ?? {};
       try {
         if (!req.session || !csrfValid(req.session, body.csrf)) {
-          return res.status(403).type('text/plain; charset=utf-8')
-            .send(t(locale, 'admin.users.csrf'));
+          return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
         }
         let ids = [].concat(body.ids ?? [])
           .map((value) => Number(value))
@@ -103,8 +103,7 @@ export function createStudioRoutes({
         if (body.confirm !== '1') {
           const plan = await bulk.preview({ action, ids, genre, reason, field });
           if (!plan.ok) {
-            return res.status(400).type('text/plain; charset=utf-8')
-              .send(t(locale, `studio.bulk.error.${plan.reason}`));
+            return refuse(res, locale, 400, t(locale, `studio.bulk.error.${plan.reason}`));
           }
           return res.status(200).type('html').send(layout({
             account: req.account,
@@ -130,8 +129,7 @@ export function createStudioRoutes({
           action, ids, genre, reason, field, byId: req.session.user.id,
         });
         if (!result.ok) {
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(t(locale, `studio.bulk.error.${result.reason}`));
+          return refuse(res, locale, 400, t(locale, `studio.bulk.error.${result.reason}`));
         }
         if (audit) {
           await audit.write({
@@ -184,14 +182,12 @@ export function createStudioRoutes({
       const body = req.body ?? {};
       try {
         if (!req.session || !csrfValid(req.session, body.csrf)) {
-          return res.status(403).type('text/plain; charset=utf-8')
-            .send(t(locale, 'admin.users.csrf'));
+          return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
         }
         const job = await bulk.job(id);
         if (!job) return next('router');
         if (job.state === 'running') {
-          return res.status(409).type('text/plain; charset=utf-8')
-            .send(t(locale, 'studio.bulk.error.running'));
+          return refuse(res, locale, 409, t(locale, 'studio.bulk.error.running'));
         }
         const ids = job.result.filter((item) => !item.ok).map((item) => Number(item.id));
         if (!ids.length) {
@@ -206,8 +202,7 @@ export function createStudioRoutes({
           byId: req.session.user.id,
         });
         if (!result.ok) {
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(t(locale, `studio.bulk.error.${result.reason}`));
+          return refuse(res, locale, 400, t(locale, `studio.bulk.error.${result.reason}`));
         }
         if (audit) {
           await audit.write({
@@ -303,16 +298,13 @@ export function createStudioRoutes({
       const seriesId = Number(body.series_id);
       try {
         if (!csrfValid(req.session, body.csrf)) {
-          return res.status(403).type('text/plain; charset=utf-8')
-            .send(t(locale, 'admin.users.csrf'));
+          return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
         }
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !Number.isFinite(seriesId)) {
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(t(locale, 'studio.banners.badRequest'));
+          return refuse(res, locale, 400, t(locale, 'studio.banners.badRequest'));
         }
         if (date < localDate()) {
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(t(locale, 'studio.banners.pastDate'));
+          return refuse(res, locale, 400, t(locale, 'studio.banners.pastDate'));
         }
         const saved = await picks.assign({
           seriesId,
@@ -321,8 +313,7 @@ export function createStudioRoutes({
           note: String(body.note ?? '').trim() || null,
         });
         if (!saved) {
-          return res.status(409).type('text/plain; charset=utf-8')
-            .send(t(locale, 'studio.banners.notFit'));
+          return refuse(res, locale, 409, t(locale, 'studio.banners.notFit'));
         }
         // Смена выбора посреди суток пересчитывает баннеры сразу: это
         // единственное исключение из суточного ритма (F-06-02 §5).
@@ -352,12 +343,10 @@ export function createStudioRoutes({
       const date = String(body.date ?? '');
       try {
         if (!csrfValid(req.session, body.csrf)) {
-          return res.status(403).type('text/plain; charset=utf-8')
-            .send(t(locale, 'admin.users.csrf'));
+          return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
         }
         if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) {
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(t(locale, 'studio.banners.badRequest'));
+          return refuse(res, locale, 400, t(locale, 'studio.banners.badRequest'));
         }
         const removed = await picks.clear({ date });
         if (audit) {

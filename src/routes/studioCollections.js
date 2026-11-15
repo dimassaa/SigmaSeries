@@ -9,6 +9,7 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { studioCollectionsView, studioCollectionView } from '../view/studioCollections.js';
 import { studioDictionariesView } from '../view/studioDictionaries.js';
+import { refuse } from '../view/refusal.js';
 
 /** Таблицы стилей экрана: общая плюс админская. */
 const STYLES = ['base', 'admin'];
@@ -82,8 +83,7 @@ export function createStudioLibraryRoutes({
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const result = await collections.save({
         // slug выдаёт источник: авто-имя из названия (F-10-07 §4). Адрес в
@@ -103,11 +103,9 @@ export function createStudioLibraryRoutes({
           // R-A11Y-11: отказ назван и перечислен, а не «ошибка формы».
           const reasons = (result.blockers ?? [])
             .map((code) => t(locale, `studio.collections.blockers.${code}`));
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(`${t(locale, 'studio.collections.error.blocked')}\n${reasons.join('\n')}`);
+          return refuse(res, locale, 400, `${t(locale, 'studio.collections.error.blocked')}\n${reasons.join('\n')}`);
         }
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `studio.collections.error.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `studio.collections.error.${result.reason}`));
       }
       if (audit) {
         await audit.write({
@@ -159,8 +157,7 @@ export function createStudioLibraryRoutes({
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       // Список сериалов приходит строкой через запятую: в одной форме
       // несколько полей с одним именем не нужны. Пустая строка — пустой
@@ -188,8 +185,7 @@ export function createStudioLibraryRoutes({
         // №249): страница под таким адресом сама по себе 404, так же отвечает
         // и GET по несуществующему slug.
         if (result.reason === 'missed') return next('route');
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `studio.collections.error.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `studio.collections.error.${result.reason}`));
       }
       if (audit) {
         await audit.write({
@@ -216,8 +212,7 @@ export function createStudioLibraryRoutes({
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const collection = await collections.one(req.params.slug);
       if (!collection) return next('route');
@@ -273,8 +268,7 @@ export function createStudioLibraryRoutes({
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       let result;
       if (body.kind === 'genre') {
@@ -298,8 +292,7 @@ export function createStudioLibraryRoutes({
         });
       }
       if (!result.ok) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `studio.dictionaries.error.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `studio.dictionaries.error.${result.reason}`));
       }
       if (audit) {
         await audit.write({

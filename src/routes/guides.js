@@ -9,6 +9,7 @@ import { isLocale, t } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { guidesListView, guideView } from '../view/guides.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/guides';
 
@@ -112,20 +113,17 @@ export function createGuideRoutes({
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const user = writer(req);
       if (!user) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'guides.signIn'));
+        return refuse(res, locale, 403, t(locale, 'guides.signIn'));
       }
       // Статья всегда о сериале: без привязки её нечем считать полезной,
       // и схема такую строку не принимает.
       const found = await series.bySlug(String(body.series_slug ?? ''));
       if (!found) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'guides.error.series'));
+        return refuse(res, locale, 400, t(locale, 'guides.error.series'));
       }
       const seriesId = found.id;
       const result = await guides.submit({
@@ -137,8 +135,7 @@ export function createGuideRoutes({
         dictionary: dictionary ? await dictionary.load() : { block: [], allow: [], available: false },
       });
       if (!result.ok) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `guides.error.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `guides.error.${result.reason}`));
       }
       return res.status(303)
         .set('Location', `/${locale}${BASE}/${result.slug}`)

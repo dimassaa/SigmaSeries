@@ -11,6 +11,7 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { systemSettingsView } from '../view/systemSettings.js';
 import { RAW, setSetting } from '../services/settings.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/admin/settings';
 
@@ -66,18 +67,15 @@ export function createSystemSettingsRoutes({ pool, audit = null, sessionMw = nul
 
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.settings.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.settings.csrf'));
       }
       const reason = String(body.reason ?? '').trim();
       if (!reason) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.settings.reason'));
+        return refuse(res, locale, 400, t(locale, 'admin.settings.reason'));
       }
       const saved = await setSetting(pool, key, value, req.session.user.id);
       if (!saved) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.settings.unknown'));
+        return refuse(res, locale, 400, t(locale, 'admin.settings.unknown'));
       }
       if (audit) {
         await audit.write({

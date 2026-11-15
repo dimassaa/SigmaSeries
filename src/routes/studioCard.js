@@ -10,6 +10,7 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { studioCardView } from '../view/studioCard.js';
 import { readMultipart } from '../services/http/multipart.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/admin/catalog';
 
@@ -87,8 +88,7 @@ export function createStudioCardRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const fields = {};
       for (const key of Object.keys(body)) {
@@ -108,11 +108,9 @@ export function createStudioCardRoutes({
 
       if (!result.ok) {
         if (result.reason === 'conflict') {
-          return res.status(409).type('text/plain; charset=utf-8')
-            .send(t(locale, 'studio.card.conflict'));
+          return refuse(res, locale, 409, t(locale, 'studio.card.conflict'));
         }
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'studio.card.invalid'));
+        return refuse(res, locale, 400, t(locale, 'studio.card.invalid'));
       }
       if (audit) {
         await audit.write({
@@ -140,8 +138,7 @@ export function createStudioCardRoutes({
       const body = req.body ?? {};
       try {
         if (!csrfValid(req.session, body.csrf)) {
-          return res.status(403).type('text/plain; charset=utf-8')
-            .send(t(locale, 'admin.users.csrf'));
+          return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
         }
         const result = await schedule.setDate({
           seriesId: id,
@@ -155,8 +152,7 @@ export function createStudioCardRoutes({
           byId: req.session.user.id,
         });
         if (!result.ok) {
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(t(locale, `studio.card.scheduleError.${result.reason}`));
+          return refuse(res, locale, 400, t(locale, `studio.card.scheduleError.${result.reason}`));
         }
         if (audit) {
           await audit.write({
@@ -191,13 +187,11 @@ export function createStudioCardRoutes({
           const form = await readMultipart(req);
           const token = form.get('csrf');
           if (!req.session || !csrfValid(req.session, token)) {
-            return res.status(403).type('text/plain; charset=utf-8')
-              .send(t(locale, 'admin.users.csrf'));
+            return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
           }
           const file = form.get('file');
           if (!file || typeof file === 'string' || typeof file.arrayBuffer !== 'function') {
-            return res.status(400).type('text/plain; charset=utf-8')
-              .send(t(locale, 'studio.card.uploadError.file'));
+            return refuse(res, locale, 400, t(locale, 'studio.card.uploadError.file'));
           }
           const buffer = Buffer.from(await file.arrayBuffer());
           const result = await images.upload({
@@ -208,8 +202,7 @@ export function createStudioCardRoutes({
             byId: req.session.user.id,
           });
           if (!result.ok) {
-            return res.status(400).type('text/plain; charset=utf-8')
-              .send(t(locale, `studio.card.uploadError.${result.reason}`));
+            return refuse(res, locale, 400, t(locale, `studio.card.uploadError.${result.reason}`));
           }
           if (audit) {
             await audit.write({
@@ -240,15 +233,13 @@ export function createStudioCardRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const result = await card.restoreVersion({
         seriesId: id, version, byId: req.session.user.id,
       });
       if (!result.ok) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `studio.card.restoreError.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `studio.card.restoreError.${result.reason}`));
       }
       if (audit) {
         await audit.write({
@@ -277,8 +268,7 @@ export function createStudioCardRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const result = await card.setFocal({
         seriesId: id,
@@ -287,8 +277,7 @@ export function createStudioCardRoutes({
         focalY: body.focal_y,
       });
       if (!result.ok) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `studio.card.focalError.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `studio.card.focalError.${result.reason}`));
       }
       return res.status(303)
         .set('Location', `/${locale}${BASE}/${id}?tab=images`)
@@ -306,8 +295,7 @@ export function createStudioCardRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       await card.setFocal({
         seriesId: id,
@@ -330,13 +318,11 @@ export function createStudioCardRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const result = await card.publish(id, { byId: req.session.user.id });
       if (!result.ok && result.reason === 'blocked') {
-        return res.status(409).type('text/plain; charset=utf-8')
-          .send(t(locale, 'studio.card.publishBlocked', { reasons: result.blockers.join(', ') }));
+        return refuse(res, locale, 409, t(locale, 'studio.card.publishBlocked', { reasons: result.blockers.join(', ') }));
       }
       if (audit) {
         await audit.write({
@@ -361,13 +347,11 @@ export function createStudioCardRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const reason = String(body.reason ?? '').trim();
       if (!reason) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'studio.card.reasonRequired'));
+        return refuse(res, locale, 400, t(locale, 'studio.card.reasonRequired'));
       }
       const result = await card.archive(id, { byId: req.session.user.id, reason });
       if (audit) {
@@ -394,8 +378,7 @@ export function createStudioCardRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const result = await card.restore(id, { byId: req.session.user.id });
       if (audit) {
@@ -421,14 +404,12 @@ export function createStudioCardRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const field = String(body.field ?? '');
       const done = await card.resetField(id, field, req.session.user.id);
       if (!done) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'studio.card.noImportValue'));
+        return refuse(res, locale, 400, t(locale, 'studio.card.noImportValue'));
       }
       if (audit) {
         await audit.write({

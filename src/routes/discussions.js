@@ -10,6 +10,7 @@ import { isLocale, t } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { discussionsListView, discussionTopicView } from '../view/discussions.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/discussions';
 
@@ -87,13 +88,11 @@ export function createDiscussionRoutes({
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const user = writer(req);
       if (!user) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'discussions.signIn'));
+        return refuse(res, locale, 403, t(locale, 'discussions.signIn'));
       }
       const found = await series.bySlug(req.params.slug);
       if (!found) return next('route');
@@ -107,8 +106,7 @@ export function createDiscussionRoutes({
         dictionary: dictionary ? await dictionary.load() : { block: [], allow: [], available: false },
       });
       if (!result.ok) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `discussions.error.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `discussions.error.${result.reason}`));
       }
       return res.status(303)
         .set('Location', `/${locale}${BASE}/${result.id}`)
@@ -162,13 +160,11 @@ export function createDiscussionRoutes({
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const user = writer(req);
       if (!user) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'discussions.signIn'));
+        return refuse(res, locale, 403, t(locale, 'discussions.signIn'));
       }
       const result = await discussions.reply({
         userId: user.id,
@@ -178,8 +174,7 @@ export function createDiscussionRoutes({
         dictionary: dictionary ? await dictionary.load() : { block: [], allow: [], available: false },
       });
       if (!result.ok) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `discussions.error.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `discussions.error.${result.reason}`));
       }
       return res.status(303).set('Location', `/${locale}${BASE}/${id}`).end();
     } catch (error) {
@@ -195,14 +190,12 @@ export function createDiscussionRoutes({
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       // Закрепляет только редактор: правило без исключений (F-05-07 §8б).
       const roles = req.session?.user?.roles ?? [];
       if (!roles.includes('admin') && !roles.includes('moderator')) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'discussions.error.forbidden'));
+        return refuse(res, locale, 403, t(locale, 'discussions.error.forbidden'));
       }
       await discussions.pin({ materialId: Number(body.post_id), byId: req.session.user.id });
       return res.status(303).set('Location', `/${locale}${BASE}/${id}`).end();

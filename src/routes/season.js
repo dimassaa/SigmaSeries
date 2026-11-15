@@ -17,6 +17,7 @@ import { HOUR } from '../config/settings.js';
 import { UNDO_WINDOW_SECONDS } from '../services/tracking/marks.js';
 import { goneView } from '../view/series.js';
 import { t, isLocale } from '../i18n/strings.js';
+import { refuse } from '../view/refusal.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
 const STYLES = ['series', 'tracking'];
@@ -179,22 +180,17 @@ export function createSeasonRoutes({
           return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(back)}`);
         }
         if (!csrfValid(req.session, req.body?.csrf)) {
-          return res.status(403).type('text/plain; charset=utf-8')
-            .send(t(locale, 'rating.error.csrf'));
+          return refuse(res, locale, 403, t(locale, 'rating.error.csrf'));
         }
         if (ratingLimiter && !ratingLimiter.allow(String(user.id))) {
-          return res.status(429)
-            .set('Retry-After', String(Math.ceil((ratingLimiter.windowMs ?? HOUR) / 1000)))
-            .type('text/plain; charset=utf-8')
-            .send(t(locale, 'rating.error.rate'));
+          refuse(res.set('Retry-After', String(Math.ceil((ratingLimiter.windowMs ?? HOUR) / 1000))), locale, 429, t(locale, 'rating.error.rate'));
         }
 
         try {
           const today = todayIn(timezoneOf(req));
           const ref = await seasons.episodeRef(slug, seasonNumber, episodeNumber, { today });
           if (!ref) {
-            return res.status(404).type('text/plain; charset=utf-8')
-              .send(t(locale, 'rating.error.missing'));
+            return refuse(res, locale, 404, t(locale, 'rating.error.missing'));
           }
 
           // Кнопка «Убрать оценку» шлёт отдельное поле `clear` и не делит имя
@@ -206,8 +202,7 @@ export function createSeasonRoutes({
             const raw = String(req.body?.value ?? '').trim();
             const value = Number(raw);
             if (!Number.isInteger(value) || value < 1 || value > 10) {
-              return res.status(400).type('text/plain; charset=utf-8')
-                .send(t(locale, 'rating.error.range'));
+              return refuse(res, locale, 400, t(locale, 'rating.error.range'));
             }
             // Отказ сервиса (например, отметка снята, пока форма была открыта)
             // в адрес не кладётся: страница объяснит словами (`rateReason`

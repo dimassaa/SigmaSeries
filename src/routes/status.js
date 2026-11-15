@@ -12,6 +12,7 @@ import { csrfValid } from '../services/auth/session.js';
 import { safeReturnTo } from '../services/auth/login.js';
 import { STATUSES } from '../services/tracking/status.js';
 import { isLocale, t } from '../i18n/strings.js';
+import { refuse } from '../view/refusal.js';
 
 /** `tracking.status_rate_per_min` (M3 §0): шестьдесят смен в минуту на зрителя. */
 const RATE_PER_MINUTE = 60;
@@ -51,19 +52,15 @@ export function createStatusRoutes({ status, series, sessionMw, limiter = defaul
     // протухшая вкладка. Ответ короткий: показывать здесь форму значило бы
     // объяснять человеку то, что он не может исправить.
     if (!csrfValid(req.session, req.body?.csrf)) {
-      return res.status(403).type('text/plain; charset=utf-8')
-        .send(`${t(locale, 'status.error.csrf')}\n\n${back}`);
+      return refuse(res, locale, 403, `${t(locale, 'status.error.csrf')}\n\n${back}`);
     }
 
     if (!limiter.allow(String(req.session.user.id))) {
-      return res.status(429)
-        .set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))
-        .type('text/plain; charset=utf-8')
-        .send(t(locale, 'status.error.rate'));
+      refuse(res.set('Retry-After', String(Math.ceil(WINDOW_MS / 1000))), locale, 429, t(locale, 'status.error.rate'));
     }
 
     const found = await series.bySlug(slug);
-    if (!found) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'status.error.missing'));
+    if (!found) return refuse(res, locale, 404, t(locale, 'status.error.missing'));
 
     const wanted = String(req.body?.status ?? '');
     const userId = req.session.user.id;
@@ -83,7 +80,7 @@ export function createStatusRoutes({ status, series, sessionMw, limiter = defaul
 
     // Неизвестное значение — ошибка вызывающего кода, а не человека: белый
     // список уже отсекает мусор из адреса, значит сюда пришло что-то чужое.
-    if (!STATUSES.includes(wanted)) return res.status(400).type('text/plain; charset=utf-8').send('bad status');
+    if (!STATUSES.includes(wanted)) return refuse(res, locale, 400, 'bad status');
 
     const result = await status.set({ userId, seriesId: found.id, status: wanted });
     // Снятый с публикации сериал (EC-T8): страница остаётся, статус прежний —

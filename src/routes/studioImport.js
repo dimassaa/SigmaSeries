@@ -14,6 +14,7 @@ import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { studioImportView } from '../view/studioImport.js';
 import { planManualRun } from '../services/import/runs.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/admin/import';
 
@@ -89,8 +90,7 @@ export function createImportRoutes({ pool, report, freeze = null, audit = null, 
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'studio.import.run.csrf'));
+        return refuse(res, locale, 403, t(locale, 'studio.import.run.csrf'));
       }
 
       const kind = body.kind === 'schedule_sync' ? 'schedule_sync' : 'full_run';
@@ -110,8 +110,7 @@ export function createImportRoutes({ pool, report, freeze = null, audit = null, 
       }
 
       if (!result.ok) {
-        return res.status(409).type('text/plain; charset=utf-8')
-          .send(t(locale, `studio.import.run.${result.reason}`));
+        return refuse(res, locale, 409, t(locale, `studio.import.run.${result.reason}`));
       }
       const back = `/${locale}${BASE}`;
       return res.status(303).set('Location', back).end();

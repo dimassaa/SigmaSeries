@@ -11,6 +11,7 @@ import express from 'express';
 
 import { isLocale, t } from '../i18n/strings.js';
 import { csrfValid } from '../services/auth/session.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/admin/anomaly';
 // Форма говорит человеческим словом «accept/discard», сервис — состояниями
@@ -52,8 +53,7 @@ export function createAdminRoutes({ anomalies, sessionMw, audit }) {
       if (!decision || !Number.isInteger(id) || id <= 0) {
         // Незнакомое слово или мусор в адресе — наша ошибка формы, а службы
         // сервиса не касаемся: логировать тут нечего, кроме неудачи.
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'anomaly.error.decision'));
+        return refuse(res, locale, 400, t(locale, 'anomaly.error.decision'));
       }
 
       if (!csrfValid(req.session, req.body?.csrf)) {
@@ -65,8 +65,7 @@ export function createAdminRoutes({ anomalies, sessionMw, audit }) {
           result: 'denied',
           reason: 'csrf-missing',
         });
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'anomaly.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'anomaly.error.csrf'));
       }
 
       const result = await anomalies.resolve({
@@ -96,9 +95,8 @@ export function createAdminRoutes({ anomalies, sessionMw, audit }) {
         result: 'denied',
         reason: result.reason ?? 'not-open',
       });
-      return res.status(result.reason === 'missing' ? 404 : 409)
-        .type('text/plain; charset=utf-8')
-        .send(t(locale, `anomaly.error.${result.reason ?? 'not-open'}`));
+      return refuse(res, locale, result.reason === 'missing' ? 404 : 409,
+        t(locale, `anomaly.error.${result.reason ?? 'not-open'}`));
     } catch (error) {
       return next(error);
     }

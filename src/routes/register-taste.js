@@ -15,6 +15,7 @@ import { tasteStepView } from '../view/register.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { GRID_SIZE, MAX_CHOICE, MIN_CHOICE } from '../services/recommendations/taste.js';
 import { isLocale, t } from '../i18n/strings.js';
+import { refuse } from '../view/refusal.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
 const STYLES = ['identity'];
@@ -102,7 +103,7 @@ export function createTasteRoutes({ taste, search, auth, sessionMw }) {
 
     const body = req.body ?? {};
     if (!csrfValid(req.session, body.csrf)) {
-      return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'signin.error.csrf'));
+      return refuse(res, locale, 403, t(locale, 'signin.error.csrf'));
     }
 
     const back = `/${locale}/register/taste`;

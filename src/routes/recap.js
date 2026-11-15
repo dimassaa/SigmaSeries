@@ -18,6 +18,7 @@ import { safeReturnTo } from '../services/auth/login.js';
 import { buildShareImage } from '../services/insights/shareImage.js';
 import { PERIODS } from '../services/insights/recap.js';
 import { WRAPPED } from '../config/settings.js';
+import { refuse } from '../view/refusal.js';
 
 // Таблицы стилей этой страницы: общая плюс нужные группы. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
@@ -119,17 +120,17 @@ export function createRecapRoutes({ recap, profile, data, sessionMw = null }) {
     const locale = req.params.locale;
     if (!isLocale(locale)) return next('route');
     const userId = req.session?.user?.id;
-    if (!userId) return res.status(401).type('text/plain; charset=utf-8').send(t(locale, 'recap.share.error'));
+    if (!userId) return refuse(res, locale, 401, t(locale, 'recap.share.error'));
 
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'mark.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'mark.error.csrf'));
       }
       const period = PERIODS.includes(body.period) ? body.period : WRAPPED.defaultPeriod;
       const data_ = await recap.slides({ userId, period });
       if (!data_ || !data_.enough) {
-        return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'recap.little.title'));
+        return refuse(res, locale, 404, t(locale, 'recap.little.title'));
       }
 
       const numbers = data_.slides.slice(0, 4).map((slide) => ({

@@ -15,6 +15,7 @@ import { csrfToken } from '../services/auth/session.js';
 import { safeReturnTo } from '../services/auth/login.js';
 import { MODERATION } from '../services/settings.js';
 import { STYLE_GROUPS } from '../config/styles.js';
+import { refuse } from '../view/refusal.js';
 
 /** Таблицы стилей экрана: общая плюс его собственная. */
 const STYLES = STYLE_GROUPS.map((group) => group.name).filter((name) => name === 'base' || name === 'moderation');
@@ -103,8 +104,7 @@ export function createModerationRoutes({
     try {
       const materialId = Number(req.query.material);
       if (!Number.isInteger(materialId) || materialId < 1) {
-        return res.status(404).type('text/plain; charset=utf-8')
-          .send(t(locale, 'mod.error.missing'));
+        return refuse(res, locale, 404, t(locale, 'mod.error.missing'));
       }
       const groups = await clustersService.groups({
         windowHours: MODERATION.clusterWindowH,
@@ -112,8 +112,7 @@ export function createModerationRoutes({
       });
       const group = groups.find((item) => item.materials.some((row) => row.id === materialId));
       if (!group) {
-        return res.status(404).type('text/plain; charset=utf-8')
-          .send(t(locale, 'mod.error.missing'));
+        return refuse(res, locale, 404, t(locale, 'mod.error.missing'));
       }
 
       return res.status(200).type('html').send(rawHtml(layout({
@@ -139,8 +138,7 @@ export function createModerationRoutes({
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'mod.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'mod.error.csrf'));
       }
       const materialIds = Array.isArray(body.materials) ? body.materials : [body.materials];
       const result = await decisions.split({
@@ -156,9 +154,7 @@ export function createModerationRoutes({
           rate: 'mod.error.rate',
           materials: 'mod.cluster.empty',
         }[result.reason] ?? 'mod.error.decision';
-        return res.status(result.reason === 'materials' ? 400 : 400)
-          .type('text/plain; charset=utf-8')
-          .send(t(locale, key));
+        return refuse(res, locale, result.reason === 'materials' ? 400 : 400, t(locale, key));
       }
       if (audit) {
         await audit.write({
@@ -183,8 +179,7 @@ export function createModerationRoutes({
 
     const userId = Number(req.params.userId);
     if (!Number.isInteger(userId) || userId < 1) {
-      return res.status(404).type('text/plain; charset=utf-8')
-        .send(t(locale, 'mod.error.missing'));
+      return refuse(res, locale, 404, t(locale, 'mod.error.missing'));
     }
 
     const body = req.body ?? {};
@@ -197,14 +192,12 @@ export function createModerationRoutes({
 
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'mod.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'mod.error.csrf'));
       }
       // Бан — только администратор (F-05-08 §2): редактор ограничивает
       // поток материалов, но не отнимает доступ к сервису.
       if (action === 'ban' && !isAdmin) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'mod.error.ban'));
+        return refuse(res, locale, 403, t(locale, 'mod.error.ban'));
       }
 
       let result;
@@ -231,7 +224,7 @@ export function createModerationRoutes({
           return res.status(403).type('html; charset=utf-8')
             .send(errorPage(locale, 'forbidden').__raw);
         }
-        return res.status(400).type('text/plain; charset=utf-8').send(t(locale, key));
+        return refuse(res, locale, 400, t(locale, key));
       }
 
       const back = body.back ? safeReturnTo(body.back) : `/${locale}${BASE}`;
@@ -247,8 +240,7 @@ export function createModerationRoutes({
 
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id < 1) {
-      return res.status(404).type('text/plain; charset=utf-8')
-        .send(t(locale, 'mod.error.missing'));
+      return refuse(res, locale, 404, t(locale, 'mod.error.missing'));
     }
 
     const body = req.body ?? {};
@@ -269,8 +261,7 @@ export function createModerationRoutes({
             reason: 'csrf-missing',
           });
         }
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'mod.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'mod.error.csrf'));
       }
 
       const result = await decisions.decide({
@@ -289,9 +280,7 @@ export function createModerationRoutes({
           rate: 'mod.error.rate',
           missing: 'mod.error.missing',
         }[result.reason] ?? 'mod.error.decision';
-        return res.status(result.reason === 'missing' ? 404 : 400)
-          .type('text/plain; charset=utf-8')
-          .send(t(locale, key));
+        return refuse(res, locale, result.reason === 'missing' ? 404 : 400, t(locale, key));
       }
 
       // Решение и добавление слова в белый список — две записи в аудите

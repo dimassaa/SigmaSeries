@@ -11,6 +11,7 @@ import { notificationsView } from '../view/notification.js';
 import { csrfValid, csrfToken } from '../services/auth/session.js';
 import { isLocale, t } from '../i18n/strings.js';
 import { todayIn } from '../services/timezone.js';
+import { refuse } from '../view/refusal.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
 const STYLES = ['notifications'];
@@ -102,8 +103,7 @@ export function createNotificationRoutes({ feed, sessionMw }) {
       return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(`/${locale}/notifications`)}`);
     }
     if (!csrfValid(req.session, req.body?.csrf)) {
-      return res.status(403).type('text/plain; charset=utf-8')
-        .send(`${t(locale, 'notifications.error.csrf')}\n`);
+      return refuse(res, locale, 403, `${t(locale, 'notifications.error.csrf')}\n`);
     }
 
     const back = backTo({ locale, req });
@@ -127,8 +127,7 @@ export function createNotificationRoutes({ feed, sessionMw }) {
         default:
           // Неизвестное действие — ошибка вызывающего кода, а не человека:
           // форма всегда присылает одно из четырёх.
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(`${t(locale, 'notifications.error.action')}\n`);
+          return refuse(res, locale, 400, `${t(locale, 'notifications.error.action')}\n`);
       }
       return res.redirect(303, back);
     } catch (error) {

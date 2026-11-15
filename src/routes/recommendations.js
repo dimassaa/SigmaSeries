@@ -8,6 +8,7 @@ import express from 'express';
 import { t, isLocale } from '../i18n/strings.js';
 import { csrfValid } from '../services/auth/session.js';
 import { safeReturnTo } from '../services/auth/login.js';
+import { refuse } from '../view/refusal.js';
 
 /**
  * Маршруты рекомендаций.
@@ -27,17 +28,17 @@ export function createRecommendationRoutes({ recommendations, sessionMw = null }
 
     const userId = req.session?.user?.id;
     if (!userId) {
-      return res.status(401).type('text/plain; charset=utf-8').send(t(locale, 'reco.error.signin'));
+      return refuse(res, locale, 401, t(locale, 'reco.error.signin'));
     }
 
     const body = req.body ?? {};
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8').send(t(locale, 'mark.error.csrf'));
+        return refuse(res, locale, 403, t(locale, 'mark.error.csrf'));
       }
       const slug = String(body.series ?? '').trim();
       if (!slug) {
-        return res.status(400).type('text/plain; charset=utf-8').send(t(locale, 'reco.error.series'));
+        return refuse(res, locale, 400, t(locale, 'reco.error.series'));
       }
       await recommendations.dismiss(userId, slug);
 

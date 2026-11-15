@@ -18,6 +18,7 @@ import { createRateLimiter } from '../services/limits.js';
 import { csrfValid } from '../services/auth/session.js';
 import { isLocale, t } from '../i18n/strings.js';
 import { timezoneOf, todayIn } from '../services/timezone.js';
+import { refuse } from '../view/refusal.js';
 
 /** `tracking.marks_rate_per_min` (M3 §0): сто двадцать отметок в минуту. */
 const RATE_PER_MINUTE = 120;
@@ -38,18 +39,14 @@ export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLi
       return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(`/${locale}/series/${slug}`)}`);
     }
     if (!csrfValid(req.session, req.body?.csrf)) {
-      return res.status(403).type('text/plain; charset=utf-8')
-        .send(`${t(locale, 'mark.error.csrf')}\n\n${back}`);
+      return refuse(res, locale, 403, `${t(locale, 'mark.error.csrf')}\n\n${back}`);
     }
     if (!limiter.allow(String(req.session.user.id))) {
-      return res.status(429)
-        .set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))
-        .type('text/plain; charset=utf-8')
-        .send(t(locale, 'mark.error.rate'));
+      refuse(res.set('Retry-After', String(Math.ceil(WINDOW_MS / 1000))), locale, 429, t(locale, 'mark.error.rate'));
     }
 
     const found = await series.bySlug(slug);
-    if (!found) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'mark.error.missing'));
+    if (!found) return refuse(res, locale, 404, t(locale, 'mark.error.missing'));
 
     const today = todayIn(timezoneOf(req));
     const userId = req.session.user.id;
@@ -114,7 +111,7 @@ export function createMarkRoutes({ marks, series, sessionMw, limiter = defaultLi
         return res.redirect(303, `${back}?mark=undone`);
       }
 
-      return res.status(400).type('text/plain; charset=utf-8').send('bad action');
+      return refuse(res, locale, 400, 'bad action');
     } catch (error) {
       return next(error);
     }

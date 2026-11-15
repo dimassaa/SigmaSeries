@@ -11,6 +11,7 @@ import { createRateLimiter } from '../services/limits.js';
 import { csrfValid } from '../services/auth/session.js';
 import { KINDS } from '../services/tracking/subscription.js';
 import { isLocale, t } from '../i18n/strings.js';
+import { refuse } from '../view/refusal.js';
 
 /** `subs.rate_per_min` (M3 §0): шестьдесят нажатий в минуту на зрителя. */
 const RATE_PER_MINUTE = 60;
@@ -45,24 +46,20 @@ export function createSubscribeRoutes({ subscriptions, series, sessionMw, limite
     if (!req.session?.user) return res.redirect(303, `/${locale}/login?next=${encodeURIComponent(back)}`);
 
     if (!csrfValid(req.session, req.body?.csrf)) {
-      return res.status(403).type('text/plain; charset=utf-8')
-        .send(`${t(locale, 'subs.error.csrf')}\n\n${back}`);
+      return refuse(res, locale, 403, `${t(locale, 'subs.error.csrf')}\n\n${back}`);
     }
 
     if (!limiter.allow(String(req.session.user.id))) {
-      return res.status(429)
-        .set('Retry-After', String(Math.ceil(WINDOW_MS / 1000)))
-        .type('text/plain; charset=utf-8')
-        .send(t(locale, 'subs.error.rate'));
+      refuse(res.set('Retry-After', String(Math.ceil(WINDOW_MS / 1000))), locale, 429, t(locale, 'subs.error.rate'));
     }
 
     const found = await series.bySlug(slug);
-    if (!found) return res.status(404).type('text/plain; charset=utf-8').send(t(locale, 'subs.error.missing'));
+    if (!found) return refuse(res, locale, 404, t(locale, 'subs.error.missing'));
 
     const kind = String(req.body?.kind ?? 'release');
     // Неизвестный вид — ошибка вызывающего кода: белый список уже отсекает
     // мусор из адреса, значит сюда пришло что-то чужое.
-    if (!KINDS.includes(kind)) return res.status(400).type('text/plain; charset=utf-8').send('bad kind');
+    if (!KINDS.includes(kind)) return refuse(res, locale, 400, 'bad kind');
 
     const on = String(req.body?.on ?? '') === '1';
     const result = await subscriptions.toggle({

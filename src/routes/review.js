@@ -18,6 +18,7 @@ import { reportStateFor, voteStateFor } from './review-actions.js';
 import { t, isLocale } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { timezoneOf } from '../services/timezone.js';
+import { refuse } from '../view/refusal.js';
 // Таблицы стилей этой страницы: общая плюс нужные группам. Список
 // берётся из `src/config/styles.js`, порядок подключения — оттуда же.
 const STYLES = ['reviews'];
@@ -59,13 +60,11 @@ export function createReviewRoutes({
       const body = req.body ?? {};
       try {
         if (!csrfValid(req.session, body.csrf)) {
-          return res.status(403).type('text/plain; charset=utf-8')
-            .send(t(locale, 'admin.users.csrf'));
+          return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
         }
         const user = req.session?.user ?? null;
         if (!user) {
-          return res.status(403).type('text/plain; charset=utf-8')
-            .send(t(locale, 'discussions.signIn'));
+          return refuse(res, locale, 403, t(locale, 'discussions.signIn'));
         }
         const result = await discussions.addComment({
           userId: user.id,
@@ -75,8 +74,7 @@ export function createReviewRoutes({
           dictionary: dictionary ? await dictionary.load() : { block: [], allow: [], available: false },
         });
         if (!result.ok) {
-          return res.status(400).type('text/plain; charset=utf-8')
-            .send(t(locale, `discussions.error.${result.reason}`));
+          return refuse(res, locale, 400, t(locale, `discussions.error.${result.reason}`));
         }
         return res.status(303).set('Location', `/${locale}/reviews/${id}`).end();
       } catch (error) {

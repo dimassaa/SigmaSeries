@@ -14,6 +14,7 @@ import { ADMIN } from '../services/settings.js';
 import { leavesNoAdmin } from '../services/admin/users.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { adminUsersView, adminUserView } from '../view/adminUsers.js';
+import { refuse } from '../view/refusal.js';
 
 const BASE = '/admin/users';
 
@@ -94,12 +95,10 @@ export function createAdminUsersRoutes({
 
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       if (!reason || reason.length > 500) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.reason'));
+        return refuse(res, locale, 400, t(locale, 'admin.users.reason'));
       }
 
       let result;
@@ -107,8 +106,7 @@ export function createAdminUsersRoutes({
         // Последнего администратора снять нельзя: иначе раздел останется без
         // того, кто может его открыть (F-09-02 §5).
         if (role === 'admin' && leavesNoAdmin(await users.admins(), id)) {
-          return res.status(409).type('text/plain; charset=utf-8')
-            .send(t(locale, 'admin.users.lastAdmin'));
+          return refuse(res, locale, 409, t(locale, 'admin.users.lastAdmin'));
         }
         result = await auth.revokeRole({ userId: id, role });
         result = { ok: true, removed: result.removed };
@@ -129,7 +127,7 @@ export function createAdminUsersRoutes({
           'no-expiry': 'admin.users.role',
           'not-admin': 'admin.users.notAdmin',
         }[result.reason] ?? 'admin.users.role';
-        return res.status(400).type('text/plain; charset=utf-8').send(t(locale, key));
+        return refuse(res, locale, 400, t(locale, key));
       }
 
       await audit.write({
@@ -163,24 +161,20 @@ export function createAdminUsersRoutes({
 
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       if (!reason || reason.length > 500) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.reason'));
+        return refuse(res, locale, 400, t(locale, 'admin.users.reason'));
       }
       // Человека нельзя ограничить на себя: администратор ушёл бы из-под
       // собственного решения (F-09-02 §5).
       if (id === req.session.user.id) {
-        return res.status(409).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.self'));
+        return refuse(res, locale, 409, t(locale, 'admin.users.self'));
       }
       // Бан выдаёт только администратор: редактор ограничивает поток, но не
       // отнимает доступ к сервису (F-05-08 §2).
       if (action === 'ban' && !isAdmin) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.banForbidden'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.banForbidden'));
       }
 
       let result;
@@ -202,7 +196,7 @@ export function createAdminUsersRoutes({
           hours: 'admin.users.hours',
           privileged: 'admin.users.privileged',
         }[result.reason] ?? 'admin.users.reason';
-        return res.status(400).type('text/plain; charset=utf-8').send(t(locale, key));
+        return refuse(res, locale, 400, t(locale, key));
       }
 
       const back = body.back ? safeReturnTo(body.back) : `/${locale}${BASE}/${id}`;
@@ -227,25 +221,21 @@ export function createAdminUsersRoutes({
 
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       if (!reason || reason.length > 500) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.reason'));
+        return refuse(res, locale, 400, t(locale, 'admin.users.reason'));
       }
       // Удалить себя нельзя: администратор ушёл бы из-под собственного решения
       // (F-09-02 §5).
       if (id === req.session.user.id) {
-        return res.status(409).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.self'));
+        return refuse(res, locale, 409, t(locale, 'admin.users.self'));
       }
       // Пароль спрашивается здесь, а не в момент обезличивания: через срок
       // никто его не вспомнит (F-09-02 §8б).
       const ok = await auth.verifyCurrent(req.session.user.id, password);
       if (!ok) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.password'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.password'));
       }
 
       const requestedAt = new Date();
@@ -254,8 +244,7 @@ export function createAdminUsersRoutes({
       const removed = await auth.requestDeletion(id, { requestedAt, anonymizeAfter, deleteMaterials });
 
       if (!removed) {
-        return res.status(409).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.deleteState'));
+        return refuse(res, locale, 409, t(locale, 'admin.users.deleteState'));
       }
 
       await audit.write({
@@ -290,27 +279,22 @@ export function createAdminUsersRoutes({
 
     try {
       if (!csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       if (!reason || reason.length > 500) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.reason'));
+        return refuse(res, locale, 400, t(locale, 'admin.users.reason'));
       }
       // Свою проверку через карточку сбросить нельзя: для администратора
       // есть аварийный скрипт на сервере (H-60).
       if (id === req.session.user.id) {
-        return res.status(409).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.user.twoFactor.self'));
+        return refuse(res, locale, 409, t(locale, 'admin.user.twoFactor.self'));
       }
       if (!(await auth.verifyCurrent(req.session.user.id, password))) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.password'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.password'));
       }
       const state = await auth.twoFactor(id);
       if (!state) {
-        return res.status(409).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.user.twoFactor.notEnabled'));
+        return refuse(res, locale, 409, t(locale, 'admin.user.twoFactor.notEnabled'));
       }
 
       const result = await auth.resetTwoFactor(id);
@@ -354,15 +338,13 @@ export function createAdminUsersRoutes({
 
     const id = Number(req.params.id);
     if (!Number.isInteger(id) || id < 1) {
-      return res.status(404).type('text/plain; charset=utf-8')
-        .send(t(locale, 'admin.users.missing'));
+      return refuse(res, locale, 404, t(locale, 'admin.users.missing'));
     }
 
     try {
       const user = await users.one(id);
       if (!user) {
-        return res.status(404).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.missing'));
+        return refuse(res, locale, 404, t(locale, 'admin.users.missing'));
       }
       // Настроена ли проверка у человека: без этого админ не видит, что
       // именно сбрасывает.

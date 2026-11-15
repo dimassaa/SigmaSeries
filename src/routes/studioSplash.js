@@ -10,6 +10,7 @@ import { isLocale, t } from '../i18n/strings.js';
 import { csrfToken, csrfValid } from '../services/auth/session.js';
 import { layout, pageTitle } from '../view/layout.js';
 import { splashView } from '../view/studioSplash.js';
+import { refuse } from '../view/refusal.js';
 
 /** Таблицы стилей экрана: общая плюс админская. */
 const STYLES = ['base', 'admin'];
@@ -68,8 +69,7 @@ export function createSplashRoutes({ splash, audit = null, sessionMw = null }) {
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const result = await splash.add({
         imageId: Number(body.image_id),
@@ -77,8 +77,7 @@ export function createSplashRoutes({ splash, audit = null, sessionMw = null }) {
         byId: req.session.user.id,
       });
       if (!result.ok) {
-        return res.status(400).type('text/plain; charset=utf-8')
-          .send(t(locale, `studio.splash.error.${result.reason}`));
+        return refuse(res, locale, 400, t(locale, `studio.splash.error.${result.reason}`));
       }
       if (audit) {
         await audit.write({
@@ -102,8 +101,7 @@ export function createSplashRoutes({ splash, audit = null, sessionMw = null }) {
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const where = ['up', 'down', 'first', 'last', 'position'].includes(body.where)
         ? body.where
@@ -127,8 +125,7 @@ export function createSplashRoutes({ splash, audit = null, sessionMw = null }) {
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const done = await splash.setFocal({
         frameId: Number(body.frame_id),
@@ -136,8 +133,7 @@ export function createSplashRoutes({ splash, audit = null, sessionMw = null }) {
         focalY: Number(body.focal_y),
       });
       if (!done) {
-        return res.status(404).type('text/plain; charset=utf-8')
-          .send(t(locale, 'studio.splash.frameMissing'));
+        return refuse(res, locale, 404, t(locale, 'studio.splash.frameMissing'));
       }
       if (audit) {
         await audit.write({
@@ -161,8 +157,7 @@ export function createSplashRoutes({ splash, audit = null, sessionMw = null }) {
     const body = req.body ?? {};
     try {
       if (!req.session || !csrfValid(req.session, body.csrf)) {
-        return res.status(403).type('text/plain; charset=utf-8')
-          .send(t(locale, 'admin.users.csrf'));
+        return refuse(res, locale, 403, t(locale, 'admin.users.csrf'));
       }
       const removed = await splash.remove({
         frameId: Number(body.frame_id),
