@@ -107,8 +107,11 @@ export function createSeriesRoutes({
       : found;
     // Индексация EN — по R-SEO-04: переведены и заголовок, и описание. Это
     // то же условие, что `has_en` в карте сайта, иначе hreflang звал робота
-    // на страницу, которую сама страница запрещает (№267).
-    const noindex = en && !(titleEn && descriptionEn);
+    // на страницу, которую сама страница запрещает (№267). Свойство
+    // EN-версии, не текущей страницы: на RU-странице непереведённого сериала
+    // альтернатива на EN тоже не рисуется (№268).
+    const enIndexable = Boolean(titleEn && descriptionEn);
+    const noindex = en && !enIndexable;
     // Прогресс считается только вошедшему: гостю нечего «продолжать», а
     // пустая полоса на странице сериала выглядит как ошибка вёрстки.
     const watchProgress = progress && user
@@ -184,6 +187,7 @@ export function createSeriesRoutes({
         : t(locale, 'seo.title.seriesNoYear', { title: page.title })),
       description: page.description.slice(0, 160),
       noindex,
+      enIndexable,
       jsonLd: seriesJsonLd({ locale, series: page, rating }),
       body: seriesView({
       csrf: req.session ? csrfToken(req.session) : '',
@@ -312,23 +316,32 @@ export function createSeriesRoutes({
         const reportState = reports ? reportStateFor({ req, locale, slug, back, user, session }) : null;
 
         // Индексируется только первая страница с фильтрами и сортировкой по
-        // умолчанию (M4 §8г); EN-страница без русского описания не индексируется
-        // и здесь — тем же правилом, что S-06 (R-SEO-04).
+        // умолчанию (M4 §8г). EN-страница — тем же правилом, что страница
+        // сериала (R-SEO-04): индексируется только с переведённым заголовком
+        // и описанием, иначе это дубль русского текста (№268).
+        const titleEn = found.titleEn?.trim() ? found.titleEn : null;
+        const descriptionEn = found.descriptionEn?.trim() ? found.descriptionEn : null;
+        const enIndexable = Boolean(titleEn && descriptionEn);
         const defaults = !page.applied.group && !page.applied.length && !page.applied.lang
           && page.applied.sort === 'helpful';
-        const noindex = !(page.page === 1 && defaults) || (locale === 'en' && !found.descriptionRu);
+        const noindex = !(page.page === 1 && defaults) || (locale === 'en' && !enIndexable);
 
         return res.status(200).type('html').send(rawHtml(layout({
           styles: STYLES,
           account: req.account,
           locale,
           path: `/series/${slug}/reviews`,
-          title: pageTitle(locale, t(locale, 'review.list.title', { title: found.title })),
-          description: found.description.slice(0, 160),
+          title: pageTitle(locale, t(locale, 'review.list.title', {
+            title: locale === 'en' ? (titleEn ?? found.title) : found.title,
+          })),
+          description: (locale === 'en' ? (descriptionEn ?? found.description) : found.description)
+            .slice(0, 160),
           noindex,
+          enIndexable,
           body: reviewListView({
             locale,
-            series: found,
+            // EN-версия предпочитает перевод названия (R-I18N-06), он же в h1.
+            series: locale === 'en' && titleEn ? { ...found, title: titleEn } : found,
             summary,
             ownRating,
             action,

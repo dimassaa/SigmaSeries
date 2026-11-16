@@ -84,6 +84,9 @@ export function createCalendarRoutes({ calendar, sessionMw = null }) {
           : t(locale, 'calendar.title')),
         description: t(locale, 'calendar.description'),
         noindex: guestInvite || !indexable(state, today),
+        // EN-страница календаря закрыта тем же правилом, что и RU: у закрытой
+        // версии альтернативы на неё не рисуется (R-SEO-04, №268).
+        enIndexable: !guestInvite && indexable(state, today),
         body: calendarView({ locale, calendar: data, state: { ...state, guestInvite } }),
       })));
     } catch (error) {

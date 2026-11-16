@@ -52,6 +52,7 @@ export function pgSeries(pool) {
         titleEn: series.title_en,
         description: series.description_ru || series.description_en || '',
         descriptionRu: series.description_ru,
+        descriptionEn: series.description_en,
         archived: series.archived_at !== null,
       };
     },

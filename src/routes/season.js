@@ -49,7 +49,7 @@ export function createSeasonRoutes({
 
     try {
       const marks = marksOf(req);
-      const found = await seasons.season(slug, seasonNumber, marks.options);
+      const found = await seasons.season(slug, seasonNumber, { ...marks.options, locale });
       // Отсутствие сезона у видимого сериала и отсутствие сериала — одно и то же
       // для посетителя: такого адреса нет. Различие живёт в источнике.
       //
@@ -58,6 +58,13 @@ export function createSeasonRoutes({
       if (!found) return sendMissing({ res, locale, slug, series, account: req.account });
 
       const path = `/series/${slug}/seasons/${seasonNumber}`;
+      // R-SEO-04: EN-страница индексируется только с переведённым заголовком и
+      // описанием. Заголовок и описание сезона собираются из интерфейсных строк
+      // и названия сериала, поэтому всё решает перевод названия (№268).
+      // Свойство EN-версии, не текущей страницы: на RU-странице непереведённого
+      // сезона альтернатива на EN тоже не рисуется.
+      const enIndexable = found.series.titleEn !== null;
+      const noindex = locale === 'en' && !enIndexable;
       return res.status(200).type('html').send(rawHtml(layout({
         styles: STYLES,
         account: req.account,
@@ -71,7 +78,8 @@ export function createSeasonRoutes({
           series: found.series.title,
           season: seasonNumber,
         }),
-        noindex: locale === 'en' && !found.series.titleOriginal,
+        noindex,
+        enIndexable,
         body: seasonView({
           locale,
           page: found,
@@ -110,10 +118,23 @@ export function createSeasonRoutes({
 
     try {
       const marks = marksOf(req);
-      const found = await seasons.episode(slug, seasonNumber, episodeNumber, marks.options);
+      const found = await seasons.episode(slug, seasonNumber, episodeNumber, { ...marks.options, locale });
       if (!found) return sendMissing({ res, locale, slug, series, account: req.account });
 
       const path = `/series/${slug}/seasons/${seasonNumber}/episodes/${episodeNumber}`;
+      // H-35: страница серии индексируется только с описанием и датой не
+      // позже сегодняшней. Тонкие страницы — это тысячи почти пустых адресов.
+      // R-SEO-04 (№268): EN-страница индексируется только с переведённым
+      // заголовком и описанием. Заголовок собирается из названия серии
+      // (когда оно есть) и названия сериала, описание — из описания серии;
+      // у безымянной серии название целиком интерфейсное, переводить нужно
+      // только сериал.
+      const enTranslated = Boolean(
+        found.series.titleEn
+        && found.episode.descriptionEn
+        && (!found.episode.titleRu || found.episode.titleEn)
+      );
+      const noindex = found.episode.thin || (locale === 'en' && !enTranslated);
       return res.status(200).type('html').send(rawHtml(layout({
         styles: STYLES,
         account: req.account,
@@ -123,9 +144,8 @@ export function createSeasonRoutes({
           ? t(locale, 'episode.title', { title: found.episode.title, series: found.series.title })
           : t(locale, 'episode.titleNumber', { number: episodeNumber, series: found.series.title })),
         description: found.episode.description.slice(0, 160),
-        // H-35: страница серии индексируется только с описанием и датой не
-        // позже сегодняшней. Тонкие страницы — это тысячи почти пустых адресов.
-        noindex: found.episode.thin || (locale === 'en' && !found.episode.descriptionRu),
+        noindex,
+        enIndexable: enTranslated,
         jsonLd: episodeJsonLd({ locale, page: found, seasonNumber, episodeNumber }),
         body: episodeView({
           locale,

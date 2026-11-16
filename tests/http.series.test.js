@@ -10,6 +10,9 @@ import assert from 'node:assert/strict';
 import { createPool } from '../src/db/pool.js';
 import { createApp } from '../src/app.js';
 import { pgSeries } from '../src/services/catalogue/series.js';
+import { pgRatings } from '../src/services/rating/store.js';
+import { pgReviews } from '../src/services/reviews/store.js';
+import { pgReviewList } from '../src/services/reviews/list.js';
 
 const available = Boolean(process.env.PGHOST && process.env.PGDATABASE);
 const skip = available
@@ -33,7 +36,13 @@ function stubData() {
 test.before(async () => {
   if (!available) return;
   pool = createPool();
-  const app = createApp({ data: stubData(), series: pgSeries(pool) });
+  const app = createApp({
+    data: stubData(),
+    series: pgSeries(pool),
+    ratings: pgRatings(pool),
+    reviews: pgReviews(pool),
+    reviewList: pgReviewList(pool),
+  });
   await new Promise((resolve) => {
     server = app.listen(0, '127.0.0.1', () => {
       baseUrl = `http://127.0.0.1:${server.address().port}`;
@@ -80,11 +89,28 @@ test('в разметке есть JSON-LD TVSeries (F-02-01 §18)', { skip }, a
   assert.ok(Array.isArray(data.genre) || data.genre === undefined);
 });
 
-test('канонический адрес и переключение языка заданы (R-SEO-02, R-SEO-03)', { skip }, async () => {
-  const slug = await anySlug();
-  const body = await (await get(`/ru/series/${slug}`)).text();
-  assert.ok(body.includes(`href="/ru/series/${slug}"`), 'канонический адрес');
-  assert.ok(body.includes(`hreflang="en"`), 'английский вариант объявлен');
+test('канонический адрес и переключение языка заданы (R-SEO-02, R-SEO-03, №268)', { skip }, async () => {
+  // hreflang EN объявляется только у переведённого сериала: альтернатива на
+  // закрытую страницу звала робота на дубль русского текста (R-SEO-04).
+  const slug = `hreflang-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, title_en, description_ru, description_en, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Во все тяжкие', 'Breaking Bad', 'Breaking Bad', 'Учитель химии варит метамфетамин.', 'A chemistry teacher cooks meth.', 2008, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`],
+  );
+  try {
+    const body = await (await get(`/ru/series/${slug}`)).text();
+    assert.ok(body.includes(`href="/ru/series/${slug}"`), 'канонический адрес');
+    assert.match(body, /<link rel="alternate" hreflang="en"/, 'английский вариант объявлен');
+
+    await pool.query('UPDATE e_series SET title_en = NULL, description_en = NULL WHERE id = $1', [series.id]);
+    const closed = await (await get(`/ru/series/${slug}`)).text();
+    assert.ok(!/<link rel="alternate" hreflang="en"/.test(closed),
+      'без перевода EN-версия закрыта, и альтернативы на неё нет');
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
 });
 
 test('неизвестный сериал — 404', { skip }, async () => {
@@ -221,5 +247,39 @@ test('русская страница индексируется, перевод
     assert.match(body, /<h1 class="series__title">Во все тяжкие<\/h1>/);
   } finally {
     await pool.query('DELETE FROM e_series WHERE id = $1', [rows[0].id]);
+  }
+});
+test('EN-список отзывов следует правилам перевода страницы сериала (№268)', { skip }, async () => {
+  const slug = `reviews-en-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, title_en, description_ru, description_en, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Во все тяжкие', 'Breaking Bad', 'Breaking Bad', 'Учитель химии варит метамфетамин.', 'A chemistry teacher cooks meth.', 2008, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`],
+  );
+  try {
+    const body = await (await get(`/en/series/${slug}/reviews`)).text();
+    assert.match(body, /<title>[^<]*Breaking Bad/, 'в заголовке перевод названия');
+    assert.ok(!body.includes('name="robots" content="noindex'),
+      'с переведённым заголовком и описанием страница индексируется');
+    assert.match(body, /<link rel="alternate" hreflang="en"/);
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
+
+  const { rows: [closed] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, title_en, description_ru, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Во все тяжкие', 'Breaking Bad', 'Breaking Bad', 'Учитель химии варит метамфетамин.', 2008, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [`${slug}-ru`, `tt${Math.random().toString(36).slice(2, 10)}`],
+  );
+  try {
+    const body = await (await get(`/en/series/${slug}-ru/reviews`)).text();
+    assert.match(body, /name="robots" content="noindex, follow"/,
+      'без перевода описания EN-список отзывов — дубль русского текста (R-SEO-04)');
+    assert.ok(!/<link rel="alternate" hreflang="en"/.test(body),
+      'hreflang на закрытую страницу не ставится');
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id = $1', [closed.id]);
   }
 });

@@ -102,13 +102,23 @@ test('покрытие считает выходящие сериалы с да�
 });
 
 test('плотность календаря разбита по неделям до конца года', { skip }, async () => {
-  await seriesWithRelease({ date: '2026-11-10' });
+  // Окно отчёта — от сегодня до конца года, поэтому фиксированная дата в
+  // фикстуре устаревает на следующий день: серия, вышедшая до сегодня, в
+  // плотность не попадает. Дата живёт в текущем окне всегда.
+  const now = new Date();
+  const today = now.toISOString().slice(0, 10);
+  await seriesWithRelease({ date: today });
   const overview = await report.overview();
 
   const weeks = overview.weeks.map((week) => week.week);
   assert.deepEqual(weeks, [...weeks].sort(), 'недели идут по порядку');
   assert.ok(weeks.every((week) => week <= '2026-12-31'), 'окно заканчивается 31.12');
-  assert.ok(overview.weeks.some((week) => week.week === '2026-11-09'), 'неделя выхода посчитана');
+  // Неделя считается с понедельника (date_trunc 'week'), как в запросе.
+  const monday = new Date(now);
+  monday.setDate(now.getDate() - (now.getDay() + 6) % 7);
+  const weekStart = monday.toISOString().slice(0, 10);
+  assert.ok(overview.weeks.some((week) => week.week === weekStart),
+    `неделя выхода (${weekStart}) посчитана`);
 });
 
 test('запуски и детали запуска: счётчики, исходы и фильтр', { skip }, async () => {

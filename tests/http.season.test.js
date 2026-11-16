@@ -204,3 +204,119 @@ test('ссылки на сезон и серию ведут с карточки 
   const response = await get(`/ru/series/${found.slug}/seasons/${found.number}`);
   assert.equal(response.status, 200);
 });
+
+// №268: EN-условия сезона и серии. Фикстуры свои: выборка «любого сезона»
+// зависит от чужих остатков в общей базе.
+
+/**
+ * Сериал с одним сезоном и одной вышедшей серией.
+ *
+ * @param {{titleEn?: string|null, episodeTitleEn?: string|null,
+ *   episodeDescEn?: string|null}} [options] перевод названия сериала и серии
+ * @returns {Promise<string>} адрес сериала
+ */
+/** Сезон удаляется первым: ключ сезона на сериал — RESTRICT (R-SQL-02). */
+async function removeSeasonFixture(slug) {
+  await pool.query('DELETE FROM e_season WHERE series_id = (SELECT id FROM e_series WHERE slug = $1)', [slug]);
+  await pool.query('DELETE FROM e_series WHERE slug = $1', [slug]);
+}
+
+async function seasonFixture({ titleEn = null, episodeTitleEn = null, episodeDescEn = null } = {}) {
+  const slug = `season-en-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, title_en, description_ru, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, 'Сериал сезона', 'Season Probe', $3, 'Описание сериала для сезона.', 2020, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    [slug, `tt${Math.random().toString(36).slice(2, 10)}`, titleEn],
+  );
+  const { rows: [season] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id',
+    [series.id],
+  );
+  const { rows: [episode] } = await pool.query(
+    `INSERT INTO e_episode (season_id, number, title_ru, title_en, description_ru, description_en)
+     VALUES ($1, 1, 'Серия проверки', $2, 'Описание серии проверки.', $3) RETURNING id`,
+    [season.id, episodeTitleEn, episodeDescEn],
+  );
+  const { rows: [release] } = await pool.query(
+    `INSERT INTO e_release (season_id, release_date, covers_season, state)
+     VALUES ($1, '2020-02-01', FALSE, 'aired') RETURNING id`,
+    [season.id],
+  );
+  await pool.query('INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)',
+    [release.id, episode.id]);
+  return slug;
+}
+
+test('EN-страница сезона показывает перевод названия и индексируется только с ним (№268)', { skip }, async () => {
+  const translated = await seasonFixture({ titleEn: 'Season Probe' });
+  try {
+    const body = await (await get(`/en/series/${translated}/seasons/1`)).text();
+    assert.match(body, /<title>[^<]*Season Probe/, 'в заголовке перевод, а не русское название');
+    assert.ok(!body.includes('name="robots" content="noindex'), 'с переводом страница индексируется');
+    assert.match(body, /<link rel="alternate" hreflang="en"/, 'индексируемая EN-версия объявлена');
+  } finally {
+    await removeSeasonFixture(translated);
+  }
+
+  // Оригинальное название «Season Probe» стоит и без перевода `title_en`:
+  // прежний прокси `title_original` считал такую страницу переведённой.
+  const untranslated = await seasonFixture({ titleEn: null });
+  try {
+    const body = await (await get(`/en/series/${untranslated}/seasons/1`)).text();
+    assert.match(body, /name="robots" content="noindex, follow"/,
+      'без перевода названия страница не индексируется (R-SEO-04)');
+    assert.ok(!/<link rel="alternate" hreflang="en"/.test(body),
+      'hreflang на закрытую EN-страницу не ставится');
+    const ru = await (await get(`/ru/series/${untranslated}/seasons/1`)).text();
+    assert.ok(!ru.includes('name="robots" content="noindex'), 'русская страница не тронута');
+  } finally {
+    await removeSeasonFixture(untranslated);
+  }
+});
+
+test('EN-страница серии: перевод описания и названия — условие индексации (№268)', { skip }, async () => {
+  const slug = await seasonFixture({
+    titleEn: 'Season Probe', episodeTitleEn: 'Probe episode', episodeDescEn: 'Episode description in English.',
+  });
+  try {
+    const body = await (await get(`/en/series/${slug}/seasons/1/episodes/1`)).text();
+    assert.match(body, /Episode description in English\./, 'показан перевод описания');
+    assert.ok(!body.includes('name="robots" content="noindex'), 'переведённая страница индексируется');
+  } finally {
+    await removeSeasonFixture(slug);
+  }
+
+  // Описание не переведено: EN-страница — дубль русского текста (R-SEO-04).
+  const ruOnly = await seasonFixture({ titleEn: 'Season Probe' });
+  try {
+    const body = await (await get(`/en/series/${ruOnly}/seasons/1/episodes/1`)).text();
+    assert.match(body, /name="robots" content="noindex, follow"/);
+  } finally {
+    await removeSeasonFixture(ruOnly);
+  }
+
+  // Название серии не переведено: заголовок страницы наполовину русский.
+  const titleRuOnly = await seasonFixture({
+    titleEn: 'Season Probe', episodeDescEn: 'Episode description in English.',
+  });
+  try {
+    const body = await (await get(`/en/series/${titleRuOnly}/seasons/1/episodes/1`)).text();
+    assert.match(body, /name="robots" content="noindex, follow"/,
+      'непереведённое название серии тоже закрывает индексацию');
+  } finally {
+    await removeSeasonFixture(titleRuOnly);
+  }
+
+  // Безымянная серия («Серия 1 — перевод»): название страницы переводится
+  // целиком, описания достаточно.
+  const untitled = await seasonFixture({ titleEn: 'Season Probe', episodeDescEn: 'Episode description in English.' });
+  await pool.query('UPDATE e_episode SET title_ru = NULL WHERE season_id = (SELECT id FROM e_season WHERE series_id = (SELECT id FROM e_series WHERE slug = $1))', [untitled]);
+  try {
+    const body = await (await get(`/en/series/${untitled}/seasons/1/episodes/1`)).text();
+    assert.ok(!body.includes('name="robots" content="noindex'),
+      'у безымянной серии заголовок целиком из переведённых строк');
+  } finally {
+    await removeSeasonFixture(untitled);
+  }
+});

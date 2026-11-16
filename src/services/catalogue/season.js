@@ -22,7 +22,7 @@ export function pgSeasons(pool) {
      * @param {number} seasonNumber
      * @returns {Promise<any|null>}
      */
-    async season(slug, seasonNumber, { userId = null, today = null } = {}) {
+    async season(slug, seasonNumber, { userId = null, today = null, locale = null } = {}) {
       const series = await visibleSeries(pool, slug);
       if (!series) return null;
 
@@ -32,8 +32,14 @@ export function pgSeasons(pool) {
       );
       if (!season.rows.length) return null;
 
-      const episodes = await episodesOf(pool, season.rows[0].id, { userId, today });
+      const episodes = await episodesOf(pool, season.rows[0].id, { userId, today, locale });
       const siblings = await seasonNumbersOf(pool, series.id);
+
+      // EN предпочитает перевод (R-I18N-06: en → ru → оригинал); пустая строка
+      // в базе — «перевода нет». Правило индексации EN-страниц (R-SEO-04) в
+      // маршруте опирается на те же поля (№268).
+      const titleEn = (series.title_en ?? '').trim() || null;
+      const en = locale === 'en';
 
       return {
         series: {
@@ -41,7 +47,9 @@ export function pgSeasons(pool) {
           // Название берётся из той же строки, что и остальные страницы:
           // `title_ru` с запасным оригиналом. Поле `title` у строки нет,
           // и подстановка undefined печатала в заголовке «undefined».
-          title: series.title_ru || series.title_original,
+          title: en ? (titleEn ?? series.title_ru ?? series.title_original)
+                    : (series.title_ru || series.title_original),
+          titleEn,
           titleOriginal: series.title_original,
         },
         season: {
@@ -80,9 +88,8 @@ export function pgSeasons(pool) {
         episode: {
           ...episode,
           hasDate: Boolean(episode.date),
-          // H-35: тонкая страница (нет описания или дата в будущем) в индексе не
-          // нужна. Здесь решается, индексировать ли страницу.
-          thin: !episode.descriptionRu || !episode.date || episode.date > todayIso(),
+          // `thin` посчитан при разборе серий сезона (H-35) — здесь он не
+          // пересчитывается, чтобы два правила не разошлись.
         },
         prevEpisode: numbers.includes(episodeNumber - 1) ? episodeNumber - 1 : null,
         nextEpisode: numbers.includes(episodeNumber + 1) ? episodeNumber + 1 : null,
@@ -144,7 +151,7 @@ export function pgSeasons(pool) {
  */
 async function visibleSeries(pool, slug) {
   const { rows } = await pool.query(
-    `SELECT id, slug, title_ru, title_original, publication_state, archived_at
+    `SELECT id, slug, title_ru, title_en, title_original, publication_state, archived_at
        FROM e_series WHERE slug = $1`,
     [slug],
   );
@@ -163,11 +170,12 @@ async function visibleSeries(pool, slug) {
  * «Вышла» считается по дате в поясе зрителя: без этого флажок был бы доступен
  * накануне премьеры, а чужой пояс сдвинул бы его на сутки (OP-08а).
  */
-async function episodesOf(pool, seasonId, { userId = null, today = null } = {}) {
+async function episodesOf(pool, seasonId, { userId = null, today = null, locale = null } = {}) {
+  const en = locale === 'en';
   const { rows } = await pool.query(
     `SELECT e.id, e.number,
-            coalesce(e.title_ru, e.title_en) AS title,
-            coalesce(e.description_ru, e.description_en) AS description,
+            e.title_ru, e.title_en,
+            e.description_ru, e.description_en,
             e.runtime_min,
             r.release_date::text AS date,
             (SELECT m.precision FROM e_watch_mark m
@@ -187,18 +195,32 @@ async function episodesOf(pool, seasonId, { userId = null, today = null } = {}) 
     [seasonId, EPISODES_LIMIT, userId],
   );
 
-  return rows.map((row) => ({
-    id: row.id,
-    number: row.number,
-    title: row.title || '',
-    description: row.description || '',
-    descriptionRu: row.description,
-    runtime: row.runtime_min,
-    date: row.date,
-    marked: row.mark_precision !== null,
-    precision: row.mark_precision,
-    aired: row.date !== null && (today === null || row.date <= today),
-  }));
+  return rows.map((row) => {
+    const titleRu = row.title_ru ?? '';
+    const titleEn = row.title_en ?? '';
+    const descriptionRu = row.description_ru ?? '';
+    const descriptionEn = row.description_en ?? '';
+    return {
+      id: row.id,
+      number: row.number,
+      // EN предпочитает перевод (R-I18N-06: en → ru → оригинал). Непереведённый
+      // на EN фрагмент показывается по-русски, и страница помечается noindex.
+      title: en ? (titleEn || titleRu) : (titleRu || titleEn),
+      description: en ? (descriptionEn || descriptionRu) : (descriptionRu || descriptionEn),
+      titleRu,
+      titleEn,
+      descriptionRu,
+      descriptionEn,
+      runtime: row.runtime_min,
+      date: row.date,
+      marked: row.mark_precision !== null,
+      precision: row.mark_precision,
+      aired: row.date !== null && (today === null || row.date <= today),
+      // H-35: тонкая страница (нет описания ни на одном языке, или дата в
+      // будущем) в индексе не нужна. Здесь решается, индексировать ли страницу.
+      thin: !(descriptionRu || descriptionEn) || !row.date || row.date > todayIso(),
+    };
+  });
 }
 
 async function seasonNumbersOf(pool, seriesId) {

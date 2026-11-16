@@ -148,7 +148,7 @@ export function pgSitemap(pool) {
     if (kind === 'seasons') {
       const { rows } = await pool.query(
         `SELECT s.slug, se.number, to_char(s.updated_at, 'YYYY-MM-DD') AS lastmod,
-                btrim(coalesce(s.title_original, '')) <> '' AS has_en
+                btrim(coalesce(s.title_en, '')) <> '' AS has_en
            FROM e_season se JOIN e_series s ON s.id = se.series_id
           WHERE ${SERIES_LIVE}
           ORDER BY se.id
@@ -164,7 +164,9 @@ export function pgSitemap(pool) {
       const { rows } = await pool.query(
         `SELECT s.slug, se.number AS season, e.number AS episode,
                 to_char(s.updated_at, 'YYYY-MM-DD') AS lastmod,
-                btrim(coalesce(s.title_original, '')) <> '' AS has_en
+                btrim(coalesce(s.title_en, '')) <> ''
+                  AND btrim(coalesce(e.description_en, '')) <> ''
+                  AND (btrim(coalesce(e.title_en, '')) <> '' OR btrim(coalesce(e.title_ru, '')) = '') AS has_en
            FROM e_episode e
            JOIN e_season se ON se.id = e.season_id
            JOIN e_series s ON s.id = se.series_id

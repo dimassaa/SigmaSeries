@@ -55,7 +55,7 @@ test.after(async () => {
 
 /** Сезон удаляется каскадом вместе с сериалом, серия — вместе с сезоном. */
 /**
- * @param {{withEn?: boolean, exitState?: string, episode?: {description?: string, withDate?: boolean, date?: string}}} [options]
+ * @param {{withEn?: boolean, exitState?: string, episode?: {description?: string, withDate?: boolean, date?: string, titleEn?: string, descriptionEn?: string}}} [options]
  */
 async function fixtureSeries({ withEn = false, exitState = 'airing', episode = {} } = {}) {
   const slug = `seo-map-${crypto.randomUUID().slice(0, 10)}`;
@@ -81,9 +81,9 @@ async function fixtureSeries({ withEn = false, exitState = 'airing', episode = {
   let releaseId = null;
   if (episode.description) {
     const { rows: [episodeRow] } = await pool.query(
-      `INSERT INTO e_episode (season_id, number, title_ru, description_ru)
-       VALUES ($1, 1, 'Серия проверки', $2) RETURNING id`,
-      [season.id, episode.description],
+      `INSERT INTO e_episode (season_id, number, title_ru, title_en, description_ru, description_en)
+       VALUES ($1, 1, 'Серия проверки', $2, $3, $4) RETURNING id`,
+      [season.id, episode.titleEn ?? null, episode.description, episode.descriptionEn ?? null],
     );
     if (episode.withDate) {
       const { rows: [release] } = await pool.query(
@@ -105,7 +105,10 @@ test('карта отбирает только индексируемые адр
   const today = '2026-11-10';
   const described = await fixtureSeries({
     withEn: true,
-    episode: { description: 'Есть описание и прошедшая дата', withDate: true },
+    episode: {
+      description: 'Есть описание и прошедшая дата', withDate: true,
+      titleEn: 'Sitemap probe episode', descriptionEn: 'Episode description in English',
+    },
   });
   const withoutDate = await fixtureSeries({ episode: { description: 'Без даты' } });
   // Сериал без описания серии: страница серии тонкая, в карту она не нужна.
@@ -135,6 +138,38 @@ test('карта отбирает только индексируемые адр
   const indexXml = sitemapIndexXml(files, 'https://example.test');
   assert.match(indexXml, /<loc>https:\/\/example\.test\/sitemap-series-1\.xml<\/loc>/,
     'индекс перечисляет файлы');
+});
+
+test('альтернативы у сезонов и серий — по переводу, а не по оригиналу (R-SEO-04, №268)', { skip }, async () => {
+  const today = '2026-11-10';
+  // Оригинальное название есть почти у всех сериалов — прежний прокси
+  // `title_original` считал EN-версию переведённой у всех подряд. Перевод
+  // названия и описания — то, что реально показывают EN-страницы.
+  const untranslated = await fixtureSeries({
+    episode: { description: 'Есть описание и прошедшая дата', withDate: true },
+  });
+  const translated = await fixtureSeries({
+    withEn: true,
+    episode: {
+      description: 'Есть описание и прошедшая дата', withDate: true,
+      titleEn: 'Sitemap probe episode', descriptionEn: 'Episode description in English',
+    },
+  });
+
+  const seasonUrls = await sitemap.urls('seasons', 1, { today });
+  const untranslatedSeason = seasonUrls.find((entry) => entry.path.startsWith(`/series/${untranslated.slug}/`));
+  assert.ok(untranslatedSeason, 'сезон в файле сезонов есть');
+  assert.equal(untranslatedSeason.hasEn, false,
+    'без перевода названия EN-сезон — дубль русского текста, альтернативы нет');
+  const translatedSeason = seasonUrls.find((entry) => entry.path.startsWith(`/series/${translated.slug}/`));
+  assert.equal(translatedSeason.hasEn, true, 'с переводом названия альтернатива есть');
+
+  const episodeUrls = await sitemap.urls('episodes', 1, { today });
+  const untranslatedEpisode = episodeUrls.find((entry) => entry.path.startsWith(`/series/${untranslated.slug}/`));
+  assert.equal(untranslatedEpisode.hasEn, false,
+    'серия без перевода описания — без английской альтернативы');
+  const translatedEpisode = episodeUrls.find((entry) => entry.path.startsWith(`/series/${translated.slug}/`));
+  assert.equal(translatedEpisode.hasEn, true, 'переведённая серия — с альтернативой');
 });
 
 test('жанр и человек под порогом не попадают в карту', { skip }, async () => {

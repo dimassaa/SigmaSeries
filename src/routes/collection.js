@@ -48,6 +48,7 @@ export function createCollectionRoutes({ collections, person, genres = null, ses
         // сериалов; «мягкой 404» (200-пустышка в индексе) не получится
         // (R-SEO-15).
         noindex: items.length === 0,
+        enIndexable: items.length > 0,
         // Разметка ItemList описывает наполненную сетку; у пустой списка
         // нет — разметка пустого обещала бы поисковику контент, которого
         // на странице не появится вместе с noindex.
@@ -77,8 +78,9 @@ export function createCollectionRoutes({ collections, person, genres = null, ses
         description: found.description.slice(0, 160),
         // Описание подборки — текст редакции, перевода на английский у него
         // нет, поэтому английский адрес остаётся открытым, но не индексируется
-        // (R-SEO-04).
+        // (R-SEO-04); альтернатива на него тоже не рисуется (№268).
         noindex: locale === 'en',
+        enIndexable: false,
         jsonLd: collectionJsonLd({ locale, collection: found }),
         panel: await panelFor({ panel, locale, req }),
         genres: await menuGenres(genres, locale),

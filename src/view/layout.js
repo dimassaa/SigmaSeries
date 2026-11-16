@@ -71,6 +71,9 @@ export function pageTitle(locale, middle) {
  * @param {string} page.path путь без локали, например «/»
  * @param {any} [page.body] фрагмент содержимого
  * @param {boolean} [page.noindex] служебная страница
+ * @param {boolean} [page.enIndexable] индексируется ли EN-версия этой страницы
+ *   (R-SEO-04): у закрытой EN-версии альтернатива `hreflang="en"` не рисуется;
+ *   по умолчанию `true` — обе альтернативы на месте
  * @param {string} [page.theme] тема страницы: выбор человека из профиля
  *   (в `page.account.theme`), «system» — если выбора нет
  * @param {string[]} [page.styles] группы таблиц стилей, нужные странице;
@@ -148,9 +151,15 @@ function genresMenu({ locale, genres }) {
 export function layout(page) {
   const {
     locale, title, description, path, body = '', noindex = false, jsonLd = null, styles = null,
+    enIndexable = true,
   } = page;
   const other = LOCALES.find((l) => l !== locale);
   const canonical = `/${locale}${path === '/' ? '/' : path}`;
+  // hreflang на неиндексируемую EN-страницу звал робота на дубль русского
+  // текста (R-SEO-04): альтернатива EN рисуется только у страниц, чья
+  // EN-версия индексируется. Русская — всегда, x-default ведёт в неё же.
+  // Видимый переключатель языка — навигация для человека, он остаётся.
+  const alternates = enIndexable ? LOCALES : LOCALES.filter((l) => l === DEFAULT_LOCALE);
 
   // Таблицы стилей — по экранам: общая плюс те, что нужны странице. Порядок
   // задан списком групп, иначе правила перебивали бы друг друга иначе, чем
@@ -165,7 +174,7 @@ export function layout(page) {
 <meta name="description" content="${description}">
 ${noindex ? html`<meta name="robots" content="noindex, follow">` : ''}
 <link rel="canonical" href="${canonical}">
-${LOCALES.map((l) => html`<link rel="alternate" hreflang="${l}" href="/${l}${path === '/' ? '/' : path}">`)}
+${alternates.map((l) => html`<link rel="alternate" hreflang="${l}" href="/${l}${path === '/' ? '/' : path}">`)}
 <link rel="alternate" hreflang="x-default" href="/${DEFAULT_ROUTE(path)}">
 ${jsonLd ? html`<script type="application/ld+json">${raw(jsonLdText(jsonLd))}</script>` : ''}
 ${raw(styleLinks)}
