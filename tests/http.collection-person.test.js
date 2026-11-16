@@ -406,6 +406,38 @@ test('человек с несколькими сериалами индекси
   }
 });
 
+test('у человека индексируется только русская версия (решение автора 16.11)', { skip }, async () => {
+  // Имя человека и состав сетки не переводятся: EN-страница — та же сетка
+  // под переведённым интерфейсом, поэтому спека (F-02-09 §3, F-02-11 §2)
+  // закрывает её от индекса вместе с картой сайта (`hasEn = false`).
+  const series = await sixVisibleSeries();
+  const { rows: [person] } = await pool.query(
+    "INSERT INTO e_person (slug, name, kind) VALUES ('test-http-person-ruonly', 'Только Русская', 'actor') RETURNING id, slug",
+  );
+  for (const id of series.slice(0, 2)) {
+    await pool.query(
+      'INSERT INTO e_series_person (series_id, person_id, role, ordinal) VALUES ($1, $2, $3, $4)',
+      [id, person.id, 'actor', 0],
+    );
+  }
+
+  try {
+    const ru = await (await get(`/ru/people/${person.slug}`)).text();
+    assert.ok(!ru.includes('noindex'), 'русская страница человека индексируется');
+    assert.ok(!/<link rel="alternate" hreflang="en"/.test(ru),
+      'на русской странице нет альтернативы на закрытую EN');
+
+    const en = await (await get(`/en/people/${person.slug}`)).text();
+    assert.match(en, /name="robots" content="noindex, follow"/,
+      'EN-версия человека — noindex (дубль той же сетки)');
+    assert.ok(!/<link rel="alternate" hreflang="en"/.test(en),
+      'на закрытой EN-странице альтернативы её самой нет');
+  } finally {
+    await pool.query('DELETE FROM e_series_person WHERE person_id = $1', [person.id]);
+    await pool.query('DELETE FROM e_person WHERE id = $1', [person.id]);
+  }
+});
+
 test('человек без видимых сериалов и несуществующий — 404', { skip }, async () => {
   const { rows: [row] } = await pool.query(
     "INSERT INTO e_person (slug, name, kind) VALUES ('test-http-person-alone-page', 'Ни с кем', 'actor') RETURNING id, slug",

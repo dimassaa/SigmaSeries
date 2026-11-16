@@ -113,8 +113,12 @@ export function createCollectionRoutes({ collections, person, genres = null, ses
         description: t(locale, 'person.description', { name: found.name }),
         // Человек с одним сериалом в индексе не нужен: странице нечего
         // предложить, кроме имени, которое и так видно в выдаче сериала
-        // (F-02-09 §3).
-        noindex: found.thin,
+        // (F-02-09 §3). Индексируется только русская версия: имя человека и
+        // состав сетки не переводятся, EN — тот же список под другим
+        // интерфейсом (решение автора 16.11); EN-версии нет и в карте сайта
+        // (`hasEn = false`), поэтому альтернативы на неё не рисуются.
+        noindex: found.thin || locale === 'en',
+        enIndexable: false,
         jsonLd: personJsonLd({ locale, person: found }),
         genres: await menuGenres(genres, locale),
         body: personView({ locale, person: found }),
