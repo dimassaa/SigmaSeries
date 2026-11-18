@@ -38,7 +38,9 @@ export function collectionView({ locale, collection }) {
   <h2 class="collection__section-title">${t(locale, 'collection.series', { count: collection.total })}</h2>
 
   <ol class="posters" role="list">
-    ${collection.series.map((item) => html`
+    ${collection.series.map((item) => {
+      const cardTitle = cardTitleOf(locale, item);
+      return html`
     <li class="posters__item">
       <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}" data-poster-info="${t(locale, 'poster.card.info')}">
         <span class="poster__frame">
@@ -47,10 +49,11 @@ export function collectionView({ locale, collection }) {
              alt="" width="185" height="278" loading="lazy" decoding="async">`)}
           ${when(!item.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
         </span>
-        <span class="poster__title">${item.title}</span>
+        <span class="poster__title"${cardTitle.lang ? html` lang="${cardTitle.lang}"` : ''}>${cardTitle.text}</span>
         ${when(item.year, () => html`<span class="poster__meta">${item.year}</span>`)}
       </a>
-    </li>`)}
+    </li>`;
+    })}
   </ol>
 </article>`;
 }

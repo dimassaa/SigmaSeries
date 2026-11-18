@@ -96,6 +96,7 @@ export function pgRecommendations(pool) {
   async function candidates(userId, genres) {
     const { rows } = await pool.query(
       `SELECT s.id, s.slug, coalesce(s.title_ru, s.title_original) AS title,
+              s.title_ru, s.title_en, s.title_original,
               s.year_start,
               coalesce(r.value::float, 0) AS imdb,
               (SELECT count(*)::int FROM e_series_genre sg
@@ -243,6 +244,7 @@ export function pgRecommendations(pool) {
         items.push({
           slug: row.slug,
           title: row.title,
+          title_ru: row.title_ru, title_en: row.title_en, title_original: row.title_original,
           year_start: row.year_start,
           imdb: Number(row.imdb ?? 0) || null,
           poster_width: row.poster_width ?? null,
@@ -258,6 +260,7 @@ export function pgRecommendations(pool) {
         items.push({
           slug: row.slug,
           title: row.title,
+          title_ru: row.title_ru, title_en: row.title_en, title_original: row.title_original,
           year_start: row.year_start,
           imdb: Number(row.imdb ?? 0) || null,
           poster_width: row.poster_width ?? null,
@@ -274,6 +277,7 @@ export function pgRecommendations(pool) {
         items.push({
           slug: row.slug,
           title: row.title,
+          title_ru: row.title_ru, title_en: row.title_en, title_original: row.title_original,
           year_start: row.year_start,
           imdb: Number(row.imdb ?? 0) || null,
           poster_width: row.poster_width ?? null,

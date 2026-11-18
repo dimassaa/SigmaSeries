@@ -9,6 +9,7 @@ import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
 import { posterList } from './seriesCards.js';
+import { cardTitleOf } from './collection.js';
 
 /**
  * Адрес картинки.
@@ -39,11 +40,13 @@ export function homeView({ locale, data, csrf = '' }) {
   <h2 class="block__title" id="h-banners">${t(locale, 'home.banners.heading')}</h2>
   ${when(data.banners.length > 0, () => html`
   <ul class="banners" role="list">
-    ${data.banners.map((b) => html`
+    ${data.banners.map((b) => {
+      const bannerTitle = cardTitleOf(locale, b);
+      return html`
     <li class="banners__item">
       <a class="banner" href="/${locale}/series/${b.seriesSlug}"
          data-track-impression="banner_impression" data-track-click="banner_click"
-         aria-label="${t(locale, `home.banners.reason.${b.reason}`)}, ${b.title}, ${t(locale, 'home.banners.rating', { rating: b.imdb })}${when(b.withdrawn, () => `, ${t(locale, 'home.banners.withdrawn')}`)}">
+         aria-label="${t(locale, `home.banners.reason.${b.reason}`)}, ${bannerTitle.text}, ${t(locale, 'home.banners.rating', { rating: b.imdb })}${when(b.withdrawn, () => `, ${t(locale, 'home.banners.withdrawn')}`)}">
         ${when(b.backdropWidth && !b.withdrawn,
           () => html`<img class="banner__image" src="${imageUrl(locale, b.seriesSlug, 'backdrop', b.backdropWidth)}"
                     alt="" width="1280" height="720" loading="lazy" decoding="async">`)}
@@ -52,10 +55,11 @@ export function homeView({ locale, data, csrf = '' }) {
         <span class="banner__scrim"></span>
         ${when(b.withdrawn, () => html`<span class="banner__notice">${t(locale, 'home.banners.withdrawn')}</span>`)}
         <span class="banner__reason">${t(locale, `home.banners.reason.${b.reason}`)}</span>
-        <span class="banner__title">${b.title}</span>
+        <span class="banner__title"${bannerTitle.lang ? html` lang="${bannerTitle.lang}"` : ''}>${bannerTitle.text}</span>
         <span class="banner__meta">${b.yearRange} · ${t(locale, 'home.banners.rating', { rating: b.imdb })}</span>
       </a>
-    </li>`)}
+    </li>`;
+    })}
   </ul>`)}
   ${when(data.banners.length === 0, () => html`<p class="empty">${t(locale, 'home.banners.empty')}</p>`)}
 </section>
@@ -78,19 +82,22 @@ export function homeView({ locale, data, csrf = '' }) {
       ${data.fresh.map((circle, index) => html`
       <ol class="posters carousel__circle" role="list" data-carousel-circle
          ${index === 0 ? '' : 'hidden'}>
-        ${circle.map((s) => html`
+        ${circle.map((s) => {
+          const freshTitle = cardTitleOf(locale, s);
+          return html`
         <li class="posters__item">
           <a class="poster" href="/${locale}/series/${s.slug}" data-poster-card="${s.slug}" data-poster-info="${t(locale, 'poster.card.info')}"
-             aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
+             aria-label="${t(locale, 'home.fresh.itemLabel', { title: freshTitle.text, year: s.year })}">
             <span class="poster__frame">
               ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
                  alt="" width="185" height="278" loading="lazy" decoding="async">`)}
               ${when(!s.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
             </span>
-            <span class="poster__title">${s.title}</span>
+            <span class="poster__title"${freshTitle.lang ? html` lang="${freshTitle.lang}"` : ''}>${freshTitle.text}</span>
             <span class="poster__meta">${s.year}</span>
           </a>
-        </li>`)}
+        </li>`;
+        })}
       </ol>`)}
     </div>
     <button class="carousel__button carousel__button--next" type="button" data-carousel-next

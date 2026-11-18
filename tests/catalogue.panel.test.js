@@ -57,12 +57,12 @@ test('подпись даты говорит «сегодня», «завтра�
 // Голоса задаются заведомо большими: при равенстве дат панель сортирует по
 // ним, и фикстура с сотней голосов проиграла бы настоящему каталогу,
 // а проверять надо поведение панели, а не её конкуренцию с данными.
-async function seriesWith({ releases, coversSeason = false, votes = 9_000_000 }) {
+async function seriesWith({ releases, coversSeason = false, votes = 9_000_000, titleEn = null }) {
   const slug = `panel-${crypto.randomUUID().slice(0, 8)}`;
   const { rows: [series] } = await pool.query(
-    `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
-     VALUES ($1, 'Панель', 'Panel', $2, 'published', 'airing', 2024) RETURNING id, slug`,
-    [slug, 986_000_000 + Math.floor(Math.random() * 900)],
+    `INSERT INTO e_series (slug, title_ru, title_en, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Панель', $2, 'Panel', $3, 'published', 'airing', 2024) RETURNING id, slug`,
+    [slug, titleEn, 986_000_000 + Math.floor(Math.random() * 900)],
   );
   const { rows: [season] } = await pool.query(
     'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [series.id],
@@ -132,6 +132,14 @@ test.after(async () => {
     await pool.query('DELETE FROM e_series WHERE id = $1', [one.seriesId]);
   }
   await pool.end();
+});
+
+test('EN-панель называет сериалы переводом (№270)', { skip }, async () => {
+  const today = '2026-10-16';
+  await seriesWith({ releases: ['2026-10-18'], titleEn: 'North Panel' });
+  const rows = await panel().upcoming({ today, locale: 'en', limit: 500 });
+  const mine = rows.find((row) => row.title === 'North Panel');
+  assert.ok(mine, 'EN-панель берёт переведённое название');
 });
 
 test('панель показывает ближайшие выходы окна и не выходит за его границы', { skip }, async () => {

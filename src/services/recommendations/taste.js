@@ -51,6 +51,7 @@ export function pgTaste(pool) {
       const { rows } = await pool.query(
         `SELECT s.id, s.slug,
                 coalesce(s.title_ru, s.title_original, s.slug) AS title,
+                s.title_ru, s.title_en, s.title_original,
                 (SELECT g.code FROM e_series_genre sg JOIN e_genre g ON g.code = sg.genre_code
                   WHERE sg.series_id = s.id AND NOT g.is_raw ORDER BY g.code LIMIT 1) AS genre_code,
                 (SELECT g.name_ru FROM e_series_genre sg JOIN e_genre g ON g.code = sg.genre_code
@@ -76,6 +77,8 @@ export function pgTaste(pool) {
         id: row.id,
         slug: row.slug,
         title: row.title,
+        // Сырые названия: вид строит цепочку по локали с пометкой языка (№270).
+        titleRu: row.title_ru, titleEn: row.title_en, titleOriginal: row.title_original,
         genreCode: row.genre_code,
         // Оба названия: язык выбирает представление, а не источник данных —
         // иначе источник знал бы о языке интерфейса.

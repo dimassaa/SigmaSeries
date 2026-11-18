@@ -8,6 +8,7 @@
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { cardTitleOf } from './collection.js';
 
 /**
  * Адрес картинки.
@@ -49,17 +50,19 @@ function reasonText(locale, reason) {
  */
 export function posterList({ locale, items, csrf = '', back = `/${locale}/` }) {
   return html`<ol class="posters" role="list">
-    ${items.map((s) => html`
+    ${items.map((s) => {
+      const cardTitle = cardTitleOf(locale, s);
+      return html`
     <li class="posters__item">
       <a class="poster" href="/${locale}/series/${s.slug}" data-poster-card="${s.slug}" data-poster-info="${t(locale, 'poster.card.info')}"
          data-track-impression="reco_impression" data-track-click="reco_click"
-         aria-label="${t(locale, 'home.fresh.itemLabel', { title: s.title, year: s.year })}">
+         aria-label="${t(locale, 'home.fresh.itemLabel', { title: cardTitle.text, year: s.year })}">
         <span class="poster__frame">
           ${when(s.posterWidth, () => html`<img class="poster__img" src="${imageUrl(locale, s.slug, 'poster', s.posterWidth)}"
              alt="" width="185" height="278" loading="lazy" decoding="async">`)}
           ${when(!s.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
         </span>
-        <span class="poster__title">${s.title}</span>
+        <span class="poster__title"${cardTitle.lang ? html` lang="${cardTitle.lang}"` : ''}>${cardTitle.text}</span>
         ${when(s.reason, () => html`
         <span class="poster__reason">${reasonText(locale, s.reason)}</span>`)}
         <span class="poster__meta">${s.year}</span>
@@ -72,6 +75,7 @@ export function posterList({ locale, items, csrf = '', back = `/${locale}/` }) {
         <button class="button button--quiet" type="submit" data-track-click="reco_dismiss"
           >${t(locale, 'reco.dismiss')}</button>
       </form>`)}
-    </li>`)}
+    </li>`;
+    })}
   </ol>`;
 }

@@ -91,15 +91,17 @@ export function pgUpcomingPanel(pool, {
     /**
      * Ближайшие выходы.
      *
-     * @param {{today: string, userId?: number, limit?: number, windowDays?: number}} args
+     * @param {{today: string, userId?: number, limit?: number, windowDays?: number,
+     *   locale?: string}} args
      *   args.today — сегодня пояса читателя `YYYY-MM-DD`; args.userId поднимает
-     *   сериалы «Смотрю» и «В планах»
+     *   сериалы «Смотрю» и «В планах»; args.locale выбирает язык названий —
+     *   панель текстовая, у вида нет сырых полей для цепочки (№270)
      * @returns {Promise<PanelRow[]>}
      */
-    async upcoming({ today, userId = null, limit = PANEL_ITEMS, windowDays = PANEL_WINDOW_DAYS }) {
+    async upcoming({ today, userId = null, limit = PANEL_ITEMS, windowDays = PANEL_WINDOW_DAYS, locale = 'ru' }) {
       try {
         return await collect({
-          pool, today, userId, limit, windowDays, cache, cacheSeconds, maxVariants, clock,
+          pool, today, userId, limit, windowDays, locale, cache, cacheSeconds, maxVariants, clock,
         });
       } catch (error) {
         // Панель — дополнение: страница, ради которой человек пришёл, не должна
@@ -123,8 +125,10 @@ export function pgUpcomingPanel(pool, {
  */
 
 /** Сборка ответа: кэш, личный порядок и подписи. */
-async function collect({ pool, today, userId, limit, windowDays, cache, cacheSeconds, maxVariants, clock }) {
-  const rows = await releases({ pool, today, limit, windowDays, cache, cacheSeconds, maxVariants, clock });
+async function collect({ pool, today, userId, limit, windowDays, locale, cache, cacheSeconds, maxVariants, clock }) {
+  const rows = await releases({
+    pool, today, limit, windowDays, locale, cache, cacheSeconds, maxVariants, clock,
+  });
   if (!rows.length) return [];
 
   const mine = userId ? await watching(pool, userId, rows.map((row) => row.seriesId)) : new Set();
@@ -142,9 +146,16 @@ async function collect({ pool, today, userId, limit, windowDays, cache, cacheSec
  *
  * @returns {Promise<PanelRow[]>}
  */
-async function releases({ pool, today, limit, windowDays, cache, cacheSeconds, maxVariants, clock }) {
-  const hit = cache.get(today);
+async function releases({ pool, today, limit, windowDays, locale = 'ru', cache, cacheSeconds, maxVariants, clock }) {
+  // Ключ кэша — дата и язык: набор строк одинаковый, но названия разные, и
+  // общий ключ отдал бы EN-читателю русские подписи из чужого запроса.
+  const key = `${today}|${locale}`;
+  const hit = cache.get(key);
   if (hit && clock() - hit.at < cacheSeconds * 1000) return hit.rows;
+  // Выражение названия меняется только по белому списку локалей.
+  const titleExpr = locale === 'en'
+    ? 'coalesce(s.title_en, s.title_ru, s.title_original)'
+    : 'coalesce(s.title_ru, s.title_en, s.title_original)';
 
   // Сначала ближайший выход каждого сериала, потом уже «самые ближайшие из
   // ближайших». Порядок важен: ограничение по числу строк внутри `DISTINCT ON`
@@ -154,7 +165,7 @@ async function releases({ pool, today, limit, windowDays, cache, cacheSeconds, m
     `SELECT * FROM (
        SELECT DISTINCT ON (s.id)
               s.id AS series_id, s.slug,
-              coalesce(s.title_ru, s.title_en, s.title_original) AS title,
+              ${titleExpr} AS title,
               se.number AS season_number,
               r.release_date::text AS date,
               r.covers_season,
@@ -203,7 +214,7 @@ async function releases({ pool, today, limit, windowDays, cache, cacheSeconds, m
   // кэша, собранного другой веткой кода.
   list.sort((a, b) => a.date.localeCompare(b.date) || b.votes - a.votes || a.title.localeCompare(b.title));
 
-  cache.set(today, { rows: list, at: clock() });
+  cache.set(key, { rows: list, at: clock() });
   // Вариантов держится столько, сколько поясов в каталоге зрителей: иначе
   // за месяц в кэше осело бы тридцать записей, и ни одна не понадобится.
   while (cache.size > maxVariants) cache.delete(cache.keys().next().value);

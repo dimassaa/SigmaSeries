@@ -29,7 +29,7 @@ export async function panelFor({ panel, locale, req, showEmpty = true, onError =
   const today = todayIn(timezoneOf(req));
 
   try {
-    const rows = await panel.upcoming({ today, userId: user?.id ?? null });
+    const rows = await panel.upcoming({ today, userId: user?.id ?? null, locale });
     if (!rows.length && !showEmpty) return '';
     return upcomingPanel({ locale, rows, today }).__raw;
   } catch (error) {

@@ -6,6 +6,7 @@
 
 import { html, raw, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { cardTitleOf } from './collection.js';
 import { revealButton } from './field.js';
 import * as TASTE from '../services/recommendations/taste.js';
 import { AUTH } from '../config/settings.js';
@@ -133,7 +134,9 @@ ${steps_(locale, 3, 3)}
   <input type="hidden" name="action" value="save">
 
   <ul class="taste__grid" role="list">
-    ${items.map((item) => html`
+    ${items.map((item) => {
+      const cardTitle = cardTitleOf(locale, item);
+      return html`
     <li class="posters__item">
       <label class="taste__pick${picked.has(Number(item.id)) ? ' taste__pick--on' : ''}">
         <input class="taste__input" type="checkbox" name="series" value="${item.id}"
@@ -144,13 +147,14 @@ ${steps_(locale, 3, 3)}
              alt="" width="185" height="278" loading="lazy" decoding="async">`)}
           ${when(!item.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
         </span>
-        <span class="poster__title">${item.title}</span>
+        <span class="poster__title"${cardTitle.lang ? html` lang="${cardTitle.lang}"` : ''}>${cardTitle.text}</span>
         ${when(item.genreRu, () => html`<span class="poster__meta"
           >${locale === 'en' ? (item.genreEn ?? item.genreRu) : item.genreRu}</span>`)}
         ${when(picked.has(Number(item.id)), () => html`
         <span class="visually-hidden">${t(locale, 'register.step3.picked')}</span>`)}
       </label>
-    </li>`)}
+    </li>`;
+    })}
   </ul>
 
   ${when(!items.length, () => html`

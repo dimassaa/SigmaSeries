@@ -271,7 +271,7 @@ test('подборка из одного сериала читается как 
 
 test('название сериала с тегами экранируется', async () => {
   const nasty = '<script>alert(1)</script>';
-  await withApp(stubData({ fresh: async () => [[{ slug: 'x', title: nasty, year: 2026 }]] }), async (get) => {
+  await withApp(stubData({ fresh: async () => [[{ slug: 'x', title: nasty, titleRu: nasty, year: 2026 }]] }), async (get) => {
     const html = await (await get('/ru/')).text();
     assert.ok(!html.includes(nasty), 'сырой HTML в ответе быть не должно');
     assert.match(html, /&lt;script&gt;/);
@@ -280,13 +280,61 @@ test('название сериала с тегами экранируется',
 
 test('значение из данных не может закрыть атрибут', async () => {
   const nasty = '" onmouseover="alert(1)';
-  await withApp(stubData({ fresh: async () => [[{ slug: 'x', title: nasty, year: 2026 }]] }), async (get) => {
+  await withApp(stubData({ fresh: async () => [[{ slug: 'x', title: nasty, titleRu: nasty, year: 2026 }]] }), async (get) => {
     const html = await (await get('/ru/')).text();
     assert.ok(!html.includes('onmouseover="alert'), 'инъекция в атрибут не прошла');
   });
 });
 
 // ─── Пустое состояние ─────────────────────────────────────────────────────────
+
+test('EN-главная называет сериалы переводом, без перевода — с пометкой языка (№270)', async () => {
+  const card = {
+    slug: 'north-wind',
+    title: 'Северный ветер',
+    titleRu: 'Северный ветер',
+    titleEn: 'North Wind',
+    titleOriginal: 'Northwind',
+    year: 2020,
+    posterWidth: null,
+  };
+  const data = {
+    ...stubData(),
+    banners: async () => ([{
+      seriesSlug: 'north-wind',
+      title: 'Северный ветер',
+      titleRu: 'Северный ветер',
+      titleEn: 'North Wind',
+      titleOriginal: 'Northwind',
+      reason: 'new',
+      yearRange: '2020',
+      imdb: '8,1',
+      backdropWidth: null,
+      withdrawn: false,
+    }]),
+    fresh: async () => [[card]],
+    forYou: async () => ({
+      items: [{
+        ...card,
+        slug: 'borrowed',
+        title: 'Русский без перевода',
+        titleRu: 'Русский без перевода',
+        titleEn: null,
+      }],
+      personalized: false,
+    }),
+  };
+
+  await withApp(data, async (get) => {
+    const html = await (await get('/en/')).text();
+    assert.match(html, /<span class="banner__title">North Wind<\/span>/,
+      'баннер называет перевод названия');
+    assert.match(html, /<span class="poster__title">North Wind<\/span>/,
+      'лента свежего называет перевод');
+    assert.match(html, /<span class="poster__title" lang="ru">Русский без перевода<\/span>/,
+      'название без перевода помечено языком');
+  });
+});
 
 test('пустой каталог даёт объяснение, а не пустую страницу', async () => {
   await withApp(stubData(), async (get) => {

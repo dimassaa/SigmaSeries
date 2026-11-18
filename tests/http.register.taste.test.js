@@ -338,3 +338,41 @@ test('гостя на шаг не пускают', { skip }, async () => {
     await /** @type {Promise<void>} */ (new Promise((r) => server.close(r)));
   }
 });
+test('EN-сетка вкуса называет сериалы переводом (№270)', { skip }, async () => {
+  const user = await viewer();
+  const code = `genre:taste-en-${crypto.randomUUID().slice(0, 8)}`;
+  await pool.query(
+    `INSERT INTO e_genre (code, name_ru, name_en, active, is_raw, show_in_menu)
+     VALUES ($1, $1, $1, TRUE, FALSE, FALSE)`,
+    [code],
+  );
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_en, title_original, publication_state, exit_state, year_start)
+     VALUES ($1, $2, 'Северный вкус', 'North Taste', 'North Taste', 'published', 'airing', 2020)
+     RETURNING id`,
+    [`taste-en-${crypto.randomUUID().slice(0, 8)}`, `tt${crypto.randomUUID().slice(2, 12)}`],
+  );
+  await pool.query(
+    'INSERT INTO e_series_genre (series_id, genre_code) VALUES ($1, $2)', [series.id, code],
+  );
+  // Первое место в сетке — по голосам: фикстура должна быть видна без прокрутки.
+  await pool.query(
+    `INSERT INTO e_external_rating (series_id, platform, value, votes, measured_on)
+     VALUES ($1, 'imdb', 9.9, 9000000, CURRENT_DATE)`, [series.id],
+  );
+
+  try {
+    await withServer({
+      user,
+      run: async ({ get }) => {
+        const page = await (await get('/en/register/taste')).text();
+        assert.match(page, /<span class="poster__title">North Taste<\/span>/,
+          'сетка вкуса называет сериал переводом');
+      },
+    });
+  } finally {
+    await pool.query('DELETE FROM e_series_genre WHERE series_id = $1', [series.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+    await pool.query('DELETE FROM e_genre WHERE code = $1', [code]);
+  }
+});

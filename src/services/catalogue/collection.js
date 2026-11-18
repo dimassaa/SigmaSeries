@@ -177,6 +177,7 @@ async function visibleSeries(pool, collectionId) {
   const { rows } = await pool.query(
     `SELECT s.id, s.slug,
             coalesce(s.title_ru, s.title_en, s.title_original) AS title,
+            s.title_ru, s.title_en, s.title_original,
             s.year_start, s.year_end,
             (SELECT iv.width FROM e_image_variant iv
                JOIN e_image i ON i.id = iv.image_id
@@ -200,6 +201,8 @@ async function visibleSeries(pool, collectionId) {
     id: row.id,
     slug: row.slug,
     title: row.title ?? '',
+    // Сырые названия: вид строит цепочку по локали с пометкой языка (№270).
+    titleRu: row.title_ru, titleEn: row.title_en, titleOriginal: row.title_original,
     year: row.year_start ?? '',
     yearEnd: row.year_end ?? '',
     posterWidth: row.poster_width,

@@ -139,3 +139,68 @@ test('пустой каталог даёт пустые массивы, а не 
     assert.deepEqual(await data.fresh('ru'), []);
   }
 });
+test('лента свежего и популярное отдают переводы названий (№270)', { skip }, async () => {
+  const slug = `home-en-${crypto.randomUUID().slice(0, 8)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_en, title_original, publication_state, exit_state, year_start)
+     VALUES ($1, $2, 'Северный ветер', 'North Wind', 'Northwind', 'published', 'airing', 2020) RETURNING id`,
+    [slug, `tt${crypto.randomUUID().slice(2, 12)}`],
+  );
+  const { rows: [season] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [series.id],
+  );
+  const { rows: [episode] } = await pool.query(
+    "INSERT INTO e_episode (season_id, number, title_ru) VALUES ($1, 1, 'Серия') RETURNING id", [season.id],
+  );
+  const { rows: [release] } = await pool.query(
+    `INSERT INTO e_release (season_id, release_date, precision, state, covers_season)
+     VALUES ($1, CURRENT_DATE, 'date', 'scheduled', TRUE) RETURNING id`, [season.id],
+  );
+  await pool.query(
+    'INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)',
+    [release.id, episode.id],
+  );
+  // Популярное у гостя — по рейтингу: без оценки фикстура не попала бы в шесть.
+  await pool.query(
+    `INSERT INTO e_external_rating (series_id, platform, value, votes, measured_on)
+     VALUES ($1, 'imdb', 9.9, 9000000, CURRENT_DATE)`, [series.id],
+  );
+
+  try {
+    const fresh = (await data.fresh('en')).flat().find((item) => item.slug === slug);
+    assert.ok(fresh, 'фикстура попала в ленту свежего');
+    assert.equal(fresh.titleEn, 'North Wind', 'лента отдаёт перевод названия');
+    assert.equal(fresh.titleRu, 'Северный ветер');
+
+    const guest = await data.forYou(null);
+    const popular = guest.items.find((item) => item.slug === slug);
+    assert.ok(popular, 'фикстура попала в популярное');
+    assert.equal(popular.titleEn, 'North Wind', 'популярное отдаёт перевод названия');
+  } finally {
+    await pool.query('DELETE FROM e_season WHERE series_id = $1', [series.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
+});
+
+test('жанровые плитки главной переводятся (№270)', { skip }, async () => {
+  // Самый наполненный жанр гарантированно попадает в плитки: список режется
+  // по числу сериалов.
+  const { rows: [genre] } = await pool.query(`
+    SELECT g.code, g.name_ru, g.name_en
+      FROM e_genre g
+      JOIN e_series_genre sg ON sg.genre_code = g.code
+      JOIN e_series s ON s.id = sg.series_id AND s.archived_at IS NULL
+     WHERE g.active AND g.is_raw = FALSE
+     GROUP BY g.code, g.name_ru, g.name_en
+    HAVING count(sg.series_id) > 0
+     ORDER BY count(sg.series_id) DESC
+     LIMIT 1`);
+  if (!genre?.name_en) return; // перевода в справочнике нет — проверять нечего
+
+  const en = await data.genres('en');
+  assert.equal(en.find((row) => row.code === genre.code)?.title, genre.name_en,
+    'EN-плитки называют жанр переводом');
+  const ru = await data.genres('ru');
+  assert.equal(ru.find((row) => row.code === genre.code)?.title, genre.name_ru,
+    'русские плитки не изменились');
+});

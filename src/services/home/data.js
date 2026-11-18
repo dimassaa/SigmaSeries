@@ -45,6 +45,7 @@ export function pgData(pool, { recommendations = null } = {}) {
         )
         SELECT s.slug,
                coalesce(s.title_ru, s.title_original) AS title,
+               s.title_ru, s.title_en, s.title_original,
                s.year_start,
                s.year_end,
                CASE
@@ -82,6 +83,7 @@ export function pgData(pool, { recommendations = null } = {}) {
         WITH ranked AS (
           SELECT s.slug,
                  coalesce(s.title_ru, s.title_original) AS title,
+                 s.title_ru, s.title_en, s.title_original,
                  s.year_start,
                  rel.release_date,
                  r.value::float AS imdb,
@@ -181,7 +183,8 @@ export function pgData(pool, { recommendations = null } = {}) {
     async forYou(userId) {
       const popular = async () => {
         const { rows } = await pool.query(`
-          SELECT s.slug, coalesce(s.title_ru, s.title_original) AS title, s.year_start,
+          SELECT s.slug, coalesce(s.title_ru, s.title_original) AS title,
+                 s.title_ru, s.title_en, s.title_original, s.year_start,
                  r.value::float AS imdb,
                  pv.width AS poster_width
             FROM e_series s
@@ -227,7 +230,8 @@ export function pgData(pool, { recommendations = null } = {}) {
             JOIN e_taste_seed ts ON ts.series_id = sg.series_id
            WHERE ts.user_id = $1
         )
-        SELECT s.slug, coalesce(s.title_ru, s.title_original) AS title, s.year_start,
+        SELECT s.slug, coalesce(s.title_ru, s.title_original) AS title,
+               s.title_ru, s.title_en, s.title_original, s.year_start,
                r.value::float AS imdb,
                pv.width AS poster_width
           FROM e_series s
@@ -251,10 +255,11 @@ export function pgData(pool, { recommendations = null } = {}) {
       return { items: rows.map(decorateSeries), personalized: true };
     },
 
-    async genres() {
+    async genres(locale = 'ru') {
       const { genresPerRow } = await current();
       const { rows } = await pool.query(`
-        SELECT g.code, coalesce(NULLIF($2, 'ru'), g.name_ru) AS title,
+        SELECT g.code,
+               CASE WHEN $2 = 'en' THEN coalesce(g.name_en, g.name_ru) ELSE g.name_ru END AS title,
                count(sg.series_id)::int AS series_count
           FROM e_genre g
           LEFT JOIN e_series_genre sg ON sg.genre_code = g.code
@@ -263,7 +268,7 @@ export function pgData(pool, { recommendations = null } = {}) {
          GROUP BY g.code, g.name_ru, g.name_en
         HAVING count(sg.series_id) > 0
          ORDER BY series_count DESC
-         LIMIT $1`, [genresPerRow, 'ru']);
+         LIMIT $1`, [genresPerRow, locale === 'en' ? 'en' : 'ru']);
       return rows.map((r) => ({ code: r.code, title: r.title }));
     },
   };
@@ -273,6 +278,8 @@ function decorateBanner(r) {
   return {
     seriesSlug: r.slug,
     title: r.title ?? '',
+    // Сырые названия: вид строит цепочку по локали с пометкой языка (№270).
+    titleRu: r.title_ru, titleEn: r.title_en, titleOriginal: r.title_original,
     // Причина приходит кодом и переводится в представлении: источник
     // не знает про язык интерфейса.
     reason: r.reason,
@@ -302,6 +309,8 @@ function decorateSeries(r) {
   return {
     slug: r.slug,
     title: r.title ?? '',
+    // Сырые названия: вид строит цепочку по локали с пометкой языка (№270).
+    titleRu: r.title_ru, titleEn: r.title_en, titleOriginal: r.title_original,
     year: r.year_start ?? '',
     posterWidth: r.poster_width,
     // Причина рекомендации (M11): без неё строка — догадка.

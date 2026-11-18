@@ -505,3 +505,65 @@ test('английские адреса подборки и человека о�
     await fixture.cleanup();
   }
 });
+test('EN-сетки подборки и человека называют сериалы переводом (№270)', { skip }, async () => {
+  const insert = (titleRu, titleEn) => pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_en, title_original, publication_state, exit_state, year_start)
+     VALUES ($1, $2, $3, $4, $3, 'published', 'ended', 2020) RETURNING id, slug`,
+    [`grid-en-${Math.random().toString(36).slice(2, 10)}`, `tt${Math.random().toString(36).slice(2, 10)}`, titleRu, titleEn],
+  );
+  const { rows: [translated] } = await insert('Северный перевод', 'North Translated');
+  const { rows: [borrowed] } = await insert('Только по-русски', null);
+  // Подборка показывается от шести сериалов: пять тех же, шестой переведённый.
+  const extra = [];
+  for (let i = 0; i < 4; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const { rows: [row] } = await insert(`Северный ${i}`, `North ${i}`);
+    extra.push(row);
+  }
+  const collectionSlug = `grid-en-col-${Math.random().toString(36).slice(2, 10)}`;
+  const { rows: [collection] } = await pool.query(
+    'INSERT INTO e_collection (slug, title_ru, description_ru, weight) VALUES ($1, $2, $3, 10) RETURNING id',
+    [collectionSlug, 'Сетка для перевода', 'Описание'],
+  );
+  for (const [index, row] of [translated, borrowed, ...extra].entries()) {
+    // eslint-disable-next-line no-await-in-loop
+    await pool.query(
+      'INSERT INTO e_collection_item (collection_id, series_id, ordinal) VALUES ($1, $2, $3)',
+      [collection.id, row.id, index],
+    );
+  }
+  const { rows: [person] } = await pool.query(
+    "INSERT INTO e_person (slug, name, kind) VALUES ('grid-en-person', 'Person Grid', 'actor') RETURNING id, slug",
+  );
+  for (const row of [translated, borrowed]) {
+    // eslint-disable-next-line no-await-in-loop
+    await pool.query(
+      'INSERT INTO e_series_person (series_id, person_id, role, ordinal) VALUES ($1, $2, $3, $4)',
+      [row.id, person.id, 'actor', 0],
+    );
+  }
+
+  try {
+    const collectionEn = await (await get(`/en/collections/${collectionSlug}`)).text();
+    assert.match(collectionEn, /<span class="poster__title">North Translated<\/span>/,
+      'подборка в EN называет переводом');
+    assert.match(collectionEn, /<span class="poster__title" lang="ru">Только по-русски<\/span>/,
+      'название без перевода помечено языком');
+
+    const personEn = await (await get(`/en/people/${person.slug}`)).text();
+    assert.match(personEn, /<span class="poster__title">North Translated<\/span>/,
+      'человек в EN называет переводом');
+    assert.match(personEn, /<span class="poster__title" lang="ru">Только по-русски<\/span>/,
+      'название без перевода помечено языком');
+
+    const collectionRu = await (await get(`/ru/collections/${collectionSlug}`)).text();
+    assert.match(collectionRu, /<span class="poster__title">Северный перевод<\/span>/,
+      'русская сетка не изменилась');
+  } finally {
+    await pool.query('DELETE FROM e_collection WHERE id = $1', [collection.id]);
+    await pool.query('DELETE FROM e_series_person WHERE person_id = $1', [person.id]);
+    await pool.query('DELETE FROM e_person WHERE id = $1', [person.id]);
+    await pool.query('DELETE FROM e_series WHERE id = ANY($1::bigint[])',
+      [[translated.id, borrowed.id, ...extra.map((row) => row.id)]]);
+  }
+});

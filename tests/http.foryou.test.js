@@ -122,11 +122,11 @@ test.before(async () => {
   );
   genre = genreRow;
 
-  const makeSeries = async (slug, title) => {
+  const makeSeries = async (slug, title, titleEn = null) => {
     const { rows: [row] } = await pool.query(
-      `INSERT INTO e_series (slug, title_ru, title_original, tmdb_id, publication_state, exit_state, year_start)
-       VALUES ($1, $2, $3, $4, 'published', 'airing', 2021) RETURNING id, slug`,
-      [slug, title, `Fixture ${title}`, 995000000 + Math.floor(Math.random() * 900000)],
+      `INSERT INTO e_series (slug, title_ru, title_en, title_original, tmdb_id, publication_state, exit_state, year_start)
+       VALUES ($1, $2, $3, $4, $5, 'published', 'airing', 2021) RETURNING id, slug`,
+      [slug, title, titleEn, `Fixture ${title}`, 995000000 + Math.floor(Math.random() * 900000)],
     );
     await pool.query(
       'INSERT INTO e_series_genre (series_id, genre_code) VALUES ($1, $2)',
@@ -174,7 +174,8 @@ test.before(async () => {
   }
   for (let i = 1; i <= 7; i += 1) {
     // Семь кандидатов: показано homeCount, седьмой — на смену отметленному.
-    const row = await makeSeries(`foryou-c0${i}-${rand}`, `Рекомендация ${i}`);
+    // Перевод названия есть у всех: EN-страница обязана показать его (№270).
+    const row = await makeSeries(`foryou-c0${i}-${rand}`, `Рекомендация ${i}`, `Recommendation ${i}`);
     await addSeason(row);
     candidates.push(row);
   }
@@ -340,6 +341,8 @@ test('английская страница переводит формулир�
       assert.match(body, /For you/, 'заголовок на языке интерфейса');
       assert.ok(body.includes(`because you like “${genre.name_en}”`), 'причина тоже переводима');
       assert.match(body, /<link rel="canonical" href="\/en\/for-you">/);
+      assert.match(body, /<span class="poster__title">Recommendation \d<\/span>/,
+        'карточка рекомендации названа переводом, а не русским текстом (№270)');
     },
   });
 });

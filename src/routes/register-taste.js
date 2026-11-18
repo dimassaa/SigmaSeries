@@ -53,6 +53,10 @@ export function createTasteRoutes({ taste, search, auth, sessionMw }) {
       id: row.id,
       slug: row.slug,
       title: row.title,
+      // Сырые названия — виду для цепочки с пометкой языка (№270).
+      titleRu: row.titleRu,
+      titleEn: row.titleEn,
+      titleOriginal: row.titleOriginal,
       posterWidth: row.poster_width,
       ...(genres.get(Number(row.id)) ?? { genreCode: null, genreRu: null, genreEn: null }),
     }));

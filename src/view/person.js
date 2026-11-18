@@ -7,6 +7,7 @@
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { cardTitleOf } from './collection.js';
 
 /** `e_series_person.role` → ключ интерфейса. */
 const ROLE_KEY = {
@@ -36,19 +37,22 @@ export function personView({ locale, person }) {
   <h2 class="person__section-title">${t(locale, 'person.series', { count: person.total })}</h2>
 
   <ol class="posters" role="list">
-    ${person.series.map((item) => html`
+    ${person.series.map((item) => {
+      const cardTitle = cardTitleOf(locale, item);
+      return html`
     <li class="posters__item">
-      <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}" data-poster-info="${t(locale, 'poster.card.info')}"">
+      <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}" data-poster-info="${t(locale, 'poster.card.info')}">
         <span class="poster__frame">
           ${when(item.posterWidth, () => html`<img class="poster__img"
              src="/${locale}/images/${item.slug}/poster-${item.posterWidth}.webp"
              alt="" width="185" height="278" loading="lazy" decoding="async">`)}
           ${when(!item.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
         </span>
-        <span class="poster__title">${item.title}</span>
+        <span class="poster__title"${cardTitle.lang ? html` lang="${cardTitle.lang}"` : ''}>${cardTitle.text}</span>
         <span class="poster__meta">${meta({ locale, item })}</span>
       </a>
-    </li>`)}
+    </li>`;
+    })}
   </ol>
 
   ${when(person.pages > 1, () => html`
