@@ -160,39 +160,5 @@ export function pgSimilar(pool) {
     return { series: pairs.size, pairs: [...pairs.values()].reduce((sum, list) => sum + list.length, 0) };
   }
 
-  /**
-   * Похожие сериалы для одного сериала.
-   *
-   * @param {number} seriesId
-   * @param {{limit?: number}} [options]
-   * @returns {Promise<any[]>}
-   */
-  async function forSeries(seriesId, { limit = SIMILAR_LIMIT } = {}) {
-    const { rows } = await pool.query(
-      `SELECT s.id, s.slug, s.title_ru, s.title_original, s.year_start, s.exit_state,
-              sm.weight,
-              (SELECT iv.width FROM e_image i
-                 JOIN e_image_variant iv ON iv.image_id = i.id
-                WHERE i.series_id = s.id AND i.role = 'poster'
-                ORDER BY iv.width LIMIT 1) AS poster_width
-         FROM e_series_similar sm
-         JOIN e_series s ON s.id = sm.similar_id
-        WHERE sm.series_id = $1
-          AND s.publication_state = 'published' AND s.archived_at IS NULL
-        ORDER BY sm.weight DESC, s.id
-        LIMIT $2`,
-      [seriesId, limit],
-    );
-    return rows.map((row) => ({
-      id: Number(row.id),
-      slug: row.slug,
-      title: row.title_ru || row.title_original,
-      yearStart: row.year_start,
-      exitState: row.exit_state,
-      posterWidth: row.poster_width ? Number(row.poster_width) : null,
-      weight: Number(row.weight),
-    }));
-  }
-
-  return { features, recompute, forSeries };
+  return { features, recompute };
 }
