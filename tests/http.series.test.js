@@ -6,6 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 import { createPool } from '../src/db/pool.js';
 import { createApp } from '../src/app.js';
@@ -281,5 +282,46 @@ test('EN-список отзывов следует правилам перев�
       'hreflang на закрытую страницу не ставится');
   } finally {
     await pool.query('DELETE FROM e_series WHERE id = $1', [closed.id]);
+  }
+});
+
+test('похожие на EN-странице названы переводом, без перевода — с пометкой языка (№269)', { skip }, async () => {
+  const main = `similar-en-${crypto.randomUUID().slice(0, 8)}`;
+  const translated = `similar-t-${crypto.randomUUID().slice(0, 8)}`;
+  const untranslated = `similar-u-${crypto.randomUUID().slice(0, 8)}`;
+  const genre = `genre:similar-en-${crypto.randomUUID().slice(0, 8)}`;
+  const insert = (slug, titleEn) => pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, title_en, description_ru, year_start, exit_state, publication_state, reasons, level)
+     VALUES ($1, $2, $3, $3, $4, 'Описание для похожих.', 2020, 'ended', 'published', '{}', 'minimum')
+     RETURNING id`,
+    titleEn === null
+      ? [slug, `tt${crypto.randomUUID().slice(2, 12)}`, `Северный ${slug}`, null]
+      : [slug, `tt${crypto.randomUUID().slice(2, 12)}`, `Северный ${slug}`, titleEn],
+  );
+  const { rows: [mainRow] } = await insert(main, null);
+  const { rows: [translatedRow] } = await insert(translated, 'North Translated');
+  const { rows: [untranslatedRow] } = await insert(untranslated, null);
+  await pool.query(
+    'INSERT INTO e_genre (code, name_ru, name_en, active, is_raw, show_in_menu) VALUES ($1, $1, $1, true, false, false)',
+    [genre],
+  );
+  for (const id of [mainRow.id, translatedRow.id, untranslatedRow.id]) {
+    await pool.query('INSERT INTO e_series_genre (series_id, genre_code) VALUES ($1, $2)', [id, genre]);
+  }
+
+  try {
+    const en = await (await get(`/en/series/${main}`)).text();
+    assert.match(en, /<span class="poster__title">North Translated<\/span>/,
+      'переведённый похожий назван переводом');
+    assert.match(en, /<span class="poster__title" lang="ru">Северный /,
+      'непереведённый похожий помечен русским языком');
+
+    const ru = await (await get(`/ru/series/${main}`)).text();
+    assert.ok(ru.includes(`Северный ${translated}`), 'русский список показывает русские названия');
+  } finally {
+    await pool.query('DELETE FROM e_series_genre WHERE genre_code = $1', [genre]);
+    await pool.query('DELETE FROM e_genre WHERE code = $1', [genre]);
+    await pool.query('DELETE FROM e_series WHERE id IN ($1, $2, $3)',
+      [mainRow.id, translatedRow.id, untranslatedRow.id]);
   }
 });

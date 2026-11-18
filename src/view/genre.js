@@ -9,6 +9,7 @@
 import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
 import { tPlural } from '../i18n/plural.js';
+import { cardTitleOf } from './collection.js';
 
 const STATE_KEY = {
   airing: 'series.state.airing',
@@ -84,7 +85,8 @@ function descriptionOf(locale, genre) {
  * нужны, поэтому поля карточки перечислены выборочно.
  *
  * @typedef {object} ListingPage
- * @property {Array<{slug: string, title: string, yearStart: number|null,
+ * @property {Array<{slug: string, title: string, titleRu: string|null,
+ *   titleEn: string|null, titleOriginal: string|null, yearStart: number|null,
  *   yearEnd: number|null, exitState: string, genreCode: string|null,
  *   genreName: string|null, genreNameEn: string|null, rating: number|null, posterWidth: number|null}>} items
  * @property {number} total
@@ -128,6 +130,7 @@ ${when(text, () => html`
   <ol class="posters" role="list">
     ${page.items.map((item) => {
       const poster = imageUrl(locale, item);
+      const cardTitle = cardTitleOf(locale, item);
       return html`
       <li class="posters__item">
         <a class="poster" href="/${locale}/series/${item.slug}"
@@ -137,7 +140,7 @@ ${when(text, () => html`
                alt="" width="185" height="278" loading="lazy" decoding="async">`)}
             ${when(!poster, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
           </span>
-          <span class="poster__title">${item.title}</span>
+          <span class="poster__title"${cardTitle.lang ? html` lang="${cardTitle.lang}"` : ''}>${cardTitle.text}</span>
           <span class="poster__meta">
             ${years(item)}${when(itemGenre(item, locale), () => html` · ${itemGenre(item, locale)}`)}${when(item.rating != null, () => html` · ${rating(item.rating, locale)}`)}
           </span>

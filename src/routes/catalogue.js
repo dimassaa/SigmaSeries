@@ -48,7 +48,7 @@ export function createCatalogueRoutes({ catalogue, genres = null, sessionMw = nu
     const filters = parseQuery(req.query);
 
     try {
-      const page = await catalogue.list(filters);
+      const page = await catalogue.list({ ...filters, locale });
       // EC-K6: страница за концом списка — не пустая страница, а последняя
       // страница. Постоянное перенаправление: адрес с `page=99999` таким и
       // останется мусором, а человек получит то, что просил.
@@ -101,7 +101,7 @@ export function createCatalogueRoutes({ catalogue, genres = null, sessionMw = nu
       }
 
       const filters = parseQuery(req.query);
-      const page = await catalogue.list({ genres: [genre.code], sort: filters.sort, page: filters.page });
+      const page = await catalogue.list({ genres: [genre.code], sort: filters.sort, page: filters.page, locale });
       // Эк-К6, как в каталоге: страница за концом — 301 на последнюю.
       if (filters.page > page.pages) {
         return res.redirect(301, genreHrefOf(locale, genre.code, filters.sort, page.pages));

@@ -8,6 +8,7 @@
 
 import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
+import { cardTitleOf } from './collection.js';
 
 /**
  * Разобранный адрес каталога: значения фильтров уже приведены к числам и
@@ -45,7 +46,10 @@ import { t } from '../i18n/strings.js';
  *
  * @typedef {object} CatalogueItem
  * @property {string} slug
- * @property {string} title
+ * @property {string} title название по локали (для разметки и JSON-LD)
+ * @property {string|null} titleRu
+ * @property {string|null} titleEn
+ * @property {string|null} titleOriginal
  * @property {number|null} yearStart
  * @property {number|null} yearEnd
  * @property {string} [genreName]
@@ -265,6 +269,7 @@ export function catalogueView({ locale, page, bounds, filters, sorts, states }) 
     <ol class="posters" role="list">
       ${page.items.map((item) => {
         const poster = imageUrl(locale, item);
+        const cardTitle = cardTitleOf(locale, item);
         return html`
       <li class="posters__item">
         <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}" data-poster-info="${t(locale, 'poster.card.info')}">
@@ -273,7 +278,7 @@ export function catalogueView({ locale, page, bounds, filters, sorts, states }) 
                alt="" width="185" height="278" loading="lazy" decoding="async">`)}
             ${when(!poster, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
           </span>
-          <span class="poster__title">${item.title}</span>
+          <span class="poster__title"${cardTitle.lang ? html` lang="${cardTitle.lang}"` : ''}>${cardTitle.text}</span>
           <span class="poster__meta">
             ${years(item)}${when(itemGenre(item, locale), () => html` · ${itemGenre(item, locale)}`)}${when(item.rating != null, () => html` · ${rating(item.rating, locale)}`)}
           </span>

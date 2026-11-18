@@ -57,7 +57,7 @@ const SERIES_TEXT = "coalesce(s.title_ru,'') || ' ' || coalesce(s.title_original
 const SERIES_COLUMNS = `
        s.id, s.slug,
        coalesce(s.title_ru, s.title_en, s.title_original) AS title,
-       s.title_ru, s.title_en, s.title_original,
+       s.title_ru AS "titleRu", s.title_en AS "titleEn", s.title_original AS "titleOriginal",
        s.year_start AS "yearStart", s.year_end AS "yearEnd",
        s.exit_state AS "exitState",
        r.votes,
@@ -344,7 +344,9 @@ function anyWord(text, words, offset) {
 function rank(rows, needles, titleOf = null) {
   const scored = [];
   for (const row of rows) {
-    const haystacks = titleOf ? [titleOf(row)] : [row.title_ru, row.title_original, row.title_en].filter(Boolean);
+    const haystacks = titleOf
+      ? [titleOf(row)]
+      : [row.titleRu, row.titleOriginal, row.titleEn].filter(Boolean);
     let best = null;
     for (const hay of haystacks) {
       const found = rankOf(queryStems(hay), needles);

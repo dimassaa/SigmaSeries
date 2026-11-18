@@ -225,7 +225,7 @@ async function similarOf(pool, seriesId, limit = RECO.similarCount) {
          FROM matches
         GROUP BY candidate
      )
-     SELECT s.id, s.slug, s.title_ru, s.title_original, s.year_start, s.exit_state,
+     SELECT s.id, s.slug, s.title_ru, s.title_en, s.title_original, s.year_start, s.exit_state,
             sc.score, sc.genre_score, sc.people_score, sc.keyword_score,
             sc.genre_titles, sc.genre_titles_en, sc.people_titles, sc.keyword_titles,
             (SELECT iv.width FROM e_image i
@@ -251,7 +251,12 @@ async function similarOf(pool, seriesId, limit = RECO.similarCount) {
   return rows.map((row) => ({
     id: Number(row.id),
     slug: row.slug,
-    title: row.title_ru || row.title_original,
+    // Сырые названия — виду для цепочки с пометкой языка (№269); `title` —
+    // готовый текст по умолчанию для разметки и логов.
+    title: row.title_ru || row.title_en || row.title_original,
+    titleRu: row.title_ru,
+    titleEn: row.title_en,
+    titleOriginal: row.title_original,
     yearStart: row.year_start,
     exitState: row.exit_state,
     posterWidth: row.poster_width ? Number(row.poster_width) : null,
@@ -318,7 +323,7 @@ export async function popularInGenre(pool, seriesId, limit) {
         ORDER BY g.name_ru
         LIMIT 1
      )
-     SELECT s.id, s.slug, s.title_ru, s.title_original, s.year_start, s.exit_state,
+     SELECT s.id, s.slug, s.title_ru, s.title_en, s.title_original, s.year_start, s.exit_state,
             p.name_ru AS genre_ru, p.name_en AS genre_en,
             (SELECT iv.width FROM e_image i
                JOIN e_image_variant iv ON iv.image_id = i.id
@@ -338,7 +343,12 @@ export async function popularInGenre(pool, seriesId, limit) {
   return rows.map((row) => ({
     id: Number(row.id),
     slug: row.slug,
-    title: row.title_ru || row.title_original,
+    // Сырые названия — виду для цепочки с пометкой языка (№269); `title` —
+    // готовый текст по умолчанию для разметки и логов.
+    title: row.title_ru || row.title_en || row.title_original,
+    titleRu: row.title_ru,
+    titleEn: row.title_en,
+    titleOriginal: row.title_original,
     yearStart: row.year_start,
     exitState: row.exit_state,
     posterWidth: row.poster_width ? Number(row.poster_width) : null,

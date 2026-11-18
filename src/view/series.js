@@ -7,6 +7,7 @@
 
 import { html, when, raw } from './render.js';
 import { t } from '../i18n/strings.js';
+import { cardTitleOf } from './collection.js';
 import { fullDate as formatDate } from './dates.js';
 import { statusControl } from './status.js';
 import { progressView } from './progress.js';
@@ -228,7 +229,9 @@ function similarSection({ locale, items, csrf = '', seriesSlug = '' }) {
   <section class="series__similar" id="similar" aria-labelledby="h-similar">
     <h2 class="series__section-title" id="h-similar">${t(locale, 'series.similar')}</h2>
     <ol class="posters" role="list">
-      ${items.map((item) => html`
+      ${items.map((item) => {
+        const cardTitle = cardTitleOf(locale, item);
+        return html`
       <li class="posters__item">
         <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}"
            data-track-impression="reco_impression" data-track-click="reco_click"
@@ -240,7 +243,7 @@ function similarSection({ locale, items, csrf = '', seriesSlug = '' }) {
                alt="" width="185" height="278" loading="lazy" decoding="async">`)}
             ${when(!item.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
           </span>
-          <span class="poster__title">${item.title}</span>
+          <span class="poster__title"${cardTitle.lang ? html` lang="${cardTitle.lang}"` : ''}>${cardTitle.text}</span>
           ${when(item.reason, () => html`
           <span class="poster__reason">${similarReason(locale, item.reason)}</span>`)}
           <span class="poster__meta">
@@ -255,7 +258,8 @@ function similarSection({ locale, items, csrf = '', seriesSlug = '' }) {
           <button class="button button--quiet" type="submit" data-track-click="reco_dismiss"
             >${t(locale, 'reco.dismiss')}</button>
         </form>
-      </li>`)}
+      </li>`;
+      })}
     </ol>
   </section>`;
 }

@@ -66,13 +66,17 @@ export function collectionView({ locale, collection }) {
  * случайно.
  *
  * @param {string} locale
- * @param {{slug: string, titleRu: string, titleEn: string|null}} item
+ * @param {{slug: string, titleRu: string, titleEn: string|null,
+ *   titleOriginal?: string|null}} item
  * @returns {{text: string, lang: string|null}}
  */
 export function cardTitleOf(locale, item) {
   const own = ((locale === 'en' ? item.titleEn : item.titleRu) ?? '').trim();
   const other = ((locale === 'en' ? item.titleRu : item.titleEn) ?? '').trim();
-  const text = own || other || item.slug;
+  const original = (item.titleOriginal ?? '').trim();
+  // Оригинал — запас после переводов (R-I18N-06): у сериала без ru и en
+  // название — то, что пришло из источника, а не адрес.
+  const text = own || other || original || item.slug;
   // Свой текст — язык уже верный; заимствованный помечаем, чтобы озвучка и
   // расстановка переносов выбирались по нему (R-I18N-06).
   return { text, lang: own ? null : (other ? (locale === 'en' ? 'ru' : 'en') : null) };

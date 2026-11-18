@@ -274,6 +274,43 @@ test('сырые жанры импорта не попадают в публич
   }
 });
 
+test('EN-каталог называет сериалы переводом, а не русским названием (№269)', { skip }, async () => {
+  const slug = `list-en-${crypto.randomUUID().slice(0, 8)}`;
+  const code = `genre:list-en-${crypto.randomUUID().slice(0, 8)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, title_ru, title_en, title_original, tmdb_id, publication_state, exit_state, year_start)
+     VALUES ($1, 'Северный ветер', 'North Wind', 'Northwind', $2, 'published', 'ended', 2020)
+     RETURNING id`,
+    [slug, 900000000 + Math.floor(Math.random() * 1000000)],
+  );
+  await pool.query(
+    'INSERT INTO e_genre (code, name_ru, name_en, active, is_raw) VALUES ($1, $1, $1, true, false)',
+    [code],
+  );
+  await pool.query(
+    'INSERT INTO e_series_genre (series_id, genre_code) VALUES ($1, $2)',
+    [series.id, code],
+  );
+
+  try {
+    const en = await catalogue.list({ genres: [code], locale: 'en' });
+    const enItem = en.items.find((item) => item.slug === slug);
+    assert.equal(enItem.title, 'North Wind', 'EN-список называет переводом');
+    assert.equal(enItem.titleRu, 'Северный ветер', 'сырые поля отдаются виду');
+    assert.equal(enItem.titleEn, 'North Wind');
+    assert.equal(enItem.titleOriginal, 'Northwind');
+
+    const ru = await catalogue.list({ genres: [code], locale: 'ru' });
+    assert.equal(ru.items.find((item) => item.slug === slug).title, 'Северный ветер',
+      'русский список не изменился');
+  } finally {
+    await pool.query('DELETE FROM e_series_genre WHERE series_id = $1 AND genre_code = $2',
+      [series.id, code]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+    await pool.query('DELETE FROM e_genre WHERE code = $1', [code]);
+  }
+});
+
 test('границы фильтров берутся из данных', { skip }, async () => {
   const filters = await catalogue.filters();
 

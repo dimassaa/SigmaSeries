@@ -8,6 +8,7 @@
 
 import { html, when } from './render.js';
 import { t } from '../i18n/strings.js';
+import { cardTitleOf } from './collection.js';
 
 const STATE_KEY = {
   airing: 'series.state.airing',
@@ -63,7 +64,9 @@ ${when(result.series.length > 0, () => html`
 <section class="search__group" aria-labelledby="h-search-series">
   <h2 class="search__group-title" id="h-search-series">${t(locale, 'search.group.series')}</h2>
   <ol class="posters" role="list">
-    ${result.series.map((item) => html`
+    ${result.series.map((item) => {
+      const cardTitle = cardTitleOf(locale, item);
+      return html`
     <li class="posters__item">
       <a class="poster" href="/${locale}/series/${item.slug}" data-poster-card="${item.slug}" data-poster-info="${t(locale, 'poster.card.info')}">
         <span class="poster__frame">
@@ -72,11 +75,12 @@ ${when(result.series.length > 0, () => html`
              alt="" width="185" height="278" loading="lazy" decoding="async">`)}
           ${when(!item.posterWidth, () => html`<span class="poster__fallback" aria-hidden="true"></span>`)}
         </span>
-        <span class="poster__title">${item.title}</span>
+        <span class="poster__title"${cardTitle.lang ? html` lang="${cardTitle.lang}"` : ''}>${cardTitle.text}</span>
         <span class="poster__meta">${year(item)}</span>
         <span class="visually-hidden">${t(locale, STATE_KEY[item.exitState] ?? 'series.state.waiting')}</span>
       </a>
-    </li>`)}
+    </li>`;
+    })}
   </ol>
   ${more({ locale, query, group: 'series', result })}
 </section>`)}

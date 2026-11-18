@@ -6,6 +6,7 @@
 
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import crypto from 'node:crypto';
 
 import { createPool } from '../src/db/pool.js';
 import { createApp } from '../src/app.js';
@@ -64,6 +65,32 @@ test('страница поиска не индексируется и отве�
   assert.equal(response.status, 200);
   assert.match(await response.text(), /<meta name="robots" content="noindex, follow">/,
     'пустой запрос не должен попасть в индекс (SCREENS §9)');
+});
+
+test('EN-выдача показывает перевод названия, а без перевода — русский с пометкой языка (№269)', { skip }, async () => {
+  const translated = `search-en-${crypto.randomUUID().slice(0, 8)}`;
+  const untranslated = `search-ru-${crypto.randomUUID().slice(0, 8)}`;
+  const { rows: [first] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_en, title_original, publication_state, exit_state, year_start)
+     VALUES ($1, $2, 'Северный поиск', 'North Query', 'North Query Original', 'published', 'ended', 2020)
+     RETURNING id`,
+    [translated, `tt${crypto.randomUUID().slice(2, 12)}`],
+  );
+  const { rows: [second] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_original, publication_state, exit_state, year_start)
+     VALUES ($1, $2, 'Северный поиск без перевода', 'Untranslated Query', 'published', 'ended', 2020)
+     RETURNING id`,
+    [untranslated, `tt${crypto.randomUUID().slice(2, 12)}`],
+  );
+  try {
+    const body = await (await get(`/en/search?q=${encodeURIComponent('Северный поиск')}`)).text();
+    assert.match(body, /<span class="poster__title">North Query<\/span>/,
+      'переведённый сериал назван переводом');
+    assert.match(body, /<span class="poster__title" lang="ru">Северный поиск без перевода<\/span>/,
+      'непереведённое название помечено языком');
+  } finally {
+    await pool.query('DELETE FROM e_series WHERE id IN ($1, $2)', [first.id, second.id]);
+  }
 });
 
 test('найденный сериал показан и ведёт на свою карточку', { skip }, async () => {

@@ -38,10 +38,23 @@ const DEFAULT_SORT = 'popular';
 /** Порядок состояний для человека; в базе он алфавитный и ничего не значит. */
 const STATE_ORDER = ['airing', 'waiting', 'announced', 'ended', 'cancelled'];
 
-const BASE_SELECT = `
+/**
+ * Название по локали (R-I18N-06): EN предпочитает перевод, русский список —
+ * русское название. Выражение подставляется в общий SELECT, поэтому и
+ * сортировка по названию идёт по цепочке локали.
+ */
+const TITLE_CHAIN = {
+  ru: 'coalesce(s.title_ru, s.title_en, s.title_original)',
+  en: 'coalesce(s.title_en, s.title_ru, s.title_original)',
+};
+
+const baseSelect = (titleExpr) => `
   SELECT s.id,
          s.slug,
-         coalesce(s.title_ru, s.title_en, s.title_original) AS title,
+         ${titleExpr} AS title,
+         s.title_ru,
+         s.title_en,
+         s.title_original,
          s.year_start,
          s.year_end,
          s.exit_state,
@@ -90,11 +103,15 @@ export function pgCatalogueList(pool) {
      * @param {(string|number)[]} [filters.networks] идентификаторы сетей TMDB
      * @param {string} [filters.sort] ключ из белого списка
      * @param {number} [filters.page] с единицы
+     * @param {'ru'|'en'} [filters.locale] язык названий в выдаче (R-I18N-06)
      * @returns {Promise<{items: any[], total: number, page: number, pages: number,
      *   size: number, sort: string, applied: any}>}
      */
     async list(filters = {}) {
       const { pageSize: size, ratingFloor } = await importSettings(pool);
+      // Локаль меняет только цепочку названий; неизвестное значение — русский
+      // список, как и во всём сервисе (маршрут локаль уже проверил).
+      const titleChain = TITLE_CHAIN[filters.locale] ?? TITLE_CHAIN.ru;
       const where = [];
       const params = [];
 
@@ -145,7 +162,7 @@ export function pgCatalogueList(pool) {
       const page = Math.max(1, Number(filters.page) || 1);
       params.push(size, (page - 1) * size);
 
-      const filtered = `${BASE_SELECT}${where.length ? ` AND ${where.join(' AND ')}` : ''}`;
+      const filtered = `${baseSelect(titleChain)}${where.length ? ` AND ${where.join(' AND ')}` : ''}`;
       const { rows } = await pool.query(
         `SELECT *, count(*) OVER () AS total
            FROM (${filtered}) t
@@ -163,6 +180,11 @@ export function pgCatalogueList(pool) {
           id: row.id,
           slug: row.slug,
           title: row.title,
+          // Сырые названия: вид (cardTitleOf) строит по ним цепочку с пометкой
+          // языка (№269); JSON-LD и сортировка пользуются готовым `title`.
+          titleRu: row.title_ru,
+          titleEn: row.title_en,
+          titleOriginal: row.title_original,
           yearStart: row.year_start,
           yearEnd: row.year_end,
           exitState: row.exit_state,
