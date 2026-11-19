@@ -26,8 +26,6 @@
  */
 export const EVENTS = {
   page_view: { client: true, server: false, props: ['page_type', 'series_id'] },
-  splash_shown: { client: true, server: false, props: ['way', 'duration'] },
-  splash_skipped: { client: true, server: false, props: ['way', 'duration'] },
   banner_impression: { client: true, server: false, props: ['position', 'reason'] },
   banner_click: { client: true, server: false, props: ['position', 'reason'] },
   poster_card_open: { client: true, server: false, props: ['way'] },

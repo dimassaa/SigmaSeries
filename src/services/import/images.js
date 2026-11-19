@@ -188,7 +188,7 @@ export async function downloadImage(url, {
  * моделью камеры и иногда — геолокация. В нашей базе им не место.
  *
  * @param {Buffer} buffer исходник
- * @param {'poster'|'backdrop'|'banner'|'splash'} role
+ * @param {'poster'|'backdrop'|'banner'} role
  * @returns {Promise<{width:number, height:number, mime:string, checksum:string,
  *   cleanBackdrop:boolean, variants:{width:number, height:number, bytes:number, file:Buffer}[]}>}
  */
@@ -257,7 +257,7 @@ export function sha256(buffer) {
  * @param {object} deps
  * @param {any} deps.client подключение внутри транзакции
  * @param {number} deps.seriesId
- * @param {'poster'|'backdrop'|'banner'|'splash'} deps.role
+ * @param {'poster'|'backdrop'|'banner'} deps.role
  * @param {'tmdb'|'manual'} deps.source
  * @param {string} deps.sourcePath путь в источнике
  * @param {any} deps.prepared результат `prepareImage`

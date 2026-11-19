@@ -25,7 +25,6 @@ import { createAdminRoutes } from './routes/admin.js';
 import { createReviewRoutes } from './routes/review.js';
 import { createProfileRoutes } from './routes/profile.js';
 import { createRecapRoutes } from './routes/recap.js';
-import { createPublicSplashRoutes } from './routes/splash.js';
 import { createRecommendationRoutes } from './routes/recommendations.js';
 import { createAnalyticsRoutes } from './routes/analytics.js';
 import { createSeriesRoutes } from './routes/series.js';
@@ -44,7 +43,6 @@ import { createImportRoutes } from './routes/studioImport.js';
 import { createDiscussionRoutes } from './routes/discussions.js';
 import { createGuideRoutes } from './routes/guides.js';
 import { createStudioLibraryRoutes } from './routes/studioCollections.js';
-import { createSplashRoutes } from './routes/studioSplash.js';
 import { createStudioCardRoutes } from './routes/studioCard.js';
 import { createSystemSettingsRoutes } from './routes/systemSettings.js';
 import { createCatalogueRoutes } from './routes/catalogue.js';
@@ -57,7 +55,7 @@ import { createSubscribeRoutes } from './routes/subscribe.js';
 import { createNotificationRoutes } from './routes/notifications.js';
 import { createStatusRoutes } from './routes/status.js';
 import { createLibraryRoutes } from './routes/library.js';
-import { createImageRoutes, createCollectionImageRoutes, createSplashImageRoutes } from './routes/images.js';
+import { createImageRoutes, createCollectionImageRoutes } from './routes/images.js';
 import { createJournal } from './services/journal.js';
 import { compressedStatic } from './services/assets.js';
 import { DEFAULT_LOCALE } from './i18n/strings.js';
@@ -99,7 +97,6 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
  * @param {any} [deps.audit]
  * @param {any} [deps.profile]
  * @param {any} [deps.recap]
- * @param {any} [deps.publicSplash]
  * @param {any} [deps.recommendations]
  * @param {any} [deps.analytics]
  * @param {any} [deps.analyticsMetrics]
@@ -118,7 +115,6 @@ const PUBLIC_DIR = path.resolve(here, '..', 'public');
  * @param {any} [deps.backups]
  * @param {any} [deps.studio]
  * @param {any} [deps.studioCollections]
- * @param {any} [deps.splash]
  * @param {any} [deps.importReport]
  * @param {any} [deps.freeze]
  * @param {any} [deps.bulk]
@@ -176,8 +172,6 @@ export function createApp({
   profile = null,
   // Персональные итоги (M7, F-07-01).
   recap = null,
-  // Заставка на первом открытии (M0, F-00-06).
-  publicSplash = null,
   // Персональные рекомендации (M11, F-11-01).
   recommendations = null,
   // Приём событий аналитики (M8, F-08-01) и метрики (F-08-02…05).
@@ -200,7 +194,6 @@ export function createApp({
   backups = null,
   studio = null,
   studioCollections = null,
-  splash = null,
   importReport = null,
   freeze = null,
   bulk = null,
@@ -322,7 +315,6 @@ export function createApp({
   if (profile) app.use(createProfileRoutes({ profile, sessionMw }));
   // Персональные итоги (M7, S-33): свои — на /recap, чужие — под профилем.
   if (recap && profile && data) app.use(createRecapRoutes({ recap, profile, data, sessionMw }));
-  if (publicSplash) app.use(createPublicSplashRoutes({ splash: publicSplash }));
   // «Не интересно» (M11, F-11-03): список скрытых общий для «для вас» и
   // «похожих».
   if (recommendations) app.use(createRecommendationRoutes({ recommendations, sessionMw }));
@@ -358,7 +350,6 @@ export function createApp({
     collections: studioCollections, dictionaries: studioDictionaries,
     series, audit, sessionMw,
   }));
-  if (splash) app.use(createSplashRoutes({ splash, audit, sessionMw }));
   // Отчёт об импорте (S-76): состояние расписания и запуски.
   if (importReport) app.use(createImportRoutes({ pool, report: importReport, freeze, audit, sessionMw }));
   if (studio) app.use(createStudioRoutes({ pool, studio, picks, bulk, audit, sessionMw }));
@@ -429,7 +420,6 @@ export function createApp({
   // Картинки отдаются из базы; маршрут нужен, когда есть подключение.
   if (pool) app.use(createImageRoutes({ pool }));
   if (pool) app.use(createCollectionImageRoutes({ pool }));
-  if (pool) app.use(createSplashImageRoutes({ pool }));
 
   if (auth && sessionMw) {
     // Маршруты входа подключаются только если есть и хранилище, и middleware:

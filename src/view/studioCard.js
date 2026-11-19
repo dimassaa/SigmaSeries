@@ -300,7 +300,6 @@ export function studioCardView({
           <option value="poster">${t(locale, 'studio.card.image.poster')}</option>
           <option value="backdrop">${t(locale, 'studio.card.image.backdrop')}</option>
           <option value="banner">${t(locale, 'studio.card.image.banner')}</option>
-          <option value="splash">${t(locale, 'studio.card.image.splash')}</option>
         </select>
         <label class="field__label" for="image-file">${t(locale, 'studio.card.imageFile')}</label>
         <input class="field__input" id="image-file" name="file" type="file"

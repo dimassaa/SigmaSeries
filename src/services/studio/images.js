@@ -20,7 +20,6 @@ const REQUIREMENTS = {
   poster: { minWidth: 500, minHeight: 750, ratio: 2 / 3 },
   backdrop: { minWidth: 1920, minHeight: 1080, ratio: 16 / 9 },
   banner: { minWidth: 1920, minHeight: 1080, ratio: 16 / 9 },
-  splash: { minWidth: 1920, minHeight: 1080, ratio: 16 / 9 },
 };
 
 /** Насколько пропорция может отличаться, прежде чем кадр режется сам. */
@@ -40,7 +39,7 @@ export function pgStudioImages(pool) {
    *
    * @param {object} input
    * @param {number} input.seriesId
-   * @param {'poster'|'backdrop'|'banner'|'splash'} input.role
+   * @param {'poster'|'backdrop'|'banner'} input.role
    * @param {Buffer} input.buffer содержимое файла
    * @param {boolean} [input.hasText] на изображении есть текст
    * @param {number|null} [input.byId] кто загрузил

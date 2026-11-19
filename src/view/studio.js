@@ -307,7 +307,6 @@ export function studioListView({
         </td>
         <td class="studio__places">
           ${when(row.canBanner, () => html`<span class="studio__place">${t(locale, 'studio.place.banner')}</span>`)}
-          ${when(row.canBanner, () => html`<span class="studio__place">${t(locale, 'studio.place.splash')}</span>`)}
           ${when(row.canCalendar, () => html`<span class="studio__place">${t(locale, 'studio.place.calendar')}</span>`)}
           ${when(row.canFresh, () => html`<span class="studio__place">${t(locale, 'studio.place.fresh')}</span>`)}
         </td>

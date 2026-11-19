@@ -494,7 +494,7 @@ export function pgStudioCard(pool) {
    * @returns {Promise<{ok: boolean, reason?: string}>}
    */
   async function setFocal({ seriesId, role, focalX, focalY }) {
-    if (!['poster', 'backdrop', 'banner', 'splash'].includes(role)) {
+    if (!['poster', 'backdrop', 'banner'].includes(role)) {
       return { ok: false, reason: 'role' };
     }
     const x = Number(focalX);
