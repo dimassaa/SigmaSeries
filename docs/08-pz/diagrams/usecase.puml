@@ -1,0 +1,52 @@
+@startuml
+!pragma layout smetana
+skinparam dpi 160
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam nodesep 18
+skinparam ranksep 30
+left to right direction
+
+actor "Гость" as guest
+actor "Зритель" as viewer
+actor "Редактор" as editor
+actor "Аналитик" as analyst
+actor "Администратор" as admin
+
+rectangle "SigmaSeries" {
+  usecase "Просмотр каталога" as UC1
+  usecase "Поиск" as UC2
+  usecase "Карточка сериала" as UC3
+  usecase "Календарь выходов" as UC4
+  usecase "Оценка сериала" as UC5
+  usecase "Отзыв" as UC6
+  usecase "Отметка просмотра" as UC7
+  usecase "Библиотека" as UC8
+  usecase "Рекомендации" as UC9
+  usecase "Итоги года" as UC10
+  usecase "Модерация" as UC11
+  usecase "Аналитика" as UC12
+  usecase "Ведение каталога" as UC13
+  usecase "Импорт каталога" as UC14
+}
+
+guest --> UC1
+guest --> UC2
+guest --> UC3
+guest --> UC4
+viewer --> UC5
+viewer --> UC6
+viewer --> UC7
+viewer --> UC8
+viewer --> UC9
+viewer --> UC10
+editor --> UC11
+analyst --> UC12
+admin --> UC13
+admin --> UC14
+
+viewer --|> guest
+editor --|> viewer
+analyst --|> viewer
+admin --|> editor
+@enduml

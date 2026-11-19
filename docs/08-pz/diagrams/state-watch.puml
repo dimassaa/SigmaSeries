@@ -1,0 +1,27 @@
+@startuml
+!pragma layout smetana
+skinparam dpi 160
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam state {
+  BackgroundColor #F7F7F7
+  BorderColor #333333
+}
+
+state "В планах\n(planned)" as planned
+state "Смотрю\n(watching)" as watching
+state "Просмотрено\n(completed)" as completed
+state "Брошено\n(dropped)" as dropped
+
+[*] --> planned : «в планах»
+planned --> watching : начал смотреть
+watching --> completed : отметка последней\nвышедшей серии
+watching --> dropped : «брошено»
+dropped --> watching : вернулся
+completed --> watching : пересмотр
+
+note right of completed
+  Статус выставляется автоматически,
+  но может быть изменён вручную
+end note
+@enduml

@@ -1,0 +1,38 @@
+@startuml
+!pragma layout smetana
+skinparam dpi 160
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam sequenceMessageAlign center
+autonumber
+
+participant "Браузер" as B
+participant "Маршрут входа" as R
+participant "Сервис\nаутентификации" as A
+participant "СУБД" as D
+participant "Сервис 2FA" as T
+
+B -> R : POST /login\n(email, пароль, CSRF)
+R -> A : проверить вход
+A -> D : найти пользователя\nи хеш пароля
+D --> A : запись пользователя
+A -> A : сверить пароль (argon2id)
+A -> D : создать ожидающую сессию
+A --> R : сессия ожидает 2FA
+R --> B : 303 /2fa
+
+B -> R : GET /2fa
+R --> B : форма кода
+
+B -> R : POST /2fa (код TOTP)
+R -> T : проверить код
+T -> D : найти секрет и шаг
+T --> R : код верный
+R -> A : сделать сессию доверенной
+A -> D : записать сессию и роли
+R --> B : 303 / (личный кабинет)
+
+alt неверный код
+  R --> B : 400, форма с ошибкой
+end
+@enduml

@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1500" height="900" viewBox="0 0 1500 900"><rect width="1500" height="900" fill="#ffffff"/>
+<text x="30" y="40" font-family="DejaVu Sans" font-size="20" text-anchor="start" font-weight="bold" fill="#111111">A-0</text>
+<text x="30" y="66" font-family="DejaVu Sans" font-size="14" text-anchor="start" font-weight="normal" fill="#111111">Контекстная диаграмма</text>
+<rect x="500" y="330" width="500" height="170" fill="#f7f7f7" stroke="#333333" stroke-width="1.5"/>
+<text x="750" y="395" font-family="DejaVu Sans" font-size="16" text-anchor="middle" font-weight="normal" fill="#111111">Сервис оценки и отслеживания</text>
+<text x="750" y="416" font-family="DejaVu Sans" font-size="16" text-anchor="middle" font-weight="normal" fill="#111111">сериалов с календарём выхода серий</text>
+<text x="985" y="490" font-family="DejaVu Sans" font-size="14" text-anchor="end" font-weight="normal" fill="#111111">A0</text>
+<text x="380" y="367" font-family="DejaVu Sans" font-size="13" text-anchor="end" font-weight="normal" fill="#111111">Сведения о сериалах</text>
+<text x="380" y="383" font-family="DejaVu Sans" font-size="13" text-anchor="end" font-weight="normal" fill="#111111">IMDb, TMDB</text>
+<polyline points="390,370 500,370" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="500,370 488.0,365.0 488.0,375.0" fill="#111111"/>
+<text x="380" y="417" font-family="DejaVu Sans" font-size="13" text-anchor="end" font-weight="normal" fill="#111111">Действия зрителя</text>
+<polyline points="390,420 500,420" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="500,420 488.0,415.0 488.0,425.0" fill="#111111"/>
+<text x="380" y="467" font-family="DejaVu Sans" font-size="13" text-anchor="end" font-weight="normal" fill="#111111">Пользовательские</text>
+<text x="380" y="483" font-family="DejaVu Sans" font-size="13" text-anchor="end" font-weight="normal" fill="#111111">материалы и жалобы</text>
+<polyline points="390,470 500,470" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="500,470 488.0,465.0 488.0,475.0" fill="#111111"/>
+<text x="540" y="150" font-family="DejaVu Sans" font-size="12" text-anchor="middle" font-weight="normal" fill="#111111">Правила модерации</text>
+<polyline points="540,162 540,330" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="540,330 545.0,318.0 535.0,318.0" fill="#111111"/>
+<text x="650" y="185" font-family="DejaVu Sans" font-size="12" text-anchor="middle" font-weight="normal" fill="#111111">Роли и права</text>
+<polyline points="650,197 650,330" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="650,330 655.0,318.0 645.0,318.0" fill="#111111"/>
+<text x="760" y="150" font-family="DejaVu Sans" font-size="12" text-anchor="middle" font-weight="normal" fill="#111111">Настройки модулей</text>
+<polyline points="760,162 760,330" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="760,330 765.0,318.0 755.0,318.0" fill="#111111"/>
+<text x="880" y="185" font-family="DejaVu Sans" font-size="12" text-anchor="middle" font-weight="normal" fill="#111111">Требования к полноте</text>
+<polyline points="880,197 880,330" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="880,330 885.0,318.0 875.0,318.0" fill="#111111"/>
+<polyline points="575,700 575,500" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="575,500 570.0,512.0 580.0,512.0" fill="#111111"/>
+<text x="575" y="730" font-family="DejaVu Sans" font-size="12" text-anchor="middle" font-weight="normal" fill="#111111">Сервер Node.js</text>
+<polyline points="750,700 750,500" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="750,500 745.0,512.0 755.0,512.0" fill="#111111"/>
+<text x="750" y="730" font-family="DejaVu Sans" font-size="12" text-anchor="middle" font-weight="normal" fill="#111111">СУБД PostgreSQL</text>
+<polyline points="925,700 925,500" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="925,500 920.0,512.0 930.0,512.0" fill="#111111"/>
+<text x="925" y="730" font-family="DejaVu Sans" font-size="12" text-anchor="middle" font-weight="normal" fill="#111111">Браузер зрителя</text>
+<polyline points="1000,355 1108,355" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="1108,355 1096.0,350.0 1096.0,360.0" fill="#111111"/>
+<text x="1120" y="359" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">Каталог и карточки</text>
+<polyline points="1000,405 1108,405" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="1108,405 1096.0,400.0 1096.0,410.0" fill="#111111"/>
+<text x="1120" y="409" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">Календарь выходов</text>
+<polyline points="1000,445 1108,445" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="1108,445 1096.0,440.0 1096.0,450.0" fill="#111111"/>
+<text x="1120" y="449" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">Рекомендации</text>
+<polyline points="1000,490 1108,490" fill="none" stroke="#111111" stroke-width="1.6"/>
+<polygon points="1108,490 1096.0,485.0 1096.0,495.0" fill="#111111"/>
+<text x="1120" y="494" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">Уведомления</text></svg>

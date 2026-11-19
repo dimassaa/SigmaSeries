@@ -1,0 +1,26 @@
+@startuml
+!pragma layout smetana
+skinparam dpi 160
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam state {
+  BackgroundColor #F7F7F7
+  BorderColor #333333
+}
+
+state "Импортирован\n(imported)" as imported
+state "Опубликован\n(published)" as published
+state "Снят с публикации\n(archived)" as archived
+
+[*] --> imported : импорт каталога
+imported --> published : публикация\n(полнота карточки)
+published --> archived : снятие с публикации
+archived --> published : восстановление
+published --> [*] : удаление без истории
+archived --> [*] : удаление без истории
+
+note right of archived
+  Страница отвечает 410:
+  сериал был, но снят
+end note
+@enduml

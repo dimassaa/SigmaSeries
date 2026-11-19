@@ -1,0 +1,131 @@
+@startuml
+!pragma layout smetana
+skinparam dpi 160
+skinparam defaultFontName "DejaVu Sans"
+skinparam defaultFontSize 13
+skinparam nodesep 60
+skinparam ranksep 65
+hide circle
+hide methods
+hide stereotypes
+
+entity "Пользователь\ne_user" as user {
+  * id : bigint
+  --
+  email_hash : bytea
+  nickname : text
+  password_hash : text
+}
+
+entity "Роль\ne_role_assignment" as role {
+  * id : bigint
+  --
+  user_id : bigint
+  role : text
+  expires_at : timestamptz
+}
+
+entity "Сериал\ne_series" as series {
+  * id : bigint
+  --
+  slug : text
+  title_ru : text
+  title_en : text
+  publication_state : text
+}
+
+entity "Жанр\ne_genre" as genre {
+  * code : text
+  --
+  name_ru : text
+  name_en : text
+}
+
+entity "Сезон\ne_season" as season {
+  * id : bigint
+  --
+  series_id : bigint
+  number : smallint
+}
+
+entity "Серия\ne_episode" as episode {
+  * id : bigint
+  --
+  season_id : bigint
+  number : smallint
+  title_ru : text
+}
+
+entity "Выход\ne_release" as release {
+  * id : bigint
+  --
+  season_id : bigint
+  release_date : date
+  state : text
+}
+
+entity "Оценка\ne_rating" as rating {
+  * id : bigint
+  --
+  user_id : bigint
+  series_id : bigint
+  value : smallint
+}
+
+entity "Отзыв\ne_review" as review {
+  * id : bigint
+  --
+  user_id : bigint
+  series_id : bigint
+  rating_id : bigint
+  state : text
+}
+
+entity "Отметка\ne_watch_mark" as mark {
+  * id : bigint
+  --
+  user_id : bigint
+  episode_id : bigint
+  precision : text
+}
+
+entity "Статус\ne_watch_status" as status {
+  * id : bigint
+  --
+  user_id : bigint
+  series_id : bigint
+  value : text
+}
+
+entity "Подборка\ne_collection" as collection {
+  * id : bigint
+  --
+  slug : text
+  title_ru : text
+  active : boolean
+}
+
+entity "Персона\ne_person" as person {
+  * id : bigint
+  --
+  slug : text
+  name : text
+}
+
+user ||--o{ role
+user ||--o{ rating
+user ||--o{ review
+user ||--o{ mark
+user ||--o{ status
+series ||--o{ season
+series ||--o{ rating
+series ||--o{ review
+series ||--o{ status
+series }o--o{ genre : "жанры"
+series }o--o{ person : "участники"
+series }o--o{ collection : "подборки"
+season ||--o{ episode
+season ||--o{ release
+episode ||--o{ mark
+rating ||--o| review
+@enduml

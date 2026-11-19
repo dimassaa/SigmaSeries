@@ -1,0 +1,82 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1450" height="900" viewBox="0 0 1450 900"><rect width="1450" height="900" fill="#ffffff"/>
+<rect x="80" y="350" width="300" height="134" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="80" y1="384" x2="380" y2="384" stroke="#333333" stroke-width="1"/>
+<text x="230.0" y="372" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Сериал</text>
+<text x="92" y="404" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">slug : text</text>
+<text x="92" y="426" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">titleRu : text</text>
+<text x="92" y="448" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">titleEn : text</text>
+<text x="92" y="470" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">publicationState : text</text>
+<rect x="560" y="80" width="300" height="112" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="560" y1="114" x2="860" y2="114" stroke="#333333" stroke-width="1"/>
+<text x="710.0" y="102" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Жанр</text>
+<text x="572" y="134" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">code : text</text>
+<text x="572" y="156" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">nameRu : text</text>
+<text x="572" y="178" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">nameEn : text</text>
+<rect x="560" y="230" width="300" height="90" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="560" y1="264" x2="860" y2="264" stroke="#333333" stroke-width="1"/>
+<text x="710.0" y="252" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Персона</text>
+<text x="572" y="284" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">slug : text</text>
+<text x="572" y="306" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">name : text</text>
+<rect x="560" y="360" width="300" height="112" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="560" y1="394" x2="860" y2="394" stroke="#333333" stroke-width="1"/>
+<text x="710.0" y="382" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Подборка</text>
+<text x="572" y="414" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">slug : text</text>
+<text x="572" y="436" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">titleRu : text</text>
+<text x="572" y="458" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">active : boolean</text>
+<rect x="560" y="510" width="300" height="68" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="560" y1="544" x2="860" y2="544" stroke="#333333" stroke-width="1"/>
+<text x="710.0" y="532" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Сезон</text>
+<text x="572" y="564" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">number : smallint</text>
+<rect x="560" y="640" width="300" height="112" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="560" y1="674" x2="860" y2="674" stroke="#333333" stroke-width="1"/>
+<text x="710.0" y="662" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Изображение</text>
+<text x="572" y="694" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">role : text</text>
+<text x="572" y="716" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">focalX : numeric</text>
+<text x="572" y="738" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">focalY : numeric</text>
+<rect x="1030" y="510" width="300" height="90" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="1030" y1="544" x2="1330" y2="544" stroke="#333333" stroke-width="1"/>
+<text x="1180.0" y="532" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Серия</text>
+<text x="1042" y="564" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">number : smallint</text>
+<text x="1042" y="586" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">titleRu : text</text>
+<rect x="1030" y="650" width="300" height="90" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="1030" y1="684" x2="1330" y2="684" stroke="#333333" stroke-width="1"/>
+<text x="1180.0" y="672" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Выход</text>
+<text x="1042" y="704" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">date : date</text>
+<text x="1042" y="726" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">state : text</text>
+<rect x="1030" y="790" width="300" height="90" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<line x1="1030" y1="824" x2="1330" y2="824" stroke="#333333" stroke-width="1"/>
+<text x="1180.0" y="812" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Вариант</text>
+<text x="1042" y="844" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">width : int</text>
+<text x="1042" y="866" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">height : int</text>
+<polyline points="380,417.0 560,136.0" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="560,136.0 549.317006279699,143.40767474798997 557.7375427043962,148.80161267128364" fill="#111111"/>
+<text x="416.4" y="360.42" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">1</text>
+<text x="523.6" y="180.58" font-family="DejaVu Sans" font-size="12" text-anchor="end" font-weight="normal" fill="#111111">*</text>
+<polyline points="380,417.0 560,275.0" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="560,275.0 547.4819208438117,278.5068068437545 553.6755349210895,286.35786694171236" fill="#111111"/>
+<text x="416.4" y="385.44" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">1</text>
+<text x="523.6" y="294.56" font-family="DejaVu Sans" font-size="12" text-anchor="end" font-weight="normal" fill="#111111">*</text>
+<polyline points="380,417.0 560,416.0" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="560,416.0 547.9724078317803,411.06674279659165 548.0279625300169,421.0665884791761" fill="#111111"/>
+<text x="416.4" y="410.82" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">1</text>
+<text x="523.6" y="410.18" font-family="DejaVu Sans" font-size="12" text-anchor="end" font-weight="normal" fill="#111111">*</text>
+<polyline points="380,417.0 560,544.0" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="560,544.0 553.0774010436057,532.9964722161968 547.3123514209035,541.167408689318" fill="#111111"/>
+<text x="416.4" y="433.86" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">1</text>
+<text x="523.6" y="515.14" font-family="DejaVu Sans" font-size="12" text-anchor="end" font-weight="normal" fill="#111111">1..*</text>
+<polyline points="380,417.0 560,696.0" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="560,696.0 557.6959608032561,683.2058058721985 549.2929943210137,688.6270745704195" fill="#111111"/>
+<text x="416.4" y="461.22" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">1</text>
+<text x="523.6" y="639.78" font-family="DejaVu Sans" font-size="12" text-anchor="end" font-weight="normal" fill="#111111">0..*</text>
+<polyline points="860,544.0 1030,555.0" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="1030,555.0 1018.3478967441214,549.2355841827341 1017.7021882513524,559.2147154346201" fill="#111111"/>
+<text x="894.6" y="539.98" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">1</text>
+<text x="995.4" y="547.02" font-family="DejaVu Sans" font-size="12" text-anchor="end" font-weight="normal" fill="#111111">0..*</text>
+<polyline points="860,544.0 1030,695.0" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="1030,695.0 1024.3486311169747,683.2926506096395 1017.7077229353654,690.7691697544977" fill="#111111"/>
+<text x="894.6" y="565.18" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">1</text>
+<text x="995.4" y="661.8199999999999" font-family="DejaVu Sans" font-size="12" text-anchor="end" font-weight="normal" fill="#111111">0..*</text>
+<polyline points="860,696.0 1030,835.0" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="1030,835.0 1023.8750270068806,823.5333219355579 1017.5451292667794,831.2749234881995" fill="#111111"/>
+<text x="894.6" y="715.02" font-family="DejaVu Sans" font-size="12" text-anchor="start" font-weight="normal" fill="#111111">1</text>
+<text x="995.4" y="803.98" font-family="DejaVu Sans" font-size="12" text-anchor="end" font-weight="normal" fill="#111111">1..*</text></svg>

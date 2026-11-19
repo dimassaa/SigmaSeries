@@ -1,0 +1,91 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1250" height="1520" viewBox="0 0 1250 1520"><rect width="1250" height="1520" fill="#ffffff"/>
+<rect x="360" y="60" width="840" height="1380" fill="#f7f7f7" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="95" font-family="DejaVu Sans" font-size="18" text-anchor="middle" font-weight="bold" fill="#111111">SigmaSeries</text>
+<ellipse cx="780" cy="140" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="145" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Просмотр каталога</text>
+<polyline points="185,255 630,140" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,140 617.1306565824048,138.161522368915 619.6327267312188,147.84344598823847" fill="#111111"/>
+<ellipse cx="780" cy="220" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="225" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Поиск</text>
+<polyline points="185,255 630,220" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,220 617.6448975281836,215.9563082571843 618.4289928799761,225.92552058711775" fill="#111111"/>
+<ellipse cx="780" cy="300" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="305" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Карточка сериала</text>
+<polyline points="185,255 630,300" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,300 618.5639417130413,293.81804473833034 617.5578368784116,303.7673036585582" fill="#111111"/>
+<ellipse cx="780" cy="380" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="385" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Календарь выходов</text>
+<polyline points="185,255 630,380" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,380 619.7992935822783,371.94111741123794 617.0949705659152,381.56850734949063" fill="#111111"/>
+<ellipse cx="780" cy="460" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="465" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Оценка сериала</text>
+<polyline points="185,660 630,460" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,460 617.0049495174345,460.35869618839894 621.1043345277075,469.47982783625645" fill="#111111"/>
+<ellipse cx="780" cy="540" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="545" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Отзыв</text>
+<polyline points="185,660 630,540" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,540 617.1120562618464,538.2967953140655 619.7156812594533,547.9519046801906" fill="#111111"/>
+<ellipse cx="780" cy="620" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="625" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Отметка просмотра</text>
+<polyline points="185,660 630,620" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,620 617.6005534694389,616.0943981595976 618.4958203669523,626.0542423944346" fill="#111111"/>
+<ellipse cx="780" cy="700" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="705" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Библиотека</text>
+<polyline points="185,660 630,700" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,700 618.4958203669523,693.9457576055654 617.6005534694389,703.9056018404024" fill="#111111"/>
+<ellipse cx="780" cy="780" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="785" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Рекомендации</text>
+<polyline points="185,660 630,780" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,780 619.7156812594533,772.0480953198094 617.1120562618464,781.7032046859345" fill="#111111"/>
+<ellipse cx="780" cy="860" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="865" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Итоги года</text>
+<polyline points="185,660 630,860" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,860 621.1043345277075,850.5201721637436 617.0049495174345,859.6413038116011" fill="#111111"/>
+<ellipse cx="780" cy="960" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="965" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Модерация</text>
+<polyline points="185,880 630,960" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,960 619.0740314592591,952.9556255461013 617.3046438413254,962.7978441708577" fill="#111111"/>
+<ellipse cx="780" cy="1040" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="1045" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Аналитика</text>
+<polyline points="185,1030 630,1040" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,1040 618.1153599646553,1034.7316671298897 617.8906975821347,1044.7291431520605" fill="#111111"/>
+<ellipse cx="780" cy="1130" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="1135" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Ведение каталога</text>
+<polyline points="185,1180 630,1130" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,1130 617.5167535286877,1126.3711492815953 618.6333229805044,1136.308617402765" fill="#111111"/>
+<ellipse cx="780" cy="1210" rx="150" ry="30" fill="#ffffff" stroke="#333333" stroke-width="1.5"/>
+<text x="780" y="1215" font-family="DejaVu Sans" font-size="14" text-anchor="middle" font-weight="normal" fill="#111111">Импорт каталога</text>
+<polyline points="185,1180 630,1210" fill="none" stroke="#111111" stroke-width="1.3"/>
+<polygon points="630,1210 618.3634919448106,1204.2041669898529 617.6908614213893,1214.181519753936" fill="#111111"/>
+<circle cx="120" cy="197" r="14" fill="#ffffff" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="211" x2="120" y2="247" stroke="#111111" stroke-width="1.8"/>
+<line x1="98" y1="221" x2="142" y2="221" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="247" x2="104" y2="271" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="247" x2="136" y2="271" stroke="#111111" stroke-width="1.8"/>
+<text x="120" y="295" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Гость</text>
+<circle cx="120" cy="602" r="14" fill="#ffffff" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="616" x2="120" y2="652" stroke="#111111" stroke-width="1.8"/>
+<line x1="98" y1="626" x2="142" y2="626" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="652" x2="104" y2="676" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="652" x2="136" y2="676" stroke="#111111" stroke-width="1.8"/>
+<text x="120" y="700" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Зритель</text>
+<circle cx="120" cy="822" r="14" fill="#ffffff" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="836" x2="120" y2="872" stroke="#111111" stroke-width="1.8"/>
+<line x1="98" y1="846" x2="142" y2="846" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="872" x2="104" y2="896" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="872" x2="136" y2="896" stroke="#111111" stroke-width="1.8"/>
+<text x="120" y="920" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Редактор</text>
+<circle cx="120" cy="972" r="14" fill="#ffffff" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="986" x2="120" y2="1022" stroke="#111111" stroke-width="1.8"/>
+<line x1="98" y1="996" x2="142" y2="996" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="1022" x2="104" y2="1046" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="1022" x2="136" y2="1046" stroke="#111111" stroke-width="1.8"/>
+<text x="120" y="1070" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Аналитик</text>
+<circle cx="120" cy="1122" r="14" fill="#ffffff" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="1136" x2="120" y2="1172" stroke="#111111" stroke-width="1.8"/>
+<line x1="98" y1="1146" x2="142" y2="1146" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="1172" x2="104" y2="1196" stroke="#111111" stroke-width="1.8"/>
+<line x1="120" y1="1172" x2="136" y2="1196" stroke="#111111" stroke-width="1.8"/>
+<text x="120" y="1220" font-family="DejaVu Sans" font-size="15" text-anchor="middle" font-weight="bold" fill="#111111">Администратор</text>
+<text x="360" y="1475" font-family="DejaVu Sans" font-size="11" text-anchor="start" font-weight="normal" fill="#111111">Зритель, редактор, аналитик и администратор наследуют возможности</text>
+<text x="360" y="1492" font-family="DejaVu Sans" font-size="11" text-anchor="start" font-weight="normal" fill="#111111">предыдущей роли; на схеме показаны собственные варианты использования.</text></svg>
