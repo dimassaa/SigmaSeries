@@ -183,7 +183,7 @@ CREATE INDEX ix_audit_object ON e_audit_log (object_type, object_id, at DESC);
 -- стоил бы примерно трети бюджета база на картинки.
 CREATE TABLE e_image (
   id        BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  role      TEXT   NOT NULL CHECK (role IN ('poster','backdrop','banner','splash')),
+  role      TEXT   NOT NULL CHECK (role IN ('poster','backdrop','banner')),
   source    TEXT   NOT NULL DEFAULT 'tmdb' CHECK (source IN ('tmdb','manual')),
   source_path TEXT,                 -- путь в источнике: «что перекачивать в следующий раз»
   checksum  TEXT,                   -- хэш содержимого исходника: тот же файл не грузим заново
@@ -876,9 +876,6 @@ CREATE TABLE e_image_variant (
   file       BYTEA  NOT NULL,
   mime       TEXT   NOT NULL,
   bytes      INTEGER NOT NULL,
-  -- Заранее размытая копия: заставка показывает кадры размытыми, и фильтр
-  -- на большой картинке стоит дорого (R-PERF-13).
-  blurred    BOOLEAN NOT NULL DEFAULT FALSE,
   -- Имя файла содержит хеш содержимого, поэтому кэш immutable корректен
   checksum   TEXT   NOT NULL,
   CONSTRAINT uq_variant UNIQUE (image_id, width)
@@ -1175,24 +1172,6 @@ CREATE TABLE e_field_lock (
   CONSTRAINT uq_field_lock UNIQUE (series_id, field)
 );
 
--- ---------- Кадры заставки ----------
-
-CREATE TABLE e_splash_frame (
-  id          BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-  series_id   BIGINT REFERENCES e_series(id) ON DELETE SET NULL,
-  image_id    BIGINT NOT NULL REFERENCES e_image(id) ON DELETE RESTRICT,
-  ordinal     SMALLINT NOT NULL,
-  active      BOOLEAN NOT NULL DEFAULT TRUE,
-  -- Точка кадрирования кадра своя (F-10-09 §4, F-10-04): одна картинка может
-  -- стоять в двух кадрах, и кадры кадрируются по-разному.
-  focal_x     REAL NOT NULL DEFAULT 0.5,
-  focal_y     REAL NOT NULL DEFAULT 0.5
-);
--- Порядковый номер уникален только среди активных кадров: снятый кадр
--- не должен мешать поставить другой на его место. Частичная уникальность
--- в PostgreSQL — это индекс, а не ограничение (UNIQUE ... WHERE не парсится).
-CREATE UNIQUE INDEX uq_splash_ordinal ON e_splash_frame (ordinal) WHERE active;
-
 -- ---------- Зёрна вкуса (шаг 3 регистрации, F-01-01 §4) ----------
 
 -- Холодный старт для рекомендаций (M11): человек назвал любимые, и это знание
@@ -1345,8 +1324,9 @@ CREATE RULE no_delete_user AS ON DELETE TO e_user DO INSTEAD NOTHING;
 
 **Что эти проверки выявили и что пришлось исправить:**
 
-1. `UNIQUE (ordinal) WHERE active` в `e_splash_frame` — частичная уникальность
-   в PostgreSQL это индекс, а не ограничение. Схема не применялась вообще.
+1. `UNIQUE (ordinal) WHERE active` — частичная уникальность в PostgreSQL это
+   индекс, а не ограничение. Схема не применялась вообще (таблица кадров
+   заставки с тех пор удалена, но правило проверки осталось в истории).
 2. `R-SQL-01` в прежней формулировке **не работало**. `REVOKE … FROM PUBLIC`
    не отнимает права у владельца таблицы, а приложение подключалось владельцем.
    Теперь есть роль `st_app`, и права отзываются у неё.
