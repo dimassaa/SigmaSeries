@@ -204,3 +204,86 @@ test('жанровые плитки главной переводятся (№27
   assert.equal(ru.find((row) => row.code === genre.code)?.title, genre.name_ru,
     'русские плитки не изменились');
 });
+
+test('неопубликованный сериал не попадает на главную (ни в «Новинки», ни в баннеры)', { skip }, async () => {
+  // Импорт пишет каталог в состоянии `imported`: сериал виден только в студии.
+  // Его постер отдавать некому (маршрут картинок не serving импорт), поэтому
+  // на главной такая карточка — серая рамка без постера.
+  const slug = `home-imported-${crypto.randomUUID().slice(0, 8)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_en, title_original, publication_state, exit_state, year_start)
+     VALUES ($1, $2, 'Черновик', 'Draft', 'Draft', 'imported', 'airing', 2020) RETURNING id`,
+    [slug, `tt${crypto.randomUUID().slice(2, 12)}`],
+  );
+  const { rows: [season] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [series.id],
+  );
+  const { rows: [episode] } = await pool.query(
+    "INSERT INTO e_episode (season_id, number, title_ru) VALUES ($1, 1, 'Серия') RETURNING id", [season.id],
+  );
+  const { rows: [release] } = await pool.query(
+    `INSERT INTO e_release (season_id, release_date, precision, state, covers_season)
+     VALUES ($1, CURRENT_DATE, 'date', 'scheduled', TRUE) RETURNING id`, [season.id],
+  );
+  await pool.query(
+    'INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)',
+    [release.id, episode.id],
+  );
+  await pool.query(
+    `INSERT INTO e_banner (series_id, kind, show_on, active) VALUES ($1, 'editorial', CURRENT_DATE, TRUE)
+     ON CONFLICT (kind, show_on) DO NOTHING`, [series.id],
+  );
+
+  try {
+    const fresh = (await data.fresh('ru')).flat();
+    assert.ok(!fresh.some((item) => item.slug === slug),
+      'импортированный сериал не занимает «Новинки»');
+
+    const banners = await data.banners('ru');
+    assert.ok(!banners.some((item) => item.seriesSlug === slug),
+      'импортированный сериал не попадает в баннеры');
+  } finally {
+    await pool.query('DELETE FROM e_banner WHERE series_id = $1', [series.id]);
+    await pool.query('DELETE FROM e_season WHERE series_id = $1', [series.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
+});
+
+test('сериал с несколькими выходами в окне занимает в «Новинках» одну карточку', { skip }, async () => {
+  const slug = `home-twice-${crypto.randomUUID().slice(0, 8)}`;
+  const { rows: [series] } = await pool.query(
+    `INSERT INTO e_series (slug, imdb_key, title_ru, title_en, title_original, publication_state, exit_state, year_start)
+     VALUES ($1, $2, 'Двойной выход', 'Double Release', 'Double Release', 'published', 'airing', 2020)
+     RETURNING id`,
+    [slug, `tt${crypto.randomUUID().slice(2, 12)}`],
+  );
+  const { rows: [season] } = await pool.query(
+    'INSERT INTO e_season (series_id, number) VALUES ($1, 1) RETURNING id', [series.id],
+  );
+  const { rows: [episode] } = await pool.query(
+    "INSERT INTO e_episode (season_id, number, title_ru) VALUES ($1, 1, 'Серия') RETURNING id", [season.id],
+  );
+  // Два выхода в окне: пара эпизодов вышла в разные дни — карточка одна.
+  for (const days of [0, 1]) {
+    const { rows: [release] } = await pool.query(
+      `INSERT INTO e_release (season_id, release_date, precision, state, covers_season)
+       VALUES ($1, CURRENT_DATE - $2::int, 'date', 'aired', FALSE) RETURNING id`,
+      [season.id, days],
+    );
+    // eslint-disable-next-line no-await-in-loop
+    await pool.query(
+      'INSERT INTO e_release_episode (release_id, episode_id) VALUES ($1, $2)',
+      [release.id, episode.id],
+    );
+  }
+
+  try {
+    const fresh = (await data.fresh('ru')).flat();
+    assert.ok(fresh.some((item) => item.slug === slug), 'фикстура попала в ленту');
+    assert.equal(fresh.filter((item) => item.slug === slug).length, 1,
+      'одна карточка на сериал, а не по карточке на каждый выход');
+  } finally {
+    await pool.query('DELETE FROM e_season WHERE series_id = $1', [series.id]);
+    await pool.query('DELETE FROM e_series WHERE id = $1', [series.id]);
+  }
+});

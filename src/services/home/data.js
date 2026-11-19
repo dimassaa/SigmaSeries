@@ -69,7 +69,9 @@ export function pgData(pool, { recommendations = null } = {}) {
           JOIN e_series s ON s.id = b.series_id
           LEFT JOIN e_external_rating r
                  ON r.series_id = s.id AND r.platform = 'imdb'
-         WHERE b.active AND b.show_on <= $2
+         -- Только опубликованный каталог: импортные строки живут в студии, а
+         -- их постеры маршрут картинок не отдаёт — на главной это серая рамка.
+         WHERE b.active AND b.show_on <= $2 AND s.publication_state = 'published'
          ORDER BY CASE b.kind WHEN 'new' THEN 1 WHEN 'classic' THEN 2 ELSE 3 END
          LIMIT $1`, [bannersPerDay, localDate()]);
       return rows.map(decorateBanner);
@@ -80,17 +82,18 @@ export function pgData(pool, { recommendations = null } = {}) {
       // Три круга по шесть приходят одним ответом: переключение круга не
       // ходит в сеть и не меняет адрес (F-06-03 §8а).
       const { rows } = await pool.query(`
-        WITH ranked AS (
-          SELECT s.slug,
+        WITH per_series AS (
+          -- Одна карточка на сериал: у выходящего в окне бывает несколько
+          -- выходов, и каждый не должен занимать отдельное место в ленте.
+          -- Берём последний выход сериала — по нему и дата, и порядок.
+          SELECT DISTINCT ON (s.id)
+                 s.slug,
                  coalesce(s.title_ru, s.title_original) AS title,
                  s.title_ru, s.title_en, s.title_original,
                  s.year_start,
                  rel.release_date,
                  r.value::float AS imdb,
-                 pv.width AS poster_width,
-                 row_number() OVER (
-                   ORDER BY rel.release_date DESC, r.value DESC NULLS LAST, s.slug
-                 ) AS rn
+                 pv.width AS poster_width
             FROM e_series s
             JOIN e_season se ON se.series_id = s.id
             JOIN e_release rel ON rel.season_id = se.id
@@ -102,11 +105,17 @@ export function pgData(pool, { recommendations = null } = {}) {
               WHERE i2.series_id = s.id AND i2.role = 'poster'
               ORDER BY iv.width LIMIT 1
             ) pv ON true
-           WHERE s.archived_at IS NULL
+           WHERE s.publication_state = 'published'
+             AND s.archived_at IS NULL
              AND s.exit_state IN ('airing','announced')
              AND rel.release_date <= CURRENT_DATE
              AND rel.release_date >= CURRENT_DATE - INTERVAL '14 days'
-           GROUP BY s.id, rel.release_date, r.value, pv.width
+           ORDER BY s.id, rel.release_date DESC, r.value DESC NULLS LAST
+        ), ranked AS (
+          SELECT *, row_number() OVER (
+                   ORDER BY release_date DESC, imdb DESC NULLS LAST, slug
+                 ) AS rn
+            FROM per_series
         )
         SELECT * FROM ranked WHERE rn <= $1 ORDER BY rn`,
       [freshPerPage * freshPages]);
